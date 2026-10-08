@@ -4,16 +4,30 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $019", ROMX[$4000], BANK[$19]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_19::
 	db $19
 
+;@ path: system/banks
+;@ Entry point of bank $19 for far calls: the floor map screen.
 FarTable_19::
 	dw RunGateMap
 
+;@ def RunGateMap()
+;@ path: field/floormap
+;@ The floor map screen of a gate world (bank 6 runs it while wFieldFlags bit 3 is set):
+;@ a quarter-size map of the floor's 16 rooms (4 x 4, each drawn from a 5 x 4 tile piece),
+;@ the floor number and, with the right items, markers for the goal. Steps (wMenuStep):
+;@ 0 set up, 1 draw the rooms, 2 show it until a button, 3 restore the field, 4 close.
+;@ test: skip jump table
 RunGateMap::
+;> return GateMapSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: field/floormap
+;@ Steps of RunGateMap.
 GateMapSteps::
 	dw GateMapInit
 	dw GateMapDrawRooms
@@ -21,368 +35,471 @@ GateMapSteps::
 	dw GateMapRestore
 	dw GateMapClose
 
+;@ def GateMapDrawRooms()
+;@ path: field/floormap
+;@ Draws the 16 rooms of the floor (4 x 4) at their places (GateRoomMapOffsets): a room the
+;@ player has seen (wFloorsSeen) shows its layout from wFloorLayout, any other room the blank
+;@ piece $F0. Outside the gate floors every room is blank.
+;@ test: skip writes VRAM
 GateMapDrawRooms::
+;>@rooms for room in range(16):
 	ld b, $10
 	ld c, $00
 
-jr_019_4015:
+.room
+;>     entry = GateRoomMapOffsets + 2 * room
 	push bc
-	ld hl, $4054
+	ld hl, GateRoomMapOffsets
 	ld a, c
 	add a
 	add l
 	ld l, a
+;>     offset = mem16[entry]
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@lay     layout = wFloorLayout[room] if wOnGateFloor and wFloorsSeen[room] else 0xF0
 	ld a, [wOnGateFloor]
 	or a
 	ld a, $f0
-	jr z, jr_019_4047
+	jr z, .draw
 
 	ld de, wFloorsSeen
 	ld a, c
+;=@lay
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
+;=@lay
 	or a
 	ld a, $f0
-	jr z, jr_019_4047
+	jr z, .draw
 
+;=@lay
 	ld de, wFloorLayout
 	ld a, c
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@lay
 	ld d, a
 	ld a, [de]
 
-jr_019_4047:
+.draw
+;>     DrawGateRoom(offset, layout)
 	call DrawGateRoom
+;=@rooms
 	pop bc
 	inc c
 	dec b
-	jr nz, jr_019_4015
+	jr nz, .room
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ path: field/floormap
+;@ Where GateMapDrawRooms draws the 16 rooms: offsets (row * 32 + column) from the screen
+;@ corner, 4 rooms across, 5 tiles apart, 4 rows down.
 GateRoomMapOffsets::
 	db $00, $00, $05, $00, $0a, $00, $0f, $00, $80, $00, $85, $00, $8a, $00, $8f, $00
 	db $00, $01, $05, $01, $0a, $01, $0f, $01, $80, $01, $85, $01, $8a, $01, $8f, $01
 
+;@ def GateMapShow()
+;@ path: field/floormap
+;@ Draws the markers on the floor map every frame: on a gate floor with item $26 in the bag
+;@ an arrow (GetGoalArrowTile) pointing from the player towards the goal, Terry's marker
+;@ (tile $A9) and, once the goal's room has been seen, the goal marker (SetMarkerPosition);
+;@ then the floor number and the number of floors as digit sprites (tile = 2 * digit).
+;@ Any button but Start goes on. Each marker is described in hSpriteX..hSpriteAttr and drawn
+;@ with DrawFieldMarkerOnScreen (marker set 2).
+;@ test: skip draws sprites
 GateMapShow::
+;> if wOnGateFloor:
 	ld a, [wOnGateFloor]
 	or a
-	jp z, Jump_019_413e
+	jp z, .floorNumber
 
+;>@item     if 0x26 in wBagItems:
 	ld hl, wBagItems
 	ld b, $14
 
-jr_019_4080:
+.bag
+;=@item
 	ld a, [hli]
 	cp $26
-	jr z, jr_019_408a
+	jr z, .arrow
 
 	dec b
-	jr nz, jr_019_4080
+	jr nz, .bag
 
-	jr jr_019_40e8
+	jr .markers
 
-jr_019_408a:
+.arrow
+;>         arrow = GetGoalArrowTile()
 	call GetGoalArrowTile
 	push af
+;>         hSpriteX = 0x88
 	ld hl, hSpriteX
 	ld a, $88
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>         hSpriteY = 0x08
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>         hSpriteSet = 2; hSpriteFrame = 3
 	ld a, $02
 	ld [hli], a
 	ld a, $03
 	ld [hli], a
+;>         hSpriteTileBase = arrow; hSpriteAttr = 0
 	pop af
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>         goal_y = wGoalY >> 2                     # the map is drawn at a quarter of the size
 	ld a, [wGoalY]
 	ld l, a
-	ld a, [$c967]
+	ld a, [wGoalY + 1]
 	ld h, a
 	srl h
 	rr l
+;>         y = (goal_y - hScrollY) & 0xFF        # on the screen
 	srl h
 	rr l
 	ldh a, [hScrollY]
 	ld b, a
 	ld a, l
 	sub b
+;>         if (y + 4) & 0xFF < 0x20:            # the goal is near the top of the screen
 	add $04
 	cp $20
-	jr nc, jr_019_40e4
+	jr nc, .drawArrow
 
+;>             goal_x = wGoalX >> 2
 	ld a, [wGoalX]
 	ld l, a
-	ld a, [$c965]
+	ld a, [wGoalX + 1]
 	ld h, a
 	srl h
 	rr l
+;>             x = (goal_x - hScrollX) & 0xFF
 	srl h
 	rr l
 	ldh a, [hScrollX]
 	ld b, a
 	ld a, l
 	sub b
+;>             if 0x84 <= x < 0xA4:           # ... and at the right edge, under the arrow
 	sub $84
-	jr c, jr_019_40e4
+	jr c, .drawArrow
 
 	cp $20
-	jr nc, jr_019_40e4
+	jr nc, .drawArrow
 
+;>                 hSpriteY = 0x68        # so the arrow moves down out of the way
 	ld a, $68
 	ldh [hSpriteY], a
 
-jr_019_40e4:
+.drawArrow
+;>         DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 
-jr_019_40e8:
+.markers
+;>     hSpriteX = 0x4B      # Terry's marker
 	ld hl, hSpriteX
 	ld a, $4b
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteY = 0x3C
 	ld a, $3c
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteSet = 2; hSpriteFrame = 2
 	ld a, $02
 	ld [hli], a
 	ld a, $02
 	ld [hli], a
+;>     hSpriteTileBase = 0xA9; hSpriteAttr = 0
 	ld a, $a9
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
+;>     entry = wFloorsSeen + wStairsScreen   # the room the goal is in
 	ld a, [wStairsScreen]
 	ld hl, wFloorsSeen
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>     if mem[entry]:                       # seen: show the goal
 	ld h, a
 	ld a, [hl]
 	or a
-	jr z, jr_019_413e
+	jr z, .floorNumber
 
+;>         x = wGoalX - 16
 	ld a, [wGoalX]
 	ld e, a
-	ld a, [$c965]
+	ld a, [wGoalX + 1]
 	ld d, a
 	ld a, e
 	sub $10
+;>         # (high byte)
 	ld e, a
 	ld a, d
 	sbc $00
 	ld d, a
+;>         y = wGoalY - 16
 	ld a, [wGoalY]
 	ld c, a
-	ld a, [$c967]
+	ld a, [wGoalY + 1]
 	ld b, a
 	ld a, c
 	sub $10
+;>         # (high byte)
 	ld c, a
 	ld a, b
 	sbc $00
 	ld b, a
+;>         SetMarkerPosition(x, y)
 	call SetMarkerPosition
+;>         DrawFieldMarker()
 	ld hl, far_DrawFieldMarker
 	rst $10
 
-Jump_019_413e:
-jr_019_413e:
+.floorNumber
+;> hSpriteX = 0x08      # the floor label
 	ld hl, hSpriteX
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x08
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = 2; hSpriteFrame = 1
 	ld a, $02
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
+;> hSpriteTileBase = 0x00; hSpriteAttr = 0
 	ld a, $00
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
+;> PrintNumber2Zeros(wNumberBackup, wGateFloor + 1)   # tens into wNumberBackup, ones into $C0A1 ($F0 = blank)
 	ld hl, wNumberBackup
 	ld a, [wGateFloor]
 	ld c, a
 	ld b, $00
 	inc bc
 	call PrintNumber2Zeros
+;> if wNumberBackup != 0xF0:
 	ld a, [wNumberBackup]
 	cp $f0
-	jr z, jr_019_4193
+	jr z, .ones
 
+;>     tile = 2 * (wNumberBackup & 0x0F)
 	and $0f
 	add a
 	push af
+;>     hSpriteX = 0x28
 	ld hl, hSpriteX
 	ld a, $28
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteY = 0x08
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteSet = 2; hSpriteFrame = 0
 	ld a, $02
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteTileBase = tile; hSpriteAttr = 0
 	pop af
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 
-jr_019_4193:
+.ones
+;> tile = 2 * (mem[0xC0A1] & 0x0F)
 	ld a, [$c0a1]
 	and $0f
 	add a
 	push af
+;> hSpriteX = 0x30
 	ld hl, hSpriteX
 	ld a, $30
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x08
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = 2; hSpriteFrame = 0
 	ld a, $02
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteTileBase = tile; hSpriteAttr = 0
 	pop af
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
+;> PrintNumber2Zeros(wNumberBackup, wGateFloors - 1)  # the number of floors
 	ld hl, wNumberBackup
 	ld a, [wGateFloors]
 	ld c, a
 	ld b, $00
 	dec bc
 	call PrintNumber2Zeros
+;> if wNumberBackup != 0xF0:
 	ld a, [wNumberBackup]
 	cp $f0
-	jr z, jr_019_41ee
+	jr z, .totalOnes
 
+;>     tile = 2 * (wNumberBackup & 0x0F)
 	and $0f
 	add a
 	push af
+;>     hSpriteX = 0x40
 	ld hl, hSpriteX
 	ld a, $40
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteY = 0x08
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteSet = 2; hSpriteFrame = 0
 	ld a, $02
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteTileBase = tile; hSpriteAttr = 0
 	pop af
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 
-jr_019_41ee:
+.totalOnes
+;> tile = 2 * (mem[0xC0A1] & 0x0F)
 	ld a, [$c0a1]
 	and $0f
 	add a
 	push af
+;> hSpriteX = 0x48
 	ld hl, hSpriteX
 	ld a, $48
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x08
 	ld a, $08
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = 2; hSpriteFrame = 0
 	ld a, $02
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteTileBase = tile; hSpriteAttr = 0
 	pop af
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> DrawFieldMarkerOnScreen()
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
+;> if wJoyPressed & ~0x08:               # any button but Start
+;>     wMenuStep += 1
 	ld a, [wJoyPressed]
 	and $f7
-	jr z, jr_019_4220
+	jr z, .done
 
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_019_4220
+	jr .done
 
-jr_019_4220:
+.done
+;> return
 	ret
 
 
+;@ def SetMarkerPosition(x: de, y: bc)
+;@ path: field/floormap
+;@ Describes the goal marker for DrawFieldMarker: the map position (x, y) shrunk to the
+;@ quarter-size floor map, marker set 0, frame 0, tile base $AC.
 SetMarkerPosition::
+;> x >>= 2
 	srl d
 	rr e
 	srl d
 	rr e
+;> y >>= 2
 	srl b
 	rr c
 	srl b
 	rr c
+;> hSpriteX = x
 	ld hl, hSpriteX
 	ld a, e
 	ld [hli], a
 	ld a, d
 	ld [hli], a
+;> hSpriteY = y
 	ld a, c
 	ld [hli], a
 	ld a, b
 	ld [hli], a
+;> hSpriteSet = 0; hSpriteFrame = 0
 	ld a, $00
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteTileBase = 0xAC; hSpriteAttr = 0
 	ld a, $ac
 	ld [hli], a
 	ld a, $00
@@ -390,386 +507,513 @@ SetMarkerPosition::
 	ret
 
 
+;@ def GateMapRestore()
+;@ path: field/floormap
+;@ Step 3 of the floor map: clears the background map and puts back the scroll position the
+;@ field had when the map was opened (saved at $FFBF and $FFC1).
+;@ test: skip writes VRAM
 GateMapRestore::
+;> ClearBGMap_19()
 	call ClearBGMap_19
+;>@x hScrollX = mem16[0xFFBF]
 	ldh a, [$ffbf]
 	ld l, a
 	ldh a, [$ffc0]
 	ld h, a
 	ld a, l
 	ldh [hScrollX], a
+;=@x
 	ld a, h
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
+;>@y hScrollY = mem16[0xFFC1]
 	ldh a, [$ffc1]
 	ld l, a
 	ldh a, [$ffc2]
 	ld h, a
 	ld a, l
 	ldh [hScrollY], a
+;=@y
 	ld a, h
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def GetGoalArrowTile() -> a
+;@ path: field/floormap
+;@ Picks the arrow tile that points from Terry towards the floor's goal. Both positions are
+;@ rounded down to 16-pixel tiles. The row part is 0 when the goal lies mostly to the side,
+;@ else 3 (goal above) or 6 (goal below); the column part is 0 when it lies mostly above or
+;@ below, else 1 (left) or 2 (right). "Mostly to the side" means the other distance is $20
+;@ against at least $50, or $10 against at least $30. The tile is GoalArrowTiles[row + column - 1];
+;@ with Terry on the goal's tile the index would be 0, which reads the byte before the table.
 GetGoalArrowTile::
+;> py = hPlayerY & 0xFFF0
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	and $f0
+;> gy = wGoalY & 0xFFF0
 	ld l, a
 	ld a, [wGoalY]
 	ld e, a
-	ld a, [$c967]
+	ld a, [wGoalY + 1]
 	ld d, a
 	ld a, e
+;> dy = py - gy
 	and $f0
 	ld e, a
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
+;> if dy < 0:
 	sbc d
 	ld h, a
-	jr nc, jr_019_4291
+	jr nc, .dyPositive
 
+;>     dy = -dy
 	ld a, l
 	cpl
 	add $01
 	ld l, a
 	ld a, h
 	cpl
+;>     # (high byte)
 	adc $00
 	ld h, a
 
-jr_019_4291:
+.dyPositive
+;> px = hPlayerX & 0xFFF0
 	ldh a, [hPlayerX]
 	ld e, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld d, a
 	ld a, e
 	and $f0
+;> gx = wGoalX & 0xFFF0
 	ld e, a
 	ld a, [wGoalX]
 	ld c, a
-	ld a, [$c965]
+	ld a, [wGoalX + 1]
 	ld b, a
 	ld a, c
+;> dx = px - gx
 	and $f0
 	ld c, a
 	ld a, e
 	sub c
 	ld e, a
 	ld a, d
+;> if dx < 0:
 	sbc b
 	ld d, a
-	jr nc, jr_019_42b9
+	jr nc, .dxPositive
 
+;>     dx = -dx
 	ld a, e
 	cpl
 	add $01
 	ld e, a
 	ld a, d
 	cpl
+;>     # (high byte)
 	adc $00
 	ld d, a
 
-jr_019_42b9:
+.dxPositive
+;>@near if dy < 0x100 and dx < 0x100 and (dy == 0x20 and dx >= 0x50 or dy == 0x10 and dx >= 0x30):
 	push hl
 	push de
 	ld a, h
 	or a
-	jr nz, jr_019_42de
+	jr nz, .rowFromY
 
+;=@near
 	ld a, d
 	or a
-	jr nz, jr_019_42de
+	jr nz, .rowFromY
 
 	ld a, l
 	cp $20
-	jr nz, jr_019_42d1
+	jr nz, .dy10
 
+;=@near
 	ld a, e
 	cp $50
-	jr c, jr_019_42de
+	jr c, .rowFromY
 
+;>@r0     row = 0                            # the goal lies to the side
 	ld b, $00
-	jr jr_019_42fe
+	jr .column
 
-jr_019_42d1:
+.dy10
+;=@near
 	cp $10
-	jr nz, jr_019_42de
+	jr nz, .rowFromY
 
 	ld a, e
 	cp $30
-	jr c, jr_019_42de
+	jr c, .rowFromY
 
+;=@r0
 	ld b, $00
-	jr jr_019_42fe
+	jr .column
 
-jr_019_42de:
+.rowFromY
+;> else:
+;>     d = hPlayerY - wGoalY
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, [wGoalY]
 	ld e, a
-	ld a, [$c967]
+;>     # (16-bit subtraction)
+	ld a, [wGoalY + 1]
 	ld d, a
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
+;>     if d < 0:
+;>         row = 6                        # the goal is below
 	sbc d
 	ld h, a
 	ld b, $06
-	jr c, jr_019_42fe
+	jr c, .column
 
+;>     elif d != 0:
+;>         row = 3                        # the goal is above
 	ld a, h
 	or l
 	ld b, $03
-	jr nz, jr_019_42fe
+	jr nz, .column
 
+;>     else:
+;>         row = 0
 	ld b, $00
 
-jr_019_42fe:
+.column
+;>@side if dx < 0x100 and dy < 0x100 and (dx == 0x20 and dy >= 0x50 or dx == 0x10 and dy >= 0x30):
 	pop de
 	pop hl
 	ld a, h
 	or a
-	jr nz, jr_019_4323
+	jr nz, .columnFromX
 
+;=@side
 	ld a, d
 	or a
-	jr nz, jr_019_4323
+	jr nz, .columnFromX
 
 	ld a, e
 	cp $20
-	jr nz, jr_019_4316
+	jr nz, .dx10
 
+;=@side
 	ld a, l
 	cp $50
-	jr c, jr_019_4323
+	jr c, .columnFromX
 
+;>@c0     column = 0                         # the goal lies above or below
 	ld a, $00
-	jr jr_019_4343
+	jr .tile
 
-jr_019_4316:
+.dx10
+;=@side
 	cp $10
-	jr nz, jr_019_4323
+	jr nz, .columnFromX
 
 	ld a, l
 	cp $30
-	jr c, jr_019_4323
+	jr c, .columnFromX
 
+;=@c0
 	ld a, $00
-	jr jr_019_4343
+	jr .tile
 
-jr_019_4323:
+.columnFromX
+;> else:
+;>     d = hPlayerX - wGoalX
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, [wGoalX]
 	ld e, a
-	ld a, [$c965]
+;>     # (16-bit subtraction)
+	ld a, [wGoalX + 1]
 	ld d, a
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
+;>     if d < 0:
+;>         column = 2                     # the goal is to the right
 	sbc d
 	ld h, a
 	ld a, $02
-	jr c, jr_019_4343
+	jr c, .tile
 
+;>     elif d != 0:
+;>         column = 1                     # the goal is to the left
 	ld a, h
 	or l
 	ld a, $01
-	jr nz, jr_019_4343
+	jr nz, .tile
 
+;>     else:
+;>         column = 0
 	ld a, $00
 
-jr_019_4343:
+.tile
+;> entry = GoalArrowTiles - 1 + row + column
 	add b
-	ld hl, $434e
+	ld hl, GoalArrowTiles - 1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> return mem[entry]
 	ld h, a
 	ld a, [hl]
 	ret
 
 
+;@ path: field/floormap
+;@ Arrow tiles of GetGoalArrowTile, by row + column - 1: to the left, to the right, up,
+;@ up-left, up-right, down, down-left, down-right.
 GoalArrowTiles::
 	db $b4, $b6, $b0, $b8, $ba, $b2, $bc, $be
 
+;@ def RoundToTile_19(ptr: hl)
+;@ path: field/floormap
+;@ Rounds the 16-bit value at `ptr` to the nearest multiple of 8 (a whole tile).
 RoundToTile_19::
+;> mem16[ptr] += 4
 	ld a, [hl]
 	add $04
 	ld [hli], a
 	ld a, [hl]
 	adc $00
 	ld [hld], a
+;> mem[ptr] &= 0xF8
 	ld a, [hl]
 	and $f8
 	ld [hl], a
 	ret
 
 
+;@ def GateMapInit()
+;@ path: field/floormap
+;@ Step 0 of the floor map: resets the scroll, clears the 8 bytes at wMenuChoice, sets
+;@ wWindowBgMap to the BG map corner, unpacks the map's tiles to $8800-$8BFF, scrolls so that
+;@ Terry's place on the quarter-size map is at (80, 64) on the screen, and clears the
+;@ background map and its attributes.
+;@ test: skip writes VRAM
 GateMapInit::
+;> hScrollX = 0
 	xor a
 	ldh [hScrollX], a
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
+;> hScrollY = 0
 	xor a
 	ldh [hScrollY], a
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
+;> RoundToTile_19(hScrollX)
 	ld hl, hScrollX
 	call RoundToTile_19
+;> RoundToTile_19(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile_19
+;> FillMemory(wMenuChoice, 8, 0)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@c corner = 0x9800 | ((4 * hScrollY + hScrollX // 8) & 0x3FF)
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@c
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@c
 	adc $98
 	ld h, a
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;> wWindowBgMap = corner
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> DecompressVRAM(0x281C, 0x8800)
 	ld de, $281c
 	ld hl, $8800
 	call DecompressVRAM
+;> DecompressVRAM(0x281F, 0x8900)
 	ld de, $281f
 	ld hl, $8900
 	call DecompressVRAM
+;> DecompressVRAM(0x281D, 0x8A90)
 	ld de, $281d
 	ld hl, $8a90
 	call DecompressVRAM
+;> DecompressVRAM(0x281E, 0x8AC0)
 	ld de, $281e
 	ld hl, $8ac0
 	call DecompressVRAM
+;> DecompressVRAM(0x2E23, 0x8B00)
 	ld de, $2e23
 	ld hl, $8b00
 	call DecompressVRAM
+;>@sx hScrollX = ((hPlayerX - 8) >> 2) - 0x50
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	sub $08
+;=@sx
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
 	srl h
 	rr l
+;=@sx
 	srl h
 	rr l
 	ld a, l
 	sub $50
 	ld l, a
 	ld a, h
+;=@sx
 	sbc $00
 	ld h, a
 	ld a, l
 	ldh [hScrollX], a
 	ld a, h
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
+;>@sy hScrollY = ((hPlayerY - 9) >> 2) - 0x40
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	sub $09
+;=@sy
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
 	srl h
 	rr l
+;=@sy
 	srl h
 	rr l
 	ld a, l
 	sub $40
 	ld l, a
 	ld a, h
+;=@sy
 	sbc $00
 	ld h, a
 	ld a, l
 	ldh [hScrollY], a
 	ld a, h
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
+;> ClearBGMap_19()
 	call ClearBGMap_19
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ClearBGMap_19()
+;@ path: field/floormap
+;@ Fills the whole background map ($9800-$9BFF) with the blank tile $E0.
+;@ test: skip writes VRAM
 ClearBGMap_19::
+;> pos = 0x9800
 	ld hl, $9800
 	ld b, $00
 
-jr_019_442b:
+.loop
+;>@f for i in range(1024):                   # (256 rounds of 4 tiles)
+;>     WriteVRAMInc(0xE0, pos); pos += 1
 	ld a, $e0
 	call WriteVRAMInc
 	ld a, $e0
 	call WriteVRAMInc
 	ld a, $e0
 	call WriteVRAMInc
+;=@f
 	ld a, $e0
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_019_442b
+	jr nz, .loop
 
 	ret
 
 
+;@ def GateMapClose()
+;@ path: field/floormap
+;@ Step 4 of the floor map: hides the window, redraws the field screen and the status bar and
+;@ ends the floor map (wFieldFlags bit 3).
+;@ test: skip calls a routine in another bank
 GateMapClose::
+;> hWY = 0xFF
 	ld a, $ff
 	ldh [hWY], a
+;> DrawMapScreen()
 	ld hl, far_DrawMapScreen
 	rst $10
+;> DrawStatusBar()
 	call DrawStatusBar
+;> wFieldFlags &= ~0x08
 	ld hl, wFieldFlags
 	res 3, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def NextMapColumn_19(pos: hl) -> hl
+;@ path: field/floormap
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row (a is kept).
 NextMapColumn_19::
+;> row = pos & 0xFFE0
 	push af
 	ld a, l
 	and $e0
 	push af
+;> column = (pos + 1) & 0x1F
 	ld a, l
 	inc a
 	and $1f
 	ld l, a
+;> return row | column
 	pop af
 	or l
 	ld l, a
@@ -777,123 +1021,181 @@ NextMapColumn_19::
 	ret
 
 
+;@ def AddMapOrigin_19(offset: hl) -> hl
+;@ path: field/floormap
+;@ Adds `offset` to the BG map corner wWindowBgMap, wrapping around within the 1 KiB map.
 AddMapOrigin_19::
+;> low = (wWindowBgMap + offset) & 0xFF
 	ld a, [wWindowBgMap]
 	add l
 	ld l, a
-	ld a, [$c90a]
+;> high = ((wWindowBgMap + offset) >> 8) & 0x03
+	ld a, [wWindowBgMap + 1]
 	adc h
 	and $03
 	ld h, a
-	ld a, [$c90a]
+;> return ((wWindowBgMap & 0xFC00) | (high << 8)) + low
+	ld a, [wWindowBgMap + 1]
 	and $fc
 	or h
 	ld h, a
 	ret
 
 
+;@ def MapCellAddress_19(offset: hl) -> hl
+;@ path: field/floormap
+;@ BG map address of `offset` (row * 32 + column) counted from the screen corner: the row is
+;@ added with AddMapOrigin_19, then the column is stepped with NextMapColumn_19 so it wraps
+;@ within the row.
 MapCellAddress_19::
+;> pos = AddMapOrigin_19(offset & 0xFFE0)
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
 	call AddMapOrigin_19
+;>@col for i in range(offset & 0x1F):
+;>     pos = NextMapColumn_19(pos)
 	ld a, b
 	and $1f
-	jr z, jr_019_4490
+	jr z, .done
 
 	ld b, a
 
-jr_019_448a:
+.column
+;=@col
 	call NextMapColumn_19
 	dec b
-	jr nz, jr_019_448a
+	jr nz, .column
 
-jr_019_4490:
+.done
+;> return pos
 	pop bc
 	ret
 
 
+;@ def DrawGateRoom(offset: hl, layout: a)
+;@ path: field/floormap
+;@ Draws one room of the floor map: a 5 x 4 tile piece at `offset` from the screen corner.
+;@ The high nibble of `layout` picks a piece list (GateRoomLayouts1, or GateRoomLayouts2 when
+;@ wFloorKind is 2), the low nibble the piece in it (20 tiles each). $F0 is the blank
+;@ piece. The fourth row is drawn by running on into DrawGateRoomRow. hNumber holds the
+;@ address of the current row.
+;@ test: skip writes VRAM
 DrawGateRoom::
+;>@l lists = GateRoomLayouts2 if wFloorKind == 2 else GateRoomLayouts1
 	push hl
 	push af
 	swap a
 	and $0f
 	ld l, a
 	ld h, $00
-	ld de, $4500
+;=@l
+	ld de, GateRoomLayouts1
 	ld a, [wFloorKind]
 	cp $02
-	jr nz, jr_019_44a8
+	jr nz, .lists
 
-	ld de, $4520
+	ld de, GateRoomLayouts2
 
-jr_019_44a8:
+.lists
+;>@p piece = mem16[lists + 2 * (layout >> 4)] + 20 * (layout & 0x0F)
 	add hl, hl
 	add hl, de
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	pop af
+;=@p
 	and $0f
 	ld c, $14
 	call Multiply
 	add hl, de
 	ld e, l
 	ld d, h
+;> pos = MapCellAddress_19(offset)
 	pop hl
 	call MapCellAddress_19
+;> mem16[hNumber] = pos
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
+;> DrawGateRoomRow(piece, pos); DrawGateRoomRow(); DrawGateRoomRow()
 	call DrawGateRoomRow
 	call DrawGateRoomRow
 	call DrawGateRoomRow
 
+;@ def DrawGateRoomRow(piece: de, pos: hl) -> hl
+;@ path: field/floormap
+;@ Draws the next 5 tiles of a room piece, then moves the row address in hNumber one row
+;@ down (wrapping within the BG map) and returns it.
+;@ test: skip writes VRAM
 DrawGateRoomRow::
+;> for i in range(5):
+;>     PutGateRoomTile(piece, pos)
 	call PutGateRoomTile
 	call PutGateRoomTile
 	call PutGateRoomTile
 	call PutGateRoomTile
 	call PutGateRoomTile
+;>@r row = mem16[hNumber] + 32
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@r
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> row = 0x9800 | (row & 0x3FF)
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;> mem16[hNumber] = row
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
+;> return row
 	ret
 
 
+;@ def PutGateRoomTile(piece: de, pos: hl)
+;@ path: field/floormap
+;@ Writes the next tile of a room piece (tile number | $80) and steps both addresses.
+;@ test: skip writes VRAM
 PutGateRoomTile::
+;> WriteVRAM(mem[piece] | 0x80, pos); piece += 1
 	ld a, [de]
 	or $80
 	inc de
 	call WriteVRAM
+;> pos = NextMapColumn_19(pos)
 	call NextMapColumn_19
 	ret
 
 
+;@ path: field/floormap
+;@ Floor map pieces by the high nibble of a room's layout byte: 16 addresses of lists in
+;@ GateRoomTiles, each list a run of 5 x 4 tile pieces picked by the low nibble. Entry 15 is
+;@ the blank piece.
 GateRoomLayouts1::
 	db $40, $45, $44, $46, $48, $47, $4c, $48, $50, $49, $54, $4a, $58, $4b, $5c, $4c
 	db $60, $4d, $64, $4e, $68, $4f, $6c, $50, $70, $51, $74, $52, $78, $53, $7c, $54
+;@ path: field/floormap
+;@ The same for the floors where wFloorKind is 2.
 GateRoomLayouts2::
 	db $80, $55, $98, $56, $24, $57, $b0, $57, $3c, $58, $c8, $58, $18, $59, $7c, $59
 	db $e0, $59, $44, $5a, $a8, $5a, $f8, $5a, $34, $5b, $70, $5b, $ac, $5b, $7c, $54
+;@ path: field/floormap
+;@ The floor map pieces: 20 tile numbers each (4 rows of 5; DrawGateRoom adds $80), drawn
+;@ from the tiles GateMapInit unpacks to $8800.
 GateRoomTiles::
 	db $00, $00, $01, $00, $00, $0c, $01, $01, $01, $0d, $0a, $01, $01, $01, $0b, $00
 	db $00, $01, $00, $00, $00, $00, $0b, $00, $00, $07, $0c, $08, $00, $04, $03, $02

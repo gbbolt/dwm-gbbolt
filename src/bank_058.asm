@@ -1023,9 +1023,9 @@ AITargetHeal::
 	ld h, a
 	ld a, [hl]
 	cp $02
-	jp z, Jump_058_4591
+	jp z, AIHealSmart
 
-Jump_058_4515:
+AIHealByRatio::
 jr_058_4515:
 	ld a, e
 	ld [wBattleArg3], a
@@ -1112,7 +1112,7 @@ jr_058_454d:
 	ret
 
 
-Jump_058_4591:
+AIHealSmart::
 	xor a
 	ld [wBattleArg0], a
 	ld b, d
@@ -1277,7 +1277,7 @@ jr_058_4693:
 	and $04
 	ld e, a
 	ld d, $03
-	jp Jump_058_4515
+	jp AIHealByRatio
 
 
 AITargetRevive::
