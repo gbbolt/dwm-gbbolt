@@ -4,147 +4,204 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $05c", ROMX[$4000], BANK[$5c]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_5C::
 	db $5c
 
+;@ path: system/banks
+;@ Entry points of bank $5C, sprites of the skill animations (sprite sets $00-$0D; banks $5D
+;@ and $5E hold the other sets).
 FarTable_5C::
 	dw DrawSkillAnimSprite_5C
 	dw StartSkillAnimSprite_5C
 
+;@ def DrawSkillAnimSprite_5C()
+;@ path: battle/skillanim
+;@ One frame of a skill animation's sprite (while wSkillAnimSprites is set): draws frame
+;@ hSpriteFrame of sprite set hSpriteSet and moves it 4 pixels to the right. The animation
+;@ state at $DD62 (stepped by the animator; frame at $DD66, 0 at $DD62 = over) picks the
+;@ frame. In the first phase ($DD68 = 0) the sprite flies right: at x $C0 it disappears, for
+;@ sets 3 and 4 it goes on at x $D0 with animation command 4 and keeps moving.
+;@ test: skip writes OAM entries through pointer tables
 DrawSkillAnimSprite_5C::
+;> if not wSkillAnimSprites:
+;>     return
 	ld a, [wSkillAnimSprites]
 	or a
 	ret z
 
-	ld de, $4071
+;> DrawSkillAnimFrame_5C(SkillAnimSpriteSets_5C)
+	ld de, SkillAnimSpriteSets_5C
 	call DrawSkillAnimFrame_5C
+;>@c1 if mem[0xDD68] == 0 or mem[0xDAA4] in (3, 4):
 	ld a, [$dd68]
 	or a
-	jr z, jr_05c_4021
+	jr z, .move
 
 	ld a, [$daa4]
 	cp $03
-	jr z, jr_05c_4021
+	jr z, .move
 
+;=@c1
 	cp $04
-	jr nz, jr_05c_4031
+	jr nz, .frame
 
-jr_05c_4021:
+.move
+;>@c2     hSpriteX += 4                        # (the low byte)
 	ld hl, hSpriteX
 	inc [hl]
 	ld hl, hSpriteX
 	inc [hl]
 	ld hl, hSpriteX
 	inc [hl]
+;=@c2
 	ld hl, hSpriteX
 	inc [hl]
 
-jr_05c_4031:
+.frame
+;> hSpriteFrame = mem[0xDD66]
 	ld a, [$dd66]
 	ldh [hSpriteFrame], a
+;> if mem[0xDD62] == 0:                     # the animation is over
+;>     wSkillAnimSprites = 0
 	ld a, [$dd62]
 	or a
-	jr nz, jr_05c_4041
+	jr nz, .phase
 
 	ld a, $00
 	ld [wSkillAnimSprites], a
 
-jr_05c_4041:
+.phase
+;> if mem[0xDD68]:
+;>     return
 	ld a, [$dd68]
 	or a
 	ret nz
 
+;> if mem[0xDAA4] in (3, 4):
 	ld a, [$daa4]
 	cp $03
-	jr z, jr_05c_4051
+	jr z, .longFlight
 
 	cp $04
-	jr nz, jr_05c_4061
+	jr nz, .flight
 
-jr_05c_4051:
+.longFlight
+;>     if hSpriteX < 0xD0: return
 	ldh a, [hSpriteX]
 	cp $d0
 	ret c
 
+;>     mem[0xDD65] = 4                      # go on with animation command 4
 	ld a, $04
 	ld [$dd65], a
+;>     mem[0xDD68] = 1
 	ld a, $01
 	ld [$dd68], a
 	ret
 
-
-jr_05c_4061:
+.flight
+;> else:
+;>     if hSpriteX < 0xC0: return
 	ldh a, [hSpriteX]
 	cp $c0
 	ret c
 
+;>     wSkillAnimSprites = 0                # gone off the screen
 	ld a, $00
 	ld [wSkillAnimSprites], a
+;>     mem[0xDD68] = 1
 	ld a, $01
 	ld [$dd68], a
 	ret
 
 
+;@ path: battle/skillanim
+;@ The skill animation sprite sets of this bank ($00-$0D): one pointer per set number to its
+;@ list of frame pointers.
 SkillAnimSpriteSets_5C::
 	db $4d, $41, $59, $42, $7c, $45, $18, $49, $17, $4a, $5e, $4b, $79, $4f, $52, $50
 	db $c3, $52, $cf, $5c, $a4, $5e, $69, $65, $64, $74, $87, $78
 
+;@ def StartSkillAnimSprite_5C(x: a)
+;@ path: battle/skillanim
+;@ Starts the sprite of a skill animation: sprite set mem[$DAA4] at y $60, at x 0 in the first
+;@ phase ($DD68 = 0), else at the place of target mem[$DB54] (SkillAnimStartX_5C; a target from
+;@ 7 on stops the sprite instead). The animation state at $DD62 gets its first pose
+;@ (GetAnimationFirstPose with wPlayerAnimPtr pointed at it) and wSkillAnimSprites is set.
+;@ test: skip calls a routine in another bank
 StartSkillAnimSprite_5C::
+;> mem[0xDD62] = 1
 	ld a, $01
 	ld [$dd62], a
+;> x = 0
+;> if mem[0xDD68]:
 	ld a, [$dd68]
 	or a
-	jr z, jr_05c_40aa
+	jr z, .start
 
-	ld a, [$db54]
+;>     if mem[0xDB54] >= 7:
+;>@stop         wSkillAnimSprites = 0; mem[0xDD62] = 0; return
+	ld a, [wItemMsgGroup]
 	cp $07
-	jr nc, jr_05c_40e5
+	jr nc, .stop
 
+;>@sx     x = SkillAnimStartX_5C[2 * mem[0xDB54]]
 	add a
-	ld hl, $40ee
+	ld hl, SkillAnimStartX_5C
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sx
 	ld h, a
 	ld a, [hl]
 
-jr_05c_40aa:
+.start
+;> hSpriteX = x
 	ld hl, hSpriteX
 	ld a, a
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x60
 	ld a, $60
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = mem[0xDAA4]; hSpriteFrame = 0
 	ld a, [$daa4]
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteTileBase = 0; hSpriteAttr = 0
 	ld a, $00
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> wSkillAnimSprites = 1
 	ld a, $01
 	ld [wSkillAnimSprites], a
+;> wPlayerAnimPtr = 0xDD63
 	ld hl, $dd63
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
+;> GetAnimationFirstPose()
 	ld hl, far_GetAnimationFirstPose
 	rst $10
+;> wPlayerAnimPtr = 0xDD62
 	ld hl, $dd62
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
 	ret
 
-
-jr_05c_40e5:
+.stop
+;=@stop
 	xor a
 	ld [wSkillAnimSprites], a
 	xor a
@@ -152,76 +209,108 @@ jr_05c_40e5:
 	ret
 
 
+;@ path: battle/skillanim
+;@ X positions (16-bit) where StartSkillAnimSprite_5C puts the sprite for targets 0-6.
 SkillAnimStartX_5C::
 	db $00, $00, $50, $00, $38, $00, $68, $00, $20, $00, $50, $00, $80, $00
 
+;@ def DrawSkillAnimFrame_5C(sets: de)
+;@ path: battle/skillanim
+;@ Adds frame hSpriteFrame of sprite set hSpriteSet (`sets`: one pointer per set to its list
+;@ of frame pointers) to the shadow OAM at screen position (hSpriteX, hSpriteY), like
+;@ DrawFieldSpriteOnScreen_10: entries of y, x, tile (+ hSpriteTileBase), attributes
+;@ (^ hSpriteAttr), ended by $80; nothing beyond 40 sprites.
+;@ test: skip writes OAM entries through pointer tables
 DrawSkillAnimFrame_5C::
+;> if hOAMCount >= 40:
+;>     return
 	ldh a, [hOAMCount]
 	cp $28
-	jr nc, jr_05c_414c
+	jr nc, .done
 
+;> entry = sets + 2 * hSpriteSet
 	ldh a, [hSpriteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;> frames = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> entry = frames + 2 * hSpriteFrame
 	ldh a, [hSpriteFrame]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;> frame = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> oam = wShadowOAM + 4 * hOAMCount
 	ldh a, [hOAMCount]
 	sla a
 	sla a
 	ld l, a
 	ld h, $c0
 
-jr_05c_411f:
+.entry
+;>@loop while True:
+;>     y = mem[frame]; frame += 1
 	ld a, [de]
 	inc de
+;>     if y == 0x80:                     # end of the frame
+;>         break
 	cp $80
-	jr z, jr_05c_414c
+	jr z, .done
 
+;>     mem[oam] = (hSpriteY + y + 0x10) & 0xFF
 	ld b, a
 	ldh a, [hSpriteY]
 	add b
 	add $10
 	ld [hli], a
+;>     x = mem[frame]; frame += 1
 	ld a, [de]
 	inc de
 	ld b, a
+;>     mem[oam + 1] = (hSpriteX + x + 8) & 0xFF
 	ldh a, [hSpriteX]
 	add b
 	add $08
 	ld [hli], a
+;>     mem[oam + 2] = (hSpriteTileBase + mem[frame]) & 0xFF; frame += 1
 	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [de]
 	inc de
 	add b
 	ld [hli], a
+;>     mem[oam + 3] = hSpriteAttr ^ mem[frame]; frame += 1
 	ld a, [de]
 	inc de
 	ld b, a
 	ldh a, [hSpriteAttr]
 	xor b
 	ld [hli], a
+;>     oam += 4; hOAMCount += 1
 	ldh a, [hOAMCount]
 	inc a
 	ldh [hOAMCount], a
+;>     if hOAMCount >= 40:
+;>         break
 	cp $28
-	jr c, jr_05c_411f
+;=@loop
+	jr c, .entry
 
-jr_05c_414c:
+.done
 	ret
 
 
+;@ path: battle/skillanim
+;@ The frame lists and frames of the sets: per set a list of frame pointers, per frame 4-byte
+;@ entries (y, x, tile, attributes) ended by $80.
 SkillAnimSpriteFrames_5C::
 	db $8d, $41, $96, $41, $af, $41, $cc, $41, $f1, $41, $16, $42, $2f, $42, $48, $42
 	db $58, $42, $58, $42, $58, $42, $58, $42, $58, $42, $58, $42, $58, $42, $58, $42

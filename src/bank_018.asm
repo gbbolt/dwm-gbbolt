@@ -174,7 +174,7 @@ jr_018_40d0:
 	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
 
 Call_18_42D1::
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr nz, jr_018_42da
 
@@ -251,7 +251,7 @@ Jump_18_434F::
 	jr nz, jr_018_4368
 
 	ld hl, $0246
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_018_4361
 
@@ -563,7 +563,7 @@ jr_018_4525:
 	ld hl, wTextArg1
 	call CopyName
 	ld hl, $0248
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_018_4574
 
@@ -589,7 +589,7 @@ Jump_18_458B::
 	or a
 	ret nz
 
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr nz, jr_018_45fe
 
@@ -2037,7 +2037,7 @@ jr_018_4e7f:
 Call_18_4E8F::
 	push af
 	ld de, $4f46
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_018_4e9c
 
@@ -2128,7 +2128,7 @@ Call_18_4EEE::
 Call_18_4F0E::
 	push af
 	ld de, $4f46
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_018_4f1b
 

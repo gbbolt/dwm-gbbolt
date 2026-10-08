@@ -8,1072 +8,1437 @@ BankNumber_51::
 	db $51
 
 FarTable_51::
-	dw Call_51_423E
-	dw Call_51_43F4
-	dw Call_51_4A96
-	dw Call_51_4BE8
-	dw Call_51_4CB3
-	dw Call_51_4D16
-	dw Call_51_4E5E
-	dw Call_51_4FAA
-	dw Call_51_50F6
-	dw Call_51_524A
-	dw Call_51_46AA
-	dw Call_51_44A9
-	dw Call_51_5578
-	dw Call_51_5B31
-	dw Call_51_5C33
-	dw Call_51_537A
-	dw Call_51_6959
-	dw Call_51_5569
+	dw StartBattleScreen
+	dw PackResistancesFar
+	dw SaveBattleResults
+	dw DefeatBattler
+	dw AppendEnemyLetter
+	dw SetUpCalledMonster1
+	dw SetUpCalledMonster2
+	dw SetUpCalledMonster3
+	dw SetUpCalledMonster4
+	dw TransformSkillUser
+	dw LoadBattlerSkills
+	dw ReloadBattler
+	dw LevelUpScreen
+	dw ApplyLevelUp
+	dw RecruitScreen
+	dw BattlerFallSequence
+	dw SetBattlePicPalettes
+	dw LoadMonsterPicFar
 	dw Data_51_7B0F
 
-Call_51_4027::
+;@ def SetUpBattleScreen()
+;@ path: battle/screen
+;@ Builds the battle screen: neutral SGB palettes, the battle tiles (window frame, symbols, font), the
+;@ text box, the monster pictures and the party panel; starts the battle music and turns the screen on.
+SetUpBattleScreen::
+;> wSGBPalSet = 0; wSGBAttrSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> Decompress(0x5B, 0, 0x9600)     # battle window and symbol tiles
 	ld de, $5b00
 	ld hl, $9600
 	call Decompress
+;> Decompress(0x5B, 1, 0x8800)
 	ld de, $5b01
 	ld hl, $8800
 	call Decompress
+;> Decompress(0x2E, 0, 0x8D00)
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> SetUpTextBox(0x8B00, 2, 18)       # two lines of 18 letters
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-	call Call_51_4107
-	call Call_51_40D1
+;> LoadBattleGraphics()
+	call LoadBattleGraphics
+;> StorePartyPersonalities()
+	call StorePartyPersonalities
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_4073
+	jr z, .music
 
+;>     wQueuedMusic = 0xFF; wQueuedSound = 0xFF
 	ld a, $ff
 	ld [wQueuedMusic], a
 	ld [wQueuedSound], a
+;>     InitSound()
 	call InitSound
 
-jr_051_4073:
+;> song = 0x27                        # the battle theme
+.music:
 	ld b, $27
+;> if wMapId == 0x5D:                 # the Starry Night arena
 	ld a, [wMapId]
 	cp $5d
-	jp nz, Jump_051_408b
+	jp nz, .play
 
+;>     wGameStarted &= ~0x80
 	ld hl, wGameStarted
 	res 7, [hl]
+;>     if mem[0xD999] == 2:
 	ld a, [$d999]
 	cp $02
-	jr nz, jr_051_408b
+	jr nz, .play
 
+;>         song = 0x2B
 	ld b, $2b
 
-Jump_051_408b:
-jr_051_408b:
+;> QueueMusic(song)
+.play:
 	ld a, b
 	call QueueMusic
+;> hWX = 7; hWY = 0xFF                # window off screen
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
 	ldh [hWY], a
+;> mem[addr(hScrollY)] = 0; mem[addr(hScrollX)] = 0
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
+;> ApplyScroll()
 	call ApplyScroll
+;> ClearShadowOAM()
 	call ClearShadowOAM
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0; mem[0xDD62] = 0
 	xor a
 	ld [wLCDEffect], a
 	xor a
 	ld [$dd62], a
+;> wLinkSendByte = 0; wLinkReceivedLast = 0
 	xor a
 	ld [wLinkSendByte], a
 	xor a
 	ld [wLinkReceivedLast], a
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
-	ld hl, far_Call_51_6959
+;> SetBattlePicPalettes()
+	ld hl, far_SetBattlePicPalettes
 	rst $10
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLYCInterrupt()
 	call EnableLYCInterrupt
+;> return EnableLCDAndInterrupts(0x0B)
 	ld a, $0b
 	jp EnableLCDAndInterrupts
 
 
-Call_51_40D1::
+;@ def StorePartyPersonalities()
+;@ path: battle/setup
+;@ Looks up the personality of each party monster (GetMonsterPersonality) into wPartyPersonality.
+StorePartyPersonalities::
+;> if wPartyCount == 0: return
 	ld a, [wPartyCount]
 	or a
 	ret z
 
+;> wPartyPersonality[0] = GetMonsterPersonality(wParty[0])
 	ld a, [wParty]
 	ld d, a
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
-	ld [$da15], a
+	ld [wPartyPersonality], a
+;> if wPartyCount == 1: return
 	ld a, [wPartyCount]
 	cp $01
 	ret z
 
+;> wPartyPersonality[1] = GetMonsterPersonality(wParty[1])
 	ld a, [$ca8f]
 	ld d, a
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	ld [$da16], a
+;> if wPartyCount == 2: return
 	ld a, [wPartyCount]
 	cp $02
 	ret z
 
+;> wPartyPersonality[2] = GetMonsterPersonality(wParty[2])
 	ld a, [$ca90]
 	ld d, a
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	ld [$da17], a
+;> return
 	ret
 
 
-Call_51_4107::
+;@ def LoadBattleGraphics()
+;@ path: battle/screen
+;@ Loads the name tiles and the pictures of the three opposing monsters (tiles $9000, $9240, $9480;
+;@ for an empty position far_Call_58_5749 runs instead), then clears the screen and draws the enemy
+;@ pictures and the party panel into the tilemap buffer and the BG map.
+LoadBattleGraphics::
+;> fill(wLinkChoice, 8, 0)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-	call Call_51_419F
+;> LoadBattleNameTiles()
+	call LoadBattleNameTiles
+;> wSkillTarget = 4; species = addr(wBattlerSpecies) + 4   # the far side: the enemies
 	ld a, $04
 	ld [wSkillTarget], a
 	ld de, $dc40
+;> if wLinkFlags & 2:                 # link master: the partner's monsters are positions 0-2
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_412b
+	jr z, .pics
 
+;>     wSkillTarget = 0; species = addr(wBattlerSpecies)
 	xor a
 	ld [wSkillTarget], a
-	ld de, $dc3c
+	ld de, wBattlerSpecies
 
-jr_051_412b:
+;>@pic for tiles in (0x9000, 0x9240, 0x9480):
+.pics:
 	ld hl, $9000
+;>     if not CheckBattlerPresent(wSkillTarget):
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_051_413c
+	jr c, .empty1
 
+;>         LoadMonsterPic(mem[species], tiles)
 	ld a, [de]
-	call Call_51_6A67
-	jr jr_051_4140
+	call LoadMonsterPic
+	jr .next1
 
-jr_051_413c:
+;>     else:
+;>         Call_58_5749()
+.empty1:
 	ld hl, far_Call_58_5749
 	rst $10
 
-jr_051_4140:
+;>     wSkillTarget += 1; species += 1
+.next1:
 	ld hl, wSkillTarget
 	inc [hl]
 	inc de
+;=@pic
 	ld hl, $9240
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_051_4156
+	jr c, .empty2
 
+;=@pic
 	ld a, [de]
-	call Call_51_6A67
-	jr jr_051_415a
+	call LoadMonsterPic
+	jr .next2
 
-jr_051_4156:
+;=@pic
+.empty2:
 	ld hl, far_Call_58_5749
 	rst $10
 
-jr_051_415a:
+;=@pic
+.next2:
 	ld hl, wSkillTarget
 	inc [hl]
 	inc de
+;=@pic
 	ld hl, $9480
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_051_4170
+	jr c, .empty3
 
+;=@pic
 	ld a, [de]
-	call Call_51_6A67
-	jr jr_051_4174
+	call LoadMonsterPic
+	jr .done
 
-jr_051_4170:
+;=@pic
+.empty3:
 	ld hl, far_Call_58_5749
 	rst $10
 
-jr_051_4174:
+;> fill(0xD9F4, 8, 0)                 # the screen step variables
+.done:
 	xor a
 	ld hl, $d9f4
 	ld bc, $0008
 	call FillMemory
+;> wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
-	call Call_51_742A
-	call Call_51_7439
-	call Call_51_7524
-	call Call_51_7628
-	call Call_51_768A
-	call Call_51_79CB
-	call Call_51_736A
+;> ClearBattleTilemap()
+	call ClearBattleTilemap
+;> ClearBGMap()
+	call ClearBGMap
+;> ResetBattleCursorBlink()
+	call ResetBattleCursorBlink
+;> PlaceEnemyPics()
+	call PlaceEnemyPics
+;> DrawBattlePartyPanel()
+	call DrawBattlePartyPanel
+;> ClearBGAttributes()
+	call ClearBGAttributes
+;> CopyTilemapBufferToBG()
+	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
-Call_51_419F::
+;@ def LoadBattleNameTiles()
+;@ path: battle/screen
+;@ Loads the status icons of the three own positions and draws the names of the own monsters into
+;@ the name tiles at $9700, $9740 and $9780 (4 tiles each).
+LoadBattleNameTiles::
+;> pos = 0
 	ld d, $00
+;> if wLinkActive and wLinkFlags & 2:   # the link master's own side is 4-6
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_41b0
+	jr z, .icons
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_41b0
+	jr z, .icons
 
+;>     pos = 4
 	ld d, $04
 
-jr_051_41b0:
+;>@icon for i in range(3):
+.icons:
+;>     wSkillTarget = pos + i
 	ld a, d
 	ld [wSkillTarget], a
-	call Call_51_7929
+;>     UpdateStatusIcon()
+	call UpdateStatusIcon
+;=@icon
 	inc d
 	ld a, d
 	ld [wSkillTarget], a
-	call Call_51_7929
+	call UpdateStatusIcon
+;=@icon
 	inc d
 	ld a, d
 	ld [wSkillTarget], a
-	call Call_51_7929
+	call UpdateStatusIcon
+;> p = 0x9700
 	ld hl, $9700
+;>@clr for i in range(0x60):        # 12 empty tiles
 	ld b, $60
 
-jr_051_41cc:
+;>     mem[p] = 0xFF; mem[p + 1] = 0; p += 2
+.clear:
 	ld a, $ff
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;=@clr
 	dec b
-	jr nz, jr_051_41cc
+	jr nz, .clear
 
+;> wBattleTemp = wPartyCount
 	ld a, [wLinkActive]
 	or a
 	ld a, [wPartyCount]
-	ld [$dd72], a
-	jr nz, jr_051_41e3
+	ld [wBattleTemp], a
+;> if not wLinkActive and wPartyCount == 0: return
+	jr nz, .names
 
 	or a
 	ret z
 
-jr_051_41e3:
+;> pos = 0
+.names:
 	ld d, $00
+;> if wLinkActive and wLinkFlags & 2:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_41fc
+	jr z, .draw
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_41fc
+	jr z, .draw
 
+;>     wBattleTemp = wEnemyCount; pos = 4
 	ld a, [wEnemyCount]
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ld d, $04
-	jr jr_051_41fc
+	jr .draw
 
-jr_051_41fc:
+;> name = PartyMonsterField(pos, wMonName)
+.draw:
 	push de
 	ld hl, wMonName
 	ld a, d
 	call PartyMonsterField
+;> DrawMonNameTiles(name, 0x9700)
 	ld e, l
 	ld d, h
 	ld hl, $9700
-	call Call_51_73DC
+	call DrawMonNameTiles
 	pop de
-	ld a, [$dd72]
+;> if wBattleTemp == 1: return
+	ld a, [wBattleTemp]
 	cp $01
 	ret z
 
+;> name = PartyMonsterField(pos + 1, wMonName)
 	inc d
 	push de
 	ld hl, wMonName
 	ld a, d
 	call PartyMonsterField
+;> DrawMonNameTiles(name, 0x9740)
 	ld e, l
 	ld d, h
 	ld hl, $9740
-	call Call_51_73DC
+	call DrawMonNameTiles
 	pop de
-	ld a, [$dd72]
+;> if wBattleTemp == 2: return
+	ld a, [wBattleTemp]
 	cp $02
 	ret z
 
+;> name = PartyMonsterField(pos + 2, wMonName)
 	inc d
 	push de
 	ld hl, wMonName
 	ld a, d
 	call PartyMonsterField
+;> DrawMonNameTiles(name, 0x9780)
 	ld e, l
 	ld d, h
 	ld hl, $9780
-	call Call_51_73DC
+	call DrawMonNameTiles
 	pop de
+;> return
 	ret
 
 
-Call_51_423E::
-	call Call_51_4245
-	call Call_51_4027
+;@ def StartBattleScreen()
+;@ path: battle/setup
+;@ Far entry: sets up all battle positions, then builds the battle screen.
+StartBattleScreen::
+;> InitBattlers()
+	call InitBattlers
+;> SetUpBattleScreen()
+	call SetUpBattleScreen
+;> return
 	ret
 
 
-Call_51_4245::
-	call Call_51_43C9
-	call Call_51_4452
-	ld a, [$db74]
+;@ def InitBattlers()
+;@ path: battle/setup
+;@ Clears the battle state and fills the battle positions: the own monsters from their records
+;@ (positions 0-2), the enemies from their monster templates (4-6) or, in a link battle, from the
+;@ records the partner sent. Then fixes up the skill lists, reads each monster's MonsterStats type bits
+;@ and clears the menu memory and the status icons.
+InitBattlers::
+;> SetBattleType()
+	call SetBattleType
+;> CountBattlers()
+	call CountBattlers
+;> if wPartyBattlers == 0:
+	ld a, [wPartyBattlers]
 	or a
-	jr nz, jr_051_4257
+	jr nz, .init
 
+;>     wBattlerSpecies[4] = 0x6D
 	ld a, $6d
 	ld [$dc40], a
+;>     return
 	ret
 
-
-jr_051_4257:
+;> mem[0xDA88] = 0; mem[0xDA82] = 0xFF
+.init:
 	xor a
 	ld [$da88], a
 	ld a, $ff
 	ld [$da82], a
+;> fill(0xDB00, 0x73, 0)
 	xor a
-	ld hl, $db00
+	ld hl, wSideFlags
 	ld bc, $0073
 	call FillMemory
+;> fill(wBattlerState, 8, 0xFF)       # all positions empty
 	ld hl, wBattlerState
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
-	ld hl, $db8b
+;> fill(wBattlerTypeBits, 0xD9, 0)
+	ld hl, wBattlerTypeBits
 	ld bc, $00d9
 	xor a
 	call FillMemory
-	ld hl, $dc3c
+;> fill(wBattlerSpecies, 8, 0xFF)
+	ld hl, wBattlerSpecies
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
+;> fill(wBattlerTactic, 8, 0xFF)
 	ld a, $ff
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	ld bc, $0008
 	call FillMemory
-	ld a, [$db74]
+;> if wPartyBattlers:
+	ld a, [wPartyBattlers]
 	or a
-	jr z, jr_051_42ae
+	jr z, .tactics
 
+;>     fill(wBattlerTactic, wPartyBattlers, 0)
 	ld c, a
 	ld b, $00
 	xor a
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	push bc
 	call FillMemory
+;>     fill(wBattlerSexBits67, wPartyBattlers, 0)
 	pop bc
-	ld hl, $c876
+	ld hl, wBattlerSexBits67
 	xor a
 	call FillMemory
 
-jr_051_42ae:
-	ld hl, $d9fc
+;> fill(wTacticMenuRow, 6, 0)
+.tactics:
+	ld hl, wTacticMenuRow
 	ld bc, $0006
 	xor a
 	call FillMemory
-	ld a, [$d929]
-	ld [$d9fd], a
+;> wTeamTactic = wSavedTeamTactic
+	ld a, [wSavedTeamTactic]
+	ld [wTeamTactic], a
+;> fill(wBattlerIntClass, 16, 0)
 	xor a
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	ld bc, $0010
 	call FillMemory
+;> fill(wBattlerSkills, 0x80, 0xFF)
 	ld a, $ff
-	ld hl, $dc64
+	ld hl, wBattlerSkills
 	ld bc, $0080
 	call FillMemory
+;> mem[0xC1CA] = mem[0xC1CB] = mem[0xC1CC] = 0xFF
 	ld a, $ff
 	ld hl, $c1ca
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
-	ld a, [$db74]
+;>@own for pos in range(wPartyBattlers):
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld c, $00
 
-jr_051_42e1:
-	call Call_51_44B2
+;>     LoadBattler(pos)
+.own:
+	call LoadBattler
 	inc c
+;=@own
 	dec b
-	jr nz, jr_051_42e1
+	jr nz, .own
 
+;>@enemy for pos in range(4, 4 + wEnemyCount):
 	ld a, [wEnemyCount]
 	ld b, a
 	ld c, $04
 
-jr_051_42ee:
-	call Call_51_44B2
+;>     LoadBattler(pos)
+.enemy:
+	call LoadBattler
 	inc c
+;=@enemy
 	dec b
-	jr nz, jr_051_42ee
+	jr nz, .enemy
 
+;> wRunTurn = 0; wJoinCandidate = 0
 	xor a
-	ld [$db76], a
-	ld [$dd61], a
+	ld [wRunTurn], a
+	ld [wJoinCandidate], a
+;> wBattleSubStep = 0
 	xor a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
+;> fill(0xDCE4, 0x18, 0xFF)
 	ld a, $ff
 	ld hl, $dce4
 	ld bc, $0018
 	call FillMemory
+;> fill(0xDCFC, 7, 0)
 	xor a
 	ld hl, $dcfc
 	ld bc, $0007
 	call FillMemory
+;> wBattleItemTarget = 0xFF; wBattleItemEffect = 0xFF
 	ld hl, $ffff
 	ld a, l
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, h
-	ld [$db78], a
+	ld [wBattleItemEffect], a
+;> fill(wBattleArg0, 0x27, 0)
 	xor a
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	ld bc, $0027
 	call FillMemory
+;> mem16[0xDB83] = 10
 	ld hl, $000a
 	ld a, l
-	ld [$db83], a
+	ld [wJoinPoints], a
 	ld a, h
 	ld [$db84], a
+;> wBattleItemTarget = 0xFF; wBattleItemEffect = 0xFF
 	ld a, $ff
-	ld [$db77], a
-	ld [$db78], a
-	ld a, [$db74]
+	ld [wBattleItemTarget], a
+	ld [wBattleItemEffect], a
+;> if not wLinkActive:
+	ld a, [wPartyBattlers]
 	ld d, a
 	ld e, $00
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_4358
+	jr nz, .skills
 
+;>     n = wEnemyCount
 	ld hl, wEnemyDown
 	ld b, $00
 	ld a, [wEnemyCount]
 	ld c, a
+;>     if n: fill(wEnemyDown, n, 0)
 	or a
 	ld a, $00
 	call nz, FillMemory
 
-jr_051_4358:
-	call Call_51_499F
-	call Call_51_4A28
-	ld de, $db8b
+;> SubstituteSkills()
+.skills:
+	call SubstituteSkills
+;> SetSkillKinds()
+	call SetSkillKinds
+;> p = addr(wBattlerTypeBits)
+	ld de, wBattlerTypeBits
+;>@pos for pos in range(8):
 	ld bc, $0800
 
-jr_051_4364:
+;>     q = addr(wBattlerState) + pos
+.pos:
 	push bc
 	ld a, c
 	ld hl, wBattlerState
 	add l
 	ld l, a
+;>     if mem[q] != 0xFF:
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $ff
-	jr z, jr_051_4393
+	jr z, .nextPos
 
+;>         q = addr(wBattlerSpecies) + pos
 	ld a, c
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>         wMonSpecies = mem[q]
 	ld h, a
 	ld a, [hl]
 	ld [wMonSpecies], a
+;>         GetMonsterStats()
 	push de
 	ld hl, far_GetMonsterStats
 	rst $10
 	pop de
-	ld a, [$da38]
+;>         mem[p] = (wMonStatsByte4 << 4 | wMonStatsByte5) & 0xFF
+	ld a, [wMonStatsByte5]
 	ld h, a
-	ld a, [$da37]
+	ld a, [wMonStatsByte4]
 	swap a
 	or h
 	ld [de], a
 
-jr_051_4393:
+;>     p += 1
+.nextPos:
 	pop bc
 	inc de
 	inc c
+;=@pos
 	dec b
-	jr nz, jr_051_4364
+	jr nz, .pos
 
+;> fill(wLinkChoice, 8, 0)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	xor a
 	call FillMemory
+;> fill(wPartyBarTiles, 15, 0xFF)
 	ld hl, wPartyBarTiles
 	ld bc, $000f
 	ld a, $ff
 	call FillMemory
+;> wTargetCursorSkill = 0
 	ld a, $00
-	ld [$c1c2], a
-	ld hl, $c1cd
+	ld [wTargetCursorSkill], a
+;> fill(wBattlerMenuMemory, 8, 0x80)
+	ld hl, wBattlerMenuMemory
 	ld bc, $0008
 	ld a, $80
 	call FillMemory
-	call Call_51_548C
-	call Call_51_5507
-	ld hl, $d9ed
+;> ClearMonStatsCopy()
+	call ClearMonStatsCopy
+;> ResetStatusIcons()
+	call ResetStatusIcons
+;> wBattleSubStep += 1
+	ld hl, wBattleSubStep
 	inc [hl]
+;> return
 	ret
 
 
-Call_51_43C9::
+;@ def SetBattleType()
+;@ path: battle/setup
+;@ Sets wBattleType from how the battle started: 2 for a link battle or a battle on the arena map ($5D),
+;@ 0 for a wild encounter, 1 for other scripted battles. Link battles run at message speed 6.
+SetBattleType::
+;>@t2 t = 2
+;> if not wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_43dc
+	jr nz, .two
 
+;>     if wBattleKind == 0:
 	ld a, [wBattleKind]
 	or a
-	jr z, jr_051_43e0
+	jr z, .zero
 
+;>@t0         t = 0
+;>     elif wScriptMap != 0x5D:
 	ld a, [wScriptMap]
 	cp $5d
-	jr nz, jr_051_43e4
+	jr nz, .one
 
-jr_051_43dc:
+;>@t1         t = 1
+;=@t2
+.two:
 	ld a, $02
-	jr jr_051_43e6
+	jr .store
 
-jr_051_43e0:
+;=@t0
+.zero:
 	ld a, $00
-	jr jr_051_43e6
+	jr .store
 
-jr_051_43e4:
+;=@t1
+.one:
 	ld a, $01
 
-jr_051_43e6:
-	ld [$db73], a
+;> wBattleType = t
+.store:
+	ld [wBattleType], a
+;> if not wLinkActive: return
 	ld a, [wLinkActive]
 	or a
 	ret z
 
+;> wMessageSpeed = 6
 	ld a, $06
 	ld [wMessageSpeed], a
+;> return
 	ret
 
 
-Call_51_43F4::
-	ld a, [$db4c]
+;@ def PackResistancesFar()
+;@ path: battle/setup
+;@ Far entry for PackResistances: the source address in wBattleArg0/1, the destination in wBattleArg2/3.
+PackResistancesFar::
+;> src = wBattleArg0 | wBattleArg1 << 8
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
-	ld a, [$db4e]
+;> dest = wBattleArg2 | wBattleArg3 << 8
+	ld a, [wBattleArg2]
 	ld e, a
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld d, a
 
-Call_51_4404::
+;@ def PackResistances(src: hl, dest: de)
+;@ path: battle/setup
+;@ Packs 27 resistance values (0-3 each) into 7 bytes, two bits each from the top down. The first byte
+;@ holds resistance 26 in bits 6-7 and resistances 0-2 below it, the next five bytes resistances 3-22,
+;@ the last byte resistances 23-25 in bits 7-2.
+PackResistances::
+;> p = src + 26
 	push hl
 	ld a, $1a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> top = (mem[p] & 3) << 6
 	ld h, a
 	ld a, [hl]
 	and $03
 	rrc a
 	rrc a
 	ld c, a
+;> v = (mem[src] << 2 | mem[src + 1]) & 0xFF
 	pop hl
 	ld a, [hli]
 	sla a
 	sla a
 	or [hl]
 	inc hl
+;> v = (v << 2 | mem[src + 2]) & 0xFF
 	sla a
 	sla a
 	or [hl]
 	inc hl
+;> mem[dest] = v | top; src += 3; dest += 1
 	or c
 	ld [de], a
 	inc de
+;>@b for i in range(5):
 	ld b, $05
 
-jr_051_4428:
+;>     v = (mem[src] << 2 | mem[src + 1]) & 0xFF
+.pack:
 	ld a, [hli]
 	sla a
 	sla a
 	or [hl]
 	inc hl
+;>     v = (v << 2 | mem[src + 2]) & 0xFF
 	sla a
 	sla a
 	or [hl]
 	inc hl
+;>     mem[dest] = (v << 2 | mem[src + 3]) & 0xFF; src += 4; dest += 1
 	sla a
 	sla a
 	or [hl]
 	inc hl
 	ld [de], a
 	inc de
+;=@b
 	dec b
-	jr nz, jr_051_4428
+	jr nz, .pack
 
+;> v = (mem[src] << 2 | mem[src + 1]) & 0xFF
 	ld a, [hli]
 	sla a
 	sla a
 	or [hl]
 	inc hl
+;> mem[dest] = ((v << 2 | mem[src + 2]) << 2) & 0xFF
 	sla a
 	sla a
 	or [hl]
 	sla a
 	sla a
 	ld [de], a
+;> return
 	ret
 
 
-Call_51_4452::
+;@ def CountBattlers()
+;@ path: battle/setup
+;@ Sets wPartyBattlers and wEnemyCount (and wPanelCount, wEncCount). Normally they come from the party
+;@ and the encounter group. In a link battle both teams sit in monster slots 0-2 and 4-6, and each count
+;@ is the number of filled slots before the first empty one.
+CountBattlers::
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_4498
+	jr z, .local
 
+;>     c = 0
 	ld bc, $0300
 
-jr_051_445b:
+;>     while c < 3 and GetPartyMonsterByte(c, wMonsters) != 0:
+.count1:
 	ld a, c
 	ld hl, wMonsters
 	call GetPartyMonsterByte
 	or a
-	jr z, jr_051_4469
+	jr z, .got1
 
+;>         c += 1
 	inc c
 	dec b
-	jr nz, jr_051_445b
+	jr nz, .count1
 
-jr_051_4469:
+;>     wPartyBattlers = c; wPanelCount = c
+.got1:
 	ld a, c
-	ld [$db74], a
-	ld [$c1d9], a
+	ld [wPartyBattlers], a
+	ld [wPanelCount], a
+;>     c = 4
 	ld bc, $0304
 
-jr_051_4473:
+;>     while c < 7 and GetPartyMonsterByte(c, wMonsters) != 0:
+.count2:
 	ld a, c
 	ld hl, wMonsters
 	call GetPartyMonsterByte
 	or a
-	jr z, jr_051_4481
+	jr z, .got2
 
+;>         c += 1
 	inc c
 	dec b
-	jr nz, jr_051_4473
+	jr nz, .count2
 
-jr_051_4481:
+;>     wEnemyCount = c - 4; wEncCount = c - 5
+.got2:
 	ld a, c
 	sub $04
 	ld [wEnemyCount], a
 	dec a
 	ld [wEncCount], a
+;>     if not wLinkFlags & 2: return
 	ld a, [wLinkFlags]
 	bit 1, a
 	ret z
 
+;>     wPanelCount = wEnemyCount       # the master shows the partner's team in the panel
 	ld a, [wEnemyCount]
-	ld [$c1d9], a
+	ld [wPanelCount], a
+;>     return
 	ret
 
-
-jr_051_4498:
+;> else:
+;>     wPartyBattlers = wPartyCount; wPanelCount = wPartyCount
+.local:
 	ld a, [wPartyCount]
-	ld [$db74], a
-	ld [$c1d9], a
+	ld [wPartyBattlers], a
+	ld [wPanelCount], a
+;>     wEnemyCount = wEncCount + 1
 	ld a, [wEncCount]
 	inc a
 	ld [wEnemyCount], a
+;>     return
 	ret
 
 
-Call_51_44A9::
-	ld a, [$db4c]
+;@ def ReloadBattler()
+;@ path: battle/setup
+;@ Far entry: refreshes battle position wBattleArg0 from its monster record (when a transformation
+;@ ends), keeping its current HP, MP and ailments.
+ReloadBattler::
+;> pos = wBattleArg0
+	ld a, [wBattleArg0]
 	ld c, a
+;> wBattlerReload = 1; return LoadBattler(pos)        # runs on into LoadBattler
 	ld a, $01
-	ld [$db55], a
+	ld [wBattlerReload], a
 
-Call_51_44B2::
+;@ def LoadBattler(pos: c)
+;@ path: battle/setup
+;@ Fills battle position `pos`: the own positions (and all positions in a link battle) from the monster
+;@ record, the enemy positions from the encounter's monster template.
+LoadBattler::
+;> if wLinkActive: return LoadBattlerFromRecord(pos)
 	ld a, [wLinkActive]
 	or a
-	jr nz, Call_51_44CB
+	jr nz, LoadBattlerFromRecord
 
+;> if pos < 4:
 	ld a, c
 	cp $04
-	jr nc, jr_051_44c4
+	jr nc, .enemy
 
-	call Call_51_44CB
-	call Call_51_548C
+;>     LoadBattlerFromRecord(pos)
+	call LoadBattlerFromRecord
+;>     ClearMonStatsCopy()
+	call ClearMonStatsCopy
+;>     return
+	ret
+
+;> LoadEnemyBattler(pos)
+.enemy:
+	call LoadEnemyBattler
+;> ClearMonStatsCopy()
+	call ClearMonStatsCopy
+;> return
 	ret
 
 
-jr_051_44c4:
-	call Call_51_4627
-	call Call_51_548C
-	ret
-
-
-Call_51_44CB::
+;@ def LoadBattlerFromRecord(pos: c)
+;@ path: battle/setup
+;@ Copies the monster record of party position `pos` into battle position `pos`: species, sex, tactic
+;@ (record byte +$0B: sex in bits 0-3, tactic in bits 4-5, two more bits 6-7), skills, ailments, level,
+;@ HP and MP, the four stats, wildness, the personality bytes and the packed resistances. While
+;@ wBattlerReload is set the current HP, MP and ailments stay, and so do the personality bytes when
+;@ status byte 1 bits 4-5 are set.
+LoadBattlerFromRecord::
+;> rec = PartyMonsterField(pos, wMonRecSpecies)
 	ld a, c
 	ld hl, wMonRecSpecies
 	call PartyMonsterField
+;> q = addr(wBattlerSpecies) + pos
 	ld a, c
-	ld de, $dc3c
+	ld de, wBattlerSpecies
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> SetBattlerPalSpecies(pos, rec)
 	ld d, a
-	call Call_51_4669
+	call SetBattlerPalSpecies
+;> mem[q] = mem[rec]; rec += 2              # skip the family byte
 	ld a, [hli]
 	ld [de], a
 	inc hl
+;> q = addr(wBattlerSex) + pos
 	ld a, c
-	ld de, $db93
+	ld de, wBattlerSex
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> mem[q] = mem[rec] & 0x0F
 	ld d, a
 	ld a, [hl]
 	and $0f
 	ld [de], a
+;> hi = mem[rec] >> 4; rec += 1
 	ld a, [hli]
 	swap a
 	and $0f
 	push af
+;> q = addr(wBattlerTactic) + pos
 	ld a, c
-	ld de, $dd03
+	ld de, wBattlerTactic
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> mem[q] = hi & 3
 	ld d, a
 	pop af
 	push af
 	and $03
 	ld [de], a
+;> hi2 = hi
 	pop af
 	push af
 	push af
+;> q = addr(wBattlerSexBits67) + pos
 	ld a, c
-	ld de, $c876
+	ld de, wBattlerSexBits67
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> mem[q] = (hi >> 2) & 3
 	ld d, a
 	pop af
 	rrca
 	rrca
 	and $03
 	ld [de], a
+;> if not pos & 4:
 	ld a, c
 	bit 2, a
-	jr nz, jr_051_4536
+	jr nz, .far
 
+;>     if not wLinkFlags & 2:         # the tactic menu shows this Game Boy's own monsters
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_051_4551
+	jr nz, .drop
 
+;>         q = addr(wMonTactics) + pos
 	ld a, c
 	inc a
 	inc a
-	ld de, $d9fc
+	ld de, wTacticMenuRow
 	add e
+;>         v = hi2 & 3
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	pop af
 	and $03
+;>         mem[q] = v
 	ld [de], a
-	jr jr_051_4552
+	jr .skills
 
-jr_051_4536:
+;> elif wLinkFlags & 2:
+.far:
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_4551
+	jr z, .drop
 
+;>     q = addr(wMonTactics) + (pos & 3)
 	ld a, c
 	and $03
 	inc a
 	inc a
-	ld de, $d9fc
+	ld de, wTacticMenuRow
 	add e
+;>     v = hi2 & 3
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	pop af
 	and $03
+;>     mem[q] = v
 	ld [de], a
-	jr jr_051_4552
+	jr .skills
 
-jr_051_4551:
+;> else:
+;>     del hi2
+.drop:
 	pop af
 
-jr_051_4552:
+;> rec += 0x1D                              # the skill list
+.skills:
 	ld a, $1d
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> if wBattleArg0 == 0:
 	push hl
 	push bc
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	or a
-	jr nz, jr_051_4567
+	jr nz, .reloadSkills
 
-	call Call_51_46FF
-	jr jr_051_456a
+;>     CopyBattlerSkills(pos, rec)
+	call CopyBattlerSkills
+	jr .status
 
-jr_051_4567:
-	call Call_51_46AA
+;> else:
+;>     LoadBattlerSkills()
+.reloadSkills:
+	call LoadBattlerSkills
 
-jr_051_456a:
+;> rec += 0x21                              # the status byte
+.status:
 	pop bc
 	pop hl
 	ld a, $21
 	add l
 	ld l, a
+;> if not wBattlerReload: LoadBattlerAilments(pos, rec)
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
-	call z, Call_51_4769
+	call z, LoadBattlerAilments
+;> rec = StoreBattlerByte(pos, addr(wBattlerLevel), rec + 1)
 	inc hl
-	ld de, $db9b
-	call Call_51_4692
+	ld de, wBattlerLevel
+	call StoreBattlerByte
+;> rec += 4                                 # skip the experience
 	inc hl
 	inc hl
 	inc hl
 	inc hl
-	ld a, [$db55]
+;> if wBattlerReload:
+	ld a, [wBattlerReload]
 	or a
-	jr z, jr_051_459e
+	jr z, .allHPMP
 
+;>     rec = StoreBattlerWord(pos, addr(wBattlerMaxHP), rec + 2)
 	inc hl
 	inc hl
 	ld de, wBattlerMaxHP
-	call Call_51_469C
+	call StoreBattlerWord
+;>     rec = StoreBattlerWord(pos, addr(wBattlerMaxMP), rec + 2)
 	inc hl
 	inc hl
 	ld de, wBattlerMaxMP
-	call Call_51_469C
-	jr jr_051_45b6
+	call StoreBattlerWord
+	jr .stats
 
-jr_051_459e:
+;> else:
+;>     rec = StoreBattlerWord(pos, addr(wBattlerHP), rec)
+.allHPMP:
 	ld de, wBattlerHP
-	call Call_51_469C
+	call StoreBattlerWord
+;>     rec = StoreBattlerWord(pos, addr(wBattlerMaxHP), rec)
 	ld de, wBattlerMaxHP
-	call Call_51_469C
+	call StoreBattlerWord
+;>     rec = StoreBattlerWord(pos, addr(wBattlerMP), rec)
 	ld de, wBattlerMP
-	call Call_51_469C
+	call StoreBattlerWord
+;>     rec = StoreBattlerWord(pos, addr(wBattlerMaxMP), rec)
 	ld de, wBattlerMaxMP
-	call Call_51_469C
+	call StoreBattlerWord
 
-jr_051_45b6:
+;> rec = StoreBattlerWord(pos, addr(wBattlerAttack), rec)
+.stats:
 	ld de, wBattlerAttack
-	call Call_51_469C
+	call StoreBattlerWord
+;> rec = StoreBattlerWord(pos, addr(wBattlerDefense), rec)
 	ld de, wBattlerDefense
-	call Call_51_469C
+	call StoreBattlerWord
+;> rec = StoreBattlerWord(pos, addr(wBattlerAgility), rec)
 	ld de, wBattlerAgility
-	call Call_51_469C
+	call StoreBattlerWord
+;> rec = StoreBattlerWord(pos, addr(wBattlerIntelligence), rec)
 	ld de, wBattlerIntelligence
-	call Call_51_469C
-	ld de, $dc23
-	call Call_51_469C
+	call StoreBattlerWord
+;> rec = StoreBattlerWord(pos, addr(wBattlerWildness), rec)
+	ld de, wBattlerWildness
+	call StoreBattlerWord
+;> rec += 2
 	inc hl
 	inc hl
-	ld a, [$db55]
+;>@pers if not wBattlerReload or mem[addr(wBattlerStatus) + 8 * wBattleArg0 + 1] & 0x30:
+	ld a, [wBattlerReload]
 	or a
-	jr z, jr_051_45f8
+	jr z, .personality
 
-	ld a, [$db4c]
+;=@pers
+	ld a, [wBattleArg0]
 	push hl
-	ld hl, $db03
+	ld hl, wBattlerStatus1
 	add a
 	add a
 	add a
+;=@pers
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;=@pers
 	and $30
 	pop hl
-	jr nz, jr_051_45f8
+	jr nz, .personality
 
+;=@skip4
 	inc hl
 	inc hl
 	inc hl
 	inc hl
-	jr jr_051_4610
+;=@skipjr
+	jr .resist
 
-jr_051_45f8:
-	ld de, $dc44
-	call Call_51_4692
-	ld de, $dc54
-	call Call_51_4692
-	ld de, $dc5c
-	call Call_51_4692
-	ld de, $dc4c
-	call Call_51_4692
+;>     rec = StoreBattlerByte(pos, addr(wBattlerPersonality1), rec)
+.personality:
+	ld de, wBattlerPersonality1
+	call StoreBattlerByte
+;>     rec = StoreBattlerByte(pos, addr(wBattlerPersonality2), rec)
+	ld de, wBattlerPersonality2
+	call StoreBattlerByte
+;>     rec = StoreBattlerByte(pos, addr(wBattlerPersonality3), rec)
+	ld de, wBattlerPersonality3
+	call StoreBattlerByte
+;>     rec = StoreBattlerByte(pos, addr(wBattlerStat67), rec)
+	ld de, wBattlerStat67
+	call StoreBattlerByte
+;>@skipjr else:
+;>@skip4     rec += 4
 
-jr_051_4610:
+;> off = 7 * pos
+.resist:
 	ld a, c
 	add a
 	add c
 	add a
 	add c
-	ld de, $dd28
+;> q = addr(wBattlerResist) + off
+	ld de, wBattlerResist
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> PackResistances(rec, q)
 	push bc
-	call Call_51_4404
+	call PackResistances
 	pop bc
-	call Call_51_47A5
+;> SetIntClass(pos)
+	call SetIntClass
+;> return
 	ret
 
 
-Call_51_4627::
+;@ def LoadEnemyBattler(pos: c)
+;@ path: battle/setup
+;@ Fills enemy position `pos` (4-6) from the monster template of encounter species wEncSpecies[pos - 4]:
+;@ level, stats, skills and reward (LoadEnemyFromTemplate), the CGB palette species, then the sex
+;@ (rolled from the MonsterStats sex chance) and the resistances.
+LoadEnemyBattler::
+;> i = pos - 4
 	push bc
 	ld a, c
 	sub $04
 	ld c, a
 	push bc
+;> p = addr(wEncSpecies) + 2 * i
 	ld hl, wEncSpecies
 	ld a, c
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> species = mem16[p]
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> wNewMonId = species
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;> LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
+;> LoadEnemyFromTemplate(i)
 	pop bc
-	call Call_51_47E0
+	call LoadEnemyFromTemplate
+;> p = addr(wBattlerSpecies) + pos
 	ld a, c
 	add $04
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
+;> SetEnemyPalSpecies(i, p)
 	adc h
 	ld h, a
-	call Call_51_4688
+	call SetEnemyPalSpecies
+;> wMonSpecies = mem[p]
 	ld a, [hl]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	push bc
 	ld hl, far_GetMonsterStats
 	rst $10
 	pop bc
-	call Call_51_494C
+;> RollEnemySex(i)
+	call RollEnemySex
+;> return
 	pop bc
 	ret
 
 
-Call_51_4669::
+;@ def SetBattlerPalSpecies(pos: c, p: hl)
+;@ path: battle/setup
+;@ On a Game Boy Color, stores the species at `p` for battle position `pos` at $DB00 + pos in WRAM
+;@ bank 2, where the picture palette code looks it up.
+;@ test: skip writes WRAM bank 2
+SetBattlerPalSpecies::
+;> if not wOnCGB: return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> species = mem[p]; rSVBK = 2
 	push de
 	push hl
 	ld h, [hl]
 	ld a, $02
 	ldh [rSVBK], a
+;> q = 0xDB00 + pos
 	ld a, c
-	ld de, $db00
+	ld de, wSideFlags
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> mem[q] = species                    # in WRAM bank 2
 	ld d, a
 	ld a, h
 	ld [de], a
+;> rSVBK = 0
 	ld a, $00
 	ldh [rSVBK], a
+;> return
 	pop hl
 	pop de
 	ret
 
 
-Call_51_4688::
+;@ def SetEnemyPalSpecies(i: c, p: hl)
+;@ path: battle/setup
+;@ SetBattlerPalSpecies for enemy number `i` (battle position i + 4).
+SetEnemyPalSpecies::
+;> SetBattlerPalSpecies(i + 4, p)
 	push bc
 	ld a, c
 	add $04
 	ld c, a
-	call Call_51_4669
+	call SetBattlerPalSpecies
+;> return
 	pop bc
 	ret
 
 
-Call_51_4692::
+;@ def StoreBattlerByte(pos: c, dest: de, src: hl) -> hl
+;@ path: battle/setup
+;@ Copies the byte at `src` to the per-position table `dest` (entry `pos`); returns src + 1.
+StoreBattlerByte::
+;> q = dest + pos
 	ld a, c
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> mem[q] = mem[src]
 	ld a, [hli]
 	ld [de], a
+;> return src + 1
 	ret
 
 
-Call_51_469C::
+;@ def StoreBattlerWord(pos: c, dest: de, src: hl) -> hl
+;@ path: battle/setup
+;@ Copies the word at `src` to the per-position table of words `dest` (entry `pos`); returns src + 2.
+StoreBattlerWord::
+;> q = dest + 2 * pos
 	ld a, c
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> mem16[q] = mem16[src]
 	ld d, a
 	ld a, [hli]
 	ld [de], a
 	inc de
 	ld a, [hli]
 	ld [de], a
+;> return src + 2
 	ret
 
 
-Call_51_46AA::
-	ld a, [$db4c]
+LoadBattlerSkills::
+	ld a, [wBattleArg0]
 	ld c, a
-	ld hl, $dc64
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -1102,9 +1467,9 @@ jr_051_46cf:
 	ld a, c
 	ld hl, wMonSkills
 	call PartyMonsterField
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	jr Call_51_46FF
+	jr CopyBattlerSkills
 
 jr_051_46dc:
 	ld a, c
@@ -1125,11 +1490,11 @@ jr_051_46dc:
 	ld [$da13], a
 	ld hl, far_LoadMonTemplate2
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	ld hl, $da2d
+	ld hl, wTemplateSkills
 
-Call_51_46FF::
+CopyBattlerSkills::
 	ld a, [wLinkActive]
 	or a
 	jr nz, jr_051_470e
@@ -1176,7 +1541,7 @@ jr_051_4728:
 	adc d
 	ld d, a
 	ld b, $08
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	push af
 
 jr_051_473a:
@@ -1186,14 +1551,14 @@ jr_051_473a:
 
 	push bc
 	ld a, [de]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	xor a
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $01
-	ld [$db4e], a
-	ld hl, Jump_51_5400
+	ld [wBattleArg2], a
+	ld hl, FallStep1
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	swap a
 	and $0f
 	dec de
@@ -1207,12 +1572,12 @@ jr_051_473a:
 
 jr_051_4761:
 	pop af
-	ld [$db4c], a
-	call Call_51_499F
+	ld [wBattleArg0], a
+	call SubstituteSkills
 	ret
 
 
-Call_51_4769::
+LoadBattlerAilments::
 	push hl
 	ld a, c
 	ld de, wBattlerState
@@ -1231,7 +1596,7 @@ Call_51_4769::
 jr_051_477d:
 	ld a, $00
 	ld [de], a
-	ld a, [$db73]
+	ld a, [wBattleType]
 	cp $02
 	jr z, jr_051_47a3
 
@@ -1264,10 +1629,10 @@ jr_051_47a3:
 	ret
 
 
-Call_51_47A5::
+SetIntClass::
 	push bc
 	ld a, c
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -1312,30 +1677,30 @@ jr_051_47d9:
 
 	db $c5, $18, $12
 
-Call_51_47E0::
+LoadEnemyFromTemplate::
 	push bc
-	ld hl, $db85
+	ld hl, wEnemyTemplate3
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da1b]
+	ld a, [wTemplateByte3]
 	ld [hl], a
 	ld a, c
 	add $04
 	ld c, a
 	add a
 	ld b, a
-	ld hl, $db9b
+	ld hl, wBattlerLevel
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da1c]
+	ld a, [wTemplateLevel]
 	ld [hl], a
 	ld hl, wBattlerHP
 	ld a, b
@@ -1344,12 +1709,12 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da1d]
+	ld a, [wTemplateHP]
 	ld [hli], a
 	ld a, [$da1e]
 	ld [hld], a
 	ld a, b
-	call Call_51_4A61
+	call RandomizeEnemyHP
 	ld hl, wBattlerMaxHP
 	ld a, b
 	add l
@@ -1357,7 +1722,7 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da1d]
+	ld a, [wTemplateHP]
 	ld [hli], a
 	ld a, [$da1e]
 	ld [hl], a
@@ -1368,7 +1733,7 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da1f]
+	ld a, [wTemplateMP]
 	ld [hli], a
 	ld a, [$da20]
 	ld [hl], a
@@ -1379,7 +1744,7 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da1f]
+	ld a, [wTemplateMP]
 	ld [hli], a
 	ld a, [$da20]
 	ld [hl], a
@@ -1390,7 +1755,7 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da21]
+	ld a, [wTemplateAttack]
 	ld [hli], a
 	ld a, [$da22]
 	ld [hl], a
@@ -1401,7 +1766,7 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da23]
+	ld a, [wTemplateDefense]
 	ld [hli], a
 	ld a, [$da24]
 	ld [hl], a
@@ -1412,7 +1777,7 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da25]
+	ld a, [wTemplateAgility]
 	ld [hli], a
 	ld a, [$da26]
 	ld [hl], a
@@ -1423,13 +1788,13 @@ Call_51_47E0::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da27]
+	ld a, [wTemplateIntelligence]
 	ld [hli], a
 	ld a, [$da28]
 	ld [hld], a
 	ld a, [hl]
 	push af
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	ld a, c
 	add l
 	ld l, a
@@ -1455,7 +1820,7 @@ jr_051_48b4:
 
 jr_051_48b6:
 	ld [hl], a
-	ld hl, $dc23
+	ld hl, wBattlerWildness
 	ld a, b
 	add l
 	ld l, a
@@ -1465,7 +1830,7 @@ jr_051_48b6:
 	ld [hl], $ff
 	inc hl
 	ld [hl], $00
-	ld hl, $dc33
+	ld hl, wEnemyReward
 	push bc
 	ld a, c
 	sub $04
@@ -1478,12 +1843,12 @@ jr_051_48b6:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da19]
+	ld a, [wTemplateReward]
 	ld [hli], a
 	ld a, [$da1a]
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	ld a, c
 	add l
 	ld l, a
@@ -1492,41 +1857,41 @@ jr_051_48b6:
 	ld h, a
 	ld a, [wNewMonNameText]
 	ld [hl], a
-	ld hl, $dc44
+	ld hl, wBattlerPersonality1
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da29]
+	ld a, [wTemplatePersonality1]
 	ld [hl], a
-	ld hl, $dc4c
+	ld hl, wBattlerStat67
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da2b]
+	ld a, [wTemplateStat67]
 	ld [hl], a
-	ld hl, $dc54
+	ld hl, wBattlerPersonality2
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da2a]
+	ld a, [wTemplatePersonality2]
 	ld [hl], a
-	ld hl, $dc5c
+	ld hl, wBattlerPersonality3
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da2c]
+	ld a, [wTemplatePersonality3]
 	ld [hl], a
 	ld hl, $dc65
 	ld a, b
@@ -1538,7 +1903,7 @@ jr_051_48b6:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da2d]
+	ld a, [wTemplateSkills]
 	ld [hli], a
 	inc hl
 	ld a, [$da2e]
@@ -1555,18 +1920,18 @@ jr_051_48b6:
 
 	db $c5, $18, $04
 
-Call_51_494C::
+RollEnemySex::
 	push bc
 	ld a, c
 	add $04
 	ld c, a
-	ld hl, $db93
+	ld hl, wBattlerSex
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da36]
+	ld a, [wMonSexChance]
 	or a
 	jr z, jr_051_4988
 
@@ -1609,7 +1974,7 @@ jr_051_4986:
 jr_051_4988:
 	ld [hl], a
 	ld hl, wMonResistances
-	ld de, $dd28
+	ld de, wBattlerResist
 	ld a, c
 	add a
 	add c
@@ -1620,14 +1985,14 @@ jr_051_4988:
 	ld a, $00
 	adc d
 	ld d, a
-	call Call_51_4404
+	call PackResistances
 	pop bc
 	ret
 
 
-Call_51_499F::
+SubstituteSkills::
 	ld bc, $0800
-	ld hl, $db93
+	ld hl, wBattlerSex
 
 jr_051_49a5:
 	ld a, c
@@ -1639,7 +2004,7 @@ jr_051_49a5:
 	jr nz, jr_051_49b4
 
 	push hl
-	call Call_51_4A00
+	call SubstituteSexSkill
 	pop hl
 
 jr_051_49b4:
@@ -1670,21 +2035,21 @@ jr_051_49cc:
 	cp $97
 	jr nz, jr_051_49da
 
-	call Call_51_4A1F
+	call SetSkillDB
 	jr jr_051_49ea
 
 jr_051_49da:
 	cp $19
 	jr nz, jr_051_49e3
 
-	call Call_51_4A22
+	call SetSkillDA
 	jr jr_051_49ea
 
 jr_051_49e3:
 	cp $2a
 	jr nz, jr_051_49ea
 
-	call Call_51_4A25
+	call SetSkillDC
 
 jr_051_49ea:
 	inc hl
@@ -1708,7 +2073,7 @@ jr_051_49ef:
 	ret
 
 
-Call_51_4A00::
+SubstituteSexSkill::
 	ld a, c
 	ld hl, $dc65
 	swap a
@@ -1740,22 +2105,22 @@ jr_051_4a19:
 	ret
 
 
-Call_51_4A1F::
+SetSkillDB::
 	ld [hl], $db
 	ret
 
 
-Call_51_4A22::
+SetSkillDA::
 	ld [hl], $da
 	ret
 
 
-Call_51_4A25::
+SetSkillDC::
 	ld [hl], $dc
 	ret
 
 
-Call_51_4A28::
+SetSkillKinds::
 	ld hl, $dc65
 	ld bc, $0808
 
@@ -1767,14 +2132,14 @@ jr_051_4a2e:
 	jr z, jr_051_4a50
 
 	ld a, [hl]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $01
-	ld [$db4e], a
-	ld hl, Jump_51_5400
+	ld [wBattleArg2], a
+	ld hl, FallStep1
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	swap a
 	and $0f
 	jr jr_051_4a52
@@ -1799,8 +2164,8 @@ jr_051_4a52:
 	ret
 
 
-Call_51_4A61::
-	ld a, [$db73]
+RandomizeEnemyHP::
+	ld a, [wBattleType]
 	or a
 	ret nz
 
@@ -1811,7 +2176,7 @@ Call_51_4A61::
 	ld l, a
 	ld b, h
 	ld c, l
-	call Call_51_5363
+	call ThirteenSixteenths
 	ld a, c
 	sub l
 	ld c, a
@@ -1849,23 +2214,23 @@ jr_051_4a8c:
 	ret
 
 
-Call_51_4A96::
-	ld a, [$d9fd]
-	ld [$d929], a
-	ld a, [$db74]
+SaveBattleResults::
+	ld a, [wTeamTactic]
+	ld [wSavedTeamTactic], a
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld c, $00
 
 jr_051_4aa2:
-	call Call_51_4AC0
+	call SaveTacticBits
 	ld a, c
 	ld hl, wMonStatus
 	call PartyMonsterField
-	call Call_51_4AF0
-	call Call_51_4B36
-	call Call_51_4B50
-	call Call_51_4B83
-	call Call_51_4B96
+	call SaveAilments
+	call SaveHP
+	call SaveMP
+	call SaveWildness
+	call SavePersonality
 	inc c
 	dec b
 	jr nz, jr_051_4aa2
@@ -1873,12 +2238,12 @@ jr_051_4aa2:
 	ret
 
 
-Call_51_4AC0::
+SaveTacticBits::
 	ld a, c
 	ld hl, wMonGender
 	call PartyMonsterField
 	ld a, c
-	ld de, $dd03
+	ld de, wBattlerTactic
 	add e
 	ld e, a
 	ld a, $00
@@ -1889,7 +2254,7 @@ Call_51_4AC0::
 	and $03
 	ld l, a
 	ld a, c
-	ld de, $c876
+	ld de, wBattlerSexBits67
 	add e
 	ld e, a
 	ld a, $00
@@ -1910,7 +2275,7 @@ Call_51_4AC0::
 	ret
 
 
-Call_51_4AF0::
+SaveAilments::
 	ld a, $00
 	ld [hl], a
 	ld a, c
@@ -1945,12 +2310,12 @@ jr_051_4b0e:
 	jr jr_051_4b2f
 
 jr_051_4b18:
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr nz, jr_051_4b2f
 
 	ld a, c
-	ld de, $dc5c
+	ld de, wBattlerPersonality3
 	add e
 	ld e, a
 	ld a, $00
@@ -1973,7 +2338,7 @@ jr_051_4b2f:
 	ret
 
 
-Call_51_4B36::
+SaveHP::
 	push bc
 	ld a, c
 	ld de, wBattlerHP
@@ -1990,14 +2355,14 @@ Call_51_4B36::
 	ld a, [de]
 	ld [hli], a
 	ld b, a
-	call Call_51_4B70
+	call ClampToMax
 	inc hl
 	inc hl
 	pop bc
 	ret
 
 
-Call_51_4B50::
+SaveMP::
 	push bc
 	ld a, c
 	ld de, wBattlerMP
@@ -2014,7 +2379,7 @@ Call_51_4B50::
 	ld a, [de]
 	ld [hli], a
 	ld b, a
-	call Call_51_4B70
+	call ClampToMax
 	ld a, $0a
 	add l
 	ld l, a
@@ -2025,7 +2390,7 @@ Call_51_4B50::
 	ret
 
 
-Call_51_4B70::
+ClampToMax::
 	push hl
 	ld d, h
 	ld e, l
@@ -2047,9 +2412,9 @@ jr_051_4b81:
 	ret
 
 
-Call_51_4B83::
+SaveWildness::
 	ld a, c
-	ld de, $dc23
+	ld de, wBattlerWildness
 	add a
 	add e
 	ld e, a
@@ -2066,7 +2431,7 @@ Call_51_4B83::
 	ret
 
 
-Call_51_4B96::
+SavePersonality::
 	ld a, c
 	ld de, wBattlerState
 	add e
@@ -2080,7 +2445,7 @@ Call_51_4B96::
 
 	push hl
 	ld a, c
-	ld hl, $db03
+	ld hl, wBattlerStatus1
 	add a
 	add a
 	add a
@@ -2094,7 +2459,7 @@ Call_51_4B96::
 	jr nz, jr_051_4be7
 
 	ld a, c
-	ld de, $dc44
+	ld de, wBattlerPersonality1
 	add e
 	ld e, a
 	ld a, $00
@@ -2103,7 +2468,7 @@ Call_51_4B96::
 	ld a, [de]
 	ld [hli], a
 	ld a, c
-	ld de, $dc54
+	ld de, wBattlerPersonality2
 	add e
 	ld e, a
 	ld a, $00
@@ -2112,7 +2477,7 @@ Call_51_4B96::
 	ld a, [de]
 	ld [hli], a
 	ld a, c
-	ld de, $dc5c
+	ld de, wBattlerPersonality3
 	add e
 	ld e, a
 	ld a, $00
@@ -2121,7 +2486,7 @@ Call_51_4B96::
 	ld a, [de]
 	ld [hli], a
 	ld a, c
-	ld de, $dc4c
+	ld de, wBattlerStat67
 	add e
 	ld e, a
 	ld a, $00
@@ -2134,22 +2499,22 @@ jr_051_4be7:
 	ret
 
 
-Call_51_4BE8::
+DefeatBattler::
 	ld a, $01
-	ld [$d9f0], a
-	ld a, [$db4c]
-	ld [$dd72], a
+	ld [wBattleStepArg1], a
+	ld a, [wBattleArg0]
+	ld [wBattleTemp], a
 	and $03
 	cp $03
 	jr z, jr_051_4c00
 
-	call Call_51_44A9
-	call Call_51_4C26
+	call ReloadBattler
+	call SetBattlerDown
 	ret
 
 
 jr_051_4c00:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerState
 	add l
 	ld l, a
@@ -2157,24 +2522,24 @@ jr_051_4c00:
 	adc h
 	ld h, a
 	ld [hl], $ff
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $04
 	rrca
 	rrca
 	and $01
-	ld hl, $db00
+	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	res 2, [hl]
-	call Call_51_4C26
+	call SetBattlerDown
 	ret
 
 
-Call_51_4C26::
-	ld a, [$dd72]
+SetBattlerDown::
+	ld a, [wBattleTemp]
 	ld hl, wBattlerHP
 	add a
 	add l
@@ -2215,7 +2580,7 @@ Call_51_4C26::
 	ld [bc], a
 
 jr_051_4c58:
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	ld hl, wBattlerStatus
 	add a
 	add a
@@ -2227,7 +2592,7 @@ jr_051_4c58:
 	ld h, a
 	xor a
 	ld [hli], a
-	call Call_51_4CA0
+	call RestorePalettesIfChanged
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
@@ -2235,7 +2600,7 @@ jr_051_4c58:
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	ld hl, wBattlerState
 	add l
 	ld l, a
@@ -2251,7 +2616,7 @@ jr_051_4c58:
 	or a
 	ret nz
 
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $04
 	ret c
 
@@ -2259,7 +2624,7 @@ jr_051_4c58:
 	cp $03
 	ret z
 
-	ld hl, $c1ca
+	ld hl, wEnemyMorph
 	add l
 	ld l, a
 	ld a, $00
@@ -2269,7 +2634,7 @@ jr_051_4c58:
 	ret
 
 
-Call_51_4CA0::
+RestorePalettesIfChanged::
 	bit 4, [hl]
 	jr nz, jr_051_4ca7
 
@@ -2278,7 +2643,7 @@ Call_51_4CA0::
 
 jr_051_4ca7:
 	push hl
-	ld hl, far_Call_51_6959
+	ld hl, far_SetBattlePicPalettes
 	rst $10
 	ld hl, far_UploadCGBPalettes
 	rst $10
@@ -2287,14 +2652,14 @@ jr_051_4ca7:
 	ret
 
 
-Call_51_4CB3::
+AppendEnemyLetter::
 	ld a, [wEncCount]
 	ld b, a
 	inc b
 	ld c, $04
 	ld d, $00
-	ld a, [$db60]
-	ld hl, $dc3c
+	ld a, [wNameBattler]
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -2304,7 +2669,7 @@ Call_51_4CB3::
 
 jr_051_4cc9:
 	ld a, c
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -2314,7 +2679,7 @@ jr_051_4cc9:
 	cp e
 	jr nz, jr_051_4cdf
 
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	cp c
 	jp z, Jump_051_4ce4
 
@@ -2337,7 +2702,7 @@ Jump_051_4ce4:
 
 jr_051_4ce9:
 	ld a, c
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -2355,7 +2720,7 @@ jr_051_4ce9:
 
 
 jr_051_4cfc:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -2379,13 +2744,13 @@ jr_051_4d10:
 	ret
 
 
-Call_51_4D16::
+SetUpCalledMonster1::
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
-	ld [$db4c], a
-	ld hl, $db8b
+	ld [wBattleArg0], a
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -2407,7 +2772,7 @@ Call_51_4D16::
 	ld h, a
 	ld a, $1e
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
@@ -2418,7 +2783,7 @@ Call_51_4D16::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
@@ -2429,7 +2794,7 @@ Call_51_4D16::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
@@ -2440,7 +2805,7 @@ Call_51_4D16::
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
@@ -2451,7 +2816,7 @@ Call_51_4D16::
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
@@ -2462,7 +2827,7 @@ Call_51_4D16::
 	ld a, $b4
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
@@ -2473,7 +2838,7 @@ Call_51_4D16::
 	ld a, $96
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
@@ -2484,7 +2849,7 @@ Call_51_4D16::
 	ld a, $50
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
@@ -2495,16 +2860,16 @@ Call_51_4D16::
 	ld a, $96
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dd0b
+	ld a, [wBattleArg0]
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $01
-	ld a, [$db4c]
-	ld hl, $dc23
+	ld a, [wBattleArg0]
+	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
@@ -2514,8 +2879,8 @@ Call_51_4D16::
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dc44
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
@@ -2547,8 +2912,8 @@ Call_51_4D16::
 	ld h, a
 	ld a, $fa
 	ld [hl], a
-	ld a, [$db4c]
-	ld hl, $dc64
+	ld a, [wBattleArg0]
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -2567,8 +2932,8 @@ Call_51_4D16::
 	ld [hli], a
 	ld a, $88
 	ld [hli], a
-	ld a, [$db4c]
-	ld hl, $dd28
+	ld a, [wBattleArg0]
+	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
@@ -2596,13 +2961,13 @@ Call_51_4D16::
 	ret
 
 
-Call_51_4E5E::
+SetUpCalledMonster2::
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
-	ld [$db4c], a
-	ld hl, $db8b
+	ld [wBattleArg0], a
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -2624,7 +2989,7 @@ Call_51_4E5E::
 	ld h, a
 	ld a, $28
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
@@ -2636,7 +3001,7 @@ Call_51_4E5E::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
@@ -2648,7 +3013,7 @@ Call_51_4E5E::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
@@ -2659,7 +3024,7 @@ Call_51_4E5E::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
@@ -2670,7 +3035,7 @@ Call_51_4E5E::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
@@ -2681,7 +3046,7 @@ Call_51_4E5E::
 	ld a, $d2
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
@@ -2692,7 +3057,7 @@ Call_51_4E5E::
 	ld a, $a0
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
@@ -2703,7 +3068,7 @@ Call_51_4E5E::
 	ld a, $78
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
@@ -2714,16 +3079,16 @@ Call_51_4E5E::
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dd0b
+	ld a, [wBattleArg0]
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $01
-	ld a, [$db4c]
-	ld hl, $dc23
+	ld a, [wBattleArg0]
+	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
@@ -2733,8 +3098,8 @@ Call_51_4E5E::
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dc44
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
@@ -2766,8 +3131,8 @@ Call_51_4E5E::
 	ld h, a
 	ld a, $fa
 	ld [hl], a
-	ld a, [$db4c]
-	ld hl, $dc64
+	ld a, [wBattleArg0]
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -2786,8 +3151,8 @@ Call_51_4E5E::
 	ld [hli], a
 	ld a, $7a
 	ld [hli], a
-	ld a, [$db4c]
-	ld hl, $dd28
+	ld a, [wBattleArg0]
+	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
@@ -2815,13 +3180,13 @@ Call_51_4E5E::
 	ret
 
 
-Call_51_4FAA::
+SetUpCalledMonster3::
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
-	ld [$db4c], a
-	ld hl, $db8b
+	ld [wBattleArg0], a
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -2843,7 +3208,7 @@ Call_51_4FAA::
 	ld h, a
 	ld a, $32
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
@@ -2855,7 +3220,7 @@ Call_51_4FAA::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
@@ -2867,7 +3232,7 @@ Call_51_4FAA::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
@@ -2878,7 +3243,7 @@ Call_51_4FAA::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
@@ -2889,7 +3254,7 @@ Call_51_4FAA::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
@@ -2900,7 +3265,7 @@ Call_51_4FAA::
 	ld a, $fa
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
@@ -2911,7 +3276,7 @@ Call_51_4FAA::
 	ld a, $be
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
@@ -2922,7 +3287,7 @@ Call_51_4FAA::
 	ld a, $96
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
@@ -2933,16 +3298,16 @@ Call_51_4FAA::
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dd0b
+	ld a, [wBattleArg0]
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $02
-	ld a, [$db4c]
-	ld hl, $dc23
+	ld a, [wBattleArg0]
+	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
@@ -2952,8 +3317,8 @@ Call_51_4FAA::
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dc44
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
@@ -2985,8 +3350,8 @@ Call_51_4FAA::
 	ld h, a
 	ld a, $fa
 	ld [hl], a
-	ld a, [$db4c]
-	ld hl, $dc64
+	ld a, [wBattleArg0]
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -3005,8 +3370,8 @@ Call_51_4FAA::
 	ld [hli], a
 	ld a, $57
 	ld [hli], a
-	ld a, [$db4c]
-	ld hl, $dd28
+	ld a, [wBattleArg0]
+	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
@@ -3034,13 +3399,13 @@ Call_51_4FAA::
 	ret
 
 
-Call_51_50F6::
+SetUpCalledMonster4::
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
-	ld [$db4c], a
-	ld hl, $db8b
+	ld [wBattleArg0], a
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -3062,7 +3427,7 @@ Call_51_50F6::
 	ld h, a
 	ld a, $3c
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
@@ -3074,7 +3439,7 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $02
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
@@ -3086,7 +3451,7 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
@@ -3098,7 +3463,7 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
@@ -3110,7 +3475,7 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
@@ -3122,7 +3487,7 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
@@ -3134,7 +3499,7 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
@@ -3145,7 +3510,7 @@ Call_51_50F6::
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
@@ -3156,16 +3521,16 @@ Call_51_50F6::
 	ld a, $fa
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dd0b
+	ld a, [wBattleArg0]
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $02
-	ld a, [$db4c]
-	ld hl, $dc23
+	ld a, [wBattleArg0]
+	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
@@ -3175,8 +3540,8 @@ Call_51_50F6::
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4c]
-	ld hl, $dc44
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
@@ -3208,8 +3573,8 @@ Call_51_50F6::
 	ld h, a
 	ld a, $fa
 	ld [hl], a
-	ld a, [$db4c]
-	ld hl, $dc64
+	ld a, [wBattleArg0]
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -3228,8 +3593,8 @@ Call_51_50F6::
 	ld [hli], a
 	ld a, $80
 	ld [hli], a
-	ld a, [$db4c]
-	ld hl, $dd28
+	ld a, [wBattleArg0]
+	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
@@ -3257,9 +3622,9 @@ Call_51_50F6::
 	ret
 
 
-Call_51_524A::
+TransformSkillUser::
 	ld a, [wSkillUser]
-	ld hl, $db9b
+	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
@@ -3339,9 +3704,9 @@ Call_51_524A::
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	call Call_51_5339
+	call SetTransformPalette
 	ld a, [wSkillUser]
-	ld hl, $dc64
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -3386,7 +3751,7 @@ Call_51_524A::
 	add h
 	add a
 	add h
-	ld hl, $dd28
+	ld hl, wBattlerResist
 	add l
 	ld l, a
 	ld a, $00
@@ -3407,11 +3772,11 @@ Call_51_524A::
 	ld a, $5a
 	ld [hl], a
 	ld a, [wSkillUser]
-	call Call_51_5355
+	call ClearBattlerFlagBits
 	ret
 
 
-Call_51_5339::
+SetTransformPalette::
 	ld a, [wOnCGB]
 	or a
 	ret z
@@ -3419,7 +3784,7 @@ Call_51_5339::
 	ld a, $02
 	ldh [rSVBK], a
 	ld a, [wSkillUser]
-	ld hl, $db00
+	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
@@ -3431,8 +3796,8 @@ Call_51_5339::
 	ret
 
 
-Call_51_5355::
-	ld hl, $c1cd
+ClearBattlerFlagBits::
+	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
@@ -3444,7 +3809,7 @@ Call_51_5355::
 	ret
 
 
-Call_51_5363::
+ThirteenSixteenths::
 	push bc
 	srl h
 	rr l
@@ -3462,20 +3827,20 @@ Call_51_5363::
 	ret
 
 
-Call_51_537A::
-	ld a, [$d9f1]
+BattlerFallSequence::
+	ld a, [wFallStep]
 	rst $00
 
 JumpTable_51_537E::
-	dw Jump_51_5384
-	dw Jump_51_5400
-	dw Jump_51_540F
+	dw FallStep0
+	dw FallStep1
+	dw FallStep2
 
-Jump_51_5384::
-	ld hl, $d9f1
+FallStep0::
+	ld hl, wFallStep
 	inc [hl]
 	ld a, [wSkillTarget]
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -3491,14 +3856,14 @@ Jump_51_5384::
 	ld h, a
 	ld [hl], $01
 	ld a, [wSkillTarget]
-	ld [$db4c], a
-	ld a, [$db4c]
-	ld [$dd72], a
+	ld [wBattleArg0], a
+	ld a, [wBattleArg0]
+	ld [wBattleTemp], a
 	and $03
 	cp $03
 	jr z, jr_051_53d6
 
-	call Call_51_44A9
+	call ReloadBattler
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
@@ -3510,22 +3875,22 @@ Jump_51_5384::
 	cp $07
 	jr z, jr_051_53d1
 
-	jr Jump_51_5400
+	jr FallStep1
 
 jr_051_53cd:
 	cp $03
-	jr c, Jump_51_5400
+	jr c, FallStep1
 
 jr_051_53d1:
-	ld hl, $d9f1
+	ld hl, wFallStep
 	inc [hl]
 	ret
 
 
 jr_051_53d6:
-	ld hl, $d9f1
+	ld hl, wFallStep
 	inc [hl]
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld hl, wBattlerState
 	add l
 	ld l, a
@@ -3533,37 +3898,37 @@ jr_051_53d6:
 	adc h
 	ld h, a
 	ld [hl], $ff
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $04
 	rrca
 	rrca
 	and $01
-	ld hl, $db00
+	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	res 2, [hl]
-	call Call_51_4C26
+	call SetBattlerDown
 	ret
 
 
-Jump_51_5400::
+FallStep1::
 	ld hl, far_Call_58_5749
 	rst $10
 	ld a, $1a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ld a, $02
-	ld [$d9f1], a
+	ld [wFallStep], a
 	ret
 
 
-Jump_51_540F::
+FallStep2::
 	ld a, [wSkillTarget]
-	ld [$db4c], a
-	ld [$dd72], a
-	call Call_51_4C26
+	ld [wBattleArg0], a
+	ld [wBattleTemp], a
+	call SetBattlerDown
 	ld a, [wLinkActive]
 	or a
 	jr nz, jr_051_543f
@@ -3585,21 +3950,21 @@ Jump_51_540F::
 	jr z, jr_051_543f
 
 	ld a, [wSkillTarget]
-	ld [$dd61], a
+	ld [wJoinCandidate], a
 
 jr_051_543f:
-	ld hl, far_Call_50_79EB
+	ld hl, far_PrintPanelHPMP
 	rst $10
 	ld hl, wTextArg0
 	ld a, l
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, h
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
-	ld [$db50], a
+	ld [wNamePos], a
 	ld a, [wSkillTarget]
-	call Call_51_7A0A
-	call Call_51_547F
+	call GetBattlerName
+	call GetMessageSide
 	and $04
 	srl a
 	srl a
@@ -3610,15 +3975,15 @@ jr_051_543f:
 	ld hl, far_StartText_4C
 	rst $10
 	ld a, $03
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	xor a
-	ld [$d9f1], a
+	ld [wFallStep], a
 	ld a, $02
 	ld [wMonStats], a
 	ret
 
 
-Call_51_547F::
+GetMessageSide::
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
@@ -3628,7 +3993,7 @@ Call_51_547F::
 	ret
 
 
-Call_51_548C::
+ClearMonStatsCopy::
 	push bc
 	push hl
 	ld hl, wMonStats
@@ -3640,7 +4005,7 @@ Call_51_548C::
 	ret
 
 
-Call_51_549B::
+ReloadPartyBattlers::
 	ld a, [wLinkActive]
 	or a
 	ret nz
@@ -3659,26 +4024,26 @@ Call_51_549B::
 	xor a
 	call FillMemory
 	ld a, [wPartyCount]
-	ld [$db74], a
-	ld [$c1d9], a
+	ld [wPartyBattlers], a
+	ld [wPanelCount], a
 	ld b, a
 	ld c, $00
 
 jr_051_54ca:
-	call Call_51_44CB
+	call LoadBattlerFromRecord
 	inc c
 	dec b
 	jr nz, jr_051_54ca
 
 	ld a, [wParty]
 	ld hl, $9700
-	call Call_51_54F6
+	call DrawSlotNameTiles
 	ld a, [$ca8f]
 	ld hl, $9740
-	call Call_51_54F6
+	call DrawSlotNameTiles
 	ld a, [$ca90]
 	ld hl, $9780
-	call Call_51_54F6
+	call DrawSlotNameTiles
 	pop bc
 	ld a, c
 	ld [wNewMonSlot], a
@@ -3687,7 +4052,7 @@ jr_051_54ca:
 	ret
 
 
-Call_51_54F6::
+DrawSlotNameTiles::
 	cp $ff
 	ret z
 
@@ -3697,13 +4062,13 @@ Call_51_54F6::
 	ld e, l
 	ld d, h
 	pop hl
-	call Call_51_73DC
+	call DrawMonNameTiles
 	ret
 
 
-Call_51_5507::
+ResetStatusIcons::
 	ld a, $ff
-	ld hl, $da0a
+	ld hl, wStatusIconShown
 	ld bc, $0008
 	call FillMemory
 	ret
@@ -3716,41 +4081,41 @@ Call_51_5507::
 	db $16, $02, $18, $02, $16, $01, $79, $21, $0a, $da, $85, $6f, $3e, $00, $8c, $67
 	db $72, $0c, $05, $20, $ae, $c9
 
-Call_51_5569::
+LoadMonsterPicFar::
 	ld a, [$c0dc]
 	ld l, a
 	ld a, [$c0dd]
 	ld h, a
 	ld a, [$c0de]
-	call Call_51_6A67
+	call LoadMonsterPic
 	ret
 
 
-Call_51_5578::
-	ld a, [$d9f4]
+LevelUpScreen::
+	ld a, [wCommandStep]
 	rst $00
 
 JumpTable_51_557C::
-	dw Jump_51_55A0
-	dw Jump_51_5602
-	dw Jump_51_5638
-	dw Jump_51_5736
-	dw Jump_51_575F
-	dw Jump_51_57BA
-	dw Jump_51_57C4
-	dw Jump_51_57CE
-	dw Jump_51_57D8
-	dw Jump_51_57E2
-	dw Jump_51_57E7
-	dw Jump_51_583F
-	dw Jump_51_5987
-	dw Jump_51_59E3
-	dw Jump_51_5A1A
-	dw Jump_51_5A53
-	dw Jump_51_5ABC
-	dw Jump_51_5AE5
+	dw LevelUpStep00
+	dw LevelUpStep01
+	dw LevelUpStep02
+	dw LevelUpStep03
+	dw LevelUpStep04
+	dw LevelUpStep05
+	dw LevelUpStep06
+	dw LevelUpStep07
+	dw LevelUpStep08
+	dw LevelUpStep09
+	dw LevelUpStep10
+	dw LevelUpStep11
+	dw LevelUpStep12
+	dw LevelUpStep13
+	dw LevelUpStep14
+	dw LevelUpStep15
+	dw LevelUpStep16
+	dw LevelUpStep17
 
-Jump_51_55A0::
+LevelUpStep00::
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -3758,10 +4123,10 @@ Jump_51_55A0::
 	cp $63
 	jr c, jr_051_55b7
 
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
@@ -3772,33 +4137,33 @@ jr_051_55b7:
 	ld [wTextGroup], a
 	ld hl, $8820
 	ld de, $0a01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
 	ld hl, $89c0
 	ld de, $0f01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
 	xor a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_5602::
+LevelUpStep01::
 	ld a, [wCurPartyMember]
 	ld hl, wMonName
 	call MonsterField
@@ -3819,12 +4184,12 @@ Jump_51_5602::
 	call PrintSystemText
 	ld hl, far_RollLevelUpGains
 	rst $10
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_5638::
+LevelUpStep02::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -3981,12 +4346,12 @@ jr_051_56ec:
 
 jr_051_572e:
 	call PrintSystemText
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_5736::
+LevelUpStep03::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4008,12 +4373,12 @@ jr_051_5754:
 	dec b
 	jr nz, jr_051_5754
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_575F::
+LevelUpStep04::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4075,83 +4440,83 @@ jr_051_57b0:
 jr_051_57b1:
 	ld hl, far_PruneLearnableSkills
 	rst $10
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_57BA::
+LevelUpStep05::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_57C4::
+LevelUpStep06::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_57CE::
+LevelUpStep07::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_57D8::
+LevelUpStep08::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_57E2::
-	ld hl, $d9f4
+LevelUpStep09::
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_57E7::
+LevelUpStep10::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_580D
+	call CompactSkillList
 	cp $09
 	jr nc, jr_051_57f9
 
 	ld a, $10
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
 jr_051_57f9:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, $0b04
 	call PrintSystemText
-	call Call_51_742A
-	call Call_51_768A
-	call Call_51_736A
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
+	call CopyTilemapBufferToBG
 	ret
 
 
-Call_51_580D::
+CompactSkillList::
 	ld hl, wNumberBackup
 	ld bc, $0028
 	ld a, $ff
@@ -4191,7 +4556,7 @@ jr_051_5837:
 	ret
 
 
-Jump_51_583F::
+LevelUpStep11::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4199,20 +4564,20 @@ Jump_51_583F::
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	call Call_51_580D
-	ld [$d9f6], a
-	ld hl, $d9f4
+	call CompactSkillList
+	ld [wBattleListCount], a
+	ld hl, wCommandStep
 	inc [hl]
-	call Call_51_58F3
+	call DrawSkillNameColumn
 	call Call_51_592A
-	call Call_51_742A
-	call Call_51_5867
-	call Call_51_736A
+	call ClearBattleTilemap
+	call DrawForgetMenu
+	call CopyTilemapBufferToBG
 	ret
 
 
-Call_51_5867::
-	call Call_51_768A
+DrawForgetMenu::
+	call DrawBattlePartyPanel
 	ld hl, far_Call_55_4774
 	rst $10
 	ld de, $6e78
@@ -4229,14 +4594,14 @@ Call_51_5867::
 	ld b, [hl]
 	ld c, a
 	ld hl, $0125
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $59d7
-	ld a, [$d9f6]
+	ld a, [wBattleListCount]
 	ld c, a
 	ld hl, wMenuChoice2
-	call Call_51_75C5
+	call DrawPagedCursor
 	ret
 
 
@@ -4271,7 +4636,7 @@ Call_51_58A9::
 	jr z, jr_051_58dd
 
 	ld hl, $0121
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
 	ret
 
@@ -4284,12 +4649,12 @@ jr_051_58dd:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0121
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
 	ret
 
 
-Call_51_58F3::
+DrawSkillNameColumn::
 	ld de, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
@@ -4300,11 +4665,11 @@ Call_51_58F3::
 	adc d
 	ld d, a
 	ld hl, $9360
-	call Call_51_590D
-	call Call_51_590D
-	call Call_51_590D
+	call DrawSkillNameTiles
+	call DrawSkillNameTiles
+	call DrawSkillNameTiles
 
-Call_51_590D::
+DrawSkillNameTiles::
 	push de
 	push hl
 	ld a, [de]
@@ -4312,7 +4677,7 @@ Call_51_590D::
 	ld a, $06
 	ld [wTextGroup], a
 	ld de, $0901
-	call Call_51_73A3
+	call PrintTextToTiles
 	pop hl
 	ld a, l
 	add $90
@@ -4363,7 +4728,7 @@ Call_51_592A::
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
-	ld hl, Jump_51_5602
+	ld hl, LevelUpStep01
 	rst $10
 	pop de
 	pop hl
@@ -4378,26 +4743,26 @@ Call_51_592A::
 	ret
 
 
-Jump_51_5987::
+LevelUpStep12::
 	ld de, $59d7
 	ld hl, wMenuChoice2
-	ld a, [$d9f6]
+	ld a, [wBattleListCount]
 	ld c, a
 	ld b, $04
 	ld a, [hli]
 	push af
 	ld a, [hld]
 	push af
-	call Call_51_744A
+	call UpdatePagedCursor
 	pop af
 	ld hl, wConfirmChoice
 	cp [hl]
 	jr z, jr_051_59ad
 
-	call Call_51_58F3
+	call DrawSkillNameColumn
 	call Call_51_592A
 	call Call_51_58A9
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 
 jr_051_59ad:
 	pop af
@@ -4407,7 +4772,7 @@ jr_051_59ad:
 
 	call Call_51_592A
 	call Call_51_58A9
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 
 jr_051_59bd:
 	ld a, [wJoyPressed]
@@ -4416,7 +4781,7 @@ jr_051_59bd:
 
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wMenuChoice2
 	set 7, [hl]
@@ -4429,12 +4794,12 @@ jr_051_59d6:
 
 	db $52, $01, $69, $00, $a9, $00, $e9, $00, $29, $01, $ff, $ff
 
-Jump_51_59E3::
+LevelUpStep13::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
@@ -4457,21 +4822,21 @@ Jump_51_59E3::
 	call PrintSystemText
 	ld de, $2e07
 	call Call_51_72CC
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_5A1A::
+LevelUpStep14::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld a, $5c
 	call QueueSound
-	call Call_51_742A
-	call Call_51_5867
+	call ClearBattleTilemap
+	call DrawForgetMenu
 	ld de, $2e07
 	call Call_51_72CC
 	ld hl, $89c0
@@ -4479,15 +4844,15 @@ Jump_51_5A1A::
 	call DecompressVRAM
 	ld de, $6eef
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $5ab6
 	ld a, [wConfirmChoice2]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_5A53::
+LevelUpStep15::
 	ld de, $5ab6
 	ld hl, wConfirmChoice2
 	ld b, $02
@@ -4500,7 +4865,7 @@ jr_051_5a65:
 	ld hl, $0b07
 	call PrintSystemText
 	ld a, $0b
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_5ab5
 
 jr_051_5a72:
@@ -4514,7 +4879,7 @@ jr_051_5a72:
 	cp $81
 	jr z, jr_051_5a65
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wConfirmChoice2
 	set 7, [hl]
@@ -4546,7 +4911,7 @@ jr_051_5ab5:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_51_5ABC::
+LevelUpStep16::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4568,24 +4933,24 @@ Jump_51_5ABC::
 	call PrintSystemText
 
 jr_051_5ae0:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_5AE5::
+LevelUpStep17::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_580D
+	call CompactSkillList
 	cp $09
 	jr c, jr_051_5b04
 
 	ld hl, $0b07
 	call PrintSystemText
 	ld a, $0b
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	xor a
 	ld [wMenuChoice2], a
 	ld [wConfirmChoice], a
@@ -4593,19 +4958,19 @@ Jump_51_5AE5::
 
 
 jr_051_5b04:
-	call Call_51_5B1C
-	call Call_51_5B31
-	call Call_51_742A
-	call Call_51_768A
-	call Call_51_736A
+	call StoreLearnedSkills
+	call ApplyLevelUp
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
+	call CopyTilemapBufferToBG
 	xor a
-	ld [$d9f4], a
-	ld hl, $d9ec
+	ld [wCommandStep], a
+	ld hl, wBattleStep
 	dec [hl]
 	ret
 
 
-Call_51_5B1C::
+StoreLearnedSkills::
 	ld a, [wCurPartyMember]
 	ld hl, wMonSkills
 	call MonsterField
@@ -4622,7 +4987,7 @@ jr_051_5b2a:
 	ret
 
 
-Call_51_5B31::
+ApplyLevelUp::
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -4750,58 +5115,58 @@ jr_051_5c02:
 	ld [hl], c
 
 jr_051_5c23:
-	call Call_51_549B
-	call Call_51_6A7E
-	call Call_51_768A
-	call Call_51_79CB
-	call Call_51_736A
+	call ReloadPartyBattlers
+	call RefreshStatusIcons
+	call DrawBattlePartyPanel
+	call ClearBGAttributes
+	call CopyTilemapBufferToBG
 	ret
 
 
-Call_51_5C33::
-	ld a, [$d9f4]
+RecruitScreen::
+	ld a, [wCommandStep]
 	rst $00
 
 JumpTable_51_5C37::
-	dw Jump_51_5C81
-	dw Jump_51_5D27
-	dw Jump_51_5D4D
-	dw Jump_51_5D91
-	dw Jump_51_5DEA
-	dw Jump_51_5E4D
-	dw Jump_51_5E7A
-	dw Jump_51_5ED7
-	dw Jump_51_5FA8
-	dw Jump_51_614F
-	dw Jump_51_61BD
-	dw Jump_51_61C2
-	dw Jump_51_61F9
-	dw Jump_51_62AA
-	dw Jump_51_6318
-	dw Jump_51_6353
-	dw Jump_51_6380
-	dw Jump_51_63C2
-	dw Jump_51_6401
-	dw Jump_51_646C
-	dw Jump_51_64DB
-	dw Jump_51_6531
-	dw Jump_51_6567
-	dw Jump_51_658A
-	dw Jump_51_65DE
-	dw Jump_51_6655
-	dw Jump_51_6680
-	dw Jump_51_66F3
-	dw Jump_51_6717
-	dw Jump_51_6789
-	dw Jump_51_6789
-	dw Jump_51_67A6
-	dw Jump_51_67B6
-	dw Jump_51_67F0
-	dw Jump_51_6829
-	dw Jump_51_683D
-	dw Jump_51_687E
+	dw RecruitStep00
+	dw RecruitStep01
+	dw RecruitStep02
+	dw RecruitStep03
+	dw RecruitStep04
+	dw RecruitStep05
+	dw RecruitStep06
+	dw RecruitStep07
+	dw RecruitStep08
+	dw RecruitStep09
+	dw RecruitStep10
+	dw RecruitStep11
+	dw RecruitStep12
+	dw RecruitStep13
+	dw RecruitStep14
+	dw RecruitStep15
+	dw RecruitStep16
+	dw RecruitStep17
+	dw RecruitStep18
+	dw RecruitStep19
+	dw RecruitStep20
+	dw RecruitStep21
+	dw RecruitStep22
+	dw RecruitStep23
+	dw RecruitStep24
+	dw RecruitStep25
+	dw RecruitStep26
+	dw RecruitStep27
+	dw RecruitStep28
+	dw RecruitStep29
+	dw RecruitStep29
+	dw RecruitStep31
+	dw RecruitStep32
+	dw RecruitStep33
+	dw RecruitStep34
+	dw RecruitStep35
+	dw RecruitStep36
 
-Jump_51_5C81::
+RecruitStep00::
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
 	ld hl, far_UploadCGBPalettes
@@ -4812,14 +5177,14 @@ Jump_51_5C81::
 	ld [wTextGroup], a
 	ld hl, $8820
 	ld de, $0a01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
 	ld hl, $89c0
 	ld de, $0f01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld a, $14
 	ld [wNewMonSlot], a
 	ld hl, far_CreateMonsterUnlisted
@@ -4828,40 +5193,40 @@ Jump_51_5C81::
 	rst $10
 	ld hl, $9000
 	ld a, [wNewMonNameText]
-	call Call_51_6A67
+	call LoadMonsterPic
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
 	xor a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
-	call Call_51_736A
+	call SetNewMonPicPalette
+	call CopyTilemapBufferToBG
 	ld de, wPartyBarTiles
 	ld a, [wParty]
-	call Call_51_5D13
+	call CopyMonName8
 	ld a, [$ca8f]
-	call Call_51_5D13
+	call CopyMonName8
 	ld a, [$ca90]
-	call Call_51_5D13
-	ld hl, $d9f4
+	call CopyMonName8
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Call_51_5D13::
+CopyMonName8::
 	cp $ff
 	ret z
 
@@ -4881,7 +5246,7 @@ jr_051_5d20:
 	ret
 
 
-Jump_51_5D27::
+RecruitStep01::
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
@@ -4892,45 +5257,45 @@ Jump_51_5D27::
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg0
-	call Call_51_6915
+	call AppendSexSymbol
 	ld hl, $0b10
 	call PrintSystemText
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_5D4D::
+RecruitStep02::
 	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
-	call Call_51_742A
-	call Call_51_768A
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
+	call SetNewMonPicPalette
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $5de4
 	ld a, [wLinkChoice]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_5D91::
+RecruitStep03::
 	ld de, $5de4
 	ld hl, wLinkChoice
 	ld b, $02
@@ -4948,7 +5313,7 @@ jr_051_5da3:
 	ld hl, $0b12
 	call PrintSystemText
 	ld a, $1d
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_5de3
 
 jr_051_5dbc:
@@ -4962,7 +5327,7 @@ jr_051_5dbc:
 	cp $81
 	jr z, jr_051_5da3
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wLinkChoice
 	set 7, [hl]
@@ -4977,28 +5342,28 @@ jr_051_5de3:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_51_5DEA::
-	call Call_51_5E34
+RecruitStep04::
+	call CountFreeMonSlots
 	or a
 	jr z, jr_051_5df7
 
 	ld a, $15
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_5e33
 
 jr_051_5df7:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, $0b11
 	call PrintSystemText
-	call Call_51_742A
-	call Call_51_768A
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
+	call SetNewMonPicPalette
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
@@ -5007,13 +5372,13 @@ jr_051_5df7:
 	ld de, $5de4
 	ld a, [wLinkChoice]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 
 jr_051_5e33:
 	ret
 
 
-Call_51_5E34::
+CountFreeMonSlots::
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
@@ -5039,29 +5404,29 @@ jr_051_5e40:
 	ret
 
 
-Jump_51_5E4D::
+RecruitStep05::
 	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $5ed1
 	ld a, [wMenuChoice2]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_5E7A::
+RecruitStep06::
 	ld de, $5ed1
 	ld hl, wMenuChoice2
 	ld b, $02
@@ -5079,7 +5444,7 @@ jr_051_5e8c:
 	ld hl, $0b12
 	call PrintSystemText
 	ld a, $1d
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_5ed0
 
 jr_051_5ea5:
@@ -5102,7 +5467,7 @@ jr_051_5ea5:
 	inc hl
 	ld [hl], $00
 	ld a, $1f
-	ld [$d9f4], a
+	ld [wCommandStep], a
 
 jr_051_5ed0:
 	ret
@@ -5110,20 +5475,20 @@ jr_051_5ed0:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_51_5ED7::
-	call Call_51_5F2E
+RecruitStep07::
+	call CountMonstersOrEggs
 	or a
 	jr nz, jr_051_5ee9
 
 	ld hl, $0b1c
 	call PrintSystemText
 	ld a, $22
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
 jr_051_5ee9:
-	call Call_51_5F64
+	call ListMonstersOrEggs
 	ld hl, PrintMessageGroup1
 	ld a, [wListCursor2]
 	and $01
@@ -5133,22 +5498,22 @@ jr_051_5ee9:
 
 jr_051_5ef9:
 	call PrintSystemText
-	call Call_51_5F07
-	call Call_51_736A
-	ld hl, $d9f4
+	call DrawMonsterEggChoice
+	call CopyTilemapBufferToBG
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Call_51_5F07::
-	call Call_51_742A
-	call Call_51_768A
+DrawMonsterEggChoice::
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
+	call SetNewMonPicPalette
 	ld de, $70ab
 	call Call_51_72CC
 	ld de, $6823
@@ -5157,7 +5522,7 @@ Call_51_5F07::
 	ret
 
 
-Call_51_5F2E::
+CountMonstersOrEggs::
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
@@ -5203,7 +5568,7 @@ jr_051_5f53:
 	ret
 
 
-Call_51_5F64::
+ListMonstersOrEggs::
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -5256,20 +5621,20 @@ jr_051_5f9a:
 	ret
 
 
-Jump_51_5FA8::
+RecruitStep08::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_5FEC
-	call Call_51_5FBB
-	call Call_51_736A
-	ld hl, $d9f4
+	call DrawReleaseListPage
+	call DrawReleaseList
+	call CopyTilemapBufferToBG
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Call_51_5FBB::
+DrawReleaseList::
 	ld hl, far_Call_55_4813
 	rst $10
 	ld de, $6f14
@@ -5281,7 +5646,7 @@ Call_51_5FBB::
 
 jr_051_5fcc:
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $61a5
 	ld a, [wListCursor2]
 	and $01
@@ -5294,11 +5659,11 @@ jr_051_5fdf:
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
-	call Call_51_75C5
+	call DrawPagedCursor
 	ret
 
 
-Call_51_5FEC::
+DrawReleaseListPage::
 	ld a, [wListPage]
 	add a
 	add a
@@ -5313,21 +5678,21 @@ Call_51_5FEC::
 	jr z, jr_051_6014
 
 	ld hl, $9240
-	call Call_51_605B
-	call Call_51_605B
-	call Call_51_605B
-	call Call_51_605B
-	call Call_51_609F
+	call DrawListSpeciesTiles
+	call DrawListSpeciesTiles
+	call DrawListSpeciesTiles
+	call DrawListSpeciesTiles
+	call DrawListSexIcons
 	ret
 
 
 jr_051_6014:
 	ld hl, $88c0
-	call Call_51_6020
-	call Call_51_6020
-	call Call_51_6020
+	call DrawListNameTiles
+	call DrawListNameTiles
+	call DrawListNameTiles
 
-Call_51_6020::
+DrawListNameTiles::
 	push de
 	push hl
 	ld a, [de]
@@ -5341,7 +5706,7 @@ Call_51_6020::
 	ld d, h
 	pop hl
 	push hl
-	call Call_51_73DC
+	call DrawMonNameTiles
 	pop hl
 	ld a, l
 	add $40
@@ -5377,7 +5742,7 @@ jr_051_6043:
 	ret
 
 
-Call_51_605B::
+DrawListSpeciesTiles::
 	push de
 	push hl
 	ld a, [de]
@@ -5393,7 +5758,7 @@ Call_51_605B::
 	ld de, $0901
 	pop hl
 	push hl
-	call Call_51_73A3
+	call PrintTextToTiles
 	pop hl
 	ld a, l
 	add $90
@@ -5429,7 +5794,7 @@ jr_051_6087:
 	ret
 
 
-Call_51_609F::
+DrawListSexIcons::
 	ld a, [wListPage]
 	add a
 	add a
@@ -5440,11 +5805,11 @@ Call_51_609F::
 	adc d
 	ld d, a
 	ld hl, $9480
-	call Call_51_60B9
-	call Call_51_60B9
-	call Call_51_60B9
+	call DrawListSexIcon
+	call DrawListSexIcon
+	call DrawListSexIcon
 
-Call_51_60B9::
+DrawListSexIcon::
 	push de
 	push hl
 	ld a, [de]
@@ -5544,7 +5909,7 @@ jr_051_6137:
 	ret
 
 
-Jump_51_614F::
+RecruitStep09::
 	ld de, $61a5
 	ld a, [wListCursor2]
 	and $01
@@ -5560,22 +5925,22 @@ jr_051_615c:
 	inc hl
 	ld a, [hld]
 	push af
-	call Call_51_744A
+	call UpdatePagedCursor
 	pop af
 	ld hl, wListPage
 	cp [hl]
 	jr z, jr_051_6175
 
-	call Call_51_5FEC
+	call DrawReleaseListPage
 
 jr_051_6175:
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_618c
 
-	call Call_51_67C3
+	call RedrawMonsterEggChoice
 	ld a, $20
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld hl, $0b1a
 	call PrintSystemText
 	jr jr_051_61a4
@@ -5587,7 +5952,7 @@ jr_051_618c:
 
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wConfirmChoice
 	set 7, [hl]
@@ -5601,24 +5966,24 @@ jr_051_61a4:
 	db $85, $01, $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff, $8b, $01, $a1, $00
 	db $e1, $00, $21, $01, $61, $01, $ff, $ff
 
-Jump_51_61BD::
-	ld hl, $d9f4
+RecruitStep10::
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_61C2::
+RecruitStep11::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_61CF
-	ld hl, $d9f4
+	call DrawReleaseConfirm
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Call_51_61CF::
+DrawReleaseConfirm::
 	ld de, $6f6e
 	ld a, [wListCursor2]
 	and $01
@@ -5628,7 +5993,7 @@ Call_51_61CF::
 
 jr_051_61dc:
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $629e
 	ld a, [wListCursor2]
 	and $01
@@ -5639,11 +6004,11 @@ jr_051_61dc:
 jr_051_61ef:
 	ld a, [wConfirmChoice2]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_61F9::
+RecruitStep12::
 	ld de, $629e
 	ld a, [wListCursor2]
 	and $01
@@ -5659,15 +6024,15 @@ jr_051_6206:
 	bit 1, a
 	jr z, jr_051_622b
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
 	jr jr_051_629d
 
@@ -5686,7 +6051,7 @@ jr_051_622b:
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
 	ld a, $19
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_629d
 
 jr_051_624c:
@@ -5722,13 +6087,13 @@ jr_051_6260:
 	call PrintSystemText
 	ld de, $2e07
 	call Call_51_72CC
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ld a, $1f
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_629d
 
 jr_051_6291:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wConfirmChoice2
 	set 7, [hl]
@@ -5741,7 +6106,7 @@ jr_051_629d:
 
 	db $2e, $01, $6e, $01, $ff, $ff, $2d, $01, $6d, $01, $ff, $ff
 
-Jump_51_62AA::
+RecruitStep13::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -5794,22 +6159,22 @@ jr_051_62f6:
 	ld [hl], $00
 	ld hl, far_CompactMonsters
 	rst $10
-	call Call_51_6A7E
-	call Call_51_768A
+	call RefreshStatusIcons
+	call DrawBattlePartyPanel
 	ld de, $2e07
 	call Call_51_72CC
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ld a, $15
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Jump_51_6318::
+RecruitStep14::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld a, [wNewMonSlot]
 	ld hl, wMonName
@@ -5820,41 +6185,41 @@ Jump_51_6318::
 	call CopyName
 	ld hl, $0b15
 	call PrintSystemText
-	call Call_51_742A
-	call Call_51_768A
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
-	call Call_51_736A
+	call SetNewMonPicPalette
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_6353::
+RecruitStep15::
 	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $63bc
 	ld a, [wMenuChoice3]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_6380::
+RecruitStep16::
 	ld de, $63bc
 	ld hl, wMenuChoice3
 	ld b, $02
@@ -5864,7 +6229,7 @@ Jump_51_6380::
 	jr z, jr_051_6398
 
 jr_051_6392:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	jr jr_051_63bb
 
@@ -5879,9 +6244,9 @@ jr_051_6398:
 	cp $81
 	jr z, jr_051_6392
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wMenuChoice3
 	set 7, [hl]
@@ -5894,12 +6259,12 @@ jr_051_63bb:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_51_63C2::
+RecruitStep17::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld a, [wNewMonSlot]
 	ld hl, wMonName
@@ -5911,11 +6276,11 @@ Jump_51_63C2::
 	ld hl, $0b16
 	call PrintSystemText
 	ld a, $1e
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Call_51_63E8::
+FindFreeMonSlot::
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
@@ -5940,7 +6305,7 @@ jr_051_63ff:
 	ret
 
 
-Jump_51_6401::
+RecruitStep18::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -5963,29 +6328,29 @@ Jump_51_6401::
 	ld hl, far_CompactMonsters
 	rst $10
 	ld a, $1e
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
 jr_051_642b:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, $0b18
 	call PrintSystemText
-	call Call_51_643C
-	call Call_51_736A
+	call DrawPartyFullMenu
+	call CopyTilemapBufferToBG
 	ret
 
 
-Call_51_643C::
-	call Call_51_742A
-	call Call_51_768A
+DrawPartyFullMenu::
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
+	call SetNewMonPicPalette
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
@@ -5997,43 +6362,43 @@ Call_51_643C::
 	ret
 
 
-Jump_51_646C::
+RecruitStep19::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
-	call Call_51_64AC
-	call Call_51_6499
-	call Call_51_6482
-	call Call_51_736A
+	call ListPartyAndNewcomer
+	call DrawPartySwapNames
+	call DrawPartySwapList
+	call CopyTilemapBufferToBG
 	ret
 
 
-Call_51_6482::
+DrawPartySwapList::
 	ld hl, far_Call_55_4813
 	rst $10
 	ld de, $6f14
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $6527
 	ld a, [wLinkRefused]
 	call Call_51_75E7
 	ret
 
 
-Call_51_6499::
+DrawPartySwapNames::
 	ld de, wSceneObjects
 	ld hl, $88c0
-	call Call_51_6020
-	call Call_51_6020
-	call Call_51_6020
-	call Call_51_6020
+	call DrawListNameTiles
+	call DrawListNameTiles
+	call DrawListNameTiles
+	call DrawListNameTiles
 	ret
 
 
-Call_51_64AC::
+ListPartyAndNewcomer::
 	ld hl, wSceneObjects
 	ld bc, $0004
 	ld a, $ff
@@ -6041,24 +6406,24 @@ Call_51_64AC::
 	ld hl, wSceneObjects
 	ld a, [wParty]
 	cp $ff
-	call nz, Call_51_64D9
+	call nz, AppendToList
 	ld a, [$ca8f]
 	cp $ff
-	call nz, Call_51_64D9
+	call nz, AppendToList
 	ld a, [$ca90]
 	cp $ff
-	call nz, Call_51_64D9
+	call nz, AppendToList
 	ld a, [wNewMonSlot]
-	call Call_51_64D9
+	call AppendToList
 	ret
 
 
-Call_51_64D9::
+AppendToList::
 	ld [hli], a
 	ret
 
 
-Jump_51_64DB::
+RecruitStep20::
 	ld de, $6527
 	ld hl, wLinkRefused
 	ld a, [wPartyCount]
@@ -6069,17 +6434,17 @@ Jump_51_64DB::
 	bit 1, a
 	jr z, jr_051_650a
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
 	jr jr_051_6526
 
@@ -6090,9 +6455,9 @@ jr_051_650a:
 
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wLinkRefused
 	set 7, [hl]
@@ -6105,14 +6470,14 @@ jr_051_6526:
 
 	db $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
 
-Jump_51_6531::
+RecruitStep21::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_63E8
+	call FindFreeMonSlot
 	ld [wNewMonSlot], a
-	call Call_51_6928
+	call StoreRecruitedMonster
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
@@ -6123,37 +6488,37 @@ Jump_51_6531::
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg0
-	call Call_51_6915
+	call AppendSexSymbol
 	ld hl, $0b17
 	call PrintSystemText
 	ld a, $23
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Jump_51_6567::
+RecruitStep22::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_6574
-	ld hl, $d9f4
+	call DrawSwapConfirm
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Call_51_6574::
+DrawSwapConfirm::
 	ld de, $6f6e
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $65d8
 	ld a, [wLinkPartnerChoice]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_658A::
+RecruitStep23::
 	ld de, $65d8
 	ld hl, wLinkPartnerChoice
 	ld b, $02
@@ -6162,11 +6527,11 @@ Jump_51_658A::
 	bit 1, a
 	jr z, jr_051_65aa
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	dec [hl]
 	jr jr_051_65d7
 
@@ -6185,11 +6550,11 @@ jr_051_65aa:
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
 	ld a, $1b
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_65d7
 
 jr_051_65cb:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wLinkPartnerChoice
 	set 7, [hl]
@@ -6202,7 +6567,7 @@ jr_051_65d7:
 
 	db $2e, $01, $6e, $01, $ff, $ff
 
-Jump_51_65DE::
+RecruitStep24::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -6231,7 +6596,7 @@ Jump_51_65DE::
 	call PrintSystemText
 	ld de, $2e07
 	call Call_51_72CC
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ld a, [wLinkRefused]
 	and $7f
 	ld hl, wSceneObjects
@@ -6243,21 +6608,21 @@ Jump_51_65DE::
 	ld [hl], $ff
 	ld hl, wParty
 	ld a, [wSceneObjects]
-	call Call_51_6650
+	call AppendIfFilled
 	ld a, [$c0d9]
-	call Call_51_6650
+	call AppendIfFilled
 	ld a, [$c0da]
-	call Call_51_6650
+	call AppendIfFilled
 	ld a, [$c0db]
-	call Call_51_6650
+	call AppendIfFilled
 	ld hl, far_CompactMonsters
 	rst $10
 	ld a, $1d
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Call_51_6650::
+AppendIfFilled::
 	cp $ff
 	ret z
 
@@ -6265,7 +6630,7 @@ Call_51_6650::
 	ret
 
 
-Jump_51_6655::
+RecruitStep25::
 	ld a, [wListPage]
 	add a
 	add a
@@ -6289,12 +6654,12 @@ Jump_51_6655::
 	or a
 	ret z
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_6680::
+RecruitStep26::
 	ld de, $5b00
 	ld hl, $9600
 	call DecompressVRAM
@@ -6307,20 +6672,20 @@ Jump_51_6680::
 	ld [wTextGroup], a
 	ld hl, $8820
 	ld de, $0a01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
 	ld hl, $89c0
 	ld de, $0f01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld hl, $9000
 	ld a, [wNewMonNameText]
-	call Call_51_6A67
-	call Call_51_5F2E
-	call Call_51_5F64
-	call Call_51_5FEC
+	call LoadMonsterPic
+	call CountMonstersOrEggs
+	call ListMonstersOrEggs
+	call DrawReleaseListPage
 	ld hl, PrintMessageGroup1
 	ld a, [wListCursor2]
 	and $01
@@ -6331,18 +6696,18 @@ Jump_51_6680::
 jr_051_66d7:
 	call PrintSystemText
 	call RunTextToEnd
-	call Call_51_6A0D
-	call Call_51_5F07
-	call Call_51_5FBB
-	call Call_51_61CF
+	call RefreshIconsAndNames
+	call DrawMonsterEggChoice
+	call DrawReleaseList
+	call DrawReleaseConfirm
 	ld hl, far_UploadCGBPalettes
 	rst $10
 	ld a, $0b
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Jump_51_66F3::
+RecruitStep27::
 	ld a, [wLinkRefused]
 	and $7f
 	ld hl, wSceneObjects
@@ -6361,12 +6726,12 @@ Jump_51_66F3::
 	or a
 	ret z
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_6717::
+RecruitStep28::
 	ld de, $5b00
 	ld hl, $9600
 	call DecompressVRAM
@@ -6379,97 +6744,97 @@ Jump_51_6717::
 	ld [wTextGroup], a
 	ld hl, $8820
 	ld de, $0a01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
 	ld hl, $89c0
 	ld de, $0f01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld hl, $9000
 	ld a, [wNewMonNameText]
-	call Call_51_6A67
-	call Call_51_5F2E
-	call Call_51_5F64
-	call Call_51_5FEC
+	call LoadMonsterPic
+	call CountMonstersOrEggs
+	call ListMonstersOrEggs
+	call DrawReleaseListPage
 	ld hl, $0b18
 	call PrintSystemText
 	call RunTextToEnd
-	call Call_51_549B
-	call Call_51_6A7E
-	call Call_51_643C
-	call Call_51_64AC
-	call Call_51_6499
-	call Call_51_6482
-	call Call_51_6574
+	call ReloadPartyBattlers
+	call RefreshStatusIcons
+	call DrawPartyFullMenu
+	call ListPartyAndNewcomer
+	call DrawPartySwapNames
+	call DrawPartySwapList
+	call DrawSwapConfirm
 	ld hl, far_UploadCGBPalettes
 	rst $10
 	ld a, $17
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Jump_51_6789::
+RecruitStep29::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_549B
-	call Call_51_6A7E
-	call Call_51_742A
-	call Call_51_768A
-	call Call_51_736A
+	call ReloadPartyBattlers
+	call RefreshStatusIcons
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
+	call CopyTilemapBufferToBG
 	xor a
-	ld [$d9f4], a
-	ld hl, $d9ec
+	ld [wCommandStep], a
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
-Jump_51_67A6::
+RecruitStep31::
 	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0b1a
 	call PrintSystemText
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_67B6::
+RecruitStep32::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_67C3
-	ld hl, $d9f4
+	call RedrawMonsterEggChoice
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Call_51_67C3::
-	call Call_51_742A
-	call Call_51_768A
+RedrawMonsterEggChoice::
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
+	call SetNewMonPicPalette
 	ld de, $70ab
 	call Call_51_72CC
-	call Call_51_7524
+	call ResetBattleCursorBlink
 	ld de, $6823
 	ld a, [wListCursor2]
 	call Call_51_75E7
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
-Jump_51_67F0::
+RecruitStep33::
 	ld de, $6823
 	ld hl, wListCursor2
 	ld b, $02
@@ -6479,7 +6844,7 @@ Jump_51_67F0::
 	jr z, jr_051_6809
 
 	ld a, $04
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_051_6822
 
 jr_051_6809:
@@ -6493,7 +6858,7 @@ jr_051_6809:
 	ld [wListCursor], a
 	ld [wListPage], a
 	ld a, $07
-	ld [$d9f4], a
+	ld [wCommandStep], a
 
 Jump_051_6822:
 jr_051_6822:
@@ -6502,20 +6867,20 @@ jr_051_6822:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_51_6829::
+RecruitStep34::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_51_67C3
+	call RedrawMonsterEggChoice
 	ld a, $20
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld hl, $0b1a
 	call PrintSystemText
 	ret
 
 
-Jump_51_683D::
+RecruitStep35::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -6542,25 +6907,25 @@ Jump_51_683D::
 	ld [wChosenMonName], a
 	ld a, h
 	ld [$c8f3], a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
 
-Jump_51_687E::
-	call Call_51_6903
+RecruitStep36::
+	call SwapMenuVars
 	ld hl, far_NameEntryMenu
 	rst $10
-	call Call_51_6903
+	call SwapMenuVars
 	ld a, [wFieldFlags]
 	bit 4, a
 	ret nz
 
-	call Call_51_742A
-	call Call_51_736A
+	call ClearBattleTilemap
+	call CopyTilemapBufferToBG
 	ld hl, far_Call_56_4485
 	rst $10
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld de, $5b00
 	ld hl, $9600
@@ -6574,36 +6939,36 @@ Jump_51_687E::
 	ld [wTextGroup], a
 	ld hl, $8820
 	ld de, $0a01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
 	ld hl, $89c0
 	ld de, $0f01
-	call Call_51_73A3
+	call PrintTextToTiles
 	ld hl, $9000
 	ld a, [wNewMonNameText]
-	call Call_51_6A67
-	call Call_51_549B
-	call Call_51_6A7E
-	call Call_51_742A
-	call Call_51_768A
+	call LoadMonsterPic
+	call ReloadPartyBattlers
+	call RefreshStatusIcons
+	call ClearBattleTilemap
+	call DrawBattlePartyPanel
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
-	call Call_51_6943
-	call Call_51_736A
+	call SetNewMonPicPalette
+	call CopyTilemapBufferToBG
 	ld a, $0e
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
-Call_51_6903::
+SwapMenuVars::
 	ld hl, wLinkChoice
-	ld de, $c876
+	ld de, wBattlerSexBits67
 	ld b, $08
 
 jr_051_690b:
@@ -6619,7 +6984,7 @@ jr_051_690b:
 	ret
 
 
-Call_51_6915::
+AppendSexSymbol::
 	push af
 
 jr_051_6916:
@@ -6639,7 +7004,7 @@ jr_051_6916:
 	ret
 
 
-Call_51_6928::
+StoreRecruitedMonster::
 	ld hl, wMonsters
 	call MonsterField
 	ld b, $95
@@ -6658,20 +7023,20 @@ jr_051_6933:
 	ret
 
 
-Call_51_6943::
+SetNewMonPicPalette::
 	ld [wPaletteSet], a
 	ld a, l
 	ld [$c820], a
 	ld a, h
 	ld [$c821], a
-	ld a, [$dd61]
+	ld a, [wJoinCandidate]
 	ld [$c81f], a
 	ld hl, far_LoadMonPicPalette
 	rst $10
 	ret
 
 
-Call_51_6959::
+SetBattlePicPalettes::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_051_696d
@@ -6680,7 +7045,7 @@ Call_51_6959::
 	bit 1, a
 	jr z, jr_051_696d
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	ld c, $00
 	jr jr_051_6972
 
@@ -6697,37 +7062,37 @@ jr_051_6972:
 
 	ld a, c
 	ld hl, $00c7
-	call Call_51_69AA
+	call SetPicPalette
 	ret
 
 
 jr_051_6982:
 	ld a, c
 	ld hl, $00c4
-	call Call_51_69AA
+	call SetPicPalette
 	inc c
 	ld a, c
 	ld hl, $00ca
-	call Call_51_69AA
+	call SetPicPalette
 	ret
 
 
 jr_051_6992:
 	ld a, c
 	ld hl, $00c1
-	call Call_51_69AA
+	call SetPicPalette
 	inc c
 	ld a, c
 	ld hl, $00c7
-	call Call_51_69AA
+	call SetPicPalette
 	inc c
 	ld a, c
 	ld hl, $00cd
-	call Call_51_69AA
+	call SetPicPalette
 	ret
 
 
-Call_51_69AA::
+SetPicPalette::
 	push bc
 	push af
 	ld a, l
@@ -6736,7 +7101,7 @@ Call_51_69AA::
 	ld [$c821], a
 	pop af
 	push af
-	ld de, $dc3c
+	ld de, wBattlerSpecies
 	add e
 	ld e, a
 	ld a, $00
@@ -6744,7 +7109,7 @@ Call_51_69AA::
 	ld d, a
 	ld a, [de]
 	ld [wPaletteSet], a
-	call Call_51_69D4
+	call GetCGBPicSpecies
 	pop af
 	and $03
 	add $04
@@ -6755,7 +7120,7 @@ Call_51_69AA::
 	ret
 
 
-Call_51_69D4::
+GetCGBPicSpecies::
 	ld a, [wOnCGB]
 	or a
 	ret z
@@ -6786,7 +7151,7 @@ jr_051_69f6:
 	ld a, $02
 	ldh [rSVBK], a
 	ld a, c
-	ld hl, $db00
+	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
@@ -6801,18 +7166,18 @@ jr_051_6a0c:
 	ret
 
 
-Call_51_6A0D::
+RefreshIconsAndNames::
 	ld a, $00
 	ld [wSkillTarget], a
-	ld hl, far_Call_50_7C4D
+	ld hl, far_UpdateStatusIcon_50
 	rst $10
 	ld a, $01
 	ld [wSkillTarget], a
-	ld hl, far_Call_50_7C4D
+	ld hl, far_UpdateStatusIcon_50
 	rst $10
 	ld a, $02
 	ld [wSkillTarget], a
-	ld hl, far_Call_50_7C4D
+	ld hl, far_UpdateStatusIcon_50
 	rst $10
 	ld hl, $9700
 	ld b, $60
@@ -6825,31 +7190,31 @@ jr_051_6a2d:
 	dec b
 	jr nz, jr_051_6a2d
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	or a
 	ret z
 
 	ld de, wPartyBarTiles
 	ld hl, $9700
-	call Call_51_73DC
-	ld a, [$db74]
+	call DrawMonNameTiles
+	ld a, [wPartyBattlers]
 	cp $01
 	ret z
 
 	ld de, $c1c8
 	ld hl, $9740
-	call Call_51_73DC
-	ld a, [$db74]
+	call DrawMonNameTiles
+	ld a, [wPartyBattlers]
 	cp $02
 	ret z
 
 	ld de, $c1d0
 	ld hl, $9780
-	call Call_51_73DC
+	call DrawMonNameTiles
 	ret
 
 
-Call_51_6A67::
+LoadMonsterPic::
 	push de
 	push hl
 	ld l, a
@@ -6870,18 +7235,18 @@ Call_51_6A67::
 	ret
 
 
-Call_51_6A7E::
+RefreshStatusIcons::
 	ld a, $00
 	ld [wSkillTarget], a
-	ld hl, far_Call_50_7C4D
+	ld hl, far_UpdateStatusIcon_50
 	rst $10
 	ld a, $01
 	ld [wSkillTarget], a
-	ld hl, far_Call_50_7C4D
+	ld hl, far_UpdateStatusIcon_50
 	rst $10
 	ld a, $02
 	ld [wSkillTarget], a
-	ld hl, far_Call_50_7C4D
+	ld hl, far_UpdateStatusIcon_50
 	rst $10
 	ret
 
@@ -7010,7 +7375,7 @@ Call_51_6A7E::
 	db $e0, $ff, $d8, $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
-Call_51_7247::
+NextColumnWrapped::
 	push af
 	ld a, l
 	and $e0
@@ -7026,8 +7391,8 @@ Call_51_7247::
 	ret
 
 
-Call_51_7256::
-	ld a, [$d9f8]
+BGMapAddress::
+	ld a, [wBattleBGMap]
 	add l
 	ld l, a
 	ld a, [$d9f9]
@@ -7041,7 +7406,7 @@ Call_51_7256::
 	ret
 
 
-Call_51_726A::
+BattleBufferAddress::
 	ld a, l
 	add $00
 	ld l, a
@@ -7051,13 +7416,13 @@ Call_51_726A::
 	ret
 
 
-Call_51_7273::
+OffsetToBGAddress::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_51_7256
+	call BGMapAddress
 	ld a, b
 	and $1f
 	jr z, jr_051_7288
@@ -7065,7 +7430,7 @@ Call_51_7273::
 	ld b, a
 
 jr_051_7282:
-	call Call_51_7247
+	call NextColumnWrapped
 	dec b
 	jr nz, jr_051_7282
 
@@ -7087,9 +7452,9 @@ Call_51_72CC::
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_51_726A
+	call BattleBufferAddress
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 
@@ -7102,7 +7467,7 @@ jr_051_72dd:
 	cp $d8
 	jr nz, jr_051_7300
 
-	ld a, [$d9ea]
+	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
@@ -7113,7 +7478,7 @@ jr_051_72dd:
 	adc $00
 	ld h, a
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 	jr jr_051_72dd
@@ -7130,8 +7495,8 @@ jr_051_7300:
 	db $8e, $73, $06, $03, $79, $c6, $20, $6f, $26, $98, $11, $00, $c5, $83, $5f, $3e
 	db $00, $8a, $57, $cd, $8e, $73, $c9
 
-Call_51_736A::
-	ld a, [$d9f8]
+CopyTilemapBufferToBG::
+	ld a, [wBattleBGMap]
 	ld l, a
 	ld a, [$d9f9]
 	ld h, a
@@ -7141,7 +7506,7 @@ Call_51_736A::
 jr_051_7377:
 	ld b, $20
 	push hl
-	call Call_51_738E
+	call CopyTilemapRow
 	pop hl
 	push bc
 	ld bc, $0020
@@ -7157,7 +7522,7 @@ jr_051_7377:
 	ret
 
 
-Call_51_738E::
+CopyTilemapRow::
 	ld a, [de]
 	call WriteVRAM
 	ld a, l
@@ -7172,12 +7537,12 @@ Call_51_738E::
 	ld l, a
 	inc de
 	dec b
-	jr nz, Call_51_738E
+	jr nz, CopyTilemapRow
 
 	ret
 
 
-Call_51_73A3::
+PrintTextToTiles::
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
@@ -7211,7 +7576,7 @@ Call_51_73A3::
 	ret
 
 
-Call_51_73DC::
+DrawMonNameTiles::
 	push hl
 	ld hl, wTextArg0
 	call CopyName
@@ -7254,7 +7619,7 @@ Call_51_73DC::
 	ret
 
 
-Call_51_742A::
+ClearBattleTilemap::
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
@@ -7269,7 +7634,7 @@ jr_051_7430:
 	ret
 
 
-Call_51_7439::
+ClearBGMap::
 	ld hl, $9800
 	ld bc, $0400
 
@@ -7284,7 +7649,7 @@ jr_051_743f:
 	ret
 
 
-Call_51_744A::
+UpdatePagedCursor::
 	ld a, c
 	ld [wListLastRows], a
 	inc de
@@ -7432,7 +7797,7 @@ jr_051_74f3:
 
 jr_051_74f4:
 	xor a
-	ld [$d9fb], a
+	ld [wCursorBlinkTimer], a
 	push hl
 	push de
 	pop de
@@ -7454,9 +7819,9 @@ jr_051_7505:
 	db $cb, $be, $fa, $47, $c8, $e6, $c0, $28, $05, $7e, $ee, $01, $18, $db, $fa, $47
 	db $c8, $e6, $30, $28, $dd, $7e, $ee, $02, $18, $cf
 
-Call_51_7524::
+ResetBattleCursorBlink::
 	xor a
-	ld [$d9fb], a
+	ld [wCursorBlinkTimer], a
 	ret
 
 
@@ -7465,12 +7830,12 @@ Call_51_7529::
 	bit 7, a
 	jr nz, jr_051_753e
 
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	and $0f
 	push af
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	inc a
-	ld [$d9fb], a
+	ld [wCursorBlinkTimer], a
 	pop af
 	ld a, c
 	ret nz
@@ -7491,12 +7856,12 @@ jr_051_7541:
 	ret z
 
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 	push de
 	push bc
-	call Call_51_7273
+	call OffsetToBGAddress
 	pop bc
 	pop de
 	ld a, c
@@ -7509,7 +7874,7 @@ jr_051_7541:
 	bit 7, c
 	jr nz, jr_051_7573
 
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_051_7573
@@ -7519,7 +7884,7 @@ jr_051_7541:
 jr_051_7573:
 	call WriteVRAM
 	push af
-	ld a, [$d9ea]
+	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
@@ -7560,7 +7925,7 @@ Call_51_758C::
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_51_7273
+	call OffsetToBGAddress
 	pop bc
 	pop de
 	ld a, c
@@ -7583,7 +7948,7 @@ Call_51_758C::
 	ret
 
 
-Call_51_75C5::
+DrawPagedCursor::
 	ld a, [hli]
 	push af
 	push hl
@@ -7632,19 +7997,19 @@ Call_51_75E7::
 	ld a, [de]
 	ld h, a
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 	push de
 	push bc
-	call Call_51_7273
+	call OffsetToBGAddress
 	pop bc
 	pop de
 	ld a, $e9
 	bit 7, c
 	jr nz, jr_051_7614
 
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_051_7614
@@ -7653,7 +8018,7 @@ Call_51_75E7::
 
 jr_051_7614:
 	push af
-	ld a, [$d9ea]
+	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
@@ -7668,7 +8033,7 @@ jr_051_7614:
 	ret
 
 
-Call_51_7628::
+PlaceEnemyPics::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_051_763a
@@ -7677,7 +8042,7 @@ Call_51_7628::
 	bit 1, a
 	jr z, jr_051_763a
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	jr jr_051_763d
 
 jr_051_763a:
@@ -7692,37 +8057,37 @@ jr_051_763d:
 
 	ld a, $00
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ret
 
 
 jr_051_764e:
 	ld a, $00
 	ld hl, $00c4
-	call Call_51_7672
+	call PlacePicTiles
 	ld hl, $00ca
-	call Call_51_7672
+	call PlacePicTiles
 	ret
 
 
 jr_051_765d:
 	ld a, $00
 	ld hl, $00c1
-	call Call_51_7672
+	call PlacePicTiles
 	ld hl, $00c7
-	call Call_51_7672
+	call PlacePicTiles
 	ld hl, $00cd
-	call Call_51_7672
+	call PlacePicTiles
 	ret
 
 
-Call_51_7672::
+PlacePicTiles::
 	ld c, $06
 
 jr_051_7674:
 	push hl
 	push af
-	call Call_51_726A
+	call BattleBufferAddress
 	pop af
 	ld b, $06
 
@@ -7741,14 +8106,14 @@ jr_051_767c:
 	ret
 
 
-Call_51_768A::
+DrawBattlePartyPanel::
 	ld de, $2e07
 	call Call_51_72CC
-	ld a, [$d9f3]
+	ld a, [wPanelMode]
 	or a
 	jp nz, Jump_051_7763
 
-Call_51_7697::
+DrawPartyHPMP::
 	ld a, [wLinkActive]
 	or a
 	jr nz, jr_051_76a2
@@ -7758,10 +8123,10 @@ Call_51_7697::
 	ret z
 
 jr_051_76a2:
-	call Call_51_76A7
+	call DrawPartyPanelFrame
 	jr jr_051_76c7
 
-Call_51_76A7::
+DrawPartyPanelFrame::
 	ld hl, $775b
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -7771,7 +8136,7 @@ Call_51_76A7::
 	jr jr_051_76b9
 
 jr_051_76b6:
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 
 jr_051_76b9:
 	add a
@@ -7801,7 +8166,7 @@ jr_051_76d4:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0062
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
 	pop hl
 	ld bc, $0020
@@ -7810,9 +8175,9 @@ jr_051_76d4:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0082
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	cp $01
 	ret z
 
@@ -7829,7 +8194,7 @@ jr_051_7705:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0068
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
 	pop hl
 	ld bc, $0020
@@ -7838,9 +8203,9 @@ jr_051_7705:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0088
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	cp $02
 	ret z
 
@@ -7857,7 +8222,7 @@ jr_051_7736:
 	ld b, [hl]
 	ld c, a
 	ld hl, $006e
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
 	pop hl
 	ld bc, $0020
@@ -7866,7 +8231,7 @@ jr_051_7736:
 	ld b, [hl]
 	ld c, a
 	ld hl, $008e
-	call Call_51_726A
+	call BattleBufferAddress
 	call PrintNumber3
 	ret
 
@@ -7877,13 +8242,13 @@ Jump_051_7763:
 	cp $03
 	jp z, Jump_051_786b
 
-	call Call_51_76A7
+	call DrawPartyPanelFrame
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
@@ -7894,7 +8259,7 @@ Jump_051_7763:
 
 jr_051_7785:
 	ld hl, $78ca
-	call Call_51_78E2
+	call PanelSlotAddress
 	push hl
 	ld a, c
 	call CheckBattlerPresent
@@ -7910,7 +8275,7 @@ jr_051_7798:
 	pop hl
 	ld [hl], a
 	ld hl, $78d0
-	call Call_51_78E2
+	call PanelSlotAddress
 	ld [hl], $de
 	inc hl
 	ld a, $e4
@@ -7930,28 +8295,28 @@ jr_051_7798:
 	dec b
 	jr nz, jr_051_7785
 
-	ld a, [$d9f3]
+	ld a, [wPanelMode]
 	cp $02
 	jr z, jr_051_77e6
 
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ld hl, $8da0
 	ld a, $02
-	call Call_51_7906
+	call LoadStatusIconTiles
 	ld hl, $8db0
 	ld a, $04
-	call Call_51_7906
+	call LoadStatusIconTiles
 	ld hl, $8dc0
 	ld a, $06
-	call Call_51_7906
+	call LoadStatusIconTiles
 	ld hl, $8dd0
 	ld a, $03
-	call Call_51_7906
-	ld hl, $d9f3
+	call LoadStatusIconTiles
+	ld hl, wPanelMode
 	inc [hl]
 
 jr_051_77e6:
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
@@ -7962,12 +8327,12 @@ jr_051_77e6:
 
 jr_051_77f5:
 	ld hl, $78d0
-	call Call_51_78E2
+	call PanelSlotAddress
 	inc hl
 	inc hl
 	push bc
 	ld a, c
-	ld bc, $db9b
+	ld bc, wBattlerLevel
 	add c
 	ld c, a
 	ld a, $00
@@ -7983,7 +8348,7 @@ jr_051_77f5:
 	jr c, jr_051_7863
 
 	ld hl, $78d6
-	call Call_51_78E2
+	call PanelSlotAddress
 	push hl
 	ld a, c
 	ld hl, wBattlerStatus
@@ -7997,7 +8362,7 @@ jr_051_77f5:
 	jr z, jr_051_7832
 
 	ld a, $00
-	call Call_51_78F8
+	call PutAilmentIcon
 
 jr_051_7832:
 	inc de
@@ -8005,7 +8370,7 @@ jr_051_7832:
 	jr z, jr_051_783c
 
 	ld a, $01
-	call Call_51_78F8
+	call PutAilmentIcon
 
 jr_051_783c:
 	inc de
@@ -8013,7 +8378,7 @@ jr_051_783c:
 	jr z, jr_051_7846
 
 	ld a, $02
-	call Call_51_78F8
+	call PutAilmentIcon
 
 jr_051_7846:
 	inc de
@@ -8021,7 +8386,7 @@ jr_051_7846:
 	jr z, jr_051_7850
 
 	ld a, $03
-	call Call_51_78F8
+	call PutAilmentIcon
 
 jr_051_7850:
 	inc de
@@ -8029,26 +8394,26 @@ jr_051_7850:
 	jr z, jr_051_785a
 
 	ld a, $04
-	call Call_51_78F8
+	call PutAilmentIcon
 
 jr_051_785a:
 	bit 0, [hl]
 	jr z, jr_051_7863
 
 	ld a, $05
-	call Call_51_78F8
+	call PutAilmentIcon
 
 jr_051_7863:
 	inc c
 	dec b
 	jr nz, jr_051_77f5
 
-	call Call_51_736A
+	call CopyTilemapBufferToBG
 	ret
 
 
 Jump_051_786b:
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
@@ -8059,13 +8424,13 @@ Jump_051_786b:
 
 jr_051_787a:
 	ld hl, $78ca
-	call Call_51_78E2
+	call PanelSlotAddress
 	ld a, c
 	and $03
 	add $da
 	ld [hl], a
 	ld hl, $78d0
-	call Call_51_78E2
+	call PanelSlotAddress
 	ld [hl], $e1
 	ld a, $20
 	add l
@@ -8086,14 +8451,14 @@ jr_051_787a:
 	push bc
 	push de
 	push hl
-	ld hl, $da0a
+	ld hl, wStatusIconShown
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $ff
-	call Call_51_7929
+	call UpdateStatusIcon
 	pop hl
 	pop de
 	pop bc
@@ -8103,16 +8468,16 @@ jr_051_787a:
 	jr nz, jr_051_787a
 
 	xor a
-	ld [$d9f3], a
-	call Call_51_7697
-	call Call_51_736A
+	ld [wPanelMode], a
+	call DrawPartyHPMP
+	call CopyTilemapBufferToBG
 	ret
 
 
 	db $25, $00, $2b, $00, $31, $00, $61, $00, $67, $00, $6d, $00, $81, $00, $87, $00
 	db $8d, $00, $dc, $d7, $db, $dd, $da, $d8
 
-Call_51_78E2::
+PanelSlotAddress::
 	ld a, c
 	and $03
 	add a
@@ -8133,7 +8498,7 @@ Call_51_78E2::
 	ret
 
 
-Call_51_78F8::
+PutAilmentIcon::
 	push hl
 	ld hl, $78dc
 	add l
@@ -8147,7 +8512,7 @@ Call_51_78F8::
 	ret
 
 
-Call_51_7906::
+LoadStatusIconTiles::
 	push hl
 	ld hl, $7919
 	add a
@@ -8166,7 +8531,7 @@ Call_51_7906::
 
 	db $02, $5b, $03, $5b, $04, $5b, $05, $5b, $06, $5b, $07, $5b, $08, $5b, $09, $5b
 
-Call_51_7929::
+UpdateStatusIcon::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_051_794f
@@ -8281,7 +8646,7 @@ jr_051_79b0:
 jr_051_79b2:
 	push af
 	ld a, c
-	ld hl, $da0a
+	ld hl, wStatusIconShown
 	add l
 	ld l, a
 	ld a, $00
@@ -8290,26 +8655,26 @@ jr_051_79b2:
 	ld d, [hl]
 	pop af
 	cp d
-	call nz, Call_51_79C9
+	call nz, StoreStatusIcon
 	pop hl
-	call nz, Call_51_7906
+	call nz, LoadStatusIconTiles
 	pop de
 	ret
 
 
-Call_51_79C9::
+StoreStatusIcon::
 	ld [hl], a
 	ret
 
 
-Call_51_79CB::
+ClearBGAttributes::
 	ld a, [wOnCGB]
 	or a
 	ret z
 
 	ld a, $01
 	ldh [rVBK], a
-	ld a, [$d9f8]
+	ld a, [wBattleBGMap]
 	ld l, a
 	ld a, [$d9f9]
 	ld h, a
@@ -8352,11 +8717,11 @@ jr_051_79e1:
 	ret
 
 
-Call_51_7A0A::
+GetBattlerName::
 	cp $03
 	jr nc, jr_051_7a28
 
-Call_51_7A0E::
+GetPartyMonName::
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
@@ -8378,7 +8743,7 @@ jr_051_7a1d:
 jr_051_7a24:
 	ld a, b
 	pop bc
-	jr Call_51_7A0E
+	jr GetPartyMonName
 
 jr_051_7a28:
 	push bc
@@ -8398,7 +8763,7 @@ jr_051_7a28:
 	push hl
 	ld a, b
 	and $03
-	ld hl, $c1ca
+	ld hl, wEnemyMorph
 	add l
 	ld l, a
 	ld a, $00
@@ -8417,17 +8782,17 @@ jr_051_7a4e:
 
 jr_051_7a51:
 	push af
-	call Call_51_7A5B
+	call GetSpeciesName
 	pop af
-	ld hl, far_Call_51_4CB3
+	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret
 
 
-Call_51_7A5B::
-	ld [$db60], a
+GetSpeciesName::
+	ld [wNameBattler], a
 	push hl
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -8438,7 +8803,7 @@ Call_51_7A5B::
 	ld h, $05
 	pop de
 	ld a, e
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
 	call CopySystemText
@@ -8446,7 +8811,7 @@ Call_51_7A5B::
 
 
 jr_051_7a79:
-	call Call_51_7A0E
+	call GetPartyMonName
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
@@ -8457,8 +8822,8 @@ jr_051_7a79:
 	ld [hli], a
 	ld [hl], $f0
 	push hl
-	ld hl, $c1ca
-	ld a, [$db50]
+	ld hl, wEnemyMorph
+	ld a, [wNamePos]
 	and $03
 	cp $01
 	jr z, jr_051_7aa5
@@ -8527,7 +8892,7 @@ jr_051_7ad0:
 	ld a, $02
 
 jr_051_7ad3:
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld [hli], a
 	ld [hl], $f0
 	ret
@@ -8536,7 +8901,7 @@ jr_051_7ad3:
 jr_051_7ada:
 	pop hl
 	xor a
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ret
 
 

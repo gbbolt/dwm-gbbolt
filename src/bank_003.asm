@@ -1779,6 +1779,7 @@ ItemCheckNone::
 ;@ def ItemCheckHealOne()
 ;@ path: item/use
 ;@ Check for the HP healing items 1 and 2: the target must be alive and hurt.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckHealOne::
 ;> if CheckTargetDead():
 ;>     return
@@ -1819,6 +1820,7 @@ ItemCheckHealOne::
 ;@ Check for the party healing items 3 and 4: usable if any living party monster is hurt. Then
 ;@ the names of all hurt ones go into wTextArgs (16 bytes apart) and wItemMessage becomes $26 +
 ;@ their number.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckHealParty::
 ;> hurt = False
 ;> if wPartyCount > 0:
@@ -1956,6 +1958,9 @@ ItemCheckHealPartyHurt:
 ;@ path: item/use
 ;@ If party slot `slot` holds a living, hurt monster, copies its name to wTextArgs + 16 * n and
 ;@ counts it (n + 1). Also leaves the slot in wItemTarget.
+;@ test: wItemTarget = rand(0, 2)
+;@ test: slot = rand(0, 2)
+;@ test: n = rand(0, 2)
 AddHurtMonsterName::
 ;> wItemTarget = slot
 	ld [wItemTarget], a
@@ -2029,6 +2034,7 @@ AddHurtMonsterName::
 ;@ def ItemCheckRestoreMP()
 ;@ path: item/use
 ;@ Check for the MP items 5 and 6: the target must be alive and below its maximum MP.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckRestoreMP::
 ;> if CheckTargetDead():
 ;>     return
@@ -2067,6 +2073,7 @@ ItemCheckRestoreMP::
 ;@ def ItemCheckStatus2()
 ;@ path: item/use
 ;@ Check for an item that cures status bit 2 (item 7): only usable on a living monster that has it.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStatus2::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2089,6 +2096,7 @@ ItemCheckStatus2::
 ;@ def ItemCheckStatus3()
 ;@ path: item/use
 ;@ Check for an item that cures status bit 3 (item 8): only usable on a living monster that has it.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStatus3::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2111,6 +2119,7 @@ ItemCheckStatus3::
 ;@ def ItemCheckStatus4()
 ;@ path: item/use
 ;@ Check for an item that cures status bit 4 (item 9): only usable on a living monster that has it.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStatus4::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2133,6 +2142,7 @@ ItemCheckStatus4::
 ;@ def ItemCheckStatus0()
 ;@ path: item/use
 ;@ Check for an item that cures status bit 0 (item 10): only usable on a living monster that has it.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStatus0::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2155,6 +2165,7 @@ ItemCheckStatus0::
 ;@ def ItemCheckStatus1()
 ;@ path: item/use
 ;@ Check for an item that cures status bit 1 (item 11): only usable on a living monster that has it.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStatus1::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2177,6 +2188,7 @@ ItemCheckStatus1::
 ;@ def ItemCheckRevive()
 ;@ path: item/use
 ;@ Check for the revival item 12: only usable on a dead monster.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckRevive::
 ;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80:
 	ld a, [wItemTarget]
@@ -2195,6 +2207,7 @@ ItemCheckRevive::
 ;@ def ItemCheckMaxHP()
 ;@ path: item/use
 ;@ Check for an item that raises maximum HP (item 13): only usable while it is below 999.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckMaxHP::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2213,6 +2226,7 @@ ItemCheckMaxHP::
 ;@ def ItemCheckMaxMP()
 ;@ path: item/use
 ;@ Check for an item that raises maximum MP (item 14): only usable while it is below 999.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckMaxMP::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2231,6 +2245,7 @@ ItemCheckMaxMP::
 ;@ def ItemCheckAttack()
 ;@ path: item/use
 ;@ Check for an item that raises attack (item 15): only usable while it is below 999.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckAttack::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2249,6 +2264,7 @@ ItemCheckAttack::
 ;@ def ItemCheckDefense()
 ;@ path: item/use
 ;@ Check for an item that raises defense (item 16): only usable while it is below 999.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckDefense::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2267,6 +2283,7 @@ ItemCheckDefense::
 ;@ def ItemCheckAgility()
 ;@ path: item/use
 ;@ Check for an item that raises agility (item 17): only usable while it is below 511.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckAgility::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2285,6 +2302,7 @@ ItemCheckAgility::
 ;@ def ItemCheckIntelligence()
 ;@ path: item/use
 ;@ Check for an item that raises intelligence (item 18): only usable while it is below 255.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckIntelligence::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2322,6 +2340,7 @@ ItemCheckAlways::
 ;@ def ItemCheckStat64Max()
 ;@ path: item/use
 ;@ Check for item 31: usable unless the monster's byte $64 is already $FF.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStat64Max::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2344,6 +2363,7 @@ ItemCheckStat64Max::
 ;@ def ItemCheckStat64Min()
 ;@ path: item/use
 ;@ Check for item 32: usable unless the monster's byte $64 is already 0.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStat64Min::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2366,6 +2386,7 @@ ItemCheckStat64Min::
 ;@ def ItemCheckStat65Max()
 ;@ path: item/use
 ;@ Check for item 33: usable unless the monster's byte $65 is already $FF.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStat65Max::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2388,6 +2409,7 @@ ItemCheckStat65Max::
 ;@ def ItemCheckStat65Min()
 ;@ path: item/use
 ;@ Check for item 34: usable unless the monster's byte $65 is already 0.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStat65Min::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2410,6 +2432,7 @@ ItemCheckStat65Min::
 ;@ def ItemCheckStat67Max()
 ;@ path: item/use
 ;@ Check for item 35: usable unless the monster's byte $67 is already $FF.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStat67Max::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2432,6 +2455,7 @@ ItemCheckStat67Max::
 ;@ def ItemCheckStat67Min()
 ;@ path: item/use
 ;@ Check for item 36: usable unless the monster's byte $67 is already 0.
+;@ test: wItemTarget = rand(0, 2)
 ItemCheckStat67Min::
 ;> if CheckTargetDead():
 ;>     return                           # (wItemId is now $FF)
@@ -2818,6 +2842,7 @@ ItemCheckSaveAllowed::
 ;@ def CheckTargetDead()
 ;@ path: item/use
 ;@ Returns with the Z flag clear (and wItemId set to $FF) if party monster wItemTarget is dead.
+;@ test: wItemTarget = rand(0, 2)
 CheckTargetDead::
 ;> if not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80:
 	ld a, [wItemTarget]
@@ -2911,6 +2936,7 @@ ItemUseNone::
 ;@ def ItemUseHealOne()
 ;@ path: item/use
 ;@ Items 1 and 2: heal the target by wItemPower + 0-10 HP.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseHealOne::
 ;> Random()
 	call Random
@@ -2936,6 +2962,7 @@ ItemUseHealOne::
 ;@ def ItemUseHealParty()
 ;@ path: item/use
 ;@ Item 3: heals each of the three party slots by wItemPower + 0-10 HP.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseHealParty::
 ;>@t for wItemTarget in range(3):
 	ld a, $00
@@ -2960,6 +2987,7 @@ ItemUseHealParty::
 ;@ def HealTargetRandom()
 ;@ path: item/use
 ;@ Heals party monster wItemTarget by wItemPower + 0-10 HP.
+;@ test: wItemTarget = rand(0, 2)
 HealTargetRandom::
 ;> Random()
 	call Random
@@ -3001,6 +3029,8 @@ ItemUseFullHealParty::
 ;@ def FullHealMonster(slot: a)
 ;@ path: item/use
 ;@ Sets the HP of party slot `slot` (if it holds a living monster) to its maximum.
+;@ test: wItemTarget = rand(0, 2)
+;@ test: slot = rand(0, 2)
 FullHealMonster::
 ;> if slot >= wPartyCount:
 	ld hl, wPartyCount
@@ -3029,6 +3059,7 @@ FullHealMonster::
 ;@ def ItemUseRestoreMP()
 ;@ path: item/use
 ;@ Item 5: restores wItemPower + 0-10 MP.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRestoreMP::
 ;> Random()
 	call Random
@@ -3054,6 +3085,7 @@ ItemUseRestoreMP::
 ;@ def ItemUseFullMP()
 ;@ path: item/use
 ;@ Item 6: restores the target's MP to its maximum.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseFullMP::
 ;> top = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
 	ld a, [wItemTarget]
@@ -3071,6 +3103,7 @@ ItemUseFullMP::
 ;@ def ItemUseCureStatus2()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 2.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus2::
 ;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x04
 	ld a, [wItemTarget]
@@ -3085,6 +3118,7 @@ ItemUseCureStatus2::
 ;@ def ItemUseCureStatus3()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 3.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus3::
 ;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x08
 	ld a, [wItemTarget]
@@ -3099,6 +3133,7 @@ ItemUseCureStatus3::
 ;@ def ItemUseCureStatus4()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 4.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus4::
 ;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x10
 	ld a, [wItemTarget]
@@ -3113,6 +3148,7 @@ ItemUseCureStatus4::
 ;@ def ItemUseCureStatus0()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 0.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus0::
 ;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x01
 	ld a, [wItemTarget]
@@ -3127,6 +3163,7 @@ ItemUseCureStatus0::
 ;@ def ItemUseCureStatus1()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 1.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus1::
 ;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x02
 	ld a, [wItemTarget]
@@ -3141,6 +3178,7 @@ ItemUseCureStatus1::
 ;@ def ItemUseRevive()
 ;@ path: item/use
 ;@ Item 12: brings the target back to life with full HP.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRevive::
 ;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
 	ld a, [wItemTarget]
@@ -3166,6 +3204,7 @@ ItemUseRevive::
 ;@ def ItemUseRaiseMaxHP()
 ;@ path: item/use
 ;@ Item 13: raises the target's maximum HP by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseMaxHP::
 ;> RaisePartyMaxHP(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3181,6 +3220,7 @@ ItemUseRaiseMaxHP::
 ;@ def ItemUseRaiseMaxMP()
 ;@ path: item/use
 ;@ Item 14: raises the target's maximum MP by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseMaxMP::
 ;> RaisePartyMaxMP(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3196,6 +3236,7 @@ ItemUseRaiseMaxMP::
 ;@ def ItemUseRaiseAttack()
 ;@ path: item/use
 ;@ Item 15: raises the target's attack by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseAttack::
 ;> RaisePartyAttack(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3211,6 +3252,7 @@ ItemUseRaiseAttack::
 ;@ def ItemUseRaiseDefense()
 ;@ path: item/use
 ;@ Item 16: raises the target's defense by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseDefense::
 ;> RaisePartyDefense(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3226,6 +3268,7 @@ ItemUseRaiseDefense::
 ;@ def ItemUseRaiseAgility()
 ;@ path: item/use
 ;@ Item 17: raises the target's agility by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseAgility::
 ;> RaisePartyAgility(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3241,6 +3284,7 @@ ItemUseRaiseAgility::
 ;@ def ItemUseRaiseIntelligence()
 ;@ path: item/use
 ;@ Item 18: raises the target's intelligence by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseIntelligence::
 ;> RaisePartyIntelligence(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3256,6 +3300,7 @@ ItemUseRaiseIntelligence::
 ;@ def ItemUseLowerWildness()
 ;@ path: item/use
 ;@ Items 19-21: lower the target's wildness by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseLowerWildness::
 ;> LowerPartyWildness(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3271,6 +3316,7 @@ ItemUseLowerWildness::
 ;@ def ItemUseLowerWildnessStatus2()
 ;@ path: item/use
 ;@ Item 22: lowers the target's wildness by wItemPower and sets its status bit 2.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseLowerWildnessStatus2::
 ;> LowerPartyWildness(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3291,6 +3337,7 @@ ItemUseLowerWildnessStatus2::
 ;@ def ItemUseLowerWildness2()
 ;@ path: item/use
 ;@ Item 23: lowers the target's wildness by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseLowerWildness2::
 ;> LowerPartyWildness(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3363,6 +3410,7 @@ ItemUseNothing30::
 ;@ def ItemUseRaiseStat64()
 ;@ path: item/use
 ;@ Item 31: raises the target's byte $64 by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseStat64::
 ;> RaisePartyStat64(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3378,6 +3426,7 @@ ItemUseRaiseStat64::
 ;@ def ItemUseLowerStat64()
 ;@ path: item/use
 ;@ Item 32: lowers the target's byte $64 by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseLowerStat64::
 ;> LowerPartyStat64(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3393,6 +3442,7 @@ ItemUseLowerStat64::
 ;@ def ItemUseRaiseStat65()
 ;@ path: item/use
 ;@ Item 33: raises the target's byte $65 by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseStat65::
 ;> RaisePartyStat65(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3408,6 +3458,7 @@ ItemUseRaiseStat65::
 ;@ def ItemUseLowerStat65()
 ;@ path: item/use
 ;@ Item 34: lowers the target's byte $65 by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseLowerStat65::
 ;> LowerPartyStat65(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3423,6 +3474,7 @@ ItemUseLowerStat65::
 ;@ def ItemUseRaiseStat67()
 ;@ path: item/use
 ;@ Item 35: raises the target's byte $67 by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseRaiseStat67::
 ;> RaisePartyStat67(wItemTarget, wItemPower)
 	ld a, [wItemPower]
@@ -3438,6 +3490,7 @@ ItemUseRaiseStat67::
 ;@ def ItemUseLowerStat67()
 ;@ path: item/use
 ;@ Item 36: lowers the target's byte $67 by wItemPower.
+;@ test: wItemTarget = rand(0, 2)
 ItemUseLowerStat67::
 ;> LowerPartyStat67(wItemTarget, wItemPower)
 	ld a, [wItemPower]

@@ -42,7 +42,7 @@ jr_05e_4021:
 jr_05e_4031:
 	ld a, [$dd66]
 	ldh [hSpriteFrame], a
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	jr nz, jr_05e_4041
 
@@ -95,12 +95,12 @@ SkillAnimSpriteSets_5E::
 
 StartSkillAnimSprite_5E::
 	ld a, $01
-	ld [$dd62], a
+	ld [wBattleAnimRunning], a
 	ld a, [$dd68]
 	or a
 	jr z, jr_05e_40e8
 
-	ld a, [$db54]
+	ld a, [wItemMsgGroup]
 	cp $07
 	jr nc, jr_05e_4123
 
@@ -140,7 +140,7 @@ jr_05e_40e8:
 	ld [$d7b5], a
 	ld hl, far_GetAnimationFirstPose
 	rst $10
-	ld hl, $dd62
+	ld hl, wBattleAnimRunning
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
@@ -152,7 +152,7 @@ jr_05e_4123:
 	xor a
 	ld [wSkillAnimSprites], a
 	xor a
-	ld [$dd62], a
+	ld [wBattleAnimRunning], a
 	ret
 
 

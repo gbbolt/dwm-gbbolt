@@ -628,83 +628,114 @@ ClearScreenMap::
 
 	ret
 
+;@ def UpdateListCursor(cursor: hl, table: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Moves the cursor of a paged list of `count` entries, `rows` per page.
+;@ `cursor` points at the row (bit 7 = chosen), followed by the page;
+;@ `table` is the list's cursor table (page marker position first). Left and
+;@ Right (with auto-repeat) turn the page, wrapping around, and keep the row
+;@ inside the last, shorter page; otherwise the page number is drawn and Up /
+;@ Down move the row within the page (UpdateMenuCursor0A, which also handles
+;@ A). Nothing turns while a message is printing.
+;@ test: skip draws to VRAM
 UpdateListCursor::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> table += 2                               # past the page marker position
 	inc de
 	inc de
+;> if not wTextState and wJoyRepeat & 0x30:  # Left or Right: turn the page
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_00a_42a8
+	jp nz, .rows
 
+;>     if wJoyRepeat & 0x20:                 # Left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_00a_426e
+	jr z, .notLeft
 
+;>@pl         page = (mem[cursor + 1] - 1) & 0xFF
 	inc hl
 	ld a, [hl]
 	dec a
 	push af
 	push de
 	push bc
+;>@pn         pages = (count - 1) // rows + 1
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
 	ld a, b
 	inc a
+;=@pn
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:                 # turned back from the first page
 	pop af
 	cp c
-	jr c, jr_00a_428c
+	jr c, .setPage
 
+;>             page = pages - 1
 	ld a, c
 	dec a
-	jr jr_00a_428c
+;=@sp
+	jr .setPage
 
-jr_00a_426e:
+.notLeft
+;>     elif wJoyRepeat & 0x10:               # Right
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_00a_42a8
+	jr z, .rows
 
+;>@pl2         page = mem[cursor + 1] + 1
 	inc hl
 	ld a, [hl]
 	inc a
 	push af
 	push de
 	push bc
+;>@pn2         pages = (count - 1) // rows + 1
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
 	ld a, b
 	inc a
+;=@pn2
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:
 	pop af
 	cp c
-	jr c, jr_00a_428c
+	jr c, .setPage
 
+;>             page = 0
 	ld a, $00
 
-jr_00a_428c:
+.setPage
+;>@sp     mem[cursor + 1] = page
 	ld [hld], a
+;>@last     if page == pages - 1:                 # the last page may be shorter
 	dec c
 	cp c
 	jr nz, jr_00a_42eb
 
+;>@lr         left = count % rows
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@lr
 	call Divide8
 	pop bc
 	pop de
+;>@cl         if left and left - 1 < mem[cursor]:
 	or a
 	jr z, jr_00a_42eb
 
@@ -712,69 +743,101 @@ jr_00a_428c:
 	cp [hl]
 	jr nc, jr_00a_42eb
 
+;>             mem[cursor] = left - 1       # onto its last row
 	ld [hl], a
+;=@mv
 	jr jr_00a_42eb
 
-Jump_00a_42a8:
-jr_00a_42a8:
+;>@mv     cursor_moved_tail(cursor, table)      # the end of UpdateMenuCursor0A from jr_00a_42eb: blink reset, A, redraw
+;>     return
+;> else:
+.rows
+;>@dp     DrawPageNumber0A(cursor, table, rows, count)
 	push bc
 	push de
 	push hl
 	call DrawPageNumber0A
 	pop hl
 	pop de
+;=@dp
 	pop bc
+;>@lp     last_page = (count - 1) // rows
+;>     wListLastRows = (count - 1) % rows     # rows on the last page - 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@lp
 	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;>     if mem[cursor + 1] == last_page:
 	inc hl
 	ld a, [hld]
 	cp c
 	jr nz, UpdateMenuCursor0A
 
+;>         rows = wListLastRows + 1
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
+;>     UpdateMenuCursor0A(cursor, table, rows)
 
+;@ def UpdateMenuCursor0A(cursor: hl, table: de, n: b)
+;@ path: menu/cursor
+;@ Moves a menu cursor (row in mem[cursor], bit 7 = chosen) among `n` rows
+;@ with Up and Down (auto-repeat), wrapping around; a move restarts the
+;@ blink. A sets bit 7. Then the cursor column is redrawn from the cursor
+;@ table `table` (DrawMenuCursor0A).
+;@ test: skip draws to VRAM
 UpdateMenuCursor0A::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:                     # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_00a_42dc
 
+;>     row = mem[cursor] - 1
+;>     if row >= n:                          # (also from 0 to 255)
 	ld a, [hl]
 	dec a
 	cp b
 	jr c, jr_00a_42ea
 
+;>         row = n - 1
 	dec b
 	ld a, b
+;=@st
 	jr jr_00a_42ea
 
 jr_00a_42dc:
+;> elif wJoyRepeat & 0x80:                   # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_00a_42f3
 
+;>     row = mem[cursor] + 1
+;>     if row >= n:
 	ld a, [hl]
 	inc a
 	cp b
 	jr c, jr_00a_42ea
 
+;>         row = 0
 	ld a, $00
 
 jr_00a_42ea:
+;>@st if wJoyRepeat & 0xC0:
+;>     mem[cursor] = row
 	ld [hl], a
 
 jr_00a_42eb:
+;>     wCursorBlink = 0                      # (UpdateListCursor jumps here after turning a page)
 	xor a
 	ld [wCursorBlink], a
 	push hl
@@ -783,13 +846,16 @@ jr_00a_42eb:
 	pop hl
 
 jr_00a_42f3:
+;> if wJoyPressed & 0x01:                    # A
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_00a_42fc
 
+;>     mem[cursor] |= 0x80
 	set 7, [hl]
 
 jr_00a_42fc:
+;> DrawMenuCursor0A(mem[cursor], table)
 	ld a, [hl]
 	call DrawMenuCursor0A
 	ret
@@ -1397,363 +1463,514 @@ PartnerBreedFlowSteps::
 	dw PBReturnFromStatus
 	dw PBBackToList
 
+;@ def PBListMonsters()
+;@ path: breed/partner
+;@ Breed step 0: lists the monsters that can be the pedigree parent (all
+;@ hatched monsters, no eggs), fetches the offered mate's name and prints
+;@ the "which monster?" message.
+;@ test: skip prints a message through other banks
 PBListMonsters::
+;> PBCountMonsters()
 	call PBCountMonsters
+;> PBBuildMonsterList()
 	call PBBuildMonsterList
+;> GetPartnerName()
 	call GetPartnerName
+;> PrintServiceMessage(0x0002)
 	ld hl, $0002
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def PBCountMonsters()
+;@ path: breed/partner
+;@ Counts the 20 monster records that hold a monster (not empty, not an egg)
+;@ into wListLength.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 PBCountMonsters::
+;> n = 0
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_00a_4579:
+.loop
+;>@for for _ in range(20):
+;>@if     if mem[rec] != 0 and mem[rec + 0x63] == 0:     # a monster, and not an egg (wMonEgg)
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_00a_458b
+	jr z, .next
 
+;=@if
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@if
 	ld a, [de]
 	or a
-	jr nz, jr_00a_458b
+	jr nz, .next
 
+;>         n += 1
 	inc c
 
-jr_00a_458b:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@for
 	ld d, a
 	dec b
-	jr nz, jr_00a_4579
+	jr nz, .loop
 
+;> wListLength = n
 	ld a, c
 	ld [wListLength], a
 	ret
 
 
+;@ def PBBuildMonsterList()
+;@ path: breed/partner
+;@ Writes the slot numbers of those monsters (see PBCountMonsters) into the
+;@ 20-byte list at wSceneObjects, $FF after the last.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 PBBuildMonsterList::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> p = wSceneObjects
+;> rec = wMonsters
 	ld hl, wSceneObjects
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_00a_45b1:
+.loop
+;>@for for m in range(20):
+;>@if     if mem[rec] != 0 and mem[rec + 0x63] == 0:
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_00a_45c4
+	jr z, .next
 
+;=@if
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@if
 	ld a, [de]
 	or a
-	jr nz, jr_00a_45c4
+	jr nz, .next
 
+;>         mem[p] = m
+;>         p += 1
 	ld [hl], c
 	inc hl
 
-jr_00a_45c4:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@for
 	ld d, a
 	inc c
 	dec b
-	jr nz, jr_00a_45b1
+	jr nz, .loop
 
 	ret
 
 
+;@ def PBShowList()
+;@ path: breed/partner
+;@ Breed step 1: once the message is out, draws the monster list.
+;@ test: skip draws to VRAM
 PBShowList::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> PBDrawCursorMonster()
 	call PBDrawCursorMonster
+;> PBDrawPageNames()
 	call PBDrawPageNames
+;> DrawPBListScreen()
 	call DrawPBListScreen
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawPBListScreen()
+;@ path: breed/partner
+;@ Draws the whole list screen: the menu, the box with the chosen monster's
+;@ level, the list window with its cursor, and shows it.
+;@ test: skip draws to VRAM
 DrawPBListScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawPartnerBreedMenu()
 	call DrawPartnerBreedMenu
-	ld de, $7731
+;> DrawWindowLayout0A(LayoutPartnerInfo)
+	ld de, LayoutPartnerInfo
 	call DrawWindowLayout0A
+;> PBDrawLevel()
 	call PBDrawLevel
-	ld de, $7409
+;> DrawWindowLayout0A(LayoutPartnerList)
+	ld de, LayoutPartnerList
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $481f
+;> DrawListCursor(wListCursor, PBListCursorPos, 4, wListLength)
+	ld de, PBListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListCursor
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def PBDrawPageNames()
+;@ path: breed/partner
+;@ Draws the names of the 4 monsters on the list page wListPage into the
+;@ tiles from $8800 on (4 tiles each), which the list window shows.
+;@ test: skip draws to VRAM
 PBDrawPageNames::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x8800
 	ld hl, $8800
+;> for _ in range(4):
+;>     entry, tiles = PBDrawListEntry(entry, tiles)
 	call PBDrawListEntry
 	call PBDrawListEntry
 	call PBDrawListEntry
 
+;@ def PBDrawListEntry(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/partner
+;@ Draws one list entry into 4 tiles at `tiles`: the monster's name; for an
+;@ egg the word of text 2:$0E in 3 tiles and its family icon; for an empty
+;@ entry ($FF) 4 tiles of plain colour 1. Returns the next entry and tiles.
+;@ test: skip draws to VRAM
 PBDrawListEntry::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> empty = m == 0xFF
 	cp $ff
-	jr z, jr_00a_4657
+	jr z, .empty
 
+;>@egg egg = not empty and mem[MonsterField(m, wMonEgg)] != 0
 	push de
 	ld hl, wMonEgg
 	call MonsterField
 	pop de
 	ld a, [hl]
 	or a
-	jr nz, jr_00a_4671
+;=@egg
+	jr nz, .egg
 
+;>@rn if not empty and not egg:
+;>     RenderNameTiles(tiles, MonsterField(m, wMonName))
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@rn
 	push hl
 	call RenderNameTiles
 	pop hl
+;>@r0     return entry + 1, tiles + 0x40
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r0
 	pop de
 	inc de
 	ret
 
 
-jr_00a_4657:
+.empty
+;> elif empty:
+;>@cl     for _ in range(32):
 	ld b, $20
-
-jr_00a_4659:
+.clear
+;>         WriteVRAMInc(tiles, 0xFF)
+;>         WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_4659
+	jr nz, .clear
 
+;>@r1     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
-jr_00a_4671:
+.egg
+;> else:
+;>     wTextIndex = 0x0E
 	ld a, $0e
 	ld [wTextIndex], a
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     RenderTextTiles(tiles, 1, 4)              # the word for an egg
 	ld de, $0401
 	pop hl
 	push hl
 	call RenderTextTiles
 	pop hl
+;>     tiles += 0x30
 	ld a, l
 	add $30
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;>@icon     icon = FamilyIconGfx0A[mem[MonsterField(m, wMonFamily)]]
 	pop de
 	push de
 	push hl
 	ld a, [de]
 	ld hl, wMonFamily
 	call MonsterField
+;=@icon
 	ld a, [hl]
 	add a
-	ld hl, $46b5
+	ld hl, FamilyIconGfx0A
 	add l
 	ld l, a
 	ld a, $00
+;=@icon
 	adc h
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	pop hl
+;>     DecompressVRAM(icon & 0xFF, icon >> 8, tiles)   # into the 4th tile
 	push hl
 	call DecompressVRAM
 	pop hl
+;>@r2     return entry + 1, tiles + 0x10
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r2
 	pop de
 	inc de
 	ret
 
 
+;@ path: breed/partner
+;@ Graphics of the 10 monster family icons (one tile each), as DecompressVRAM
+;@ references: bank $2E, entries 3-12 (slime, dragon, beast, bird, plant,
+;@ bug, devil, zombie, material, boss).
 FamilyIconGfx0A::
 	db $03, $2e, $04, $2e, $05, $2e, $06, $2e, $07, $2e, $08, $2e, $09, $2e, $0a, $2e
 	db $0b, $2e, $0c, $2e
 
+;@ def PBDrawCursorMonster()
+;@ path: breed/partner
+;@ Draws the name of the monster under the cursor into tiles $9780 and its
+;@ gender mark ($A7 + gender) into tile $97C0.
+;@ test: skip draws to VRAM
 PBDrawCursorMonster::
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;>@n RenderNameTiles(0x9780, MonsterField(m, wMonName))
 	push af
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9780
+;=@n
 	call RenderNameTiles
+;>@g wTextArg0[0] = 0xA7 + (mem[MonsterField(m, wMonGender)] & 1)   # gender mark
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $97c0
 	and $01
+;=@g
 	add $a7
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
+;=@save
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x97C0
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x00
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved[0]
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved[2]
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def PBDrawLevel()
+;@ path: breed/partner
+;@ Writes the level of the monster under the cursor into wTilemapBuffer
+;@ ("Lv" tile $DE at row 11, column 1, then the digits) and a party mark $E3
+;@ at column 9 when it is in the party.
+;@ test: skip draws from tables
 PBDrawLevel::
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;> level = mem[MonsterField(m, wMonLevel)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = OffsetToTilemapBuffer(0x0161)
 	ld hl, $0161
 	call OffsetToTilemapBuffer
+;> mem[p] = 0xDE                         # "Lv"
 	ld a, $de
 	ld [hli], a
+;> mem[p + 1] = 0xE0
 	ld a, $e0
 	ld [hli], a
+;> mem[p + 2] = 0xE0
 	ld a, $e0
 	ld [hld], a
+;> DrawTwoDigits0A(level, p + 1)
 	call DrawTwoDigits0A
+;> if mem[MonsterField(m, wMonsters)] == 2:          # in the party
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_00a_4793
+;=@else
+	jr nz, .notInParty
 
+;>     mem[OffsetToTilemapBuffer(0x0169)] = 0xE3
 	ld hl, $0169
 	call OffsetToTilemapBuffer
 	ld a, $e3
@@ -1761,7 +1978,9 @@ PBDrawLevel::
 	ret
 
 
-jr_00a_4793:
+.notInParty
+;>@else else:
+;>     mem[OffsetToTilemapBuffer(0x0169)] = 0xE0
 	ld hl, $0169
 	call OffsetToTilemapBuffer
 	ld a, $e0
@@ -1934,12 +2153,12 @@ DrawPBConfirmScreen::
 ;> DrawPartnerBreedMenu()
 	call DrawPartnerBreedMenu
 ;> DrawWindowLayout0A(LayoutPartnerInfo)
-	ld de, $7731
+	ld de, LayoutPartnerInfo
 	call DrawWindowLayout0A
 ;> PBDrawLevel()
 	call PBDrawLevel
 ;> DrawWindowLayout0A(LayoutPartnerList)
-	ld de, $7409
+	ld de, LayoutPartnerList
 	call DrawWindowLayout0A
 ;> DrawListCursor(wListCursor, PBListCursorPos, 4, wListLength)
 	ld de, PBListCursorPos
@@ -1949,7 +2168,7 @@ DrawPBConfirmScreen::
 	ld hl, wListCursor
 	call DrawListCursor
 ;> DrawWindowLayout0A(LayoutConfirm)
-	ld de, $7463
+	ld de, LayoutConfirm
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
@@ -2204,7 +2423,7 @@ PBSaveMenuCursorPos::
 ;@ test: skip draws to VRAM
 PBShowSaveInfo::
 ;> DrawWindowLayout0A(LayoutSaveFile)
-	ld de, $748d
+	ld de, LayoutSaveFile
 	call DrawWindowLayout0A
 ;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
@@ -2783,7 +3002,7 @@ DrawBreedingMenu::
 	call OffsetToTilemapBuffer
 	call PrintNumber5
 ;> DrawWindowLayout0A(LayoutBreedingMenu)
-	ld de, $75ab
+	ld de, LayoutBreedingMenu
 	call DrawWindowLayout0A
 ;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
@@ -2962,315 +3181,458 @@ BreedFlowSteps::
 	dw BRReturnFromMateStatus
 	dw BRBackToMates
 
+;@ def BRListMonsters()
+;@ path: breed/house
+;@ Breed step 0: lists the monsters that can breed (all hatched monsters, no
+;@ eggs) and asks for the pedigree parent (message 3).
+;@ test: skip prints a message through other banks
 BRListMonsters::
+;> BRCountMonsters()
 	call BRCountMonsters
+;> BRBuildMonsterList()
 	call BRBuildMonsterList
+;> PrintServiceMessage(0x0003)
 	ld hl, $0003
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def BRCountMonsters()
+;@ path: breed/house
+;@ Counts the 20 monster records that hold a monster (not empty, not an egg)
+;@ into wListLength.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 BRCountMonsters::
+;> n = 0
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_00a_4d54:
+.loop
+;>@for for _ in range(20):
+;>@if     if mem[rec] != 0 and mem[rec + 0x63] == 0:     # a monster, and not an egg (wMonEgg)
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_00a_4d66
+	jr z, .next
 
+;=@if
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@if
 	ld a, [de]
 	or a
-	jr nz, jr_00a_4d66
+	jr nz, .next
 
+;>         n += 1
 	inc c
 
-jr_00a_4d66:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@for
 	ld d, a
 	dec b
-	jr nz, jr_00a_4d54
+	jr nz, .loop
 
+;> wListLength = n
 	ld a, c
 	ld [wListLength], a
 	ret
 
 
+;@ def BRBuildMonsterList()
+;@ path: breed/house
+;@ Writes the slot numbers of those monsters (see BRCountMonsters) into the
+;@ 20-byte list at wSceneObjects, $FF after the last.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 BRBuildMonsterList::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> p = wSceneObjects
+;> rec = wMonsters
 	ld hl, wSceneObjects
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_00a_4d8c:
+.loop
+;>@for for m in range(20):
+;>@if     if mem[rec] != 0 and mem[rec + 0x63] == 0:
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_00a_4d9f
+	jr z, .next
 
+;=@if
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@if
 	ld a, [de]
 	or a
-	jr nz, jr_00a_4d9f
+	jr nz, .next
 
+;>         mem[p] = m
+;>         p += 1
 	ld [hl], c
 	inc hl
 
-jr_00a_4d9f:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@for
 	ld d, a
 	inc c
 	dec b
-	jr nz, jr_00a_4d8c
+	jr nz, .loop
 
 	ret
 
 
+;@ def BRShowList()
+;@ path: breed/house
+;@ Breed step 1: once the message is out, draws the monster list.
+;@ test: skip draws to VRAM
 BRShowList::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> BRClearInfo()
 	call BRClearInfo
+;> BRDrawPageNames()
 	call BRDrawPageNames
+;> DrawBRListScreen()
 	call DrawBRListScreen
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawBRListScreen()
+;@ path: breed/house
+;@ Draws the breeding list screen: the menu with the gold, the list window,
+;@ the pair window with the level of the monster under the cursor, and the
+;@ list cursor; then shows it.
+;@ test: skip draws to VRAM
 DrawBRListScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawBreedingMenu()
 	call DrawBreedingMenu
-	ld de, $75f3
+;> DrawWindowLayout0A(LayoutMonsterList)
+	ld de, LayoutMonsterList
 	call DrawWindowLayout0A
-	ld de, $76a7
+;> DrawWindowLayout0A(LayoutPairInfo)
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
+;> BRDrawLevel()
 	call BRDrawLevel
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $4fa8
+;> DrawListCursor(wListCursor, BRListCursorPos, 4, wListLength)
+	ld de, BRListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListCursor
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def BRDrawPageNames()
+;@ path: breed/house
+;@ Draws the names of the 4 monsters on the list page wListPage into the
+;@ tiles from $9610 on (4 tiles each).
+;@ test: skip draws to VRAM
 BRDrawPageNames::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9610
 	ld hl, $9610
+;> for _ in range(4):
+;>     entry, tiles = DrawNameEntry(entry, tiles)
 	call DrawNameEntry
 	call DrawNameEntry
 	call DrawNameEntry
 
+;@ def DrawNameEntry(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/house
+;@ Draws the name of list entry `entry` into 4 tiles at `tiles` (4 tiles of
+;@ plain colour 1 for an empty entry, $FF). Returns the next entry and tiles.
+;@ test: skip draws to VRAM
 DrawNameEntry::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_4e26
+	jr z, .empty
 
+;>@rn     RenderNameTiles(tiles, MonsterField(m, wMonName))
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@rn
 	push hl
 	call RenderNameTiles
 	pop hl
+;>@r0     return entry + 1, tiles + 0x40
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r0
 	pop de
 	inc de
 	ret
 
 
-jr_00a_4e26:
+.empty
+;>@cl for _ in range(32):
 	ld b, $20
-
-jr_00a_4e28:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_4e28
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def BRClearInfo()
+;@ path: breed/house
+;@ Draws the name and gender of the monster under the cursor (BRDrawCursorMonster)
+;@ and blanks the 5 tiles from $9760 on (where the mate is shown later).
+;@ test: skip draws to VRAM
 BRClearInfo::
+;> BRDrawCursorMonster()
 	call BRDrawCursorMonster
+;> tiles = 0x9760
 	ld hl, $9760
+;>@cl for _ in range(40):
 	ld b, $28
-
-jr_00a_4e48:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_4e48
+	jr nz, .clear
 
 	ret
 
 
+;@ def BRDrawCursorMonster()
+;@ path: breed/house
+;@ Draws the name of the monster under the list cursor into tiles $9710 and
+;@ its gender mark into tile $9750.
+;@ test: skip draws to VRAM
 BRDrawCursorMonster::
+;>@m entry = wSceneObjects + wListPage * 4 + (wListCursor & 0x7F); m = mem[entry]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@m
 	ld d, a
 	ld a, [de]
+;> DrawNameEntry(entry, 0x9710)
 	push af
 	ld hl, $9710
 	call DrawNameEntry
+;>@k1 DrawGenderTile(mem[MonsterField(m, wMonGender)], 0x9750)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $9750
 	call DrawGenderTile
+;=@k1
 	ret
 
 
+;@ def DrawGenderTile(gender: a, tiles: hl)
+;@ path: breed/house
+;@ Draws the gender mark of `gender` (bit 0: $A7 or $A8) into the letter tile
+;@ at VRAM `tiles`.
+;@ test: skip calls a routine in another bank
 DrawGenderTile::
+;> wTextArg0[0] = 0xA7 + (gender & 1)
 	and $01
 	add $a7
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
+;=@save
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x00
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved[0]
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved[2]
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def BRDrawLevel()
+;@ path: breed/house
+;@ Writes the level of the monster under the list cursor into wTilemapBuffer
+;@ ("Lv" tile $DE at row 9, column 10, then the digits) and a party mark $E3
+;@ at column 18 when it is in the party.
+;@ test: skip draws from tables
 BRDrawLevel::
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@m
 	ld d, a
 	ld a, [de]
+;> level = mem[MonsterField(m, wMonLevel)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = OffsetToTilemapBuffer(0x012A)
 	ld hl, $012a
 	call OffsetToTilemapBuffer
+;> mem[p] = 0xDE                         # "Lv"
 	ld a, $de
 	ld [hli], a
+;> DrawTwoDigits0A(level, p + 1)
 	call DrawTwoDigits0A
+;> if mem[MonsterField(m, wMonsters)] != 2:          # not in the party
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
+;>     return
 	ret nz
 
+;> mem[OffsetToTilemapBuffer(0x0132)] = 0xE3
 	ld hl, $0132
 	call OffsetToTilemapBuffer
 	ld a, $e3
@@ -3321,7 +3683,7 @@ BRPedigreeInput::
 ;>     BRClearInfo()
 	call BRClearInfo
 ;>     DrawWindowLayout0A(LayoutPairInfo)
-	ld de, $76a7
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
 ;>     BRDrawLevel()
 	call BRDrawLevel
@@ -3340,7 +3702,7 @@ BRPedigreeInput::
 ;>     BRDrawPageNames()
 	call BRDrawPageNames
 ;>     DrawWindowLayout0A(LayoutPairInfo)
-	ld de, $76a7
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
 ;>     BRDrawLevel()
 	call BRDrawLevel
@@ -3404,6 +3766,10 @@ Jump_00a_4fa7:
 	ret
 
 
+;@ path: breed/house
+;@ Cursor positions for the breeding monster list, as tilemap offsets
+;@ (row * 32 + column) ending with $FFFF. The first entry is where the page
+;@ marker sits; the other four are the rows of the list.
 BRListCursorPos::
 	db $85, $01, $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
 
@@ -3451,10 +3817,10 @@ DrawBRPedigreeConfirm::
 ;> DrawBreedingMenu()
 	call DrawBreedingMenu
 ;> DrawWindowLayout0A(LayoutMonsterList)
-	ld de, $75f3
+	ld de, LayoutMonsterList
 	call DrawWindowLayout0A
 ;> DrawWindowLayout0A(LayoutPairInfo)
-	ld de, $76a7
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
 ;> BRDrawLevel()
 	call BRDrawLevel
@@ -3466,7 +3832,7 @@ DrawBRPedigreeConfirm::
 	ld hl, wListCursor
 	call DrawListCursor
 ;> DrawWindowLayout0A(LayoutConfirm)
-	ld de, $7463
+	ld de, LayoutConfirm
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
@@ -3768,36 +4134,60 @@ BRShowMates::
 	ret
 
 
+;@ def DrawBRMateScreen()
+;@ path: breed/house
+;@ Draws the mate list screen: the menu with the gold, the mate list window,
+;@ the pair window with both levels and the list cursor (wListCursor2); then
+;@ shows it.
+;@ test: skip draws to VRAM
 DrawBRMateScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawBreedingMenu()
 	call DrawBreedingMenu
-	ld de, $764d
+;> DrawWindowLayout0A(LayoutMateList)
+	ld de, LayoutMateList
 	call DrawWindowLayout0A
-	ld de, $76a7
+;> DrawWindowLayout0A(LayoutPairInfo)
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
+;> BRDrawPairLevels()
 	call BRDrawPairLevels
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $52dd
+;> DrawListCursor(wListCursor2, BRMateCursorPos, 4, wListLength)
+	ld de, BRMateCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor2
 	call DrawListCursor
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def BRDrawMatePage()
+;@ path: breed/house
+;@ Draws the names of the 4 mates on page wListPage2 into the tiles from
+;@ $9610 on (4 tiles each).
+;@ test: skip draws to VRAM
 BRDrawMatePage::
+;>@e entry = wSceneObjects + wListPage2 * 4
 	ld a, [wListPage2]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9610
 	ld hl, $9610
+;> for _ in range(4):
+;>     entry, tiles = DrawNameEntry(entry, tiles)
 	call DrawNameEntry
 	call DrawNameEntry
 	call DrawNameEntry
@@ -3805,103 +4195,146 @@ BRDrawMatePage::
 	ret
 
 
+;@ def BRDrawPair()
+;@ path: breed/house
+;@ Draws the pedigree parent (wListKnown) into tiles $9710 (name) and $9750
+;@ (gender), then the mate under the cursor (BRDrawMateCursor).
+;@ test: skip draws to VRAM
 BRDrawPair::
+;> DrawNameEntry(addr(wListKnown), 0x9710)
 	ld de, wListKnown
 	ld a, [de]
 	push af
 	ld hl, $9710
 	call DrawNameEntry
+;> DrawGenderTile(mem[MonsterField(wListKnown, wMonGender)], 0x9750)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $9750
 	call DrawGenderTile
+;> BRDrawMateCursor()
 
+;@ def BRDrawMateCursor()
+;@ path: breed/house
+;@ Draws the mate under the list cursor into tiles $9760 (name) and $97A0
+;@ (gender).
+;@ test: skip draws to VRAM
 BRDrawMateCursor::
+;>@m entry = wSceneObjects + wListPage2 * 4 + (wListCursor2 & 0x7F); m = mem[entry]
 	ld a, [wListPage2]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor2]
 	and $7f
+;=@m
 	add b
 	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@m
 	ld d, a
 	ld a, [de]
+;> DrawNameEntry(entry, 0x9760)
 	push af
 	ld hl, $9760
 	call DrawNameEntry
+;>@k2 DrawGenderTile(mem[MonsterField(m, wMonGender)], 0x97A0)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $97a0
 	call DrawGenderTile
+;=@k2
 	ret
 
 
+;@ def BRDrawPairLevels()
+;@ path: breed/house
+;@ Writes the levels of the pedigree parent (row 9, column 10) and of the
+;@ mate under the cursor (row 11, column 10) into wTilemapBuffer, each "Lv"
+;@ ($DE) and digits, with the party mark $E3 eight columns on when that
+;@ monster is in the party.
+;@ test: skip draws from tables
 BRDrawPairLevels::
+;> m = wListKnown
 	ld de, wListKnown
 	ld a, [de]
+;> level = mem[MonsterField(m, wMonLevel)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = OffsetToTilemapBuffer(0x012A)
 	ld hl, $012a
 	call OffsetToTilemapBuffer
+;> mem[p] = 0xDE                         # "Lv"
 	ld a, $de
 	ld [hli], a
+;> DrawTwoDigits0A(level, p + 1)
 	call DrawTwoDigits0A
+;> if mem[MonsterField(m, wMonsters)] == 2:          # in the party
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_00a_51f0
+	jr nz, .mate
 
+;>     mem[OffsetToTilemapBuffer(0x0132)] = 0xE3
 	ld hl, $0132
 	call OffsetToTilemapBuffer
 	ld a, $e3
 	ld [hl], a
 
-jr_00a_51f0:
+.mate
+;>@m m = wSceneObjects[wListPage2 * 4 + (wListCursor2 & 0x7F)]
 	ld a, [wListPage2]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor2]
 	and $7f
+;=@m
 	add b
 	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@m
 	ld d, a
 	ld a, [de]
+;> level = mem[MonsterField(m, wMonLevel)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = OffsetToTilemapBuffer(0x016A)
 	ld hl, $016a
 	call OffsetToTilemapBuffer
+;> mem[p] = 0xDE
 	ld a, $de
 	ld [hli], a
+;> DrawTwoDigits0A(level, p + 1)
 	call DrawTwoDigits0A
+;> if mem[MonsterField(m, wMonsters)] != 2:
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
+;>     return
 	ret nz
 
+;> mem[OffsetToTilemapBuffer(0x0172)] = 0xE3
 	ld hl, $0172
 	call OffsetToTilemapBuffer
 	ld a, $e3
@@ -3909,366 +4342,522 @@ jr_00a_51f0:
 	ret
 
 
+;@ def BRMateInput()
+;@ path: breed/house
+;@ Breed step 8: the mate list (cursor wListCursor2, page wListPage2). The
+;@ mate's info is redrawn when the cursor moves, the page when it changes.
+;@ B goes back to the pedigree list (step 0), A picks the mate
+;@ (wCurPartyMember).
+;@ test: skip draws to VRAM
 BRMateInput::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
-	ld de, $52dd
+;>@u old_row = wListCursor2
+;> old_page = wListPage2
+	ld de, BRMateCursorPos
 	ld hl, wListCursor2
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@u
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> UpdateListCursor(wListCursor2, BRMateCursorPos, 4, wListLength)
 	call UpdateListCursor
+;>@r if wListCursor2 & 0x7F != old_row & 0x7F:
 	pop af
 	ld hl, wListCursor2
 	and $7f
 	ld b, a
 	ld a, [hl]
 	and $7f
+;=@r
 	cp b
-	jr z, jr_00a_5266
+	jr z, .samePos
 
+;>     BRDrawMateCursor()
 	call BRDrawMateCursor
-	ld de, $76a7
+;>     DrawWindowLayout0A(LayoutPairInfo)
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
+;>     BRDrawPairLevels()
 	call BRDrawPairLevels
+;>     ShowTilemapBuffer()
 	call ShowTilemapBuffer
 
-jr_00a_5266:
+.samePos
+;> if wListPage2 != old_page:
 	pop af
 	ld hl, wListPage2
 	cp [hl]
-	jr z, jr_00a_527f
+	jr z, .samePage
 
+;>     BRDrawMateCursor()
 	call BRDrawMateCursor
+;>     BRDrawMatePage()
 	call BRDrawMatePage
-	ld de, $76a7
+;>     DrawWindowLayout0A(LayoutPairInfo)
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
+;>     BRDrawPairLevels()
 	call BRDrawPairLevels
+;>     ShowTilemapBuffer()
 	call ShowTilemapBuffer
 
-jr_00a_527f:
+.samePage
+;> if wJoyPressed & 0x02:                    # B: back to the pedigree list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_52ae
+	jr z, .notB
 
+;>     PrintServiceMessage(0x0003)
 	ld hl, $0003
 	call PrintServiceMessage
+;>@back     wMenuSubStep -= 8
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@back
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@back
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_00a_52dc
+;=@ret
+	jr .done
 
-jr_00a_52ae:
+.notB
+;> elif wJoyPressed & 0x01:                  # A: this mate
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_4fa7
+	jp z, Jump_00a_4fa7                     ; (a plain ret in BRPedigreeInput)
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>@m     wCurPartyMember = wSceneObjects[wListPage2 * 4 + (wListCursor2 & 0x7F)]
 	ld a, [wListPage2]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor2]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;>     wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-jr_00a_52dc:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/house
+;@ Cursor table of the mate list (tile offsets row * 32 + column): the page
+;@ marker, then the 4 rows; $FFFF ends.
 BRMateCursorPos::
-	db $85, $01, $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
+	dw $0185, $00a1, $00e1, $0121, $0161, $ffff
 
+;@ def BRAskMate()
+;@ path: breed/house
+;@ Breed step 9: prints the question about the picked mate (message 5).
+;@ test: skip prints a message through other banks
 BRAskMate::
+;> PrintServiceMessage(0x0005)
 	ld hl, $0005
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def BROpenMateConfirm()
+;@ path: breed/house
+;@ Breed step 10: once the message is out, opens the two-choice window.
+;@ test: skip draws to VRAM
 BROpenMateConfirm::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> DrawBRMateConfirm()
 	call DrawBRMateConfirm
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawBRMateConfirm()
+;@ path: breed/house
+;@ Draws the mate list screen with the two-choice window (view the status /
+;@ take it) on top, cursor on wConfirmChoice2, and shows it.
+;@ test: skip draws to VRAM
 DrawBRMateConfirm::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawBreedingMenu()
 	call DrawBreedingMenu
-	ld de, $764d
+;> DrawWindowLayout0A(LayoutMateList)
+	ld de, LayoutMateList
 	call DrawWindowLayout0A
-	ld de, $76a7
+;> DrawWindowLayout0A(LayoutPairInfo)
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
+;> BRDrawPairLevels()
 	call BRDrawPairLevels
-	ld de, $52dd
+;> DrawListCursor(wListCursor2, BRMateCursorPos, 4, wListLength)
+	ld de, BRMateCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor2
 	call DrawListCursor
-	ld de, $7463
+;> DrawWindowLayout0A(LayoutConfirm)
+	ld de, LayoutConfirm
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $541f
+;> DrawCursorAt0A(wConfirmChoice2, BRMateConfirmCursorPos)
+	ld de, BRMateConfirmCursorPos
 	ld a, [wConfirmChoice2]
 	call DrawCursorAt0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def BRMateConfirmInput()
+;@ path: breed/house
+;@ Breed step 11: the two-choice window for the mate. B goes back to the mate
+;@ list. The first choice opens the status screen (step 23). The second takes
+;@ the mate unless it is below level 10 (message 7), the pair would leave
+;@ the party empty (message 6), or both have the same gender (message 8);
+;@ then the offspring is worked out.
+;@ test: skip prints messages through other banks
 BRMateConfirmInput::
-	ld de, $541f
+;> UpdateMenuCursor0A(wConfirmChoice2, BRMateConfirmCursorPos, 2)
+	ld de, BRMateConfirmCursorPos
 	ld hl, wConfirmChoice2
 	ld b, $02
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x02:                    # B: back to the mate list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_5369
+	jr z, .notB
 
+;>     DrawBRMateScreen()
 	call DrawBRMateScreen
+;>     PrintServiceMessage(0x0004)
 	ld hl, $0004
 	call PrintServiceMessage
+;>@back     wMenuSubStep -= 4
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@back
 	ld hl, wMenuSubStep
 	dec [hl]
-	jp Jump_00a_541e
+;=@ret
+	jp .done
 
 
-jr_00a_5369:
+.notB
+;> elif not wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_541e
+;>     return
+	jp z, .done
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if wConfirmChoice2 != 0x81:               # first choice: the status screen
 	ld a, [wConfirmChoice2]
 	cp $81
-	jr z, jr_00a_538c
+	jr z, .take
 
+;>     wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>     wMenuSubStep = 0x17
 	ld a, $17
 	ld [wMenuSubStep], a
-	jp Jump_00a_541e
+;=@ret
+	jp .done
 
 
-jr_00a_538c:
+.take
+;> elif mem[MonsterField(wCurPartyMember, wMonLevel)] < 10:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	cp $0a
-	jr nc, jr_00a_53a7
+	jr nc, .levelOk
 
+;>     PrintServiceMessage(0x0007)          # too young
 	ld hl, $0007
 	call PrintServiceMessage
+;>     wMenuSubStep = 0x19
 	ld a, $19
 	ld [wMenuSubStep], a
-	jr jr_00a_541e
+;=@ret
+	jr .done
 
-jr_00a_53a7:
+.levelOk
+;>@p elif wPartyCount != 3 and ((wPartyCount == 2 and mem[MonsterField(wListKnown, wMonsters)] == 2 and mem[MonsterField(wCurPartyMember, wMonsters)] == 2) or (wPartyCount != 2 and wParty[0] in (wListKnown, wCurPartyMember))):
 	ld a, [wPartyCount]
 	cp $03
-	jr z, jr_00a_53ef
+	jr z, .partyOk
 
 	cp $02
-	jr nz, jr_00a_53d0
+	jr nz, .oneInParty
 
+;=@p
 	ld a, [wListKnown]
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_00a_53ef
+	jr nz, .partyOk
 
+;=@p
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_00a_53ef
+	jr nz, .partyOk
 
-	jr jr_00a_53e2
+;=@p
+	jr .partyEmpty
 
-jr_00a_53d0:
+.oneInParty
+;=@p
 	ld a, [wParty]
 	ld hl, wListKnown
 	cp [hl]
-	jr z, jr_00a_53e2
+	jr z, .partyEmpty
 
+;=@p
 	ld a, [wParty]
 	ld hl, wCurPartyMember
 	cp [hl]
-	jr nz, jr_00a_53ef
+	jr nz, .partyOk
 
-jr_00a_53e2:
+.partyEmpty
+;>     PrintServiceMessage(0x0006)          # the party would be left empty
 	ld hl, $0006
 	call PrintServiceMessage
+;>     wMenuSubStep = 0x19
 	ld a, $19
 	ld [wMenuSubStep], a
-	jr jr_00a_541e
+;=@ret
+	jr .done
 
-jr_00a_53ef:
+.partyOk
+;>@g elif mem[MonsterField(wListKnown, wMonGender)] & 1 == mem[MonsterField(wCurPartyMember, wMonGender)] & 1:
 	ld a, [wListKnown]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	and $01
 	push af
+;=@g
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	pop af
 	ld b, a
 	ld a, [hl]
+;=@g
 	and $01
 	cp b
-	jr nz, jr_00a_541a
+	jr nz, .gendersOk
 
+;>     PrintServiceMessage(0x0008)          # same gender
 	ld hl, $0008
 	call PrintServiceMessage
+;>     wMenuSubStep = 0x19
 	ld a, $19
 	ld [wMenuSubStep], a
-	jr jr_00a_541e
+;=@ret
+	jr .done
 
-jr_00a_541a:
+.gendersOk
+;> else:
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_00a_541e:
-jr_00a_541e:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/house
+;@ Cursor positions (tile offsets) of the two-choice window LayoutConfirm; $FFFF ends.
 BRMateConfirmCursorPos::
-	db $2e, $00, $6e, $00, $ff, $ff
+	dw $002e, $006e, $ffff
 
+;@ def BRPredictOffspring()
+;@ path: breed/house
+;@ Breed step 12: puts both names into wTextArg0 / wTextArg1 and lets bank
+;@ $16 work out the offspring of the pair (wBreedPair, plus value
+;@ wOffspringPlus). The breeder then names it with its plus value
+;@ (wTextArg2): message 9 when the library already has the species, message
+;@ $1C when it has not but BreedableFlags allows naming it, else message $0A
+;@ without a name.
+;@ test: skip calls another bank and prints messages
 BRPredictOffspring::
+;>@n1 CopyName(MonsterField(wListKnown, wMonName), wTextArg0)
 	ld a, [wListKnown]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
+;=@n1
 	call CopyName
+;>@n2 CopyName(MonsterField(wCurPartyMember, wMonName), wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
+;=@n2
 	call CopyName
+;> wBreedQuery = mem[MonsterField(wListKnown, wMonRecSpecies)]
 	ld a, [wListKnown]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wBreedQuery], a
+;> wBreedSpecies2 = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wBreedSpecies2], a
+;> wBreedSlot1 = wListKnown & 0x7F
 	ld a, [wListKnown]
 	and $7f
 	ld [wBreedSlot1], a
+;> wBreedSlot2 = wCurPartyMember & 0x7F
 	ld a, [wCurPartyMember]
 	and $7f
 	ld [wBreedSlot2], a
+;> BreedResultPreview()                          # works out the offspring
 	ld hl, far_BreedResultPreview
 	rst $10
+;> known = TestFlag(wBreedPair[0], wLibraryFlags)
 	ld a, [wBreedPair]
 	ld hl, wLibraryFlags
 	call TestFlag
-	jr nz, jr_00a_5490
+;>@nm if known or BreedableFlags[wBreedPair[0]]:
+	jr nz, .name
 
 	ld a, [wBreedPair]
-	ld hl, $54c7
+	ld hl, BreedableFlags
 	add l
 	ld l, a
 	ld a, $00
+;=@nm
 	adc h
 	ld h, a
 	ld a, [hl]
 	or a
-	jr z, jr_00a_54b5
+	jr z, .unknown
 
-jr_00a_5490:
+.name
+;>@cs     CopySystemText(0x0500 | wBreedPair[0], wTextArg2)    # the species name
 	ld a, [wBreedPair]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg2
 	call CopySystemText
+;>     AppendPlusValue(wOffspringPlus, wTextArg2)
 	ld a, [wOffspringPlus]
 	ld de, wTextArg2
 	call AppendPlusValue
+;>     if TestFlag(wBreedPair[0], wLibraryFlags):
 	ld a, [wBreedPair]
 	ld hl, wLibraryFlags
 	call TestFlag
-	jr z, jr_00a_54ba
+	jr z, .notInLibrary
 
+;>         msg = 0x0009
 	ld hl, $0009
-	jr jr_00a_54bf
+;=@pm
+	jr .print
 
-jr_00a_54b5:
+.unknown
+;>     else:
+;>@m1c         msg = 0x001C
+;> else:
+;>     msg = 0x000A
 	ld hl, $000a
-	jr jr_00a_54bf
+;=@pm
+	jr .print
 
-jr_00a_54ba:
+.notInLibrary
+;=@m1c
 	ld hl, $001c
-	jr jr_00a_54bf
+;=@pm
+	jr .print
 
-jr_00a_54bf:
+.print
+;>@pm PrintServiceMessage(msg)
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ path: breed/house
+;@ One byte per offspring species (256): 1 if the breeder names the offspring
+;@ even when the monster library has no entry for it yet, 0 if the result is
+;@ kept secret until then.
 BreedableFlags::
 	db $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 	db $01, $00, $00, $00, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
@@ -4287,246 +4876,372 @@ BreedableFlags::
 	db $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 	db $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 
+;@ def BRWaitPrediction()
+;@ path: breed/house
+;@ Breed step 13: waits for the message to finish.
+;@ test: wTextState = rand(0, 1)
 BRWaitPrediction::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def BRResetSaveCursor()
+;@ path: breed/house
+;@ Breed step 14: clears the yes/no cursor of the save question ($C8DF).
 BRResetSaveCursor::
+;> wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ path: unused
+;@ Unused cursor table (two yes/no rows at row 9 and 11, column 1).
 BRUnusedCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def BRShowSaveInfo()
+;@ path: breed/house
+;@ Breed step 15: shows the saved game's summary (breeding saves the game)
+;@ and asks whether to save (message $0B).
+;@ test: skip draws to VRAM
 BRShowSaveInfo::
-	ld de, $748d
+;> DrawWindowLayout0A(LayoutSaveFile)
+	ld de, LayoutSaveFile
 	call DrawWindowLayout0A
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> DrawSaveFileInfo()
 	call DrawSaveFileInfo
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> PrintServiceMessage(0x000B)
 	ld hl, $000b
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def BROpenSaveConfirm()
+;@ path: breed/house
+;@ Breed step 16: once the message is out, opens a yes/no window at the left
+;@ (cursor $C8DF, named wLinkRefused for its link use).
+;@ test: skip draws to VRAM
 BROpenSaveConfirm::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	ld de, $70c5
+;> DrawWindowLayout0A(LayoutYesNoLeft)
+	ld de, LayoutYesNoLeft
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $5659
+;> DrawCursorAt0A(wLinkRefused, BRSaveConfirmCursorPos)
+	ld de, BRSaveConfirmCursorPos
 	ld a, [wLinkRefused]
 	call DrawCursorAt0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def BRSaveConfirmInput()
+;@ path: breed/house
+;@ Breed step 17: yes/no. No or B goes back to the menu (message 1); yes
+;@ breeds and saves.
+;@ test: skip prints messages through other banks
 BRSaveConfirmInput::
-	ld de, $5659
+;> UpdateMenuCursor0A(wLinkRefused, BRSaveConfirmCursorPos, 2)
+	ld de, BRSaveConfirmCursorPos
 	ld hl, wLinkRefused
 	ld b, $02
 	call UpdateMenuCursor0A
+;> no = wJoyPressed & 0x02
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_5640
+;> while True:
+;>     if no:
+	jr z, .notB
 
-jr_00a_5633:
+.no
+;>         PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;>         wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_00a_5658
+;>         return
+	jr .done
 
-jr_00a_5640:
+.notB
+;>     if not wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_5658
+;>         return
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wLinkRefused == 0x81:              # "no" counts like B
 	ld a, [wLinkRefused]
 	cp $81
-	jr z, jr_00a_5633
+;>         no = True
+;>         continue
+	jr z, .no
 
+;>     break
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_00a_5658:
-jr_00a_5658:
+.done
 	ret
 
 
+;@ path: breed/house
+;@ Cursor positions (tile offsets) of the yes/no window LayoutYesNoLeft; $FFFF ends.
 BRSaveConfirmCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def BRBreedAndSave()
+;@ path: breed/house
+;@ Breed step 18: the breeding itself. Both parents' records move to
+;@ wBreedParent1 / wBreedParent2 and leave the player's monsters; their
+;@ pictures for the breeding scene go to wEncGfx. Then the monster list is
+;@ compacted and the game is saved, with the menu and script state cleared so
+;@ the save resumes on the field.
+;@ test: skip calls other banks and saves the game
 BRBreedAndSave::
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> PrintServiceMessage(0x000C)
 	ld hl, $000c
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>@n1 CopyName(MonsterField(wListKnown, wMonName), wTextArg0)
 	ld a, [wListKnown]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
+;=@n1
 	call CopyName
+;>@n2 CopyName(MonsterField(wCurPartyMember, wMonName), wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
+;=@n2
 	call CopyName
+;> wEncGfx[0] = mem[MonsterField(wListKnown, wMonRecSpecies)] + 0x10   # pictures
 	ld a, [wListKnown]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	add $10
 	ld [wEncGfx], a
+;> wEncGfx[1] = 1
 	ld a, $01
-	ld [$d7cb], a
+	ld [wEncGfx + 1], a
+;> CopyMonsterRecord(MonsterField(wListKnown, wMonsters), wBreedParent1)
 	ld a, [wListKnown]
 	ld hl, wMonsters
 	call MonsterField
 	ld de, wBreedParent1
 	call CopyMonsterRecord
+;> mem[MonsterField(wListKnown, wMonsters)] = 0
 	ld a, [wListKnown]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
+;> wEncGfx[2] = mem[MonsterField(wCurPartyMember, wMonRecSpecies)] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	add $10
-	ld [$d7cc], a
+	ld [wEncGfx + 2], a
+;> wEncGfx[3] = 1
 	ld a, $01
-	ld [$d7cd], a
+	ld [wEncGfx + 3], a
+;> CopyMonsterRecord(MonsterField(wCurPartyMember, wMonsters), wBreedParent2)
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld de, wBreedParent2
 	call CopyMonsterRecord
+;> mem[MonsterField(wCurPartyMember, wMonsters)] = 0
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> SortPartyOrClearIcons()                 # bank 1 entry 4
 	ld hl, HeaderLogo
 	rst $10
+;> MakeOffspring()
 	ld hl, far_MakeOffspring
 	rst $10
+;> s0 = wFieldFlags
+;> wFieldFlags = 0
 	ld a, [wFieldFlags]
 	push af
 	xor a
 	ld [wFieldFlags], a
+;> s1 = wMenuStep
+;> wMenuStep = 0
 	ld a, [wMenuStep]
 	push af
 	xor a
 	ld [wMenuStep], a
+;> s2 = wScriptRunning
+;> wScriptRunning = 0
 	ld a, [wScriptRunning]
 	push af
 	xor a
 	ld [wScriptRunning], a
+;> s3 = wMenuOverlay
+;> wMenuOverlay = 0
 	ld a, [wMenuOverlay]
 	push af
 	xor a
 	ld [wMenuOverlay], a
+;> s4 = wStoryStep
+;> wStoryStep = 0
 	ld a, [wStoryStep]
 	push af
 	xor a
 	ld [wStoryStep], a
+;> SaveGame()
 	di
 	call SaveGame
 	ei
+;> wStoryStep = s4
 	pop af
 	ld [wStoryStep], a
+;> wMenuOverlay = s3
 	pop af
 	ld [wMenuOverlay], a
+;> wScriptRunning = s2
 	pop af
 	ld [wScriptRunning], a
+;> wMenuStep = s1
 	pop af
 	ld [wMenuStep], a
+;> wFieldFlags = s0
 	pop af
 	ld [wFieldFlags], a
 	ret
 
 
+;@ def BRWarpToBreeding()
+;@ path: breed/house
+;@ Breed step 19: once the message is out, closes the screen and warps to
+;@ map 8 at (72, 72) with wStoryStep 0, for the breeding scene there. The
+;@ species name of wCurPartyMember and (its plus value + 1) * 10 are left in
+;@ wTextArg2 and wTextArgs for the scene's messages.
+;@ test: skip starts a fade
 BRWarpToBreeding::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> wFieldFlags &= ~0x11
 	ld hl, wFieldFlags
 	res 4, [hl]
 	res 0, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> wWarpMap = 0x08
 	ld a, $08
 	ld [wWarpMap], a
+;> wWarpOnGateFloor = 0
 	ld a, $00
 	ld [wWarpOnGateFloor], a
+;> wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
+;> wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
+;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;> wStoryStep = 0
 	ld a, $00
 	ld [wStoryStep], a
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;>@cs CopySystemText(0x0500 | mem[MonsterField(wCurPartyMember, wMonRecSpecies)], wTextArg2)
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld l, [hl]
 	ld h, $05
 	ld de, wTextArg2
+;=@cs
 	call CopySystemText
+;>@nb Number16ToDecimal((mem[MonsterField(wCurPartyMember, wMonPlus)] + 1) * 10, wTextArgs)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	inc a
 	ld c, $0a
+;=@nb
 	call Multiply
 	ld c, l
 	ld b, h
 	ld hl, wTextArgs
 	call Number16ToDecimal
+;> StartFade(3)
 	ld a, $03
 	call StartFade
+;> wMapLoadState += 1
 	ld hl, wMapLoadState
 	inc [hl]
 	ret
@@ -4636,7 +5351,7 @@ BRReturnFromPedigreeStatus::
 ;> BRDrawPageNames()
 	call BRDrawPageNames
 ;> DrawWindowLayout0A(LayoutPairInfo)
-	ld de, $76a7
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
 ;> BRDrawLevel()
 	call BRDrawLevel
@@ -4758,7 +5473,7 @@ BRReturnFromMateStatus::
 ;> BRDrawMatePage()
 	call BRDrawMatePage
 ;> DrawWindowLayout0A(LayoutPairInfo)
-	ld de, $76a7
+	ld de, LayoutPairInfo
 	call DrawWindowLayout0A
 ;> BRDrawPairLevels()
 	call BRDrawPairLevels
@@ -4979,810 +5694,1156 @@ HTBuildEggList::
 	ret
 
 
+;@ def HTShowList()
+;@ path: breed/hatch
+;@ Hatch step 1: once the message is out, draws and shows the egg list.
+;@ test: skip draws to VRAM
 HTShowList::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> HTDrawPage()
 	call HTDrawPage
+;> DrawHTListScreen()
 	call DrawHTListScreen
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawHTListScreen()
+;@ path: breed/hatch
+;@ Draws the menu with the gold and the egg list window with its cursor into
+;@ wTilemapBuffer.
+;@ test: skip draws from tables
 DrawHTListScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawBreedingMenu()
 	call DrawBreedingMenu
-	ld de, $7757
+;> DrawWindowLayout0A(LayoutEggList)
+	ld de, LayoutEggList
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $5b3a
+;>@k3 DrawListCursor(wListCursor, HTListCursorPos, 4, wListLength)
+	ld de, HTListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListCursor
+;=@k3
 	ret
 
 
+;@ def HTDrawPage()
+;@ path: breed/hatch
+;@ Draws the 4 eggs of page wListPage: their species names (9 tiles each:
+;@ three at $9650 on, the fourth at $8800) and their gender marks.
+;@ test: skip draws to VRAM
 HTDrawPage::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9650
 	ld hl, $9650
+;> for _ in range(3):
+;>     entry, tiles = DrawSpeciesEntry(entry, tiles)
 	call DrawSpeciesEntry
 	call DrawSpeciesEntry
 	call DrawSpeciesEntry
+;> DrawSpeciesEntry(entry, 0x8800)
 	ld hl, $8800
 	call DrawSpeciesEntry
+;> HTDrawGenders()
 	call HTDrawGenders
 	ret
 
 
+;@ def DrawSpeciesEntry(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/hatch
+;@ Draws the species name of list entry `entry` (text group 5) into 9 tiles
+;@ at `tiles`, or 9 tiles of plain colour 1 for an empty entry ($FF).
+;@ Returns the next entry and tiles.
+;@ test: skip draws to VRAM
 DrawSpeciesEntry::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_5a27
+	jr z, .empty
 
+;>     wTextIndex = mem[MonsterField(m, wMonRecSpecies)]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wTextIndex], a
+;>     wTextGroup = 0x05                     # species names
 	ld a, $05
 	ld [wTextGroup], a
+;>     RenderTextTiles(tiles, 1, 9)
 	ld de, $0901
 	pop hl
 	push hl
 	call RenderTextTiles
 	pop hl
+;>@r0     return entry + 1, tiles + 0x90
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r0
 	pop de
 	inc de
 	ret
 
 
-jr_00a_5a27:
+.empty
+;>@cl for _ in range(72):
 	ld b, $48
-
-jr_00a_5a29:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_5a29
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def HTDrawGenders()
+;@ path: breed/hatch
+;@ Draws the gender marks of the 4 eggs of page wListPage into the tiles from
+;@ $8A00 on (one tile each).
+;@ test: skip draws to VRAM
 HTDrawGenders::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x8A00
 	ld hl, $8a00
+;> for _ in range(4):
+;>     entry, tiles = DrawEggGenderEntry(entry, tiles)
 	call DrawEggGenderEntry
 	call DrawEggGenderEntry
 	call DrawEggGenderEntry
 
+;@ def DrawEggGenderEntry(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/hatch
+;@ Draws the gender mark of the egg in list entry `entry` into the tile at
+;@ `tiles`: $A7 + gender once the appraiser has told it (wMonEgg = 2), else
+;@ "?" ($98); a blank tile for an empty entry. Returns the next entry and tile.
+;@ test: skip draws to VRAM
 DrawEggGenderEntry::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_5ad7
+	jr z, .empty
 
+;>     if mem[MonsterField(m, wMonEgg)] == 2:          # gender known
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
 	cp $02
 	ld a, $98
-	jr nz, jr_00a_5a7c
+	jr nz, .mark
 
+;>@g         c = 0xA7 + (mem[MonsterField(m, wMonGender)] & 1)
 	ld a, l
 	add $a8
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@g
 	ld a, [hl]
 	and $01
 	add $a7
-
-jr_00a_5a7c:
+;>     else:
+;>         c = 0x98                         # "?"
+.mark
+;>     wTextArg0[0] = c
 	ld [wTextArg0], a
+;>     wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@save     saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	pop hl
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
+;=@save
 	push bc
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;>     wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;>     wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = 1
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     wTextIndex = 0x00
 	ld a, $00
 	ld [wTextIndex], a
+;>     PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>     wTextTiles = saved[0]
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;>     wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = saved[2]
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>@r0     return entry + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r0
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
-jr_00a_5ad7:
+.empty
+;>@cl for _ in range(8):
 	ld b, $08
-
-jr_00a_5ad9:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_5ad9
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def HTListInput()
+;@ path: breed/hatch
+;@ Hatch step 2: the egg list. The page is redrawn when it changes. B goes
+;@ back to the menu (message 1), A picks the egg under the cursor.
+;@ test: skip draws to VRAM
 HTListInput::
-	ld de, $5b3a
+;>@u old_page = wListPage
+	ld de, HTListCursorPos
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@u
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> UpdateListCursor(wListCursor, HTListCursorPos, 4, wListLength)
 	call UpdateListCursor
+;> if wListPage != old_page:
 	pop af
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_00a_5b10
+	jr z, .samePage
 
+;>     HTDrawPage()
 	call HTDrawPage
 
-jr_00a_5b10:
+.samePage
+;> if wJoyPressed & 0x02:                    # B: back to the menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_5b24
+	jr z, .notB
 
+;>     PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_00a_5b39
+;=@ret
+	jr .done
 
-jr_00a_5b24:
+.notB
+;> elif wJoyPressed & 0x01:                  # A: this egg
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_5b39
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuChoice3 = 0
 	xor a
 	ld [wMenuChoice3], a
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_00a_5b39:
-jr_00a_5b39:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/hatch
+;@ Cursor table of the egg list (tile offsets row * 32 + column): the page
+;@ marker, then the 4 rows; $FFFF ends.
 HTListCursorPos::
-	db $92, $01, $a8, $00, $e8, $00, $28, $01, $68, $01, $ff, $ff
+	dw $0192, $00a8, $00e8, $0128, $0168, $ffff
 
+;@ def HTQuotePrice()
+;@ path: breed/hatch
+;@ Hatch step 3: tells the price of hatching the picked egg, (plus value +
+;@ 1) * 10 gold, in wTextArgs (message $14).
+;@ test: skip prints a message through other banks
 HTQuotePrice::
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;>@p Number16ToDecimal((mem[MonsterField(m, wMonPlus)] + 1) * 10, wTextArgs)
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	inc a
 	ld c, $0a
 	call Multiply
+;=@p
 	ld c, l
 	ld b, h
 	ld hl, wTextArgs
 	call Number16ToDecimal
+;> PrintServiceMessage(0x0014)
 	ld hl, $0014
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def HTOpenConfirm()
+;@ path: breed/hatch
+;@ Hatch step 4: once the message is out, opens the two-choice window (view
+;@ the egg / hatch it), cursor wMenuChoice3.
+;@ test: skip draws to VRAM
 HTOpenConfirm::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
-	ld de, $79be
+;> DrawWindowLayout0A(LayoutHatchConfirm)
+	ld de, LayoutHatchConfirm
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $5c46
+;> DrawCursorAt0A(wMenuChoice3, HTConfirmCursorPos)
+	ld de, HTConfirmCursorPos
 	ld a, [wMenuChoice3]
 	call DrawCursorAt0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def HTConfirmInput()
+;@ path: breed/hatch
+;@ Hatch step 5: the two-choice window. B goes back to the egg list. The
+;@ first choice opens the status screen (step 12). The second pays the price
+;@ and hatches (step 9), or says the gold is not enough (message $1E, step
+;@ 11).
+;@ test: skip prints messages through other banks
 HTConfirmInput::
-	ld de, $5c46
+;> UpdateMenuCursor0A(wMenuChoice3, HTConfirmCursorPos, 2)
+	ld de, HTConfirmCursorPos
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x02:                    # B: back to the list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_5bcb
+	jr z, .notB
 
+;>     PrintServiceMessage(0x0012)
 	ld hl, $0012
 	call PrintServiceMessage
+;>     DrawHTListScreen()
 	call DrawHTListScreen
+;>     ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;>@back     wMenuSubStep -= 4
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@back
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_00a_5c45
+;=@ret
+	jr .done
 
-jr_00a_5bcb:
+.notB
+;> elif not wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_5c45
+;>     return
+	jp z, .done
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if wMenuChoice3 != 0x81:                  # first choice: the status screen
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_00a_5bed
+	jr z, .hatch
 
+;>     wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>     wMenuSubStep = 0x0C
 	ld a, $0c
 	ld [wMenuSubStep], a
-	jr jr_00a_5c45
+;=@ret
+	jr .done
 
-jr_00a_5bed:
+.hatch
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;> price = (mem[MonsterField(m, wMonPlus)] + 1) * 10
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	inc a
 	ld c, $0a
 	call Multiply
+;>@g if wGold < price:
 	ld a, [wGold]
 	sub l
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	sbc h
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	sbc $00
-	jr nc, jr_00a_5c2c
+;=@g
+	jr nc, .pay
 
+;>     PrintServiceMessage(0x001E)          # not enough gold
 	ld hl, $001e
 	call PrintServiceMessage
+;>     wMenuSubStep = 0x0B
 	ld a, $0b
 	ld [wMenuSubStep], a
-	jr jr_00a_5c45
+;=@ret
+	jr .done
 
-jr_00a_5c2c:
+.pay
+;> else:
+;>     SpendGold(price)
 	ld e, $00
 	call SpendGold
+;>     wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
+;>@f     wMenuSubStep += 4                    # on to HTHatch
 	ld hl, wMenuSubStep
 	inc [hl]
 	ld hl, wMenuSubStep
 	inc [hl]
 	ld hl, wMenuSubStep
 	inc [hl]
+;=@f
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_00a_5c45:
-jr_00a_5c45:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/hatch
+;@ Cursor positions (tile offsets) of the two-choice window LayoutHatchConfirm; $FFFF ends.
 HTConfirmCursorPos::
-	db $2d, $00, $6d, $00, $ff, $ff
+	dw $002d, $006d, $ffff
 
+;@ def HTStep6()
+;@ path: breed/hatch
+;@ Hatch step 6: does nothing but move on (HTConfirmInput skips it).
 HTStep6::
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def HTStep7()
+;@ path: breed/hatch
+;@ Hatch step 7: does nothing but move on.
 HTStep7::
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def HTStep8()
+;@ path: breed/hatch
+;@ Hatch step 8: does nothing but move on.
 HTStep8::
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def HTHatch()
+;@ path: breed/hatch
+;@ Hatch step 9: prints the hatching message ($15) and lets bank $16 hatch
+;@ the egg under the cursor (wCurPartyMember = wHatchSlot = wLeaderSlot).
+;@ test: skip calls another bank
 HTHatch::
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> PrintServiceMessage(0x0015)
 	ld hl, $0015
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;> wCurPartyMember = m
 	ld [wCurPartyMember], a
+;> wHatchSlot = m
 	ld [wHatchSlot], a
+;> wLeaderSlot = m
 	ld [wLeaderSlot], a
+;> InitJoinedMonster()
 	ld hl, far_InitJoinedMonster
 	rst $10
 	ret
 
 
+;@ def HTWarpToHatching()
+;@ path: breed/hatch
+;@ Hatch step 10: once the message is out, closes the screen, puts the new
+;@ monster's species name with plus value and gender mark into wTextArg1 and
+;@ its picture, name, gender and species into the wChosenMon variables, and
+;@ warps to map 8 at (72, 72) with wStoryStep 2, where the hatching scene
+;@ plays.
+;@ test: skip starts a fade
 HTWarpToHatching::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> wFieldFlags &= ~0x11
 	ld hl, wFieldFlags
 	res 4, [hl]
 	res 0, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> m = wHatchSlot
+;> wCurPartyMember = m
 	ld a, [wHatchSlot]
 	ld [wCurPartyMember], a
+;> CopySystemText(0x0500 | mem[MonsterField(m, wMonRecSpecies)], wTextArg1)
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld l, [hl]
 	ld h, $05
 	ld de, wTextArg1
 	call CopySystemText
+;> AppendPlusValue(mem[MonsterField(m, wMonPlus)], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg1
 	call AppendPlusValue
+;> AppendGenderMark(mem[MonsterField(m, wMonGender)], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg1
 	call AppendGenderMark
+;> pic = mem[MonsterField(m, wMonRecSpecies)] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	add $10
+;> wChosenMonPic = pic
 	ld [wChosenMonPic], a
+;> wEncGfx[0] = pic
 	ld [wEncGfx], a
+;> wEncGfx[1] = 1
 	ld a, $01
-	ld [$d7cb], a
+	ld [wEncGfx + 1], a
+;> wChosenMonName = MonsterField(m, wMonName)
 	ld a, [wCurPartyMember]
 	ld hl, wMonName
 	call MonsterField
 	ld a, l
 	ld [wChosenMonName], a
 	ld a, h
-	ld [$c8f3], a
+;=@nm
+	ld [wChosenMonName + 1], a
+;>@nm wChosenMonGender = mem[MonsterField(m, wMonGender)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld [wChosenMonGender], a
+;> wChosenMonSpecies = mem[MonsterField(m, wMonRecSpecies)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wChosenMonSpecies], a
+;> wWarpMap = 0x08
 	ld a, $08
 	ld [wWarpMap], a
+;> wWarpOnGateFloor = 0
 	ld a, $00
 	ld [wWarpOnGateFloor], a
+;> wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
+;> wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
+;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;> wStoryStep = 2
 	ld a, $02
 	ld [wStoryStep], a
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;> StartFade(3)
 	ld a, $03
 	call StartFade
+;> wMapLoadState += 1
 	ld hl, wMapLoadState
 	inc [hl]
 	ret
 
 
+;@ def HTBackToMenu()
+;@ path: breed/hatch
+;@ Hatch step 11: after a message (no eggs, not enough gold), goes back to
+;@ the breeding house menu.
+;@ test: skip prints a message through other banks
 HTBackToMenu::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def HTOpenStatus()
+;@ path: breed/hatch
+;@ Hatch step 12: opens the monster status screen on the egg list.
+;@ test: skip calls another bank
 HTOpenStatus::
+;> wViewList = wSceneObjects
 	ld hl, wSceneObjects
 	ld a, l
 	ld [wViewList], a
 	ld a, h
-	ld [$c931], a
+	ld [wViewList + 1], a
+;>@i wViewIndex = wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@i
 	add b
 	ld a, a
 	ld [wViewIndex], a
+;> wViewCount = wListLength
 	ld a, [wListLength]
 	ld [wViewCount], a
+;> UpdateMonsterStatus()
 	ld hl, far_UpdateMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def HTReturnFromStatus()
+;@ path: breed/hatch
+;@ Hatch step 13: after the status screen, puts the cursor on the egg it
+;@ showed last, reloads graphics and list, repeats the price and reopens the
+;@ two-choice window (step 4).
+;@ test: skip draws to VRAM
 HTReturnFromStatus::
+;>@c wListCursor = (wListCursor & 0x80) | (wViewResult & 3)
 	ld a, [wListCursor]
 	and $80
 	ld b, a
 	ld a, [wViewResult]
 	and $03
 	or b
+;=@c
 	ld [wListCursor], a
+;> wListPage = wViewResult >> 2
 	ld a, [wViewResult]
 	srl a
 	srl a
 	ld [wListPage], a
+;> DecompressVRAM(0x2E, 0x12, 0x8800)     # window graphics
 	ld de, $2e12
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x10
 	ld a, $10
 	ld [wTextIndex], a
+;> RenderTextTiles(0x9400, 1, 8)
 	ld hl, $9400
 	ld de, $0801
 	call RenderTextTiles
+;> HTCountEggs()
 	call HTCountEggs
+;> HTBuildEggList()
 	call HTBuildEggList
+;> HTDrawPage()
 	call HTDrawPage
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;>@p Number16ToDecimal((mem[MonsterField(m, wMonPlus)] + 1) * 10, wTextArgs)
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	inc a
 	ld c, $0a
 	call Multiply
+;=@p
 	ld c, l
 	ld b, h
 	ld hl, wTextArgs
 	call Number16ToDecimal
+;> PrintServiceMessage(0x0014)
 	ld hl, $0014
 	call PrintServiceMessage
+;> DrawHTListScreen()
 	call DrawHTListScreen
-	ld de, $79be
+;> DrawWindowLayout0A(LayoutHatchConfirm)
+	ld de, LayoutHatchConfirm
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $5c46
+;> DrawCursorAt0A(wMenuChoice3, HTConfirmCursorPos)
+	ld de, HTConfirmCursorPos
 	ld a, [wMenuChoice3]
 	call DrawCursorAt0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep = 4
 	ld a, $04
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def DrawSaveFileInfo()
+;@ path: save/summary
+;@ Fills the save window (LayoutSaveFile) with the saved game's summary from
+;@ battery RAM: player name (tiles $8A00), play time (hours at row 1 column
+;@ 13, minutes at column 16), the party's names and family icons and their
+;@ levels (row 4, columns 4, 10 and 16). Without a saved game the window's
+;@ four rows are blanked and text 2:$31 is shown instead (10 tiles at row 2,
+;@ column 4).
+;@ test: skip reads cartridge RAM and draws to VRAM
 DrawSaveFileInfo::
+;> if not ReadSRAMByte(sSaveValid):
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr nz, jr_00a_5e84
+	jr nz, .saved
 
+;>@b     for row in range(1, 5):
+;>         fill(OffsetToTilemapBuffer(row * 32 + 1), 17, 0xE0)
 	ld hl, $0021
 	call OffsetToTilemapBuffer
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;=@b
 	ld hl, $0041
 	call OffsetToTilemapBuffer
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;=@b
 	ld hl, $0061
 	call OffsetToTilemapBuffer
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;=@b
 	ld hl, $0081
 	call OffsetToTilemapBuffer
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;>@t     for i in range(10):
+;>         mem[OffsetToTilemapBuffer(0x0044) + i] = 0xA4 + i
 	ld hl, $0044
 	call OffsetToTilemapBuffer
 	ld b, $0a
 	ld a, $a4
-
-jr_00a_5e69:
+.tiles
 	ld [hli], a
 	inc a
+;=@t
 	dec b
-	jr nz, jr_00a_5e69
+	jr nz, .tiles
 
+;>     wTextIndex = 0x31
 	ld a, $31
 	ld [wTextIndex], a
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     RenderTextTiles(0x8A40, 1, 10)       # the "no saved game" text into those tiles
 	ld hl, $8a40
 	ld de, $0a01
 	call RenderTextTiles
-	jp Jump_00a_5f2b
+;=@end
+	jp .done
 
 
-jr_00a_5e84:
+.saved
+;> else:
+;>     mem[0x0100] = 0x0A                   # enable cartridge RAM
 	di
 	ld a, $0a
 	ld [$0100], a
+;>     RenderNameTiles(0x8A00, sPlayerName)
 	ld de, sPlayerName
 	ld hl, $8a00
 	call RenderNameTiles
+;>     DrawSaveFileParty()
 	call DrawSaveFileParty
+;>@h     PrintNumber2Zeros(ReadSRAMByte(sPlayHours), OffsetToTilemapBuffer(0x002D))
 	ld hl, sPlayHours
 	call ReadSRAMByte
 	ld c, a
 	ld b, $00
 	ld hl, $002d
 	call OffsetToTilemapBuffer
+;=@h
 	call PrintNumber2Zeros
+;>@mi     PrintNumber2Zeros(ReadSRAMByte(sPlayMinutes), OffsetToTilemapBuffer(0x0030))
 	ld hl, sPlayMinutes
 	call ReadSRAMByte
 	ld c, a
 	ld b, $00
 	ld hl, $0030
 	call OffsetToTilemapBuffer
+;=@mi
 	call PrintNumber2Zeros
+;>     count = ReadSRAMByte(sPartyCount)
 	ld hl, sPartyCount
 	call ReadSRAMByte
+;>@lp     for i in range(min(count, 3)):
 	or a
-	jr z, jr_00a_5f31
+	jr z, .clear0
 
+;>@lv         mem[0x0100] = 0x0A; level = mem[MonsterField(sParty[i], sSavedMonLevel)]
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty]
 	call MonsterField
+;=@lv
 	ld c, [hl]
 	ei
+;>@pr         PrintNumber2(level, OffsetToTilemapBuffer(0x0084 + 6 * i))
 	ld b, $00
 	ld hl, $0084
 	call OffsetToTilemapBuffer
 	call PrintNumber2
+;=@lp
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	cp $01
-	jr z, jr_00a_5f37
+	jr z, .clear1
 
+;=@lv
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonLevel
-	ld a, [$a1c9]
+	ld a, [sParty + 1]
 	call MonsterField
+;=@lv
 	ld c, [hl]
 	ei
+;=@pr
 	ld b, $00
 	ld hl, $008a
 	call OffsetToTilemapBuffer
 	call PrintNumber2
+;=@lp
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	cp $02
-	jr z, jr_00a_5f3d
+	jr z, .clear2
 
+;=@lv
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonLevel
-	ld a, [$a1ca]
+	ld a, [sParty + 2]
 	call MonsterField
+;=@lv
 	ld c, [hl]
 	ei
+;=@pr
 	ld b, $00
 	ld hl, $0090
 	call OffsetToTilemapBuffer
 	call PrintNumber2
 
-Jump_00a_5f2b:
+.done
+;>     if count >= 3:
+;>@end         mem[0x0100] = 0x00               # disable cartridge RAM
 	ld a, $00
 	ld [$0100], a
+;>         return
 	ret
 
 
-jr_00a_5f31:
+.clear0
+;>@cs     for j in range(count, 3):            # empty party slots: no name, no level
+;>         ClearSaveInfoSlot(0x0061 + 6 * j)
 	ld hl, $0061
 	call ClearSaveInfoSlot
 
-jr_00a_5f37:
+.clear1
+;=@cs
 	ld hl, $0067
 	call ClearSaveInfoSlot
 
-jr_00a_5f3d:
+.clear2
+;=@cs
 	ld hl, $006d
 	call ClearSaveInfoSlot
+;>     mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def ClearSaveInfoSlot(pos: hl)
+;@ path: save/summary
+;@ Blanks one party slot of the save window: 5 tiles at `pos` and 2 tiles at
+;@ `pos` + 33 (the row below, one column on).
+;@ test: hl = rand(0, 0x1DF)
 ClearSaveInfoSlot::
+;>@a fill(OffsetToTilemapBuffer(pos), 5, 0xE0)
 	push hl
 	call OffsetToTilemapBuffer
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@a
 	ld [hli], a
 	ld [hl], a
+;>@q fill(OffsetToTilemapBuffer(pos + 0x21), 2, 0xE0)
 	pop hl
 	ld a, l
 	add $21
 	ld l, a
 	ld a, h
 	adc $00
+;=@q
 	ld h, a
 	call OffsetToTilemapBuffer
 	ld a, $e0
@@ -5791,198 +6852,294 @@ ClearSaveInfoSlot::
 	ret
 
 
+;@ def DrawSaveFileParty()
+;@ path: save/summary
+;@ Clears the 24 family-icon tiles at $8DA0 and draws the saved party's
+;@ names (4 tiles each at $8A40, $8A80, $8AC0) and family icons.
+;@ test: skip reads cartridge RAM and draws to VRAM
 DrawSaveFileParty::
+;> ClearTiles(0x8DA0, 0x18)
 	ld hl, $8da0
 	ld b, $18
 	call ClearTiles
+;>@p for i in range(3):
+;>     mem[0x0100] = 0x0A                   # enable cartridge RAM
 	di
 	ld a, $0a
 	ld [$0100], a
+;>     name = MonsterField(sParty[i], sSavedMonName)
 	ld hl, sSavedMonName
 	ld a, [sParty]
 	call MonsterField
 	ei
+;>     DrawSaveFileMember(i + 1, name, 0x8A40 + 0x40 * i)
 	ld e, l
 	ld d, h
 	ld hl, $8a40
 	ld a, $01
 	call DrawSaveFileMember
+;=@p
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonName
-	ld a, [$a1c9]
+	ld a, [sParty + 1]
 	call MonsterField
+;=@p
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $8a80
 	ld a, $02
 	call DrawSaveFileMember
+;=@p
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonName
-	ld a, [$a1ca]
+	ld a, [sParty + 2]
 	call MonsterField
+;=@p
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $8ac0
 	ld a, $03
 	call DrawSaveFileMember
+;> return
 	ret
 
 
+;@ def DrawSaveFileMember(n: a, name: de, tiles: hl)
+;@ path: save/summary
+;@ Draws saved party member `n` (1-3): its name into 4 tiles at `tiles` and
+;@ its family icon (from SaveFamilyIconGfx) into tile $8DA0 + (n - 1) * 16;
+;@ when the saved party has fewer members, 4 blank tiles instead. The
+;@ drawing part sits behind ClearTiles (label jr_00a_5fd9).
+;@ test: skip reads cartridge RAM and draws to VRAM
 DrawSaveFileMember::
+;> mem[0x0100] = 0x0A                       # enable cartridge RAM
 	ld b, a
 	di
 	ld a, $0a
 	ld [$0100], a
+;> if sPartyCount < n:
 	ld a, [sPartyCount]
 	cp b
 	ei
 	jr nc, jr_00a_5fd9
 
+;>     ClearTiles(tiles, 0x20)              # (falls into ClearTiles)
+;>     return
 	ld b, $20
+;> # else: the name and icon are drawn at jr_00a_5fd9
 
+;@ def ClearTiles(tiles: hl, count: b) -> hl
+;@ path: menu/window
+;@ Fills `count` tile rows (2 bytes each) at VRAM `tiles` with plain colour 1
+;@ ($FF, $00). The code after its `ret` (jr_00a_5fd9) is the drawing part of
+;@ DrawSaveFileMember: the member's name and its family icon.
+;@ test: skip writes VRAM while waiting for the LCD
 ClearTiles::
+;>@l for _ in range(count):
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@l
 	dec b
 	jr nz, ClearTiles
 
+;> return
 	ret
 
 
 jr_00a_5fd9:
+;> # --- DrawSaveFileMember(n: b, name: de, tiles: hl) goes on here:
+;> RenderNameTiles(tiles, name)
 	push bc
 	call RenderNameTiles
 	pop bc
+;> mem[0x0100] = 0x0A
 	dec b
 	push bc
 	di
 	ld a, $0a
 	ld [$0100], a
+;>@f family = mem[MonsterField(sParty[n - 1], sSavedMonFamily)]
 	ld hl, sParty
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@f
 	ld h, a
 	ld a, [hl]
 	ld hl, sSavedMonFamily
 	call MonsterField
 	ld a, [hl]
 	ei
+;>@i icon = SaveFamilyIconGfx[family]
 	add a
-	ld hl, $6013
+	ld hl, SaveFamilyIconGfx
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@i
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;>@d DecompressVRAM(icon & 0xFF, icon >> 8, 0x8DA0 + (n - 1) * 16)
 	pop bc
 	ld a, b
 	swap a
 	add $a0
 	ld l, a
 	ld h, $8d
+;=@d
 	call DecompressVRAM
 	ret
 
 
+;@ path: save/summary
+;@ The 10 monster family icons (one tile each) for the save window, as
+;@ DecompressVRAM references: bank $2E, entries 3-12.
 SaveFamilyIconGfx::
 	db $03, $2e, $04, $2e, $05, $2e, $06, $2e, $07, $2e, $08, $2e, $09, $2e, $0a, $2e
 	db $0b, $2e, $0c, $2e
 
+;@ def DrawTwoDigits0A(value: bc, dest: hl)
+;@ path: menu/numbers
+;@ Writes `value` (0-99) as one or two digit tiles ($F0 + digit) from `dest`
+;@ on: the tens digit only when it is not 0. `dest` is a screen-like address
+;@ (the column wraps inside its 32-tile row).
+;@ test: bc = rand(0, 99); hl = 0xC500
 DrawTwoDigits0A::
+;> tens = CountDivisions(value, 10)
 	ld de, $000a
 	push bc
 	call CountDivisions
 	pop bc
+;> if tens:
 	or a
-	jr z, jr_00a_603e
+	jr z, .ones
 
+;>     tens = CountDivisions(value, 10); value -= tens * 10
 	ld de, $000a
 	call CountDivisions
+;>     DrawDigit(tens, dest)
 	call DrawDigit
+;>     dest = NextScreenColumn2(dest)
 	call NextScreenColumn2
 
-jr_00a_603e:
+.ones
+;> DrawDigit(value, dest)
 	ld a, c
 	call DrawDigit
 	ret
 
 
+;@ def CountDivisions(value: bc, divisor: de) -> (a, bc)
+;@ path: menu/numbers
+;@ Divides `value` by `divisor` by repeated subtraction: returns the quotient
+;@ in a and the remainder in bc.
+;@ test: bc = rand(0, 999); de = rand(1, 100)
 CountDivisions::
+;> q = -1
 	push hl
 	ld h, $ff
-
-jr_00a_6046:
+.loop
+;> while True:
+;>     q += 1
 	inc h
+;>@s     value -= divisor
 	ld a, c
 	sub e
 	ld c, a
 	ld a, b
 	sbc d
 	ld b, a
-	jr nc, jr_00a_6046
+;>     if value < 0:
+;>         break
+	jr nc, .loop
 
+;>@r value += divisor
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;> return q, value
 	ld a, h
 	pop hl
 	ret
 
 
+;@ def DrawDigit(d: a, dest: hl)
+;@ path: menu/numbers
+;@ Writes the digit tile $F0 + d at `dest` (waiting for VRAM access).
+;@ test: skip writes VRAM while waiting for the LCD
 DrawDigit::
+;> WriteVRAM(dest, 0xF0 + d)
 	add $f0
 	call WriteVRAM
 	ret
 
 
+;@ def NextScreenColumn2(addr: hl) -> hl
+;@ path: menu/window
+;@ Steps an address one tile to the right, wrapping around inside its 32-tile
+;@ row (a copy of NextScreenColumn).
 NextScreenColumn2::
+;>@r return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@r
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@r
 	ret
 
 
+;@ def AppendPlusValue(plus: a, text: de)
+;@ path: text/names
+;@ When `plus` is not 0, appends "+" ($A2) and its decimal digits to the
+;@ $F0-terminated string `text` (a monster's name gets its plus value).
+;@ test: skip writes a string through a helper
 AppendPlusValue::
+;> if plus == 0:
 	or a
+;>     return
 	ret z
 
+;> while mem[text] != 0xF0:                 # find the end mark
 	push af
-
-jr_00a_6070:
+.find
+;>     text += 1
 	ld a, [de]
 	inc de
 	cp $f0
-	jr nz, jr_00a_6070
+	jr nz, .find
 
+;> mem[text] = 0xA2                         # "+" over the end mark
 	dec de
 	ld a, $a2
 	ld [de], a
+;> ByteToDecimal(plus, text + 1)
 	inc de
 	pop af
 	ld l, e
@@ -5991,30 +7148,47 @@ jr_00a_6070:
 	ret
 
 
+;@ def AppendGenderMark(gender: a, text: de)
+;@ path: text/names
+;@ Appends the gender mark $A7 + (gender & 1) to the $F0-terminated string
+;@ `text`.
+;@ test: de = 0xC100; mem[0xC100 + rand(0, 8)] = 0xF0
 AppendGenderMark::
+;> while mem[text] != 0xF0:
 	push af
-
-jr_00a_6083:
+.find
+;>     text += 1
 	ld a, [de]
 	inc de
 	cp $f0
-	jr nz, jr_00a_6083
+	jr nz, .find
 
+;> mem[text] = 0xA7 + (gender & 1)
 	dec de
 	pop af
 	and $01
 	add $a7
 	ld [de], a
+;> mem[text + 1] = 0xF0
 	inc de
 	ld a, $f0
 	ld [de], a
 	ret
 
 
+;@ def EggAppraiserScreen()
+;@ path: breed/appraiser
+;@ Service screen 7, the egg appraiser: a menu with appraise an egg (20
+;@ gold), change an egg's gender and quit, the player's gold shown above it.
+;@ One step per frame, picked by wMenuStep.
+;@ test: skip jumps through a table
 EggAppraiserScreen::
+;> EggAppraiserSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: breed/appraiser
+;@ Steps of the egg appraiser screen (RST $00 table indexed by wMenuStep).
 EggAppraiserSteps::
 	dw EAInit
 	dw EAOpenMenu
@@ -6022,153 +7196,239 @@ EggAppraiserSteps::
 	dw EARunChoice
 	dw EAClose
 
+;@ def EAInit()
+;@ path: breed/appraiser
+;@ Step 0: lines the scroll up with whole tiles, clears the menu cursors,
+;@ works out the BG map address of the visible screen, restores the field's
+;@ tiles in wTilemapBuffer and loads the window graphics (bank $2E entry $13).
+;@ test: skip decompresses into VRAM
 EAInit::
+;> RoundToTile(hScrollX)
 	ld hl, hScrollX
 	call RoundToTile
+;> RoundToTile(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile
+;> FillMemory(wLinkChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@map a = (hScrollY >> 3) * 32 + (hScrollX >> 3)
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@map
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
+;>@bg wWindowBgMap = 0x9800 | (a & 0x03FF)
 	ld a, h
 	adc $98
 	ld h, a
 	ld a, h
 	and $03
 	or $98
+;=@bg
 	ld h, a
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DecompressVRAM(0x2E, 0x13, 0x8800)     # window graphics
 	ld de, $2e13
 	ld hl, $8800
 	call DecompressVRAM
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def EAOpenMenu()
+;@ path: breed/appraiser
+;@ Step 1: once the message is out, draws the menu and shows it.
+;@ test: skip draws to VRAM
 EAOpenMenu::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawEAMenu()
 	call DrawEAMenu
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def DrawEAMenu()
+;@ path: breed/appraiser
+;@ Draws the three-entry menu, the gold window with the player's gold (row 1,
+;@ column 14) and the message box frame into wTilemapBuffer, cursor on
+;@ wLinkChoice (used here as the menu cursor).
+;@ test: skip draws from tables
 DrawEAMenu::
-	ld de, $77d7
+;> DrawWindowLayout0A(LayoutAppraiserMenu)
+	ld de, LayoutAppraiserMenu
 	call DrawWindowLayout0A
-	ld de, $6f86
+;> DrawWindowLayout0A(LayoutGold)
+	ld de, LayoutGold
 	call DrawWindowLayout0A
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;>@g hNumber = wGold                      # 24 bits
 	ld a, [wGold]
 	ldh [hNumber], a
-	ld a, [$ca4c]
-	ldh [$ffd6], a
-	ld a, [$ca4d]
-	ldh [$ffd7], a
+	ld a, [wGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber5(OffsetToTilemapBuffer(0x002E))
 	ld hl, $002e
 	call OffsetToTilemapBuffer
 	call PrintNumber5
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $6186
+;> DrawCursorAt0A(wLinkChoice, EAMenuCursorPos)
+	ld de, EAMenuCursorPos
 	ld a, [wLinkChoice]
 	call DrawCursorAt0A
 	ret
 
 
+;@ def EAMenuInput()
+;@ path: breed/appraiser
+;@ Step 2: moves the menu cursor. B or Start closes the screen; A chooses
+;@ (bit 7 of the cursor is set) and clears the list cursors.
+;@ test: skip calls the cursor drawing
 EAMenuInput::
-	ld de, $6186
+;> UpdateMenuCursor0A(wLinkChoice, EAMenuCursorPos, 3)
+	ld de, EAMenuCursorPos
 	ld hl, wLinkChoice
 	ld b, $03
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x0A:                    # B or Start
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_00a_6154
+	jr z, .notCancel
 
+;>     wMenuStep += 2                       # close
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_00a_6185
+;=@ret
+	jr .done
 
-jr_00a_6154:
+.notCancel
+;> elif wJoyPressed & 0x01:                  # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_00a_6185
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wLinkChoice |= 0x80
 	ld hl, wLinkChoice
 	set 7, [hl]
+;>     FillMemory(wMenuChoice2, 7, 0)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;>     FillMemory(wListCursor, 8, 0)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-	jr jr_00a_6185
+	jr .done
 
-jr_00a_6185:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/appraiser
+;@ Cursor positions (tile offsets row * 32 + column, $FFFF ends) of the
+;@ appraiser menu: appraise, change gender, quit.
 EAMenuCursorPos::
-	db $21, $00, $61, $00, $a1, $00, $ff, $ff
+	dw $0021, $0061, $00a1, $ffff
 
+;@ def EARunChoice()
+;@ path: breed/appraiser
+;@ Step 3: runs the chosen menu entry, one step per frame.
+;@ test: skip jumps through a table
 EARunChoice::
+;> EAChoices[wLinkChoice & 0x7F]()
 	ld a, [wLinkChoice]
 	rst $00
 
+;@ path: breed/appraiser
+;@ The three menu entries (RST $00 table): appraise, change gender, quit.
 EAChoices::
 	dw AppraiseFlow
 	dw GenderFlow
 	dw EAClose
 
+;@ def EAClose()
+;@ path: breed/appraiser
+;@ Step 4 (and the quit entry): puts the field's tiles back and ends the
+;@ service screen (wFieldFlags bit 4).
+;@ test: skip draws to VRAM
 EAClose::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wFieldFlags &= ~0x10
 	ld hl, wFieldFlags
 	res 4, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def AppraiseFlow()
+;@ path: breed/appraiser
+;@ The appraise entry: runs its steps, one per frame, picked by wMenuSubStep.
+;@ The appraiser judges an egg's stats, skills, growth, gender and
+;@ resistances for 20 gold.
+;@ test: skip jumps through a table
 AppraiseFlow::
+;> AppraiseFlowSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: breed/appraiser
+;@ Steps of appraising an egg (RST $00 table indexed by wMenuSubStep).
 AppraiseFlowSteps::
 	dw APListEggs
 	dw APShowList
@@ -6187,515 +7447,720 @@ AppraiseFlowSteps::
 	dw APReturnFromStatus
 	dw APJudgeResistances
 
+;@ def APListEggs()
+;@ path: breed/appraiser
+;@ Appraise step 0: lists the eggs; with none, says so (message 4) and goes
+;@ back to the menu, else asks which one (message 3).
+;@ test: skip prints a message through other banks
 APListEggs::
+;> if EACountEggs() == 0:
 	call EACountEggs
 	or a
-	jr nz, jr_00a_61e4
+	jr nz, .haveEggs
 
+;>     PrintServiceMessage(0x0004)
 	ld hl, $0004
 	call PrintServiceMessage
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
+;>     return
 	ret
 
 
-jr_00a_61e4:
+.haveEggs
+;> EABuildEggList()
 	call EABuildEggList
+;> PrintServiceMessage(0x0003)
 	ld hl, $0003
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def EACountEggs() -> a
+;@ path: breed/appraiser
+;@ Counts the monster records that hold an egg (wMonEgg set) into
+;@ wListLength and returns the count.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 EACountEggs::
+;> n = 0
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_00a_61f9:
+.loop
+;>@for for _ in range(20):
+;>@if     if mem[rec] != 0 and mem[rec + 0x63] != 0:     # an egg (wMonEgg)
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_00a_620b
+	jr z, .next
 
+;=@if
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@if
 	ld a, [de]
 	or a
-	jr z, jr_00a_620b
+	jr z, .next
 
+;>         n += 1
 	inc c
 
-jr_00a_620b:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@for
 	ld d, a
 	dec b
-	jr nz, jr_00a_61f9
+	jr nz, .loop
 
+;> wListLength = n
 	ld a, c
 	ld [wListLength], a
+;> return n
 	ret
 
 
+;@ def EABuildEggList()
+;@ path: breed/appraiser
+;@ Writes the slot numbers of the eggs into the 20-byte list at
+;@ wSceneObjects, $FF after the last.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 EABuildEggList::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> p = wSceneObjects
+;> rec = wMonsters
 	ld hl, wSceneObjects
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_00a_6231:
+.loop
+;>@for for m in range(20):
+;>@if     if mem[rec] != 0 and mem[rec + 0x63] != 0:
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_00a_6244
+	jr z, .next
 
+;=@if
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@if
 	ld a, [de]
 	or a
-	jr z, jr_00a_6244
+	jr z, .next
 
+;>         mem[p] = m
+;>         p += 1
 	ld [hl], c
 	inc hl
 
-jr_00a_6244:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@for
 	ld d, a
 	inc c
 	dec b
-	jr nz, jr_00a_6231
+	jr nz, .loop
 
 	ret
 
 
+;@ def APShowList()
+;@ path: breed/appraiser
+;@ Appraise step 1: once the message is out, draws and shows the egg list.
+;@ test: skip draws to VRAM
 APShowList::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> EADrawPage()
 	call EADrawPage
+;> EADrawGenders()
 	call EADrawGenders
+;> DrawAPListScreen()
 	call DrawAPListScreen
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawAPListScreen()
+;@ path: breed/appraiser
+;@ Draws the menu with the gold and the egg list window with its cursor into
+;@ wTilemapBuffer.
+;@ test: skip draws from tables
 DrawAPListScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawEAMenu()
 	call DrawEAMenu
-	ld de, $781f
+;> DrawWindowLayout0A(LayoutEggList2)
+	ld de, LayoutEggList2
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $63eb
+;>@k4 DrawListCursor(wListCursor, APListCursorPos, 4, wListLength)
+	ld de, APListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListCursor
+;=@k4
 	ret
 
 
+;@ def EADrawPage()
+;@ path: breed/appraiser
+;@ Draws the species names of the 4 eggs of page wListPage (9 tiles each:
+;@ the first at $9700, the others from $8800 on).
+;@ test: skip draws to VRAM
 EADrawPage::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> entry, _ = DrawSpeciesEntry2(entry, 0x9700)
 	ld hl, $9700
 	call DrawSpeciesEntry2
+;> entry, tiles = DrawSpeciesEntry2(entry, 0x8800)
 	ld hl, $8800
 	call DrawSpeciesEntry2
+;> for _ in range(2):                    # the second time by running into it
+;>     entry, tiles = DrawSpeciesEntry2(entry, tiles)
 	call DrawSpeciesEntry2
 
+;@ def DrawSpeciesEntry2(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/appraiser
+;@ Draws the species name of list entry `entry` (text group 5) into 9 tiles
+;@ at `tiles`, or 9 tiles of plain colour 1 for an empty entry ($FF).
+;@ Returns the next entry and tiles (a copy of DrawSpeciesEntry).
+;@ test: skip draws to VRAM
 DrawSpeciesEntry2::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_62ce
+	jr z, .empty
 
+;>     wTextIndex = mem[MonsterField(m, wMonRecSpecies)]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wTextIndex], a
+;>     wTextGroup = 0x05                     # species names
 	ld a, $05
 	ld [wTextGroup], a
+;>     RenderTextTiles(tiles, 1, 9)
 	ld de, $0901
 	pop hl
 	push hl
 	call RenderTextTiles
 	pop hl
+;>@r0     return entry + 1, tiles + 0x90
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r0
 	pop de
 	inc de
 	ret
 
 
-jr_00a_62ce:
+.empty
+;>@cl for _ in range(72):
 	ld b, $48
-
-jr_00a_62d0:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_62d0
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def EADrawGenders()
+;@ path: breed/appraiser
+;@ Draws the gender marks of the 4 eggs of page wListPage into the tiles from
+;@ $89B0 on (one tile each).
+;@ test: skip draws to VRAM
 EADrawGenders::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x89B0
 	ld hl, $89b0
+;> for _ in range(4):
+;>     entry, tiles = DrawEggGenderEntry2(entry, tiles)
 	call DrawEggGenderEntry2
 	call DrawEggGenderEntry2
 	call DrawEggGenderEntry2
 
+;@ def DrawEggGenderEntry2(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/appraiser
+;@ Draws the gender mark of the egg in list entry `entry` into the tile at
+;@ `tiles`: $A7 + gender once it has been appraised (wMonEgg = 2), else "?"
+;@ ($98); a blank tile for an empty entry (a copy of DrawEggGenderEntry).
+;@ test: skip draws to VRAM
 DrawEggGenderEntry2::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_637e
+	jr z, .empty
 
+;>     if mem[MonsterField(m, wMonEgg)] == 2:          # gender known
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
 	cp $02
 	ld a, $98
-	jr nz, jr_00a_6323
+	jr nz, .mark
 
+;>@g         c = 0xA7 + (mem[MonsterField(m, wMonGender)] & 1)
 	ld a, l
 	add $a8
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@g
 	ld a, [hl]
 	and $01
 	add $a7
-
-jr_00a_6323:
+;>     else:
+;>         c = 0x98                         # "?"
+.mark
+;>     wTextArg0[0] = c
 	ld [wTextArg0], a
+;>     wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@save     saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	pop hl
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
+;=@save
 	push bc
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;>     wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;>     wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = 1
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     wTextIndex = 0x00
 	ld a, $00
 	ld [wTextIndex], a
+;>     PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>     wTextTiles = saved[0]
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;>     wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = saved[2]
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>@r0     return entry + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r0
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
-jr_00a_637e:
+.empty
+;>@cl for _ in range(8):
 	ld b, $08
-
-jr_00a_6380:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_6380
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def APListInput()
+;@ path: breed/appraiser
+;@ Appraise step 2: the egg list. The page is redrawn when it changes. B goes
+;@ back to the menu (message 1), A picks the egg and asks about the fee (step
+;@ 10).
+;@ test: skip draws to VRAM
 APListInput::
-	ld de, $63eb
+;>@u old_page = wListPage
+	ld de, APListCursorPos
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@u
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> UpdateListCursor(wListCursor, APListCursorPos, 4, wListLength)
 	call UpdateListCursor
+;> if wListPage != old_page:
 	pop af
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_00a_63ba
+	jr z, .samePage
 
+;>     EADrawPage()
 	call EADrawPage
+;>     EADrawGenders()
 	call EADrawGenders
 
-jr_00a_63ba:
+.samePage
+;> if wJoyPressed & 0x02:                    # B: back to the menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_63ce
+	jr z, .notB
 
+;>     PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_00a_63ea
+;=@ret
+	jr .done
 
-jr_00a_63ce:
+.notB
+;> elif wJoyPressed & 0x01:                  # A: this egg
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_63ea
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep = 0x0A
 	ld a, $0a
 	ld [wMenuSubStep], a
+;>     wConfirmChoice = 0
 	ld a, $00
 	ld [wConfirmChoice], a
+;>     wConfirmChoice2 = 1
 	ld a, $01
 	ld [wConfirmChoice2], a
 
-Jump_00a_63ea:
-jr_00a_63ea:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/appraiser
+;@ Cursor table of the appraiser's egg list (tile offsets row * 32 + column):
+;@ the page marker, then the 4 rows; $FFFF ends.
 APListCursorPos::
-	db $92, $01, $a8, $00, $e8, $00, $28, $01, $68, $01, $ff, $ff
+	dw $0192, $00a8, $00e8, $0128, $0168, $ffff
 
+;@ def APPay()
+;@ path: breed/appraiser
+;@ Appraise step 3: takes the 20 gold fee and starts the appraisal of the
+;@ picked egg (its species name with plus value in wTextArg0, message 6); with
+;@ less gold, message $1C and back to the menu (step 9).
+;@ test: skip prints messages through other banks
 APPay::
+;> poor = wGold < 20
 	ld a, [wGold]
 	sub $14
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	sbc $00
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	sbc $00
-	jr c, jr_00a_6453
+;> if not poor:
+	jr c, .poor
 
+;>     SpendGold(20)
 	ld hl, $0014
 	ld e, $00
 	call SpendGold
+;>@m     m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;>     wCurPartyMember = m
 	ld [wCurPartyMember], a
+;>     CopySystemText(0x0500 | mem[MonsterField(m, wMonRecSpecies)], wTextArg0)
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld l, [hl]
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
+;>     AppendPlusValue(mem[MonsterField(m, wMonPlus)], wTextArg0)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg0
 	call AppendPlusValue
+;>     PrintServiceMessage(0x0006)
 	ld hl, $0006
 	call PrintServiceMessage
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-jr_00a_6453:
+.poor
+;> else:
+;>     PrintServiceMessage(0x001C)
 	ld hl, $001c
 	call PrintServiceMessage
+;>     wMenuSubStep = 9
 	ld a, $09
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def APJudgeStats()
+;@ path: breed/appraiser
+;@ Appraise step 4: adds up the egg's HP, MP, attack, defense, agility and
+;@ intelligence (stopping early once the sum reaches $1000) and comments on
+;@ it: nothing below 120, message 7 below 300, 8 below 600, else 9.
+;@ test: skip prints messages through other banks
 APJudgeStats::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> m = wCurPartyMember
+;> total = mem16[MonsterField(m, wMonHP)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonHP
 	call MonsterField
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;>@s for stat in (wMonMP, wMonAttack, wMonDefense, wMonAgility, wMonIntelligence):
+;>     if total >= 0x1000: break
 	ld a, d
 	cp $10
-	jr nc, jr_00a_64e3
+	jr nc, .judge
 
+;>@add     total += mem16[MonsterField(m, stat)]
 	push de
 	ld a, [wCurPartyMember]
 	ld hl, wMonMP
 	call MonsterField
 	pop de
 	ld a, e
+;=@add
 	add [hl]
 	inc hl
 	ld e, a
 	ld a, d
 	adc [hl]
 	ld d, a
+;=@s
 	ld a, d
 	cp $10
-	jr nc, jr_00a_64e3
+	jr nc, .judge
 
+;=@add
 	push de
 	ld a, [wCurPartyMember]
 	ld hl, wMonAttack
 	call MonsterField
 	pop de
 	ld a, e
+;=@add
 	add [hl]
 	inc hl
 	ld e, a
 	ld a, d
 	adc [hl]
 	ld d, a
+;=@s
 	ld a, d
 	cp $10
-	jr nc, jr_00a_64e3
+	jr nc, .judge
 
+;=@add
 	push de
 	ld a, [wCurPartyMember]
 	ld hl, wMonDefense
 	call MonsterField
 	pop de
 	ld a, e
+;=@add
 	add [hl]
 	inc hl
 	ld e, a
 	ld a, d
 	adc [hl]
 	ld d, a
+;=@s
 	ld a, d
 	cp $10
-	jr nc, jr_00a_64e3
+	jr nc, .judge
 
+;=@add
 	push de
 	ld a, [wCurPartyMember]
 	ld hl, wMonAgility
 	call MonsterField
 	pop de
 	ld a, e
+;=@add
 	add [hl]
 	inc hl
 	ld e, a
 	ld a, d
 	adc [hl]
 	ld d, a
+;=@s
 	ld a, d
 	cp $10
-	jr nc, jr_00a_64e3
+	jr nc, .judge
 
+;=@add
 	push de
 	ld a, [wCurPartyMember]
 	ld hl, wMonIntelligence
 	call MonsterField
 	pop de
 	ld a, e
+;=@add
 	add [hl]
 	inc hl
 	ld e, a
@@ -6703,359 +8168,548 @@ APJudgeStats::
 	adc [hl]
 	ld d, a
 
-jr_00a_64e3:
+.judge
+;>@j if total >= 120:
 	push de
 	ld a, e
 	sub $78
 	ld e, a
 	ld a, d
 	sbc $00
+;=@j
 	ld d, a
 	pop de
-	jr c, jr_00a_6513
+	jr c, .next
 
+;>@m     if total < 300:
+;>         msg = 0x0007
 	ld hl, $0007
 	push de
 	ld a, e
 	sub $2c
 	ld e, a
+;=@m
 	ld a, d
 	sbc $01
 	ld d, a
 	pop de
-	jr c, jr_00a_6510
+	jr c, .print
 
+;>@m2     elif total < 600:
+;>         msg = 0x0008
 	ld hl, $0008
 	push de
 	ld a, e
 	sub $58
 	ld e, a
+;=@m2
 	ld a, d
 	sbc $02
 	ld d, a
 	pop de
-	jr c, jr_00a_6510
+	jr c, .print
 
+;>     else:
+;>         msg = 0x0009
 	ld hl, $0009
 
-jr_00a_6510:
+.print
+;>     PrintServiceMessage(msg)
 	call PrintServiceMessage
 
-jr_00a_6513:
+.next
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def APJudgeSkills()
+;@ path: breed/appraiser
+;@ Appraise step 5: counts the skills the egg can still learn (wMonSkillList,
+;@ 25 entries, $FF = none) and comments: nothing below 10, message $0A below
+;@ 15, $0B below 20, else $0C.
+;@ test: skip prints messages through other banks
 APJudgeSkills::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> p = MonsterField(wCurPartyMember, wMonSkillList)
 	ld a, [wCurPartyMember]
 	ld hl, wMonSkillList
 	call MonsterField
+;> n = 0
 	ld b, $19
 	ld c, $00
-
-jr_00a_652a:
+.loop
+;>@c for _ in range(25):
+;>     if mem[p] != 0xFF:
 	ld a, [hli]
 	cp $ff
-	jr z, jr_00a_6530
+	jr z, .skip
 
+;>         n += 1
 	inc c
 
-jr_00a_6530:
+.skip
+;>     p += 1
+;=@c
 	dec b
-	jr nz, jr_00a_652a
+	jr nz, .loop
 
+;> if n >= 10:
 	ld a, c
 	cp $0a
-	jr c, jr_00a_654c
+	jr c, .next
 
+;>     if n < 15:
+;>         msg = 0x000A
 	ld hl, $000a
 	cp $0f
-	jr c, jr_00a_6549
+	jr c, .print
 
+;>     elif n < 20:
+;>         msg = 0x000B
 	ld hl, $000b
 	cp $14
-	jr c, jr_00a_6549
+	jr c, .print
 
+;>     else:
+;>         msg = 0x000C
 	ld hl, $000c
 
-jr_00a_6549:
+.print
+;>     PrintServiceMessage(msg)
 	call PrintServiceMessage
 
-jr_00a_654c:
+.next
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def APJudgeGrowth()
+;@ path: breed/appraiser
+;@ Appraise step 6: comments on the egg's highest level (wMonMaxLevel):
+;@ message $0D below 30, $0E below 40, none below 50, $0F below 80, else
+;@ $10. Then the resistances are judged (step 15).
+;@ test: skip prints messages through other banks
 APJudgeGrowth::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> top = mem[MonsterField(wCurPartyMember, wMonMaxLevel)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxLevel
 	call MonsterField
 	ld a, [hl]
+;> if top < 30:
+;>     PrintServiceMessage(0x000D)
 	ld hl, $000d
 	cp $1e
-	jr c, jr_00a_657c
+	jr c, .print
 
+;> elif top < 40:
+;>     PrintServiceMessage(0x000E)
 	ld hl, $000e
 	cp $28
-	jr c, jr_00a_657c
+	jr c, .print
 
+;> elif top < 50:
+;>     pass                                 # no comment
 	cp $32
-	jr c, jr_00a_657f
+	jr c, .next
 
+;> elif top < 80:
+;>     PrintServiceMessage(0x000F)
 	ld hl, $000f
 	cp $50
-	jr c, jr_00a_657c
+	jr c, .print
 
+;> else:
+;>     PrintServiceMessage(0x0010)
 	ld hl, $0010
 
-jr_00a_657c:
+.print
 	call PrintServiceMessage
 
-jr_00a_657f:
+.next
+;> wMenuSubStep = 0x0F
 	ld a, $0f
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def APTellGender()
+;@ path: breed/appraiser
+;@ Appraise step 7: tells the egg's gender (message $13 or $14).
+;@ test: skip prints messages through other banks
 APTellGender::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> gender = mem[MonsterField(wCurPartyMember, wMonGender)] & 1
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
+;> PrintServiceMessage(0x0014 if gender else 0x0013)
 	ld hl, $0013
 	and $01
-	jr z, jr_00a_659e
+	jr z, .print
 
 	ld hl, $0014
 
-jr_00a_659e:
+.print
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def APMarkAppraised()
+;@ path: breed/appraiser
+;@ Appraise step 8: the closing message ($15); the egg's gender is now known
+;@ (wMonEgg = 2), so lists show its gender mark.
+;@ test: skip prints messages through other banks
 APMarkAppraised::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> PrintServiceMessage(0x0015)
 	ld hl, $0015
 	call PrintServiceMessage
+;> mem[MonsterField(wCurPartyMember, wMonEgg)] = 2
 	ld a, [wCurPartyMember]
 	ld hl, wMonEgg
 	call MonsterField
 	ld [hl], $02
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def APBackToMenu()
+;@ path: breed/appraiser
+;@ Appraise step 9: goes back to the appraiser menu (message 1).
+;@ test: skip prints messages through other banks
 APBackToMenu::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def APAskPay()
+;@ path: breed/appraiser
+;@ Appraise step 10: asks whether to pay the fee (message 5).
+;@ test: skip prints a message through other banks
 APAskPay::
+;> PrintServiceMessage(0x0005)
 	ld hl, $0005
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def APOpenPayConfirm()
+;@ path: breed/appraiser
+;@ Appraise step 11: once the message is out, opens the two-choice window.
+;@ test: skip draws to VRAM
 APOpenPayConfirm::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> DrawAPListScreen()
 	call DrawAPListScreen
+;> DrawAPPayConfirm()
 	call DrawAPPayConfirm
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawAPPayConfirm()
+;@ path: breed/appraiser
+;@ Draws the two-choice window (view the egg / appraise it) with its cursor
+;@ wConfirmChoice into wTilemapBuffer.
+;@ test: skip draws from tables
 DrawAPPayConfirm::
-	ld de, $79ed
+;> DrawWindowLayout0A(LayoutAppraiseConfirm)
+	ld de, LayoutAppraiseConfirm
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $6653
+;> DrawCursorAt0A(wConfirmChoice, APPayConfirmCursorPos)
+	ld de, APPayConfirmCursorPos
 	ld a, [wConfirmChoice]
 	call DrawCursorAt0A
 	ret
 
 
+;@ def APPayConfirmInput()
+;@ path: breed/appraiser
+;@ Appraise step 12: the two-choice window. B goes back to the list (step 2).
+;@ The first choice opens the status screen (step 13), the second pays and
+;@ appraises (step 3).
+;@ test: skip prints messages through other banks
 APPayConfirmInput::
-	ld de, $6653
+;> UpdateMenuCursor0A(wConfirmChoice, APPayConfirmCursorPos, 2)
+	ld de, APPayConfirmCursorPos
 	ld hl, wConfirmChoice
 	ld b, $02
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x02:                    # B: back to the list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_6628
+	jr z, .notB
 
+;>     DrawAPListScreen()
 	call DrawAPListScreen
+;>     ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;>     PrintServiceMessage(0x0003)
 	ld hl, $0003
 	call PrintServiceMessage
+;>     wMenuSubStep = 2
 	ld a, $02
 	ld [wMenuSubStep], a
-	jr jr_00a_6652
+;=@ret
+	jr .done
 
-jr_00a_6628:
+.notB
+;> elif not wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_6652
+;>     return
+	jp z, .done
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if wConfirmChoice != 0x81:                # first choice: the status screen
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_00a_6649
+	jr z, .pay
 
+;>     wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
-	jr jr_00a_6652
+;=@ret
+	jr .done
 
-jr_00a_6649:
+.pay
+;> else:
+;>     wMenuSubStep = 3
 	ld a, $03
 	ld [wMenuSubStep], a
+;>     wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
 
-Jump_00a_6652:
-jr_00a_6652:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/appraiser
+;@ Cursor positions (tile offsets) of the two-choice window LayoutAppraiseConfirm; $FFFF ends.
 APPayConfirmCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def APOpenStatus()
+;@ path: breed/appraiser
+;@ Appraise step 13: opens the monster status screen (bank $07) for the egg
+;@ under the cursor.
+;@ test: skip calls another bank
 APOpenStatus::
+;>@m wCurPartyMember = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def APReturnFromStatus()
+;@ path: breed/appraiser
+;@ Appraise step 14: after the status screen, reloads the graphics, rebuilds
+;@ and redraws the egg list and reopens the two-choice window (step 11).
+;@ test: skip draws to VRAM
 APReturnFromStatus::
+;> DecompressVRAM(0x2E, 0x13, 0x8800)     # window graphics
 	ld de, $2e13
 	ld hl, $8800
 	call DecompressVRAM
+;> EACountEggs()
 	call EACountEggs
+;> EABuildEggList()
 	call EABuildEggList
+;> EADrawPage()
 	call EADrawPage
+;> EADrawGenders()
 	call EADrawGenders
+;> PrintServiceMessage(0x0005)
 	ld hl, $0005
 	call PrintServiceMessage
+;> DrawAPListScreen()
 	call DrawAPListScreen
+;> DrawAPPayConfirm()
 	call DrawAPPayConfirm
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep = 0x0B
 	ld a, $0b
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def APJudgeResistances()
+;@ path: breed/appraiser
+;@ Appraise step 15: compares the sum of the egg's 27 resistances with the
+;@ sum of its species' standard ones (GetMonsterStats): message $11 when it
+;@ is lower, $12 when higher, none when equal. Then the gender is told (step
+;@ 7).
+;@ test: skip calls another bank
 APJudgeResistances::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wMonSpecies], a
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
+;> standard = SumResistances(wMonResistances, 0)
 	ld hl, wMonResistances
 	xor a
 	call SumResistances
+;> own = SumResistances(MonsterField(wCurPartyMember, wMonsters + 0x68), 0)   # the egg's own resistances
 	push af
 	ld a, [wCurPartyMember]
-	ld hl, wMonResist
+	ld hl, $cb29
 	call MonsterField
 	xor a
 	call SumResistances
+;> if own != standard:
 	pop bc
 	cp b
-	jr z, jr_00a_66e7
+	jr z, .next
 
+;>     PrintServiceMessage(0x0011 if own < standard else 0x0012)
 	ld hl, $0011
-	jr c, jr_00a_66e4
+	jr c, .print
 
 	ld hl, $0012
 
-jr_00a_66e4:
+.print
 	call PrintServiceMessage
 
-jr_00a_66e7:
+.next
+;> wMenuSubStep = 7
 	ld a, $07
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def SumResistances(p: hl, sum: a) -> a
+;@ path: breed/appraiser
+;@ Adds the 27 resistance bytes at `p` to `sum` (8 bits, wrapping).
+;@ test: hl = 0xC100
 SumResistances::
+;> for i in range(27):
+;>     sum = (sum + mem[p + i]) & 0xFF
 	ld b, $1b
-
-jr_00a_66ef:
+.loop
 	add [hl]
 	inc hl
 	dec b
-	jr nz, jr_00a_66ef
+	jr nz, .loop
 
+;> return sum
 	ret
 
 
+;@ def GenderFlow()
+;@ path: breed/appraiser
+;@ The change-gender entry of the egg appraiser: for 50 gold per plus value
+;@ + 100 (at most 99,999) an egg's gender is swapped. Runs its steps, one
+;@ per frame, picked by wMenuSubStep.
+;@ test: skip jumps through a table
 GenderFlow::
+;> GenderFlowSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: breed/appraiser
+;@ Steps of the egg gender change (RST $00 table indexed by wMenuSubStep).
 GenderFlowSteps::
 	dw GCListEggs
 	dw GCShowList
@@ -7069,356 +8723,544 @@ GenderFlowSteps::
 	dw GCOpenStatus
 	dw GCReturnFromStatus
 
+;@ def GCListEggs()
+;@ path: breed/appraiser
+;@ Gender step 0: lists the eggs; with none, says so (message $17) and goes
+;@ back to the menu, else asks which one (message $16).
+;@ test: skip prints a message through other banks
 GCListEggs::
+;> if EACountEggs() == 0:
 	call EACountEggs
 	or a
-	jr nz, jr_00a_6721
+	jr nz, .haveEggs
 
+;>     PrintServiceMessage(0x0017)
 	ld hl, $0017
 	call PrintServiceMessage
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
+;>     return
 	ret
 
 
-jr_00a_6721:
+.haveEggs
+;> EABuildEggList()
 	call EABuildEggList
+;> PrintServiceMessage(0x0016)
 	ld hl, $0016
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def GCShowList()
+;@ path: breed/appraiser
+;@ Gender step 1: once the message is out, draws and shows the egg list.
+;@ test: skip draws to VRAM
 GCShowList::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> EADrawPage()
 	call EADrawPage
+;> EADrawGenders()
 	call EADrawGenders
+;> DrawGCListScreen()
 	call DrawGCListScreen
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawGCListScreen()
+;@ path: breed/appraiser
+;@ Draws the menu with the gold and the egg list window with its cursor into
+;@ wTilemapBuffer.
+;@ test: skip draws from tables
 DrawGCListScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawEAMenu()
 	call DrawEAMenu
-	ld de, $781f
+;> DrawWindowLayout0A(LayoutEggList2)
+	ld de, LayoutEggList2
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $67b1
+;>@k5 DrawListCursor(wListCursor, GCListCursorPos, 4, wListLength)
+	ld de, GCListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListCursor
+;=@k5
 	ret
 
 
+;@ def GCListInput()
+;@ path: breed/appraiser
+;@ Gender step 2: the egg list. The page is redrawn when it changes. B goes
+;@ back to the menu (message 1), A picks the egg.
+;@ test: skip draws to VRAM
 GCListInput::
-	ld de, $67b1
+;>@u old_page = wListPage
+	ld de, GCListCursorPos
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@u
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> UpdateListCursor(wListCursor, GCListCursorPos, 4, wListLength)
 	call UpdateListCursor
+;> if wListPage != old_page:
 	pop af
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_00a_6786
+	jr z, .samePage
 
+;>     EADrawPage()
 	call EADrawPage
+;>     EADrawGenders()
 	call EADrawGenders
 
-jr_00a_6786:
+.samePage
+;> if wJoyPressed & 0x02:                    # B: back to the menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_679a
+	jr z, .notB
 
+;>     PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_00a_67b0
+;=@ret
+	jr .done
 
-jr_00a_679a:
+.notB
+;> elif wJoyPressed & 0x01:                  # A: this egg
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_67b0
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     wConfirmChoice2 = 1
 	ld a, $01
 	ld [wConfirmChoice2], a
 
-Jump_00a_67b0:
-jr_00a_67b0:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/appraiser
+;@ Cursor table of the gender change egg list (tile offsets row * 32 +
+;@ column): the page marker, then the 4 rows; $FFFF ends.
 GCListCursorPos::
-	db $92, $01, $a8, $00, $e8, $00, $28, $01, $68, $01, $ff, $ff
+	dw $0192, $00a8, $00e8, $0128, $0168, $ffff
 
+;@ def GCQuotePrice()
+;@ path: breed/appraiser
+;@ Gender step 3: works out the price for the picked egg, plus value * 50 +
+;@ 100, at most 99,999 (24 bits, kept in $C8E4-$C8E6), writes it into
+;@ wTextArg0 and asks (message $18).
+;@ test: skip prints a message through other banks
 GCQuotePrice::
+;>@m m = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@m
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
+;> wCurPartyMember = m
 	ld [wCurPartyMember], a
+;>@pr price = Multiply(mem[MonsterField(m, wMonPlus)], 50) + 100
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
 	ld c, [hl]
 	ld a, $32
 	call Multiply
+;=@pr
 	ld a, l
 	add $64
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;>@cap if price >= 99999:
 	ld e, $00
 	ld a, l
 	sub $9f
 	ld a, h
 	sbc $86
 	ld a, e
+;=@cap
 	sbc $01
-	jr c, jr_00a_67ff
+	jr c, .ok
 
+;>     price = 99999
 	ld hl, $869f
 	ld e, $01
 
-jr_00a_67ff:
+.ok
+;>@n hNumber = price                     # 24 bits
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	ld a, e
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;>@p mem24[wListCursor2] = price          # $C8E4-$C8E6
 	ld a, l
 	ld [wListCursor2], a
 	ld a, h
 	ld [wListPage2], a
 	ld a, e
-	ld [$c8e6], a
+	ld [wListCursor2 + 2], a
+;> Number24ToDecimal(wTextArg0)
 	ld hl, wTextArg0
 	call Number24ToDecimal
+;> PrintServiceMessage(0x0018)
 	ld hl, $0018
 	call PrintServiceMessage
+;> wMenuChoice3 = 0
 	xor a
 	ld [wMenuChoice3], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def GCOpenConfirm()
+;@ path: breed/appraiser
+;@ Gender step 4: once the message is out, opens the yes/no window.
+;@ test: skip draws to VRAM
 GCOpenConfirm::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawGCConfirm()
 	call DrawGCConfirm
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawGCConfirm()
+;@ path: breed/appraiser
+;@ Draws the two-choice window with its cursor wMenuChoice3 into wTilemapBuffer.
+;@ test: skip draws from tables
 DrawGCConfirm::
-	ld de, $79ed
+;> DrawWindowLayout0A(LayoutAppraiseConfirm)
+	ld de, LayoutAppraiseConfirm
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $68a8
+;> DrawCursorAt0A(wMenuChoice3, GCConfirmCursorPos)
+	ld de, GCConfirmCursorPos
 	ld a, [wMenuChoice3]
 	call DrawCursorAt0A
 	ret
 
 
+;@ def GCConfirmInput()
+;@ path: breed/appraiser
+;@ Gender step 5: the two-choice window. B goes back to the list. The first
+;@ choice opens the status screen (step 9), the second pays (step 6).
+;@ test: skip prints messages through other banks
 GCConfirmInput::
-	ld de, $68a8
+;> UpdateMenuCursor0A(wMenuChoice3, GCConfirmCursorPos, 2)
+	ld de, GCConfirmCursorPos
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x02:                    # B: back to the list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_6881
+	jr z, .notB
 
+;>     DrawGCListScreen()
 	call DrawGCListScreen
+;>     ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;>     PrintServiceMessage(0x0016)
 	ld hl, $0016
 	call PrintServiceMessage
+;>@back     wMenuSubStep -= 4
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@back
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_00a_68a7
+;=@ret
+	jr .done
 
-jr_00a_6881:
+.notB
+;> elif not wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_68a7
+;>     return
+	jp z, .done
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if wMenuChoice3 != 0x81:                  # first choice: the status screen
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_00a_68a3
+	jr z, .pay
 
+;>     wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>     wMenuSubStep = 9
 	ld a, $09
 	ld [wMenuSubStep], a
-	jr jr_00a_68a7
+;=@ret
+	jr .done
 
-jr_00a_68a3:
+.pay
+;> else:
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_00a_68a7:
-jr_00a_68a7:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/appraiser
+;@ Cursor positions (tile offsets) of the two-choice window LayoutAppraiseConfirm; $FFFF ends.
 GCConfirmCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def GCPay()
+;@ path: breed/appraiser
+;@ Gender step 6: with enough gold pays the price and swaps the egg's gender
+;@ (message $1A, then step 7); else message $1C and back to the menu (step 8).
+;@ test: skip prints messages through other banks
 GCPay::
+;>@g if wGold < mem24[wListCursor2]:
 	ld hl, wListCursor2
 	ld a, [wGold]
 	sub [hl]
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	sbc [hl]
+;=@g
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	sbc [hl]
-	jr nc, jr_00a_68d1
+	jr nc, .pay
 
+;>     PrintServiceMessage(0x001C)          # not enough gold
 	ld hl, $001c
 	call PrintServiceMessage
+;>     wMenuSubStep += 2
 	ld hl, wMenuSubStep
 	inc [hl]
 	ld hl, wMenuSubStep
 	inc [hl]
-	jr jr_00a_68f7
+;=@ret
+	jr .done
 
-jr_00a_68d1:
+.pay
+;> else:
+;>@sp     SpendGold(mem24[wListCursor2])
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
 	ld h, a
-	ld a, [$c8e6]
+	ld a, [wListCursor2 + 2]
 	ld e, a
+;=@sp
 	call SpendGold
+;>     mem[MonsterField(wCurPartyMember, wMonGender)] ^= 1
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	xor $01
 	ld [hl], a
+;>     PrintServiceMessage(0x001A)
 	ld hl, $001a
 	call PrintServiceMessage
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-jr_00a_68f7:
+.done
+;>@ret return
 	ret
 
 
+;@ def GCDone()
+;@ path: breed/appraiser
+;@ Gender step 7: the closing message ($1B).
+;@ test: skip prints a message through other banks
 GCDone::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> PrintServiceMessage(0x001B)
 	ld hl, $001b
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def GCBackToMenu()
+;@ path: breed/appraiser
+;@ Gender step 8: goes back to the appraiser menu (message 1).
+;@ test: skip prints a message through other banks
 GCBackToMenu::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> PrintServiceMessage(0x0001)
 	ld hl, $0001
 	call PrintServiceMessage
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def GCOpenStatus()
+;@ path: breed/appraiser
+;@ Gender step 9: opens the monster status screen (bank $07) for the picked
+;@ egg.
+;@ test: skip calls another bank
 GCOpenStatus::
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def GCReturnFromStatus()
+;@ path: breed/appraiser
+;@ Gender step 10: after the status screen, reloads the graphics, rebuilds
+;@ and redraws the egg list, repeats the price question and reopens the
+;@ two-choice window (step 5).
+;@ test: skip draws to VRAM
 GCReturnFromStatus::
+;> DecompressVRAM(0x2E, 0x13, 0x8800)     # window graphics
 	ld de, $2e13
 	ld hl, $8800
 	call DecompressVRAM
+;> EACountEggs()
 	call EACountEggs
+;> EABuildEggList()
 	call EABuildEggList
+;> EADrawPage()
 	call EADrawPage
+;> EADrawGenders()
 	call EADrawGenders
+;>@n hNumber = mem24[wListCursor2]
 	ld a, [wListCursor2]
 	ldh [hNumber], a
 	ld a, [wListPage2]
-	ldh [$ffd6], a
-	ld a, [$c8e6]
-	ldh [$ffd7], a
+	ldh [hNumber + 1], a
+	ld a, [wListCursor2 + 2]
+	ldh [hNumber + 2], a
+;> Number24ToDecimal(wTextArg0)
 	ld hl, wTextArg0
 	call Number24ToDecimal
+;> PrintServiceMessage(0x0018)
 	ld hl, $0018
 	call PrintServiceMessage
+;> DrawGCListScreen()
 	call DrawGCListScreen
+;> DrawGCConfirm()
 	call DrawGCConfirm
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuSubStep = 5
 	ld a, $05
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def JoinPartyScreen()
+;@ path: breed/join
+;@ Service screen 11: a monster that has just hatched (wLeaderSlot) may join
+;@ the party. A yes/no menu; with a full party one party monster goes to the
+;@ farm in its place. One step per frame, picked by wMenuStep. The answer is
+;@ left in wTextChoice (0 yes, 1 no) for the script.
+;@ test: skip jumps through a table
 JoinPartyScreen::
+;> JoinPartySteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: breed/join
+;@ Steps of the join-party screen (RST $00 table indexed by wMenuStep).
 JoinPartySteps::
 	dw JPInit
 	dw JPOpenMenu
@@ -7426,157 +9268,251 @@ JoinPartySteps::
 	dw JPRunChoice
 	dw JPClose
 
+;@ def JPInit()
+;@ path: breed/join
+;@ Step 0: lines the scroll up with whole tiles, clears the menu cursors,
+;@ works out the BG map address of the visible screen, shows the field with
+;@ the message box frame, loads the window graphics (bank $2E entry $12) and
+;@ sets the answer to yes.
+;@ test: skip decompresses into VRAM
 JPInit::
+;> RoundToTile(hScrollX)
 	ld hl, hScrollX
 	call RoundToTile
+;> RoundToTile(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile
+;> FillMemory(wLinkChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@map a = (hScrollY >> 3) * 32 + (hScrollX >> 3)
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@map
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
+;>@bg wWindowBgMap = 0x9800 | (a & 0x03FF)
 	ld a, h
 	adc $98
 	ld h, a
 	ld a, h
 	and $03
 	or $98
+;=@bg
 	ld h, a
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> DecompressVRAM(0x2E, 0x12, 0x8800)     # window graphics
 	ld de, $2e12
 	ld hl, $8800
 	call DecompressVRAM
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
+;> hSpriteBGTile = 0x40
 	ld a, $40
 	ldh [hSpriteBGTile], a
+;> wTextChoice = 0
 	ld a, $00
 	ld [wTextChoice], a
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def JPOpenMenu()
+;@ path: breed/join
+;@ Step 1: draws the yes/no menu and shows it.
+;@ test: skip draws to VRAM
 JPOpenMenu::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawJPMenu()
 	call DrawJPMenu
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def DrawJPMenu()
+;@ path: breed/join
+;@ Draws the yes/no window and the message box frame into wTilemapBuffer,
+;@ cursor on wLinkChoice (used here as the menu cursor).
+;@ test: skip draws from tables
 DrawJPMenu::
-	ld de, $6f3c
+;> DrawWindowLayout0A(LayoutYesNo)
+	ld de, LayoutYesNo
 	call DrawWindowLayout0A
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $6a42
+;> DrawCursorAt0A(wLinkChoice, JPMenuCursorPos)
+	ld de, JPMenuCursorPos
 	ld a, [wLinkChoice]
 	call DrawCursorAt0A
 	ret
 
 
+;@ def JPMenuInput()
+;@ path: breed/join
+;@ Step 2: yes/no. B or Start declines; A chooses (bit 7 of the cursor is
+;@ set, the choice kept in wItemsHandedIn) and clears the list cursors.
+;@ test: skip calls the cursor drawing
 JPMenuInput::
-	ld de, $6a42
+;> UpdateMenuCursor0A(wLinkChoice, JPMenuCursorPos, 2)
+	ld de, JPMenuCursorPos
 	ld hl, wLinkChoice
 	ld b, $02
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x0A:                    # B or Start
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_00a_6a0c
+	jr z, .notCancel
 
+;>     JPDecline()
+;>     return
 	jr JPDecline
 
-jr_00a_6a0c:
+.notCancel
+;> if wJoyPressed & 0x01:                    # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_00a_6a41
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wLinkChoice |= 0x80
 	ld hl, wLinkChoice
 	set 7, [hl]
+;>     wItemsHandedIn = wLinkChoice           # the menu entry to run
 	ld a, [hl]
 	ld [wItemsHandedIn], a
+;>     FillMemory(wMenuChoice2, 7, 0)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;>     FillMemory(wListCursor, 8, 0)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-	jr jr_00a_6a41
+	jr .done
 
-jr_00a_6a41:
+.done
 	ret
 
 
+;@ path: breed/join
+;@ Cursor positions (tile offsets) of the yes/no window LayoutYesNo; $FFFF ends.
 JPMenuCursorPos::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def JPRunChoice()
+;@ path: breed/join
+;@ Step 3: runs the chosen entry, one step per frame.
+;@ test: skip jumps through a table
 JPRunChoice::
+;> JPChoices[wItemsHandedIn & 0x7F]()
 	ld a, [wItemsHandedIn]
 	rst $00
 
+;@ path: breed/join
+;@ The two entries (RST $00 table): yes (join), no.
 JPChoices::
 	dw JoinFlow
 	dw JPDecline
 
+;@ def JPDecline()
+;@ path: breed/join
+;@ The no entry (and B): once the message is out, answers no
+;@ (wTextChoice = 1) and closes.
+;@ test: skip draws to VRAM and calls another bank
 JPDecline::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> wTextChoice = 1
 	ld a, $01
 	ld [wTextChoice], a
+;> JPClose()
 
+;@ def JPClose()
+;@ path: breed/join
+;@ Step 4: puts the field's tiles back, ends the service screen (wFieldFlags
+;@ bit 4, and bit 0 so the script goes on) and reloads the party sprites.
+;@ test: skip draws to VRAM and calls another bank
 JPClose::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
+;> hSpriteClip = 0x80
 	ld a, $80
 	ldh [hSpriteClip], a
+;> wFieldFlags = (wFieldFlags & ~0x10) | 0x01
 	ld hl, wFieldFlags
 	res 4, [hl]
 	set 0, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
 	ret
 
 
+;@ def JoinFlow()
+;@ path: breed/join
+;@ The yes entry: runs its steps, one per frame, picked by wMenuSubStep.
+;@ test: skip jumps through a table
 JoinFlow::
+;> JoinFlowSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: breed/join
+;@ Steps of the yes entry (RST $00 table indexed by wMenuSubStep).
 JoinFlowSteps::
 	dw JFAddToParty
 	dw JFShowList
@@ -7590,186 +9526,288 @@ JoinFlowSteps::
 	dw JFReturnFromStatus
 	dw JFFinish
 
+;@ def JFAddToParty()
+;@ path: breed/join
+;@ Join step 0: with room in the party the new monster (wLeaderSlot) joins at
+;@ the end (message $1F, step 10). With three party monsters the list of the
+;@ party plus the new one is built and the player is asked which one goes to
+;@ the farm (message $19).
+;@ test: skip prints a message through other banks
 JFAddToParty::
+;> if wPartyCount != 3:
 	ld a, [wPartyCount]
 	cp $03
-	jr z, jr_00a_6abc
+	jr z, .full
 
+;>     wPartyCount += 1
 	inc a
 	ld [wPartyCount], a
+;>@p     wParty[wPartyCount - 1] = wLeaderSlot
 	ld hl, wPartyCount
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@p
 	ld a, [wLeaderSlot]
 	ld [hl], a
+;>     PrintServiceMessage(0x001F)
 	ld hl, $001f
 	call PrintServiceMessage
+;>     wMenuSubStep = 0x0A
 	ld a, $0a
 	ld [wMenuSubStep], a
+;>     return
 	ret
 
 
-jr_00a_6abc:
+.full
+;> JFCountChoices()
 	call JFCountChoices
+;> JFBuildList()
 	call JFBuildList
+;> PrintServiceMessage(0x0019)
 	ld hl, $0019
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def JFCountChoices()
+;@ path: breed/join
+;@ The list has the party monsters and the new one: wListLength =
+;@ wPartyCount + 1.
+;@ test: wPartyCount = rand(0, 3)
 JFCountChoices::
+;> wListLength = wPartyCount + 1
 	ld a, [wPartyCount]
 	inc a
 	ld [wListLength], a
 	ret
 
 
+;@ def JFBuildList()
+;@ path: breed/join
+;@ Builds the 20-byte list at wSceneObjects: the party slots (up to the first
+;@ $FF), then the new monster wLeaderSlot; $FF fills the rest.
+;@ test: skip fills memory through a helper
 JFBuildList::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> p = wSceneObjects
 	ld hl, wSceneObjects
+;> for i in range(3):
+;>@pa     if wParty[i] == 0xFF: break
 	ld a, [wParty]
 	cp $ff
-	jr z, jr_00a_6afb
+	jr z, .new
 
+;>@pi     mem[p] = wParty[i]; p += 1
 	ld [hli], a
-	ld a, [$ca8f]
+;=@pa
+	ld a, [wParty + 1]
 	cp $ff
-	jr z, jr_00a_6afb
+	jr z, .new
 
+;=@pi
 	ld [hli], a
-	ld a, [$ca90]
+;=@pa
+	ld a, [wParty + 2]
 	cp $ff
-	jr z, jr_00a_6afb
+	jr z, .new
 
+;=@pi
 	ld [hli], a
 
-jr_00a_6afb:
+.new
+;> mem[p] = wLeaderSlot
 	ld a, [wLeaderSlot]
 	ld [hl], a
 	ret
 
 
+;@ def JFShowList()
+;@ path: breed/join
+;@ Join step 1: once the message is out, draws the list.
+;@ test: skip draws to VRAM
 JFShowList::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> JFDrawCursorMonster()
 	call JFDrawCursorMonster
+;> JFDrawNames()
 	call JFDrawNames
+;> DrawJFListScreen()
 	call DrawJFListScreen
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawJFListScreen()
+;@ path: breed/join
+;@ Draws the yes/no menu, the monster list and the info window with the
+;@ level of the monster under the cursor (wMenuChoice2), and shows it.
+;@ test: skip draws to VRAM
 DrawJFListScreen::
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawJPMenu()
 	call DrawJPMenu
-	ld de, $75f3
+;> DrawWindowLayout0A(LayoutMonsterList)
+	ld de, LayoutMonsterList
 	call DrawWindowLayout0A
-	ld de, $76e5
+;> DrawWindowLayout0A(LayoutMonsterInfo)
+	ld de, LayoutMonsterInfo
 	call DrawWindowLayout0A
+;> JFDrawLevel()
 	call JFDrawLevel
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $6cef
+;> DrawCursorAt0A(wMenuChoice2, JFListCursorPos)
+	ld de, JFListCursorPos
 	ld a, [wMenuChoice2]
 	call DrawCursorAt0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def JFDrawNames()
+;@ path: breed/join
+;@ Draws the names of the 4 list entries into the tiles from $9610 on (4
+;@ tiles each).
+;@ test: skip draws to VRAM
 JFDrawNames::
+;> entry = wSceneObjects
 	ld de, wSceneObjects
+;> tiles = 0x9610
 	ld hl, $9610
+;> for _ in range(4):
+;>     entry, tiles = DrawNameEntry2(entry, tiles)
 	call DrawNameEntry2
 	call DrawNameEntry2
 	call DrawNameEntry2
 
+;@ def DrawNameEntry2(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/join
+;@ Draws the name of list entry `entry` into 4 tiles at `tiles` (4 tiles of
+;@ plain colour 1 for an empty entry, $FF). A copy of DrawNameEntry.
+;@ test: skip draws to VRAM
 DrawNameEntry2::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_6b68
+	jr z, .empty
 
+;>@rn     RenderNameTiles(tiles, MonsterField(m, wMonName))
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@rn
 	push hl
 	call RenderNameTiles
 	pop hl
+;>@r0     return entry + 1, tiles + 0x40
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r0
 	pop de
 	inc de
 	ret
 
 
-jr_00a_6b68:
+.empty
+;>@cl for _ in range(32):
 	ld b, $20
-
-jr_00a_6b6a:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_6b6a
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def JFDrawLevel()
+;@ path: breed/join
+;@ Writes the level of the list entry under the cursor (wMenuChoice2) into
+;@ wTilemapBuffer ("Lv" tile $DE at row 6, column 10, then the digits) and a
+;@ party mark $E3 at column 18 when it is in the party.
+;@ test: skip draws from tables
 JFDrawLevel::
+;> m = wSceneObjects[wMenuChoice2 & 0x7F]
 	ld a, [wMenuChoice2]
 	and $7f
 	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
+;=@m
 	adc d
 	ld d, a
 	ld a, [de]
+;>@m level = mem[MonsterField(m, wMonLevel)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = OffsetToTilemapBuffer(0x00CA)
 	ld hl, $00ca
 	call OffsetToTilemapBuffer
+;> mem[p] = 0xDE                         # "Lv"
 	ld a, $de
 	ld [hli], a
+;> DrawTwoDigits0A(level, p + 1)
 	call DrawTwoDigits0A
+;> if mem[MonsterField(m, wMonsters)] != 2:
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
+;>     return
 	ret nz
 
+;> mem[OffsetToTilemapBuffer(0x00D2)] = 0xE3
 	ld hl, $00d2
 	call OffsetToTilemapBuffer
 	ld a, $e3
@@ -7777,311 +9815,454 @@ JFDrawLevel::
 	ret
 
 
+;@ def JFDrawCursorMonster()
+;@ path: breed/join
+;@ Draws the name of the list entry under the cursor (wMenuChoice2) into
+;@ tiles $9710 and its gender mark into tile $9750.
+;@ test: skip draws to VRAM
 JFDrawCursorMonster::
+;> entry = wSceneObjects + (wMenuChoice2 & 0x7F); m = mem[entry]
 	ld a, [wMenuChoice2]
 	and $7f
 	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
+;=@e
 	adc d
 	ld d, a
 	ld a, [de]
+;>@e DrawNameEntry3(entry, 0x9710)
 	push af
 	ld hl, $9710
 	call DrawNameEntry3
+;>@k6 DrawGenderTile2(mem[MonsterField(m, wMonGender)], 0x9750)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $9750
 	call DrawGenderTile2
+;=@k6
 	ret
 
 
+;@ def DrawGenderTile2(gender: a, tiles: hl)
+;@ path: breed/join
+;@ Draws the gender mark of `gender` (bit 0: $A7 or $A8) into the letter tile
+;@ at VRAM `tiles`. A copy of DrawGenderTile.
+;@ test: skip calls a routine in another bank
 DrawGenderTile2::
+;> wTextArg0[0] = 0xA7 + (gender & 1)
 	and $01
 	add $a7
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
+;=@save
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x00
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved[0]
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved[2]
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawNameEntry3(entry: de, tiles: hl) -> (de, hl)
+;@ path: breed/join
+;@ Draws the name of list entry `entry` into 4 tiles at `tiles` (4 tiles of
+;@ plain colour 1 for an empty entry, $FF). A copy of DrawNameEntry.
+;@ test: skip draws to VRAM
 DrawNameEntry3::
+;> m = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if m != 0xFF:
 	cp $ff
-	jr z, jr_00a_6c54
+	jr z, .empty
 
+;>@rn     RenderNameTiles(tiles, MonsterField(m, wMonName))
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@rn
 	push hl
 	call RenderNameTiles
 	pop hl
+;>@r0     return entry + 1, tiles + 0x40
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r0
 	pop de
 	inc de
 	ret
 
 
-jr_00a_6c54:
+.empty
+;>@cl for _ in range(32):
 	ld b, $20
-
-jr_00a_6c56:
+.clear
+;>     WriteVRAMInc(tiles, 0xFF)
+;>     WriteVRAMInc(tiles + 1, 0x00)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@cl
 	dec b
-	jr nz, jr_00a_6c56
+	jr nz, .clear
 
+;>@r1 return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r1
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def JFListInput()
+;@ path: breed/join
+;@ Join step 2: picks the monster that goes to the farm (cursor wMenuChoice2,
+;@ up and down). B gives up: the new monster goes to the farm itself
+;@ (message $18 with its name, back to the yes/no menu); A picks the monster
+;@ under the cursor.
+;@ test: skip draws to VRAM
 JFListInput::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
-	ld de, $6cef
+;> old = wMenuChoice2
+	ld de, JFListCursorPos
 	ld hl, wMenuChoice2
 	ld a, [wListLength]
 	ld b, a
 	ld a, [hl]
 	push af
+;> UpdateMenuCursor0A(wMenuChoice2, JFListCursorPos, wListLength)
 	call UpdateMenuCursor0A
+;>@r if wMenuChoice2 & 0x7F != old & 0x7F:
 	pop af
 	ld hl, wMenuChoice2
 	and $7f
 	ld b, a
 	ld a, [hl]
 	and $7f
+;=@r
 	cp b
-	jr z, jr_00a_6c9e
+	jr z, .samePos
 
+;>     JFDrawCursorMonster()
 	call JFDrawCursorMonster
-	ld de, $76e5
+;>     DrawWindowLayout0A(LayoutMonsterInfo)
+	ld de, LayoutMonsterInfo
 	call DrawWindowLayout0A
+;>     JFDrawLevel()
 	call JFDrawLevel
+;>     ShowTilemapBuffer()
 	call ShowTilemapBuffer
 
-jr_00a_6c9e:
+.samePos
+;> if wJoyPressed & 0x02:                    # B: the new monster stays at the farm
 	ld a, [wJoyPressed]
 	bit 1, a
-	jp z, Jump_00a_6cc4
+	jp z, .notB
 
-	ld a, [$c0db]
+;>     CopyName(MonsterField(wSceneObjects[3], wMonName), wTextArg0)
+	ld a, [wSceneObjects + 3]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
+;=@cn
 	call CopyName
+;>@cn     PrintServiceMessage(0x0018)
 	ld hl, $0018
 	call PrintServiceMessage
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_00a_6cee
+;=@ret
+	jr .done
 
-Jump_00a_6cc4:
+.notB
+;> elif wJoyPressed & 0x01:                  # A: this one goes to the farm
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_6cee
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>@m     m = wSceneObjects[wMenuChoice2 & 0x7F]
 	ld a, [wMenuChoice2]
 	and $7f
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hl]
+;>     wCurPartyMember = m
 	ld [wCurPartyMember], a
+;>     wListKnown = m
 	ld [wListKnown], a
+;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_00a_6cee:
-jr_00a_6cee:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/join
+;@ Cursor positions (tile offsets) of the 4 rows of the join list; $FFFF ends.
 JFListCursorPos::
-	db $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
+	dw $00a1, $00e1, $0121, $0161, $ffff
 
+;@ def JFAskConfirm()
+;@ path: breed/join
+;@ Join step 3: asks about the picked monster (message $1A).
+;@ test: skip prints a message through other banks
 JFAskConfirm::
+;> PrintServiceMessage(0x001A)
 	ld hl, $001a
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def JFOpenConfirm()
+;@ path: breed/join
+;@ Join step 4: once the message is out, opens the two-choice window.
+;@ test: skip draws to VRAM
 JFOpenConfirm::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> DrawJFConfirm()
 	call DrawJFConfirm
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawJFConfirm()
+;@ path: breed/join
+;@ Draws the list screen with the two-choice window (view the status / send
+;@ it to the farm) on top, cursor on wConfirmChoice, and shows it.
+;@ test: skip draws to VRAM
 DrawJFConfirm::
+;> JFDrawCursorMonster()
 	call JFDrawCursorMonster
+;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
+;> DrawJPMenu()
 	call DrawJPMenu
-	ld de, $75f3
+;> DrawWindowLayout0A(LayoutMonsterList)
+	ld de, LayoutMonsterList
 	call DrawWindowLayout0A
-	ld de, $76e5
+;> DrawWindowLayout0A(LayoutMonsterInfo)
+	ld de, LayoutMonsterInfo
 	call DrawWindowLayout0A
+;> JFDrawLevel()
 	call JFDrawLevel
-	ld de, $6cef
+;> DrawCursorAt0A(wMenuChoice2, JFListCursorPos)
+	ld de, JFListCursorPos
 	ld a, [wMenuChoice2]
 	call DrawCursorAt0A
-	ld de, $7463
+;> DrawWindowLayout0A(LayoutConfirm)
+	ld de, LayoutConfirm
 	call DrawWindowLayout0A
+;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-	ld de, $6da0
+;> DrawCursorAt0A(wConfirmChoice, JFConfirmCursorPos)
+	ld de, JFConfirmCursorPos
 	ld a, [wConfirmChoice]
 	call DrawCursorAt0A
+;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
 	ret
 
 
+;@ def JFConfirmInput()
+;@ path: breed/join
+;@ Join step 5: the two-choice window. B goes back to the list (message $19).
+;@ The first choice opens the status screen (step 8), the second sends the
+;@ monster to the farm (step 6).
+;@ test: skip prints messages through other banks
 JFConfirmInput::
-	ld de, $6da0
+;> UpdateMenuCursor0A(wConfirmChoice, JFConfirmCursorPos, 2)
+	ld de, JFConfirmCursorPos
 	ld hl, wConfirmChoice
 	ld b, $02
 	call UpdateMenuCursor0A
+;> if wJoyPressed & 0x02:                    # B: back to the list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_00a_6d75
+	jr z, .notB
 
+;>     DrawJFListScreen()
 	call DrawJFListScreen
+;>     PrintServiceMessage(0x0019)
 	ld hl, $0019
 	call PrintServiceMessage
+;>@back     wMenuSubStep -= 4
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@back
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_00a_6d9f
+;=@ret
+	jr .done
 
-jr_00a_6d75:
+.notB
+;> elif not wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_00a_6d9f
+;>     return
+	jp z, .done
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if wConfirmChoice != 0x81:                # first choice: the status screen
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_00a_6d97
+	jr z, .send
 
+;>     wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>     wMenuSubStep = 8
 	ld a, $08
 	ld [wMenuSubStep], a
-	jr jr_00a_6d9f
+;=@ret
+	jr .done
 
-jr_00a_6d97:
+.send
+;> else:
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
 
-Jump_00a_6d9f:
-jr_00a_6d9f:
+.done
+;>@ret return
 	ret
 
 
+;@ path: breed/join
+;@ Cursor positions (tile offsets) of the two-choice window LayoutConfirm; $FFFF ends.
 JFConfirmCursorPos::
-	db $2e, $00, $6e, $00, $ff, $ff
+	dw $002e, $006e, $ffff
 
+;@ def JFSendToFarm()
+;@ path: breed/join
+;@ Join step 6: puts the picked monster's name into wTextArg0 and says it
+;@ goes to the farm (message $1B). An unused `ret` byte follows.
+;@ test: skip prints a message through other banks
 JFSendToFarm::
+;>@m m = wSceneObjects[wMenuChoice2 & 0x7F]
 	ld hl, wSceneObjects
 	ld a, [wMenuChoice2]
 	and $7f
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@cn CopyName(MonsterField(m, wMonName), wTextArg0)
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
 	call CopyName
+;> PrintServiceMessage(0x001B)
 	ld hl, $001b
 	call PrintServiceMessage
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
@@ -8089,438 +10270,828 @@ JFSendToFarm::
 
 	db $c9
 
+;@ def JFRebuildParty()
+;@ path: breed/join
+;@ Join step 7: once the message is out, marks the four listed monsters as
+;@ party monsters (state 2), then the picked one as a farm monster (state 1),
+;@ rebuilds wParty from the list in order, compacts the records and reloads
+;@ the party sprites.
+;@ test: skip calls other banks
 JFRebuildParty::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;>@f for i in range(4):
+;>     mem[MonsterField(wSceneObjects[i], wMonsters)] = 2
 	ld a, [wSceneObjects]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $02
-	ld a, [$c0d9]
+;=@f
+	ld a, [wSceneObjects + 1]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $02
-	ld a, [$c0da]
+;=@f
+	ld a, [wSceneObjects + 2]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $02
-	ld a, [$c0db]
+;=@f
+	ld a, [wSceneObjects + 3]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $02
+;>@fm mem[MonsterField(wSceneObjects[wMenuChoice2 & 0x7F], wMonsters)] = 1   # to the farm
 	ld hl, wSceneObjects
 	ld a, [wMenuChoice2]
 	and $7f
 	add l
 	ld l, a
 	ld a, $00
+;=@fm
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $01
+;> p = wParty
 	ld de, wParty
+;>@ap for i in range(4):
+;>     p = AddIfInParty(wSceneObjects[i], p)
 	ld a, [wSceneObjects]
 	call AddIfInParty
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	call AddIfInParty
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	call AddIfInParty
-	ld a, [$c0db]
+;=@ap
+	ld a, [wSceneObjects + 3]
 	call AddIfInParty
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def AddIfInParty(m: a, p: de) -> de
+;@ path: breed/join
+;@ Writes monster slot `m` at `p` and steps on when that monster is a party
+;@ monster (state 2).
+;@ test: a = rand(0, 19); de = 0xC100; mem[0xCAC1 + a * 0x95] = rand(0, 2)
 AddIfInParty::
+;> if mem[MonsterField(m, wMonsters)] == 2:
 	ld b, a
 	push bc
 	push de
 	ld hl, wMonsters
 	call MonsterField
 	pop de
+;=@i
 	pop bc
 	ld a, [hl]
 	cp $02
-	jr nz, jr_00a_6e52
+	jr nz, .done
 
+;>@i     mem[p] = m
+;>     p += 1
 	ld a, b
 	ld [de], a
 	inc de
 
-jr_00a_6e52:
+.done
+;> return p
 	ret
 
 
+;@ def JFOpenStatus()
+;@ path: breed/join
+;@ Join step 8: opens the monster status screen (bank $07) on the list,
+;@ starting at the entry under the cursor.
+;@ test: skip calls another bank
 JFOpenStatus::
+;> wViewList = wSceneObjects
 	ld hl, wSceneObjects
 	ld a, l
 	ld [wViewList], a
 	ld a, h
-	ld [$c931], a
+	ld [wViewList + 1], a
+;> wViewIndex = wMenuChoice2 & 0x7F
 	ld a, [wMenuChoice2]
 	and $7f
 	ld a, a
 	ld [wViewIndex], a
+;> wViewCount = wListLength
 	ld a, [wListLength]
 	ld [wViewCount], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def JFReturnFromStatus()
+;@ path: breed/join
+;@ Join step 9: after the status screen, reloads the window graphics and the
+;@ names and reopens the two-choice window (step 5).
+;@ test: skip draws to VRAM
 JFReturnFromStatus::
+;> DecompressVRAM(0x2E, 0x12, 0x8800)     # window graphics
 	ld de, $2e12
 	ld hl, $8800
 	call DecompressVRAM
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> JFDrawNames()
 	call JFDrawNames
+;> DrawJFConfirm()
 	call DrawJFConfirm
+;> PrintServiceMessage(0x001A)
 	ld hl, $001a
 	call PrintServiceMessage
+;> wMenuSubStep = 5
 	ld a, $05
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def JFFinish()
+;@ path: breed/join
+;@ Join step 10: once the message is out, compacts the monster records,
+;@ reloads the party sprites and closes the screen (wMenuStep 4).
+;@ test: skip calls other banks
 JFFinish::
+;> if wTextState:
 	ld a, [wTextState]
 	or a
+;>     return
 	ret nz
 
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 20 x 5 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_6EAC::
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $b0, $b1, $b2, $b3, $b4, $b5, $b6, $b7
-	db $b8, $b9, $ba, $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd, $ce, $cf
-	db $d0, $d1, $d2, $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $b0, $b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8, $b9, $ba, $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd, $ce, $cf, $d0, $d1, $d2, $d3, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 6 x 5 tiles at row 8, column 14: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_6F17::
-	db $0e, $01, $fa, $ef, $ef
-	db $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $010e
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $31, $32, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 6 x 5 tiles at row 8, column 14: the yes/no window at the right (partner breeding menu, save questions, join menu).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 LayoutYesNo::
-	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $fd, $d9
+	dw $010e
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9d, $9c, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 6 x 5 tiles at row 8, column 14: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_6F61::
-	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $a7
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $010e
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a8, $a7, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 8 x 3 tiles at row 0, column 12: the gold window at the top right (the gold is printed at row 1, column 14).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 LayoutGold::
-	db $0c, $00, $fa, $ef, $ef, $ef
-	db $ef, $ef, $ef, $fb, $d8, $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $000c
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 8 x 7 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_6FA3::
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
-	db $fb, $d8, $fe, $e0, $a4, $aa, $d4, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $d6, $d5, $de, $de, $e0, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d5, $ab, $a5, $a9, $e0, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a4, $aa, $d4, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d6, $d5, $de, $de, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d5, $ab, $a5, $a9, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 19 x 9 tiles at row 4, column 1: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_6FE4::
-	db $81, $00, $fa, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $80, $81, $82, $83, $84, $85, $86, $87, $88, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90
-	db $91, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $92, $93, $94, $95, $96, $97, $98, $99, $9a, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2
-	db $a3, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0081
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 4 x 3 tiles at row 10, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_709A::
-	db $40, $01
-	db $fa, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $fd, $d9
+	dw $0140
+	db $fa, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 3 tiles at row 10, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_70AB::
-	db $40
-	db $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e5, $e0, $e0, $ff
-	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0140
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e5, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 6 x 5 tiles at row 8, column 0: a yes/no window at the left (breeding house save question).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 LayoutYesNoLeft::
-	db $00, $01, $fa, $ef, $ef, $ef, $ef
-	db $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0100
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9d, $9c, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 12 x 9 tiles at row 4, column 8: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_70EA::
-	db $88, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80
-	db $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f
-	db $90, $91, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d
-	db $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9
+	dw $0088
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 8 x 5 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_7161::
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
-	db $fe, $e0, $a4, $d5, $a7, $a8, $a9, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $aa, $ab, $ac, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a4, $d5, $a7, $a8, $a9, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $aa, $ab, $ac, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 5 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_7190::
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $a4, $a5, $a6, $a7, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $a8, $a9, $aa, $ab, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a4, $a5, $a6, $a7, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a8, $a9, $aa, $ab, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 12 x 9 tiles at row 3, column 8: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_71BA::
-	db $68, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80
-	db $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f
-	db $90, $91, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d
-	db $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9
+	dw $0068
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 8 x 3 tiles at row 3, column 12: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
 Layout_0A_7231::
-	db $6c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
-	db $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $46, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $a0, $a1, $a2, $a3, $e0, $dd, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
-	db $e0, $92, $98, $9c, $e3, $e0, $9c, $93, $93, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e3, $95, $91, $96, $e0, $9a, $e3
-	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $91, $94, $d5, $91, $96, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d6, $d5, $e3, $90, $98, $90, $99
-	db $d5, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $d6, $97, $d5, $d5, $e3, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d5, $a2, $95, $99, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d
-	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff
-	db $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff
-	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00, $fa, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb
-	db $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b
-	db $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80
-	db $81, $82, $83, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84
-	db $85, $86, $87, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88
-	db $89, $8a, $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec
-	db $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff, $d8, $fe
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff, $d8, $fe
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff, $d8, $fe
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb
-	db $d8, $fe, $e0, $95, $9d, $93, $9c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $9c, $96, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9e, $90, $d6, $99, $d5, $98, $e4, $a0
-	db $a1, $a2, $a3, $e0, $e0, $e0, $e4, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $da, $a4, $a5, $a6, $a7, $e0, $db, $a8, $a9, $aa, $ab, $e0, $dc, $ac, $ad, $ae
-	db $af, $ff, $d8, $fe, $e0, $9f, $e4, $e0, $e0, $e0, $e0, $9f, $e4, $e0, $e0, $e0
-	db $e0, $9f, $e4, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
-	db $84, $e0, $80, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $85, $e0, $81, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0
-	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $86, $e0, $82, $e0, $91, $97, $90, $d6
-	db $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $87, $e0, $83, $e0
-	db $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00
-	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8a, $98, $d5
-	db $d5, $92, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $94, $90, $99, $91, $94, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $40, $41, $42, $43, $e0, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb
-	db $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed
-	db $d8, $fe, $e0, $61, $62, $63, $64, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $65, $66, $67, $68, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $69, $6a, $6b, $6c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $6d, $6e, $6f, $70, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c
-	db $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $61, $62, $63
-	db $64, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $65, $66, $67
-	db $68, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $69, $6a, $6b
-	db $6c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6d, $6e, $6f
-	db $70, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $09, $01, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $71, $72, $73
-	db $74, $75, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $e0, $e0, $76, $77, $78, $79, $7a, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $a9, $00, $fa, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $71, $72, $73, $74, $75
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $49
-	db $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0
-	db $e0, $65, $66, $67, $68, $69, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $e0, $e0, $e0, $78, $79, $7a, $7b, $7c, $e0, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $87, $00, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $65, $66, $67
-	db $68, $69, $6a, $6b, $6c, $6d, $a0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6e, $6f, $70, $71, $72, $73, $74
-	db $75, $76, $a1, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $a2, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $a3, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d5, $df, $9f, $de, $e0, $e0, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $de, $d5
-	db $d6, $d6, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $d5, $a5, $a1, $a3, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $e0, $70, $71, $72, $73, $74, $75, $76, $77, $78, $9b, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $9c, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b
-	db $8c, $8d, $8e, $8f, $90, $91, $9d, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98
-	db $99, $9a, $9e, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a4
-	db $a5, $a6, $a7, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8
-	db $a9, $aa, $ab, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $ac
-	db $ad, $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $9e, $9f, $e0
-	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $a0, $a1, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $63, $e0, $9e, $9f, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $63, $e0, $a0
-	db $a1, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $fb, $d8, $fe, $e0, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $8c, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $8d, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $77, $78, $79, $7a
-	db $7b, $7c, $7d, $7e, $7f, $8e, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87
-	db $88, $8f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $0c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $95
-	db $9d, $93, $9c, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $9c, $96, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a1, $a7
-	db $a9, $a4, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $a4, $a2, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
-	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $fd, $d9, $7a, $00, $2d, $00, $2d, $00, $2d, $00, $2d, $07, $02
-	db $79, $00, $20, $2f, $04, $11, $24, $23, $46, $00, $34, $2f, $02, $0e, $08, $02
-	db $79, $00, $20, $2f, $04, $11, $14, $12, $35, $00, $16, $2f, $04, $11, $25, $23
-	db $46, $00, $34, $2f, $02, $0e, $09, $02, $8a, $00, $50, $2f, $04, $11, $03, $01
-	db $35, $00, $2a, $2f, $04, $11, $06, $02, $57, $00, $34, $2f, $04, $11, $11, $02
-	db $13, $00, $40, $2f, $04, $11, $10, $13, $01, $10, $16, $2f, $04, $11, $20, $13
-	db $01, $10, $16, $2f, $04, $11, $04, $01, $35, $00, $2a, $2f, $04, $11, $19, $02
-	db $8a, $00, $50, $2f, $04, $11, $21, $23, $14, $00, $4d, $2f, $06, $02, $22, $23
-	db $14, $00, $4d, $2f, $06, $02, $16, $02, $57, $00, $34, $2f, $04, $11, $13, $12
-	db $35, $00, $16, $2f, $04, $11, $17, $02, $79, $00, $20, $2f, $04, $11, $18, $02
-	db $79, $00, $20, $2f, $04, $11, $02, $02, $13, $00, $40, $2f, $04, $11, $05, $02
-	db $57, $00, $34, $2f, $04, $11, $36, $7b, $37, $7b, $42, $7b, $4d, $7b, $58, $7b
-	db $63, $7b, $6e, $7b, $79, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b
-	db $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b
-	db $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b
-	db $36, $7b, $36, $7b, $36, $7b, $36, $7b, $36, $7b, $ff, $4c, $e4, $48, $4c, $1d
-	db $4d, $00, $42, $00, $42, $02, $4c, $9e, $4f, $4c, $c7, $53, $00, $40, $00, $40
-	db $02, $7b, $51, $44, $43, $6d, $69, $00, $68, $00, $6a, $09, $4c, $f3, $5d, $4c
-	db $9c, $62, $00, $4a, $00, $68, $04, $4c, $f3, $5d, $4c, $9c, $62, $00, $4e, $00
-	db $4c, $04, $4c, $f3, $5d, $43, $ff, $6e, $00, $58, $00, $58, $05, $4c, $f3, $5d
-	db $4c, $9c, $62, $00, $4e, $00, $4e, $04, $30, $a0, $0e, $00, $40, $00, $40, $c1
-	db $41, $4c, $9e, $4f, $4c, $c7, $53, $00, $40, $00, $40, $02, $30, $a0, $0e, $f0
-	db $4a, $aa, $40, $c1, $41, $4c, $e4, $48, $4c, $a0, $56, $00, $44, $00, $44, $03
-	db $30, $a0, $0e, $4c, $54, $31, $41, $c1, $41, $4c, $e4, $48, $43, $4e, $6c, $00
-	db $46, $00, $46, $03, $30, $a0, $0e, $d8, $5d, $cf, $41, $c1, $41, $4c, $e4, $48
-	db $4c, $31, $59, $00, $48, $00, $48, $02, $30, $a0, $0d, $00, $40, $59, $42, $c1
-	db $41, $4c, $e4, $48, $4c, $31, $59, $00, $48, $00, $48, $02, $30, $a0, $0d, $58
-	db $48, $be, $42, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4c, $00, $4a, $04
-	db $30, $a0, $0d, $a4, $50, $35, $43, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00
-	db $4e, $00, $4c, $04, $30, $a0, $0d, $91, $5b, $d2, $43, $c1, $41, $43, $63, $48
-	db $43, $25, $51, $00, $50, $00, $50, $03, $30, $a0, $07, $00, $40, $9c, $44, $c1
-	db $41, $43, $a4, $4c, $43, $25, $51, $00, $52, $00, $52, $06, $30, $a0, $29, $00
-	db $40, $4d, $45, $c1, $41, $43, $a4, $4c, $43, $25, $51, $00, $52, $00, $52, $06
-	db $30, $a0, $0e, $d4, $66, $cd, $45, $c1, $41, $43, $63, $48, $43, $25, $51, $00
-	db $50, $00, $50, $03, $30, $a0, $07, $5f, $4c, $75, $46, $c1, $41, $4c, $f3, $5d
-	db $4c, $9c, $62, $00, $4e, $00, $4c, $04, $30, $a0, $07, $5d, $59, $0c, $47, $c1
-	db $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4e, $00, $4c, $04, $30, $a0, $07, $96
-	db $68, $d5, $47, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4e, $00, $4c, $04
-	db $30, $a0, $2a, $00, $40, $6c, $48, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00
-	db $4e, $00, $4e, $04, $30, $a0, $2a, $9a, $48, $f1, $48, $c1, $41, $43, $00, $40
-	db $43, $09, $44, $00, $5e, $00, $5e, $07, $30, $a0, $2a, $c8, $52, $b0, $49, $c1
-	db $41, $4c, $d7, $6b, $4c, $58, $70, $00, $60, $00, $60, $07, $30, $a0, $2a, $b8
-	db $64, $85, $4a, $c1, $41, $4c, $d7, $6b, $43, $f9, $73, $00, $62, $00, $62, $07
-	db $30, $a0, $2b, $00, $40, $81, $4b, $c1, $41, $43, $60, $5b, $43, $b1, $5f, $00
-	db $64, $00, $64, $08, $30, $a0, $2b, $30, $4f, $10, $4c, $c1, $41, $4c, $d7, $6b
-	db $4c, $58, $70, $00, $60, $00, $60, $07, $30, $a0, $2b, $a6, $5b, $ac, $4c, $c1
-	db $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4a, $00, $68, $04, $30, $a0, $2b, $bb
-	db $68, $77, $4d, $c1, $41, $7b, $51, $44, $43, $6d, $69, $00, $6c, $00, $6c, $09
-	db $30, $a0, $2c, $00, $40, $3e, $4e, $c1, $41, $7b, $51, $44, $43, $6d, $69, $00
-	db $6c, $00, $6c, $09, $30, $a0, $2c, $af, $4e, $df, $4e, $c1, $41, $7b, $51, $44
-	db $43, $6d, $69, $00, $6e, $00, $6e, $09, $30, $a0, $2c, $75, $5e, $8a, $4f, $c1
-	db $41, $7b, $51, $44, $43, $6d, $69, $00, $6c, $00, $6c, $09, $30, $a0, $2c, $73
-	db $6a, $59, $50, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4e, $00, $4c, $04
-	db $30, $a0, $2d, $00, $40, $ef, $50, $c1, $41, $4c, $e4, $48, $43, $20, $71, $00
-	db $70, $00, $70, $02, $30, $a0, $2d, $6d, $51, $c1, $51, $c1, $41, $4c, $e4, $48
-	db $7b, $ca, $48, $00, $72, $00, $72, $02, $30, $a0, $2d, $14, $5d, $4c, $52, $c1
-	db $41, $4c, $e4, $48, $7b, $ca, $48, $00, $72, $00, $72, $02, $30, $a0, $2d, $f9
-	db $6a, $05, $53, $c1, $41, $4c, $e4, $48, $7b, $ca, $48, $00, $72, $00, $72, $02
-	db $30, $a0, $2e, $00, $40, $b1, $53, $c1, $41, $4c, $2d, $65, $4c, $c6, $69, $00
-	db $56, $00, $56, $05, $30, $a0, $2e, $80, $4b, $6c, $54, $c1, $41, $4c, $2d, $65
-	db $4c, $c6, $69, $00, $56, $00, $56, $05, $30, $a0, $2e, $15, $5c, $35, $55, $c1
-	db $41, $43, $00, $40, $43, $22, $46, $00, $5e, $00, $5e, $07, $30, $a0, $2e, $6b
-	db $65, $01, $56, $c1, $41, $4c, $2d, $65, $4c, $c6, $69, $00, $56, $00, $56, $05
-	db $30, $a0, $3a, $00, $40, $bc, $56, $c1, $41, $4c, $2d, $65, $4c, $c6, $69, $00
-	db $56, $00, $56, $05, $30, $a0, $29, $5e, $65, $68, $57, $c1, $41, $43, $a4, $4c
-	db $43, $25, $51, $00, $52, $00, $52, $03, $30, $a0, $3a, $25, $4d, $26, $58, $c1
-	db $41, $43, $06, $54, $43, $a7, $58, $00, $5a, $00, $5a, $0a, $30, $a0, $3a, $d6
-	db $62, $cd, $58, $c1, $41, $43, $06, $54, $43, $a7, $58, $00, $5a, $00, $5a, $0a
-	db $30, $a0, $1d, $00, $40, $63, $59, $c1, $41, $43, $06, $54, $43, $a7, $58, $00
-	db $5a, $00, $5a, $0a, $30, $a0, $29, $8a, $56, $39, $5a, $c1, $41, $43, $06, $54
-	db $43, $a7, $58, $00, $5a, $00, $5a, $0a, $30, $a0, $1d, $2e, $56, $d3, $5a, $c1
-	db $41, $7b, $00, $40, $43, $e4, $66, $00, $54, $00, $54, $0b, $30, $a0, $1d, $59
-	db $63, $89, $5b, $c1, $41, $7b, $00, $40, $43, $e4, $66, $00, $54, $00, $54, $0b
-	db $30, $a0, $1e, $00, $40, $5d, $5c, $c1, $41, $7b, $00, $40, $43, $e4, $66, $00
-	db $54, $00, $54, $0b, $30, $a0, $1e, $3b, $49, $36, $5d, $c1, $41, $7b, $00, $40
-	db $43, $e4, $66, $00, $54, $00, $54, $0b, $30, $a0, $1e, $64, $51, $d0, $5d, $c1
-	db $41, $7b, $00, $40, $43, $e4, $66, $00, $54, $00, $54, $0b, $30, $a0, $1e, $0f
-	db $5b, $7d, $5e, $c1, $41, $4c, $d7, $6b, $43, $f9, $73, $00, $62, $00, $62, $07
-	db $30, $a0, $1f, $00, $40, $60, $5f, $c1, $41, $43, $60, $5b, $43, $b1, $5f, $00
-	db $64, $00, $64, $08, $30, $a0, $1f, $a5, $4f, $13, $60, $c1, $41, $43, $60, $5b
-	db $43, $b1, $5f, $00, $66, $00, $66, $08, $30, $a0, $1f, $e7, $5e, $d6, $60, $c1
-	db $41, $43, $60, $5b, $43, $b1, $5f, $00, $64, $00, $64, $08, $30, $a0, $1f, $07
-	db $6d, $67, $61, $c1, $41, $43, $60, $5b, $43, $b1, $5f, $00, $64, $00, $64, $08
-	db $30, $a0, $29, $57, $49, $09, $62, $c1, $41, $7b, $5b, $4b, $7b, $7c, $4f, $00
-	db $5c, $00, $5c, $0b, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	dw $006c
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 14 x 3 tiles at row 10, column 6: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_724E::
+	dw $0146
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $a0, $a1, $a2, $a3, $e0, $dd, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 11 x 13 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_727D::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $92, $98, $9c, $e3, $e0, $9c, $93, $93, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e3, $95, $91, $96, $e0, $9a, $e3, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $91, $94, $d5, $91, $96, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d6, $d5, $e3, $90, $98, $90, $99, $d5, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d6, $97, $d5, $d5, $e3, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d5, $a2, $95, $99, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 9 tiles at row 0, column 13: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_731B::
+	dw $000d
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $80, $81, $82, $83, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $84, $85, $86, $87, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $88, $89, $8a, $8b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 11 tiles at row 0, column 13: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_7365::
+	dw $000d
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $80, $81, $82, $83, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $84, $85, $86, $87, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $88, $89, $8a, $8b, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 9 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_73BF::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $80, $81, $82, $83, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $84, $85, $86, $87, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $88, $89, $8a, $8b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 11 tiles at row 0, column 0: the monster list of the partner breeding screen (4 names of 4 tiles).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutPartnerList::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $80, $81, $82, $83, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $84, $85, $86, $87, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $88, $89, $8a, $8b, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 5 tiles at row 0, column 13: the two-choice window (status / take) over the monster lists.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutConfirm::
+	dw $000d
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $95, $9d, $93, $9c, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9c, $96, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 19 x 6 tiles at row 0, column 0: the saved game summary (player name, play time, party with levels).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutSaveFile::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $9e, $90, $d6, $99, $d5, $98, $e4, $a0, $a1, $a2, $a3, $e0, $e0, $e0, $e4, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $da, $a4, $a5, $a6, $a7, $e0, $db, $a8, $a9, $aa, $ab, $e0, $dc, $ac, $ad, $ae, $af, $ff, $d8
+	db $fe, $e0, $9f, $e4, $e0, $e0, $e0, $e0, $9f, $e4, $e0, $e0, $e0, $e0, $9f, $e4, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 17 x 9 tiles at row 4, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_7507::
+	dw $0080
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $84, $e0, $80, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $85, $e0, $81, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $86, $e0, $82, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $87, $e0, $83, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 9 x 7 tiles at row 0, column 0: the breeding house menu (breed, hatch, quit).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutBreedingMenu::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $8a, $98, $d5, $d5, $92, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $94, $90, $99, $91, $94, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $40, $41, $42, $43, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 11 tiles at row 2, column 0: the pedigree / party list of the breeding house and the join screen.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutMonsterList::
+	dw $0040
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $61, $62, $63, $64, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $65, $66, $67, $68, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $69, $6a, $6b, $6c, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $6d, $6e, $6f, $70, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 11 tiles at row 2, column 0: the mate list of the breeding house.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutMateList::
+	dw $0040
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $61, $62, $63, $64, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $65, $66, $67, $68, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $69, $6a, $6b, $6c, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $6d, $6e, $6f, $70, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 11 x 5 tiles at row 8, column 9: the pair window of the breeding house: both parents with gender and level.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutPairInfo::
+	dw $0109
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $71, $72, $73, $74, $75, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $76, $77, $78, $79, $7a, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 11 x 3 tiles at row 5, column 9: the info line of the join screen: name, gender and level.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutMonsterInfo::
+	dw $00a9
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $71, $72, $73, $74, $75, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 11 x 3 tiles at row 10, column 9: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_770B::
+	dw $0149
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $65, $66, $67, $68, $69, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 11 x 3 tiles at row 10, column 0: the info line of the partner breeding screen: name, gender and level.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutPartnerInfo::
+	dw $0140
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $78, $79, $7a, $7b, $7c, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 13 x 9 tiles at row 4, column 7: the egg list of the hatching service (species names and gender marks).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutEggList::
+	dw $0087
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $a0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $a1, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $a2, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $a3, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 9 x 7 tiles at row 0, column 0: the egg appraiser menu (appraise, change gender, quit).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutAppraiserMenu::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d5, $df, $9f, $de, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a8, $de, $d5, $d6, $d6, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d5, $a5, $a1, $a3, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 13 x 9 tiles at row 4, column 7: the egg list of the egg appraiser.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutEggList2::
+	dw $0087
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $70, $71, $72, $73, $74, $75, $76, $77, $78, $9b, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $9c, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $9d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $9e, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 7 x 7 tiles at row 0, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_789F::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a4, $a5, $a6, $a7, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a8, $a9, $aa, $ab, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $ac, $ad, $ae, $af, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 10 x 9 tiles at row 4, column 0: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_78D9::
+	dw $0080
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $9e, $9f, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $a0, $a1, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $63, $e0, $9e, $9f, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $63, $e0, $a0, $a1, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 13 x 9 tiles at row 4, column 7: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_793E::
+	dw $0087
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $8c, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $8d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $8e, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $8f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 8 x 5 tiles at row 0, column 12: the two-choice window of the hatching service.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutHatchConfirm::
+	dw $000c
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $95, $9d, $93, $9c, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9c, $96, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 8 x 5 tiles at row 8, column 0: the two-choice window of the egg appraiser.
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+LayoutAppraiseConfirm::
+	dw $0100
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a1, $a7, $a9, $a4, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a4, $a2, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: breed/windows
+;@ Window layout for DrawWindowLayout0A, 6 x 5 tiles at row 8, column 14: not drawn by the code of this bank (the other service banks have their own copies of this layout set).
+;@ Format: tile position (row * 32 + column), then the tiles row by row, $D8 = next row, $D9 = end.
+Layout_0A_7A1C::
+	dw $010e
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9d, $9c, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Unused data: 177 bytes that nothing in the game reads (they look like 8-byte records of
+;@ small numbers, left over from development).
+UnusedData_0A_7A41::
+	db $7a, $00, $2d, $00, $2d, $00, $2d, $00, $2d, $07, $02, $79, $00, $20, $2f, $04
+	db $11, $24, $23, $46, $00, $34, $2f, $02, $0e, $08, $02, $79, $00, $20, $2f, $04
+	db $11, $14, $12, $35, $00, $16, $2f, $04, $11, $25, $23, $46, $00, $34, $2f, $02
+	db $0e, $09, $02, $8a, $00, $50, $2f, $04, $11, $03, $01, $35, $00, $2a, $2f, $04
+	db $11, $06, $02, $57, $00, $34, $2f, $04, $11, $11, $02, $13, $00, $40, $2f, $04
+	db $11, $10, $13, $01, $10, $16, $2f, $04, $11, $20, $13, $01, $10, $16, $2f, $04
+	db $11, $04, $01, $35, $00, $2a, $2f, $04, $11, $19, $02, $8a, $00, $50, $2f, $04
+	db $11, $21, $23, $14, $00, $4d, $2f, $06, $02, $22, $23, $14, $00, $4d, $2f, $06
+	db $02, $16, $02, $57, $00, $34, $2f, $04, $11, $13, $12, $35, $00, $16, $2f, $04
+	db $11, $17, $02, $79, $00, $20, $2f, $04, $11, $18, $02, $79, $00, $20, $2f, $04
+	db $11, $02, $02, $13, $00, $40, $2f, $04, $11, $05, $02, $57, $00, $34, $2f, $04
+	db $11
+
+;@ path: unused
+;@ Unused table of 34 pointers into UnusedRecords_0A_7B36: entry 0 and entries 8-33 point at its
+;@ first byte ($FF, nothing), entries 1-7 at its 11-byte records. Nothing reads it.
+UnusedPointers_0A_7AF2::
+	dw $7b36, $7b37, $7b42, $7b4d, $7b58, $7b63, $7b6e, $7b79
+	dw $7b36, $7b36, $7b36, $7b36, $7b36, $7b36, $7b36, $7b36
+	dw $7b36, $7b36, $7b36, $7b36, $7b36, $7b36, $7b36, $7b36
+	dw $7b36, $7b36, $7b36, $7b36, $7b36, $7b36, $7b36, $7b36
+	dw $7b36, $7b36
+
+;@ path: unused
+;@ Unused records for UnusedPointers_0A_7AF2: a $FF byte (empty entry), then 11-byte records
+;@ (they hold pairs of a bank number and an address, e.g. $4C:$48E4), then zero padding to
+;@ the end of the bank.
+UnusedRecords_0A_7B36::
+	db $ff
+	db $4c, $e4, $48, $4c, $1d, $4d, $00, $42, $00, $42, $02
+	db $4c, $9e, $4f, $4c, $c7, $53, $00, $40, $00, $40, $02
+	db $7b, $51, $44, $43, $6d, $69, $00, $68, $00, $6a, $09
+	db $4c, $f3, $5d, $4c, $9c, $62, $00, $4a, $00, $68, $04
+	db $4c, $f3, $5d, $4c, $9c, $62, $00, $4e, $00, $4c, $04
+	db $4c, $f3, $5d, $43, $ff, $6e, $00, $58, $00, $58, $05
+	db $4c, $f3, $5d, $4c, $9c, $62, $00, $4e, $00, $4e, $04
+	db $30, $a0, $0e, $00, $40, $00, $40, $c1, $41, $4c, $9e
+	db $4f, $4c, $c7, $53, $00, $40, $00, $40, $02, $30, $a0
+	db $0e, $f0, $4a, $aa, $40, $c1, $41, $4c, $e4, $48, $4c
+	db $a0, $56, $00, $44, $00, $44, $03, $30, $a0, $0e, $4c
+	db $54, $31, $41, $c1, $41, $4c, $e4, $48, $43, $4e, $6c
+	db $00, $46, $00, $46, $03, $30, $a0, $0e, $d8, $5d, $cf
+	db $41, $c1, $41, $4c, $e4, $48, $4c, $31, $59, $00, $48
+	db $00, $48, $02, $30, $a0, $0d, $00, $40, $59, $42, $c1
+	db $41, $4c, $e4, $48, $4c, $31, $59, $00, $48, $00, $48
+	db $02, $30, $a0, $0d, $58, $48, $be, $42, $c1, $41, $4c
+	db $f3, $5d, $4c, $9c, $62, $00, $4c, $00, $4a, $04, $30
+	db $a0, $0d, $a4, $50, $35, $43, $c1, $41, $4c, $f3, $5d
+	db $4c, $9c, $62, $00, $4e, $00, $4c, $04, $30, $a0, $0d
+	db $91, $5b, $d2, $43, $c1, $41, $43, $63, $48, $43, $25
+	db $51, $00, $50, $00, $50, $03, $30, $a0, $07, $00, $40
+	db $9c, $44, $c1, $41, $43, $a4, $4c, $43, $25, $51, $00
+	db $52, $00, $52, $06, $30, $a0, $29, $00, $40, $4d, $45
+	db $c1, $41, $43, $a4, $4c, $43, $25, $51, $00, $52, $00
+	db $52, $06, $30, $a0, $0e, $d4, $66, $cd, $45, $c1, $41
+	db $43, $63, $48, $43, $25, $51, $00, $50, $00, $50, $03
+	db $30, $a0, $07, $5f, $4c, $75, $46, $c1, $41, $4c, $f3
+	db $5d, $4c, $9c, $62, $00, $4e, $00, $4c, $04, $30, $a0
+	db $07, $5d, $59, $0c, $47, $c1, $41, $4c, $f3, $5d, $4c
+	db $9c, $62, $00, $4e, $00, $4c, $04, $30, $a0, $07, $96
+	db $68, $d5, $47, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62
+	db $00, $4e, $00, $4c, $04, $30, $a0, $2a, $00, $40, $6c
+	db $48, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4e
+	db $00, $4e, $04, $30, $a0, $2a, $9a, $48, $f1, $48, $c1
+	db $41, $43, $00, $40, $43, $09, $44, $00, $5e, $00, $5e
+	db $07, $30, $a0, $2a, $c8, $52, $b0, $49, $c1, $41, $4c
+	db $d7, $6b, $4c, $58, $70, $00, $60, $00, $60, $07, $30
+	db $a0, $2a, $b8, $64, $85, $4a, $c1, $41, $4c, $d7, $6b
+	db $43, $f9, $73, $00, $62, $00, $62, $07, $30, $a0, $2b
+	db $00, $40, $81, $4b, $c1, $41, $43, $60, $5b, $43, $b1
+	db $5f, $00, $64, $00, $64, $08, $30, $a0, $2b, $30, $4f
+	db $10, $4c, $c1, $41, $4c, $d7, $6b, $4c, $58, $70, $00
+	db $60, $00, $60, $07, $30, $a0, $2b, $a6, $5b, $ac, $4c
+	db $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4a, $00
+	db $68, $04, $30, $a0, $2b, $bb, $68, $77, $4d, $c1, $41
+	db $7b, $51, $44, $43, $6d, $69, $00, $6c, $00, $6c, $09
+	db $30, $a0, $2c, $00, $40, $3e, $4e, $c1, $41, $7b, $51
+	db $44, $43, $6d, $69, $00, $6c, $00, $6c, $09, $30, $a0
+	db $2c, $af, $4e, $df, $4e, $c1, $41, $7b, $51, $44, $43
+	db $6d, $69, $00, $6e, $00, $6e, $09, $30, $a0, $2c, $75
+	db $5e, $8a, $4f, $c1, $41, $7b, $51, $44, $43, $6d, $69
+	db $00, $6c, $00, $6c, $09, $30, $a0, $2c, $73, $6a, $59
+	db $50, $c1, $41, $4c, $f3, $5d, $4c, $9c, $62, $00, $4e
+	db $00, $4c, $04, $30, $a0, $2d, $00, $40, $ef, $50, $c1
+	db $41, $4c, $e4, $48, $43, $20, $71, $00, $70, $00, $70
+	db $02, $30, $a0, $2d, $6d, $51, $c1, $51, $c1, $41, $4c
+	db $e4, $48, $7b, $ca, $48, $00, $72, $00, $72, $02, $30
+	db $a0, $2d, $14, $5d, $4c, $52, $c1, $41, $4c, $e4, $48
+	db $7b, $ca, $48, $00, $72, $00, $72, $02, $30, $a0, $2d
+	db $f9, $6a, $05, $53, $c1, $41, $4c, $e4, $48, $7b, $ca
+	db $48, $00, $72, $00, $72, $02, $30, $a0, $2e, $00, $40
+	db $b1, $53, $c1, $41, $4c, $2d, $65, $4c, $c6, $69, $00
+	db $56, $00, $56, $05, $30, $a0, $2e, $80, $4b, $6c, $54
+	db $c1, $41, $4c, $2d, $65, $4c, $c6, $69, $00, $56, $00
+	db $56, $05, $30, $a0, $2e, $15, $5c, $35, $55, $c1, $41
+	db $43, $00, $40, $43, $22, $46, $00, $5e, $00, $5e, $07
+	db $30, $a0, $2e, $6b, $65, $01, $56, $c1, $41, $4c, $2d
+	db $65, $4c, $c6, $69, $00, $56, $00, $56, $05, $30, $a0
+	db $3a, $00, $40, $bc, $56, $c1, $41, $4c, $2d, $65, $4c
+	db $c6, $69, $00, $56, $00, $56, $05, $30, $a0, $29, $5e
+	db $65, $68, $57, $c1, $41, $43, $a4, $4c, $43, $25, $51
+	db $00, $52, $00, $52, $03, $30, $a0, $3a, $25, $4d, $26
+	db $58, $c1, $41, $43, $06, $54, $43, $a7, $58, $00, $5a
+	db $00, $5a, $0a, $30, $a0, $3a, $d6, $62, $cd, $58, $c1
+	db $41, $43, $06, $54, $43, $a7, $58, $00, $5a, $00, $5a
+	db $0a, $30, $a0, $1d, $00, $40, $63, $59, $c1, $41, $43
+	db $06, $54, $43, $a7, $58, $00, $5a, $00, $5a, $0a, $30
+	db $a0, $29, $8a, $56, $39, $5a, $c1, $41, $43, $06, $54
+	db $43, $a7, $58, $00, $5a, $00, $5a, $0a, $30, $a0, $1d
+	db $2e, $56, $d3, $5a, $c1, $41, $7b, $00, $40, $43, $e4
+	db $66, $00, $54, $00, $54, $0b, $30, $a0, $1d, $59, $63
+	db $89, $5b, $c1, $41, $7b, $00, $40, $43, $e4, $66, $00
+	db $54, $00, $54, $0b, $30, $a0, $1e, $00, $40, $5d, $5c
+	db $c1, $41, $7b, $00, $40, $43, $e4, $66, $00, $54, $00
+	db $54, $0b, $30, $a0, $1e, $3b, $49, $36, $5d, $c1, $41
+	db $7b, $00, $40, $43, $e4, $66, $00, $54, $00, $54, $0b
+	db $30, $a0, $1e, $64, $51, $d0, $5d, $c1, $41, $7b, $00
+	db $40, $43, $e4, $66, $00, $54, $00, $54, $0b, $30, $a0
+	db $1e, $0f, $5b, $7d, $5e, $c1, $41, $4c, $d7, $6b, $43
+	db $f9, $73, $00, $62, $00, $62, $07, $30, $a0, $1f, $00
+	db $40, $60, $5f, $c1, $41, $43, $60, $5b, $43, $b1, $5f
+	db $00, $64, $00, $64, $08, $30, $a0, $1f, $a5, $4f, $13
+	db $60, $c1, $41, $43, $60, $5b, $43, $b1, $5f, $00, $66
+	db $00, $66, $08, $30, $a0, $1f, $e7, $5e, $d6, $60, $c1
+	db $41, $43, $60, $5b, $43, $b1, $5f, $00, $64, $00, $64
+	db $08, $30, $a0, $1f, $07, $6d, $67, $61, $c1, $41, $43
+	db $60, $5b, $43, $b1, $5f, $00, $64, $00, $64, $08, $30
+	db $a0, $29, $57, $49, $09, $62, $c1, $41, $7b, $5b, $4b
+	db $7b, $7c, $4f, $00, $5c, $00, $5c, $0b
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
@@ -8528,4 +11099,4 @@ Layout_0A_7231::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-	db $00, $00, $00, $00
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

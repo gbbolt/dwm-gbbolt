@@ -10495,7 +10495,10 @@ ScreenOrigins::
 ScreenTileOrigins::
 	db $00, $00, $0a, $00, $14, $00, $1e, $00, $00, $08, $0a, $08, $14, $08
 	db $1e, $08, $00, $10, $0a, $10, $14, $10, $1e, $10, $00, $18, $0a, $18, $14, $18
-	db $1e, $18, $a0, $01
+	db $1e, $18
+
+MessageWindowLayout::
+	db $a0, $01
 
 NamePlateWindows::
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
@@ -10504,7 +10507,10 @@ NamePlateWindows::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd
 	db $ce, $cf, $d0, $d1, $d2, $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+MessageWindowLayoutTop::
+	db $00, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $b0, $b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8, $b9, $ba
 	db $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
@@ -10513,13 +10519,20 @@ NamePlateWindows::
 	db $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ def SerialInterruptEntry()
+;@ path: system/interrupts
+;@ Serial interrupt (reached from the vector at $0058): saves the registers and
+;@ runs SerialInterruptHandler in bank 3, the link cable protocol.
+;@ test: skip interrupt handler
 SerialInterruptEntry::
+;> SerialInterruptHandler()               # registers saved around it
 	push af
 	push bc
 	push de
 	push hl
 	ld hl, far_SerialInterruptHandler
 	rst $10
+;> return                                 # reti
 	pop hl
 	pop de
 	pop bc
@@ -10527,7 +10540,13 @@ SerialInterruptEntry::
 	reti
 
 
+;@ def LCDInterruptHandler()
+;@ path: system/interrupts
+;@ LCD STAT interrupt (on the LY=LYC line): runs the raster effect wLCDEffect
+;@ from LCDEffectTable.
+;@ test: skip interrupt handler
 LCDInterruptHandler::
+;> LCDEffectTable[wLCDEffect]()
 	push af
 	push bc
 	push de
@@ -10535,59 +10554,98 @@ LCDInterruptHandler::
 	ld a, [wLCDEffect]
 	rst $00
 
+;@ path: system/interrupts
+;@ Raster effects of the LCD interrupt, indexed by wLCDEffect: 0 none, 1 hide
+;@ the sprites from the LYC line down (under a window), 2 and 3 a wave that
+;@ sets the X or Y scroll of every second line from wLineScroll.
 LCDEffectTable::
 	dw LCDInterruptReturn
 	dw LCDEffectHideSprites
 	dw LCDEffectWaveX
 	dw LCDEffectWaveY
 
+;@ def LCDEffectHideSprites()
+;@ path: system/interrupts
+;@ Waits for the HBlank of the LYC line and switches the sprites off for the
+;@ rest of the frame.
+;@ test: skip interrupt handler
 LCDEffectHideSprites::
+;> wait_hblank()
 	ldh a, [rSTAT]
 	and $03
 	jr nz, LCDEffectHideSprites
 
+;> rLCDC &= ~0x02                         # sprites off
 	ldh a, [rLCDC]
 	res 1, a
 	ldh [rLCDC], a
+;> LCDInterruptReturn()
 	jr LCDInterruptReturn
 
+;@ def LCDEffectWaveX()
+;@ path: system/interrupts
+;@ Sets rSCX from wLineScroll for this line and asks for the interrupt again
+;@ two lines further; from line 128 on the normal scroll is restored and the
+;@ next frame starts at line 1.
+;@ test: skip interrupt handler
 LCDEffectWaveX::
+;> rSCX = wLineScroll[rLY]
 	ldh a, [rLY]
 	ld l, a
-	ld h, $c1
+	ld h, HIGH(wLineScroll)
 	ld a, [hl]
 	ldh [rSCX], a
+;> rLYC += 2
 	ldh a, [rLYC]
 	add $02
 	ldh [rLYC], a
+;> if rLYC >= 0x80:
 	cp $80
 	jr c, LCDInterruptReturn
 
+;>     rSCX = lo(hScrollX)
 	ldh a, [hScrollX]
 	ldh [rSCX], a
+;>     rLYC = 1
 	ld a, $01
 	ldh [rLYC], a
+;> LCDInterruptReturn()
 	jr LCDInterruptReturn
 
+;@ def LCDEffectWaveY()
+;@ path: system/interrupts
+;@ Like LCDEffectWaveX for rSCY (up to line 129, restarting at line 0).
+;@ test: skip interrupt handler
 LCDEffectWaveY::
+;> rSCY = wLineScroll[rLY]
 	ldh a, [rLY]
 	ld l, a
-	ld h, $c1
+	ld h, HIGH(wLineScroll)
 	ld a, [hl]
 	ldh [rSCY], a
+;> rLYC += 2
 	ldh a, [rLYC]
 	add $02
 	ldh [rLYC], a
+;> if rLYC >= 0x81:
 	cp $81
 	jr c, LCDInterruptReturn
 
+;>     rSCY = lo(hScrollY)
 	ldh a, [hScrollY]
 	ldh [rSCY], a
+;>     rLYC = 0
 	ld a, $00
 	ldh [rLYC], a
+;> LCDInterruptReturn()
 	jr LCDInterruptReturn
 
+;@ def LCDInterruptReturn()
+;@ path: system/interrupts
+;@ End of the LCD interrupt: restores the registers and returns with reti.
+;@ test: skip interrupt handler
 LCDInterruptReturn::
+;> return                                 # registers restored, reti
 	pop hl
 	pop de
 	pop bc
@@ -10595,389 +10653,566 @@ LCDInterruptReturn::
 	reti
 
 
+;@ def CompareHLBC(x: hl, y: bc) -> zero
+;@ path: system/math
+;@ Sets the zero flag when x == y (carry as for the compare of the high bytes,
+;@ or of the low bytes when those are equal).
 CompareHLBC::
+;> if hi(x) != hi(y):
+;>     return False
 	ld a, h
 	cp b
 	ret nz
 
+;> return lo(x) == lo(y)
 	ld a, l
 	cp c
 	ret
 
 
+;@ def DivideHLBC(n: hl, d: bc) -> (hl, bc)
+;@ path: system/math
+;@ 16 by 16 bit division: quotient in hl, remainder in bc. Divisors below 256
+;@ go through Divide16, larger ones are subtracted repeatedly.
+;@ test: bc = rng.randint(1, 0xFFFF)
 DivideHLBC::
+;> if hi(d) != 0:
+;>@big     return n // d, n % d
 	ld de, $0000
 	ld a, b
 	or a
-	jr z, jr_000_2f5d
+	jr z, .small
 
-jr_000_2f52:
+.loop
+;=@big
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
-	jr c, jr_000_2f66
+;=@big
+	jr c, .done
 
 	inc de
-	jr jr_000_2f52
+	jr .loop
 
-jr_000_2f5d:
+.small
+;> q, r = Divide16(n, lo(d))
 	ld a, c
 	call Divide16
+;> return q, r
 	ld c, a
 	ld b, $00
-	jr jr_000_2f6b
+	jr .ret
 
-jr_000_2f66:
+.done
+;=@big
 	add hl, bc
 	ld b, h
 	ld c, l
 	ld h, d
 	ld l, e
 
-jr_000_2f6b:
+.ret
 	ret
 
 
+;@ def AddEightTimes(n: a, base: hl) -> hl
+;@ path: system/math
+;@ base + 8 * n (8 * n must fit in a byte), for tables of 8-byte records.
 AddEightTimes::
+;>@r return u16(base + (n * 8 & 0xFF))
 	add a
 	add a
 	add a
 	add l
 	ld l, a
+;=@r
 	ld a, $00
 	adc h
 	ld h, a
 	ret
 
 
+;@ def CheckBattlerCanAct(pos: a) -> carry
+;@ path: battle/state
+;@ Carry when the monster at battle position `pos` cannot act: it is not in the
+;@ fight (CheckBattlerPresent), or one of its status flags is set (bits $D0 of
+;@ status byte 0, $3F of byte 3, $C0 of byte 5 in wBattlerStatus).
+;@ test: a = rng.randint(0, 9)
 CheckBattlerCanAct::
+;> if CheckBattlerPresent(pos):
+;>@x     return True
 	push hl
 	push bc
 	ld c, a
 	call CheckBattlerPresent
-	jr c, jr_000_2fa1
+	jr c, .return
 
+;>@s status = wBattlerStatus + 8 * pos
 	ld a, c
 	ld hl, wBattlerStatus
 	add a
 	add a
 	add a
 	add l
+;=@s
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> if mem[status] & 0xD0:
+;>@y     return True
 	ld a, [hli]
 	and $d0
-	jr nz, jr_000_2fa0
+	jr nz, .cannot
 
+;> if mem[status + 3] & 0x3F:
+;>@y     return True
 	inc hl
 	inc hl
 	ld a, [hli]
 	and $3f
-	jr nz, jr_000_2fa0
+	jr nz, .cannot
 
+;> if mem[status + 5] & 0xC0:
+;>@y     return True
 	inc hl
 	ld a, [hl]
 	and $c0
-	jr nz, jr_000_2fa0
+	jr nz, .cannot
 
+;> return False
 	xor a
-	jr jr_000_2fa1
+	jr .return
 
-jr_000_2fa0:
+.cannot
+;=@y
 	scf
 
-jr_000_2fa1:
+.return
+;=@x
 	ld a, c
 	pop bc
 	pop hl
 	ret
 
 
+;@ def CheckBattlerPresent(pos: a) -> carry
+;@ path: battle/state
+;@ Carry when battle position `pos` (0-7) has no monster in the fight:
+;@ wBattlerState is not 0 (or `pos` is out of range).
+;@ test: a = rng.randint(0, 9)
 CheckBattlerPresent::
+;> if pos >= 8:
+;>@n     return True
 	push hl
 	push bc
 	ld c, a
 	cp $08
-	jr nc, jr_000_2fc0
+	jr nc, .none
 
+;>@st state = wBattlerState[pos]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@st
 	ld a, [hl]
+;> if state == 0:
+;>@p     return False
 	and a
-	jr z, jr_000_2fc4
+	jr z, .present
 
+;> if state == 0xFF:
+;>@n     return True
 	cp $ff
-	jr z, jr_000_2fc0
+	jr z, .none
 
+;> return True                            # out of action
 	scf
-	jr jr_000_2fc8
+	jr .done
 
-jr_000_2fc0:
+.none
+;=@n
 	xor a
 	scf
-	jr jr_000_2fc8
+	jr .done
 
-jr_000_2fc4:
+.present
+;=@p
 	ld a, $0a
 	cp $01
 
-jr_000_2fc8:
+.done
 	ld a, c
 	pop bc
 	pop hl
 	ret
 
 
+;@ def GetBattlerAttack(pos: a) -> hl
+;@ path: battle/state
+;@ Attack of the monster at battle position `pos`.
 GetBattlerAttack::
+;> return wBattlerAttack[pos]
 	ld hl, wBattlerAttack
 	call GetWordFromTable
 	ret
 
 
+;@ def GetBattlerDefense(pos: a) -> hl
+;@ path: battle/state
+;@ Defense of the monster at battle position `pos`.
 GetBattlerDefense::
+;> return wBattlerDefense[pos]
 	ld hl, wBattlerDefense
 	call GetWordFromTable
 	ret
 
 
+;@ def GetBattlerMaxHP(pos: a) -> hl
+;@ path: battle/state
+;@ Maximum HP of the monster at battle position `pos`.
 GetBattlerMaxHP::
+;> return GetWordFromTable(pos, wBattlerMaxHP)
 	ld hl, wBattlerMaxHP
 	call GetWordFromTable
 	ret
 
 
+;@ def GetBattlerMaxMP(pos: a) -> hl
+;@ path: battle/state
+;@ Maximum MP of the monster at battle position `pos`.
 GetBattlerMaxMP::
+;> return GetWordFromTable(pos, wBattlerMaxMP)
 	ld hl, wBattlerMaxMP
 	call GetWordFromTable
 	ret
 
 
+;@ def GetBattlerHP(pos: a) -> hl
+;@ path: battle/state
+;@ HP of the monster at battle position `pos`.
 GetBattlerHP::
+;> return GetWordFromTable(pos, wBattlerHP)
 	ld hl, wBattlerHP
 	call GetWordFromTable
 	ret
 
 
+;@ def GetBattlerMP(pos: a) -> hl
+;@ path: battle/state
+;@ MP of the monster at battle position `pos`.
 GetBattlerMP::
+;> return GetWordFromTable(pos, wBattlerMP)
 	ld hl, wBattlerMP
 	call GetWordFromTable
 	ret
 
 
+;@ def GetWordFromTable(index: a, table: hl) -> hl
+;@ path: system/memory
+;@ Entry `index` of a table of 16-bit words.
 GetWordFromTable::
+;>@w return mem16[table + 2 * index]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@w
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ret
 
 
+;@ def UpdateSkillAnimation()
+;@ path: battle/animation
+;@ Draws the sprites of the running skill animation (wSkillAnim) each frame,
+;@ through the animation banks $5C (animations below $0E), $5D (below $21) and
+;@ $5E. Animation $2C, and $15 for skill $C5, are drawn once over each enemy
+;@ still standing (X $50 for one enemy, $38/$68 for two, $20/$50/$80 for
+;@ three). Nothing is drawn when the skill's user and target are both on this
+;@ Game Boy's own side. The bytes after it are an unused variant that also
+;@ sets the sprite palettes (OBP0 from SkillAnimOBP0).
+;@ test: skip calls routines in other banks
 UpdateSkillAnimation::
+;> if not wSkillAnimActive:
+;>     return
 	ld a, [wSkillAnimActive]
 	or a
 	ret z
 
+;> side = (wLinkFlags & 0x02) << 1        # 4 on the clock-driving Game Boy: the sides swap
 	ld a, [wLinkFlags]
 	and $02
 	sla a
 	ld b, a
+;>@w if wSkillUser ^ side < 4 and wSkillTarget ^ side < 4:   # own side only
 	ld a, [wSkillUser]
 	xor b
 	cp $04
-	jr nc, jr_000_3029
+	jr nc, .draw
 
 	ld a, [wSkillTarget]
 	xor b
+;=@w
 	cp $04
-	jr nc, jr_000_3029
+	jr nc, .draw
 
+;>     wSkillAnimSprites = 0
 	ld a, $00
 	ld [wSkillAnimSprites], a
+;>     mem[0xDD62] = 0
+;>     return
 	ld a, $00
-	ld [$dd62], a
+	ld [wBattleAnimRunning], a
 	ret
 
 
-jr_000_3029:
+.draw
+;> Call_5F_5630()                         # animation step
 	ld hl, far_Call_5F_5630
 	rst $10
+;> anim = wSkillAnim
+;> if anim == 0xFF:
 	ld a, [wSkillAnim]
 	cp $ff
 	ret z
 
+;>     return
+;> if anim < 0x0E:
+;>@c5     DrawSkillAnimSprite_5C()
 	cp $0e
-	jr c, jr_000_3048
+	jr c, .bank5C
 
+;> elif anim == 0x15:
+;>@s     if wSkillId != 0xC5:
+;>@d         DrawSkillAnimSprite_5D()
 	cp $15
-	jr z, jr_000_3052
+	jr z, .anim15
 
+;> elif anim < 0x21:
+;>@d     DrawSkillAnimSprite_5D()
 	cp $21
-	jr c, jr_000_304d
+	jr c, .bank5D
 
+;> elif anim != 0x2C:
+;>     DrawSkillAnimSprite_5E()
 	cp $2c
-	jr z, jr_000_3059
+	jr z, .eachEnemy
 
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
-jr_000_3048:
+.bank5C
+;=@c5
 	ld hl, far_DrawSkillAnimSprite_5C
 	rst $10
 	ret
 
 
-jr_000_304d:
+.bank5D
+;=@d
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
-jr_000_3052:
+.anim15
+;=@s
 	ld a, [wSkillId]
 	cp $c5
-	jr nz, jr_000_304d
+	jr nz, .bank5D
 
-jr_000_3059:
+.eachEnemy
+;> if anim == 0x2C or anim == 0x15 and wSkillId == 0xC5:   # once over each enemy
+;>     if wEnemyCount == 1:
+;>@o1         if not wEnemyDown[0]:
+;>@o2             hSpriteX = 0x50
+;>@o3             if anim == 0x15:
+;>@o4                 DrawSkillAnimSprite_5D()
+;>             else:
+;>@o5                 DrawSkillAnimSprite_5E()
 	ld a, [wEnemyCount]
 	cp $01
-	jr z, jr_000_30b4
+	jr z, .one
 
+;>     elif wEnemyCount == 2:
+;>@t1         if not wEnemyDown[0]:
+;>@t2             hSpriteX = 0x38
+;>@t3             if anim == 0x15:
+;>@t4                 DrawSkillAnimSprite_5D()
+;>             else:
+;>@t5                 DrawSkillAnimSprite_5E()
+;>@t6         if not wEnemyDown[1]:
+;>@t7             hSpriteX = 0x68
+;>@t8             if anim == 0x15:
+;>@t9                 DrawSkillAnimSprite_5D()
+;>             else:
+;>@ta                 DrawSkillAnimSprite_5E()
 	cp $02
-	jr z, jr_000_30ce
+	jr z, .two
 
+;>     else:
+;>         if not wEnemyDown[0]:
 	ld a, [wEnemyDown]
 	or a
-	jr nz, jr_000_307f
+	jr nz, .third2
 
+;>             hSpriteX = 0x20
 	ld a, $20
 	ldh [hSpriteX], a
+;>             if anim == 0x15:
 	ld a, [wSkillAnim]
 	cp $15
-	jr nz, jr_000_307b
+	jr nz, .third1E
 
+;>                 DrawSkillAnimSprite_5D()
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
-	jr jr_000_307f
+	jr .third2
 
-jr_000_307b:
+.third1E
+;>             else:
+;>                 DrawSkillAnimSprite_5E()
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 
-jr_000_307f:
-	ld a, [$dd20]
+.third2
+;>         if not wEnemyDown[1]:
+	ld a, [wEnemyDown + 1]
 	or a
-	jr nz, jr_000_309a
+	jr nz, .third3
 
+;>             hSpriteX = 0x50
 	ld a, $50
 	ldh [hSpriteX], a
+;>             if anim == 0x15:
 	ld a, [wSkillAnim]
 	cp $15
-	jr nz, jr_000_3096
+	jr nz, .third2E
 
+;>                 DrawSkillAnimSprite_5D()
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
-	jr jr_000_309a
+	jr .third3
 
-jr_000_3096:
+.third2E
+;>             else:
+;>                 DrawSkillAnimSprite_5E()
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 
-jr_000_309a:
-	ld a, [$dd21]
+.third3
+;>         if not wEnemyDown[2]:
+	ld a, [wEnemyDown + 2]
 	or a
 	ret nz
 
+;>             hSpriteX = 0x80
 	ld a, $80
 	ldh [hSpriteX], a
+;>             if anim == 0x15:
 	ld a, [wSkillAnim]
 	cp $15
-	jr nz, jr_000_30af
+	jr nz, .third3E
 
+;>                 DrawSkillAnimSprite_5D()
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
-jr_000_30af:
+.third3E
+;>             else:
+;>                 DrawSkillAnimSprite_5E()
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
-jr_000_30b4:
+.one
+;=@o1
 	ld a, [wEnemyDown]
 	or a
 	ret nz
 
+;=@o2
 	ld a, $50
 	ldh [hSpriteX], a
+;=@o3
 	ld a, [wSkillAnim]
 	cp $15
-	jr nz, jr_000_30c9
+	jr nz, .oneE
 
+;=@o4
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
-jr_000_30c9:
+.oneE
+;=@o5
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
-jr_000_30ce:
+.two
+;=@t1
 	ld a, [wEnemyDown]
 	or a
-	jr nz, jr_000_30e9
+	jr nz, .two2
 
+;=@t2
 	ld a, $38
 	ldh [hSpriteX], a
+;=@t3
 	ld a, [wSkillAnim]
 	cp $15
-	jr nz, jr_000_30e5
+	jr nz, .twoE
 
+;=@t4
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
-	jr jr_000_30e9
+	jr .two2
 
-jr_000_30e5:
+.twoE
+;=@t5
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 
-jr_000_30e9:
-	ld a, [$dd20]
+.two2
+;=@t6
+	ld a, [wEnemyDown + 1]
 	or a
 	ret nz
 
+;=@t7
 	ld a, $68
 	ldh [hSpriteX], a
+;=@t8
 	ld a, [wSkillAnim]
 	cp $15
-	jr nz, jr_000_30fe
+	jr nz, .two2E
 
+;=@t9
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
-jr_000_30fe:
+.two2E
+;=@ta
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
@@ -11028,30 +11263,49 @@ InstrumentTable::
 	db $90, $70, $50, $30, $10, $51, $40, $30, $20, $15, $15, $15, $05, $09, $18, $28
 	db $38, $48, $58, $68, $78, $88, $98, $a8, $b8, $c8, $d8, $e8, $f5, $c9
 
+;@ def InitSound()
+;@ path: sound/engine
+;@ Resets the sound engine: sound on, all outputs off, master volume full, all
+;@ six channels free. The bytes after it are two unused routines: one lets all
+;@ channels play again (wSoundFirstChannel = 0), the other mutes the music
+;@ channels 0-3 and lets only the sound effect channels 4-5 run.
+;@ test: skip writes the sound registers
 InitSound::
+;> SetSyncedBankSwitch(0, 0)
 	ld bc, $0000
 	call SetSyncedBankSwitch
+;> rNR52 = 0x80                           # sound on
 	ld a, $80
 	ldh [rNR52], a
+;> rNR51 = 0
 	xor a
 	ldh [rNR51], a
+;> wSoundPanning = 0
 	ld [wSoundPanning], a
+;> rNR50 = 0x77                           # full volume left and right
 	ld a, $77
 	ldh [rNR50], a
+;> chan = wSoundChannels
 	ld hl, wSoundChannels
+;>@ch for _ in range(6):
 	ld b, $06
 	ld a, $ff
 
-jr_000_334c:
+.loop
+;>     mem[chan] = 0xFF                   # event number $FFFF: channel free
 	ld [hl], a
+;>     mem[chan + 25] = 0xFF
 	ld de, $0019
 	add hl, de
 	ld [hl], a
+;>     chan += 26
 	ld de, $0001
 	add hl, de
+;=@ch
 	dec b
-	jr nz, jr_000_334c
+	jr nz, .loop
 
+;> wSoundFirstChannel = 0
 	xor a
 	ld [wSoundFirstChannel], a
 	ret
@@ -11059,30 +11313,45 @@ jr_000_334c:
 
 	db $af, $ea, $29, $de, $c9, $3e, $04, $ea, $29, $de, $af, $ea, $1d, $de, $c9
 
+;@ def SetSyncedBankSwitch(channels: b, bank: c)
+;@ path: sound/engine
+;@ Arms a synchronised switch: once all channels in the bit mask `channels`
+;@ start a new note in the same frame, their sound bank's low nibble becomes
+;@ `bank` (ApplySyncedBankSwitch).
 SetSyncedBankSwitch::
+;> wSyncSwitchChannels = channels
 	ld a, b
 	ld [wSyncSwitchChannels], a
+;> wSyncSwitchBank = bank
 	ld a, c
 	ld [wSyncSwitchBank], a
+;> wSyncNoteEnds = 0
 	xor a
 	ld [wSyncNoteEnds], a
 	ret
 
 
+;@ def MarkNoteEnd()
+;@ path: sound/engine
+;@ Notes in wSyncNoteEnds that channel wSoundCurChannel starts a new note.
+;@ test: wSoundCurChannel = rng.randint(0, 7)
 MarkNoteEnd::
+;>@b bit = 1 << wSoundCurChannel
 	ld a, [wSoundCurChannel]
 	inc a
 	ld b, a
 	ld a, $01
 
-jr_000_3381:
+.shift
+;=@b
 	dec b
-	jr z, jr_000_3387
+	jr z, .gotBit
 
 	add a
-	jr jr_000_3381
+	jr .shift
 
-jr_000_3387:
+.gotBit
+;> wSyncNoteEnds |= bit
 	ld b, a
 	ld a, [wSyncNoteEnds]
 	or b
@@ -11090,165 +11359,239 @@ jr_000_3387:
 	ret
 
 
+;@ def ApplySyncedBankSwitch()
+;@ path: sound/engine
+;@ End of a sound update: when every channel of wSyncSwitchChannels started a
+;@ new note this frame, their sound bank (record byte 4) gets the low nibble
+;@ wSyncSwitchBank and the switch is disarmed. wSyncNoteEnds is cleared.
 ApplySyncedBankSwitch::
+;> if wSyncNoteEnds & wSyncSwitchChannels == wSyncSwitchChannels:
 	ld a, [wSyncNoteEnds]
 	ld hl, wSyncSwitchChannels
 	and [hl]
 	cp [hl]
-	jr nz, jr_000_33c4
+	jr nz, .done
 
-	ld hl, $dd84
+;>     p = wSoundChannels + 4             # the bank byte of channel 0
+	ld hl, wSoundChannels + 4
+;>     bank = wSyncSwitchBank & 0x0F
 	ld a, [wSyncSwitchBank]
 	and $0f
 	ld b, a
+;>     mask = wSyncSwitchChannels
 	ld a, [wSyncSwitchChannels]
 
-jr_000_33a6:
+.loop
+;>@lp     for _ in forever():
+;>         wSyncNoteEnds = mask >> 1
 	srl a
 	ld [wSyncNoteEnds], a
-	jr nc, jr_000_33b2
+;>         if mask & 1:
+	jr nc, .next
 
+;>             mem[p] = mem[p] & 0xF0 | bank
 	ld a, [hl]
 	and $f0
 	or b
 	ld [hl], a
 
-jr_000_33b2:
+.next
+;>         p += 26
 	ld a, l
 	add $1a
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;>         mask >>= 1
+;>         if not mask:
 	ld a, [wSyncNoteEnds]
 	and a
-	jr nz, jr_000_33a6
+;>             break
+;=@lp
+	jr nz, .loop
 
+;>     wSyncSwitchChannels = 0
 	xor a
 	ld [wSyncSwitchChannels], a
 
-jr_000_33c4:
+.done
+;> wSyncNoteEnds = 0
 	xor a
 	ld [wSyncNoteEnds], a
 	ret
 
 
+;@ def StartSounds4()
+;@ path: sound/engine
+;@ Starts the four channel parts wSoundID, wSoundID + 1, ... of a song.
+;@ test: skip switches ROM banks
 StartSounds4::
+;> StartSoundChannel()
+;> StartSounds3()                         # runs on into it
 	call StartSoundChannel
 
+;@ def StartSounds3()
+;@ path: sound/engine
+;@ Starts three channel parts from wSoundID on.
+;@ test: skip switches ROM banks
 StartSounds3::
+;> StartSoundChannel()
+;> StartSounds2()                         # runs on into it
 	call StartSoundChannel
 
+;@ def StartSounds2()
+;@ path: sound/engine
+;@ Starts two channel parts from wSoundID on.
+;@ test: skip switches ROM banks
 StartSounds2::
+;> StartSoundChannel()
+;> StartSoundChannel()                    # runs on into it
 	call StartSoundChannel
 
+;@ def StartSoundChannel()
+;@ path: sound/engine
+;@ Starts sound part wSoundID on its channel and moves wSoundID on by one.
+;@ SoundBanks gives the bank and table of the part; its 4-byte record holds
+;@ the channel (as a byte offset into wSoundChannels), the channel config byte
+;@ and the address of its event data. A channel that was busy has its outputs
+;@ switched off first. The channel starts at event 0 (its header) with no wave
+;@ chosen yet.
+;@ test: skip switches ROM banks
 StartSoundChannel::
+;> id = wSoundID
 	push bc
 	push de
 	push hl
 	ld a, [wSoundID]
-	ld hl, $3466
+;> entry = SoundBanks
+	ld hl, SoundBanks
 
-jr_000_33db:
+.find
+;>@f while id >= mem[entry]:              # find the first entry above id
 	cp [hl]
-	jr c, jr_000_33e4
+	jr c, .found
 
+;>     entry += 4
 	inc hl
 	inc hl
 	inc hl
 	inc hl
-	jr jr_000_33db
+;=@f
+	jr .find
 
-jr_000_33e4:
+.found
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
+;>@sb set_rom_bank(mem[entry - 1])           # the entry before it covers id
 	dec hl
 	ld a, [hld]
 	ld [$2100], a
 	swap a
 	rra
 	and $03
+;=@sb
 	ld [$4100], a
+;> table = mem16[entry - 3]
 	ld a, [hld]
 	ld d, a
 	ld a, [hld]
 	ld e, a
+;>@r rec = table + 4 * (id - mem[entry - 4])
 	ld a, [wSoundID]
 	sub [hl]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
+;=@r
 	add hl, de
 	push hl
 	pop de
+;> chan = wSoundChannels + mem[rec]
 	ld a, [de]
 	inc de
 	ld c, a
 	ld b, $00
 	ld hl, wSoundChannels
 	add hl, bc
+;> if mem[chan] != 0xFF:                  # busy: switch its outputs off
 	ld a, [hl]
 	cp $ff
-	jr z, jr_000_3430
+	jr z, .free
 
+;>     hw = mem[chan + 1] & 3
 	inc hl
 	ld a, [hld]
 	ld b, $ee
 	and $03
-	jr z, jr_000_3429
+;>@pm     wSoundPanning &= ~(0x11 << hw) & 0xFF
+	jr z, .mask
 
 	ld b, $dd
 	cp $01
-	jr z, jr_000_3429
+	jr z, .mask
 
 	ld b, $bb
 	cp $02
-	jr z, jr_000_3429
+;=@pm
+	jr z, .mask
 
 	ld b, $77
 
-jr_000_3429:
+.mask
+;=@pm
 	ld a, [wSoundPanning]
 	and b
 	ld [wSoundPanning], a
 
-jr_000_3430:
+.free
+;> mem[chan] = 0                          # event 0
 	xor a
 	ld [hli], a
+;>@cp copy(chan + 1, rec + 1, 3)             # config byte and data address
 	ld a, [de]
 	inc de
 	ld [hli], a
 	ld a, [de]
 	inc de
 	ld [hli], a
+;=@cp
 	ld a, [de]
 	inc de
 	ld [hli], a
+;> mem[chan + 4] = rom_bank()          # the bank of the data
 	ld a, [$4000]
 	ld [hl], a
+;>@w mem[chan + 9] = 0xFF                   # no wave pattern yet
 	push hl
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	inc hl
+;=@w
 	ld a, $ff
 	ld [hl], a
 	pop hl
+;> mem[chan + 25] = 0
 	ld de, $0015
 	add hl, de
 	xor a
 	ld [hl], a
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;>@id wSoundID += 1
 	ld a, [wSoundID]
 	inc a
 	ld [wSoundID], a
+;=@id
 	pop hl
 	pop de
 	pop bc
@@ -11258,666 +11601,961 @@ jr_000_3430:
 SoundBanks::
 	db $00, $01, $40, $1c, $21, $01, $40, $1d, $37, $01, $40, $1e, $ff
 
+;@ def UpdateSound()
+;@ path: sound/engine
+;@ The sound update, once per frame: runs the channels from wSoundFirstChannel
+;@ to 5. Each channel's 26-byte record is copied to the hChan variables, its
+;@ hardware channel noted (wSoundHWChannel, wSoundRegOffset, the NR51 bits),
+;@ and, unless it is free, its bank switched in. A channel at event 0 reads its
+;@ 4-byte header (tempo, duty or instrument length, envelope, sweep or wave)
+;@ and starts. Otherwise the effects run, the tempo accumulator may skip the
+;@ tick, and when the note's ticks are used up the next events are read. Then
+;@ the record is copied back; at the end rNR51 is written.
+;@ test: skip switches ROM banks and writes the sound registers
 UpdateSound::
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
+;> wSoundCurChannel = wSoundFirstChannel
 	ld a, [wSoundFirstChannel]
 	ld [wSoundCurChannel], a
+;> wSoundClaimed = 0
 	xor a
 	ld [wSoundClaimed], a
+;> wSoundFrame += 1
 	ld hl, wSoundFrame
 	inc [hl]
+;> chan = wSoundChannels
 	ld hl, wSoundChannels
 
-Jump_000_3488:
+.channel
+;>@lp for _ in forever():
+;>@cp     copy(hChanPos, chan, 26)
 	push hl
 	ld de, hChanPos
 	ld b, $03
 
-jr_000_348e:
+.copyIn
+;=@cp
 	ld a, [hli]
 	ld [de], a
 	inc e
 	ld a, [hli]
 	ld [de], a
 	inc e
+;=@cp
 	ld a, [hli]
 	ld [de], a
 	inc e
 	ld a, [hli]
 	ld [de], a
 	inc e
+;=@cp
 	ld a, [hli]
 	ld [de], a
 	inc e
 	ld a, [hli]
 	ld [de], a
 	inc e
+;=@cp
 	ld a, [hli]
 	ld [de], a
 	inc e
 	ld a, [hli]
 	ld [de], a
 	inc e
+;=@cp
 	dec b
-	jr nz, jr_000_348e
+	jr nz, .copyIn
 
 	ld a, [hli]
 	ld [de], a
 	inc e
 	ld a, [hl]
+;=@cp
 	ld [de], a
+;>     wSoundHWChannel = hChanConfig & 3
 	ldh a, [hChanConfig]
 	and $03
 	ld [wSoundHWChannel], a
+;>     wSoundRegOffset = 5 * wSoundHWChannel
 	ld b, a
 	add a
 	add a
 	add b
 	ld [wSoundRegOffset], a
+;>@bits     wSoundChannelBits = 0x11 << wSoundHWChannel
 	inc b
 	ld a, $88
 
-jr_000_34bf:
+.rotate
+;=@bits
 	rlca
 	dec b
-	jr nz, jr_000_34bf
+	jr nz, .rotate
 
+;=@bits
 	ld [wSoundChannelBits], a
+;>     wSoundChannelBits2 = wSoundChannelBits
 	ld [wSoundChannelBits2], a
+;>     if not (hChanPos == 0xFF and hChanPosHi == 0xFF):     # free channel
 	ldh a, [hChanPos]
 	ld b, a
 	ldh a, [hChanPosHi]
 	and b
 	cp $ff
-	jp z, Jump_000_3559
+	jp z, .next
 
+;>         set_rom_bank(hChanBank)
 	ldh a, [hChanBank]
 	ld [$2100], a
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;>         if hChanPos == 0 and hChanPosHi == 0:       # just started: read the header
+;>@h1             p = hChanData
+;>@h2             hChanTempo = 0
+;>@h3             tempo = mem[p] & 0x0F
+;>@h4             if wSoundHWChannel != 2:
+;>@h5                 hChanDuty = (mem[p + 1] & 3) << 6 | tempo
+;>@h6                 hChanEnvelope = swap(mem[p + 2])
+;>@h7                 hChanSweep = mem[p + 3]
+;>             else:                      # the wave channel
+;>@h8                 hChanInstLength = mem[p + 1]
+;>@h9                 hChanDuty = tempo
+;>@ha                 hChanEnvelope = swap(mem[p + 2])
+;>@hb                 rNR30 = 0          # wave off while its RAM is written
+;>@hc                 if hChanSweep == 0xFF:     # no wave chosen yet: the header's
+;>@hd                     hChanSweep = mem[p + 3]
+;>@he                 wSoundWave = hChanSweep
+;>@hf                 copy(0xFF30, WavePatterns + 16 * hChanSweep, 16)
+;>@hg             hChanLoop1 = 0; hChanLoop2 = 0; mem[0xFFF0] = 0; hChanVolSlide = 0
+;>@hh             hChanPosHi = 0; hChanPan = 0xFF
+;>@hi             hChanPos = 2; new_note = True      # events 0-1 are the header
 	ldh a, [hChanPosHi]
 	or b
 	and a
-	jp z, Jump_000_357f
+	jp z, .start
 
+;>         else:
+;>             UpdateVibrato()
 	call UpdateVibrato
+;>             UpdateInstrument()
 	call UpdateInstrument
+;>@is             hChanInstStep = min(hChanInstStep + 1, hChanInstLength)
 	ldh a, [hChanInstLength]
 	ld b, a
 	ldh a, [hChanInstStep]
 	inc a
 	cp b
-	jr c, jr_000_34f8
+	jr c, .stepOk
 
+;=@is
 	ld a, b
 
-jr_000_34f8:
+.stepOk
 	ldh [hChanInstStep], a
+;>             t = (hChanDuty & 0x0F) + hChanTempo
 	ld hl, hChanTempo
 	ldh a, [hChanDuty]
 	and $0f
 	add [hl]
+;>             if t >= 16:                # slow tempo: this tick is skipped
 	cp $10
-	jr c, jr_000_350b
+	jr c, .tick
 
+;>                 hChanTempo = t - 16
+;>                 new_note = False
 	sub $10
 	ld [hl], a
-	jr jr_000_3527
+	jr .copyOut
 
-jr_000_350b:
+.tick
+;>             else:
+;>                 hChanTempo = t
 	ld [hl], a
+;>                 UpdateVolumeSlide()
 	call UpdateVolumeSlide
+;>                 if hChanVibTimer:
+;>                     hChanVibTimer -= 1
 	ldh a, [hChanVibTimer]
 	and a
-	jr z, jr_000_3517
+	jr z, .vibDone
 
 	dec a
 	ldh [hChanVibTimer], a
 
-jr_000_3517:
+.vibDone
+;>                 hChanNoteTimer -= 1
+;>                 new_note = hChanNoteTimer == 0
 	ld hl, hChanNoteTimer
 	dec [hl]
-	jr nz, jr_000_3527
+	jr nz, .copyOut
 
+;>                 if new_note:
+;>                     MarkNoteEnd()
 	call MarkNoteEnd
 
-Jump_000_3520:
+.newNote
+;>         if new_note:
+;>             hChanVibTimer = hChanVibDelay
 	ldh a, [hChanVibDelay]
 	ldh [hChanVibTimer], a
+;>             ReadChannelEvents()
 	call ReadChannelEvents
 
-jr_000_3527:
+.copyOut
+;>         wSoundClaimed |= wSoundChannelBits
 	ld a, [wSoundChannelBits]
 	ld b, a
 	ld a, [wSoundClaimed]
 	or b
 	ld [wSoundClaimed], a
+;>@co         copy(chan, hChanPos, 26)
 	pop hl
 	push hl
 	ld de, hChanPos
 	ld b, $03
 
-jr_000_3539:
+.copyBack
+;=@co
 	ld a, [de]
 	ld [hli], a
 	inc e
 	ld a, [de]
 	ld [hli], a
 	inc e
+;=@co
 	ld a, [de]
 	ld [hli], a
 	inc e
 	ld a, [de]
 	ld [hli], a
 	inc e
+;=@co
 	ld a, [de]
 	ld [hli], a
 	inc e
 	ld a, [de]
 	ld [hli], a
 	inc e
+;=@co
 	ld a, [de]
 	ld [hli], a
 	inc e
 	ld a, [de]
 	ld [hli], a
 	inc e
+;=@co
 	dec b
-	jr nz, jr_000_3539
+	jr nz, .copyBack
 
 	ld a, [de]
 	ld [hli], a
 	inc e
 	ld a, [de]
+;=@co
 	ld [hli], a
 
-Jump_000_3559:
+.next
+;>     chan += 26
 	pop hl
 	ld de, $001a
 	add hl, de
+;>     wSoundCurChannel += 1
 	ld a, [wSoundCurChannel]
 	inc a
 	ld [wSoundCurChannel], a
+;>     if wSoundCurChannel >= 6:
+;>         break
 	cp $06
-	jp c, Jump_000_3488
+	jp c, .channel
 
+;> rNR51 = wSoundPanning
 	ld a, [wSoundPanning]
 	ldh [rNR51], a
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;> ApplySyncedBankSwitch()
 	call ApplySyncedBankSwitch
 	ret
 
 
-Jump_000_357f:
+.start
+;=@h1
 	ldh a, [hChanData]
 	ld l, a
-	ldh a, [$ffe7]
+	ldh a, [hChanData + 1]
 	ld h, a
+;=@h2
 	xor a
 	ldh [hChanTempo], a
+;=@h3
 	ld a, [hli]
 	and $0f
 	ld d, a
+;=@h4
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_35bf
+	jr z, .waveHeader
 
+;=@h5
 	ld a, [hli]
 	rrca
 	rrca
 	and $c0
 	or d
 
-jr_000_3599:
+.setDuty
+;=@h5
 	ldh [hChanDuty], a
+;=@h6
 	ld a, [hli]
 	swap a
 	ldh [hChanEnvelope], a
+;=@h4
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_35c5
+	jr z, .waveRAM
 
+;=@h7
 	ld a, [hli]
 	ldh [hChanSweep], a
 
-jr_000_35aa:
+.common
+;=@hg
 	xor a
 	ldh [hChanLoop1], a
 	ldh [hChanLoop2], a
 	ldh [$fff0], a
 	ldh [hChanVolSlide], a
+;=@hh
 	ldh [hChanPosHi], a
 	dec a
 	ldh [hChanPan], a
+;=@hi
 	ld a, $02
 	ldh [hChanPos], a
-	jp Jump_000_3520
+	jp .newNote
 
 
-jr_000_35bf:
+.waveHeader
+;=@h8
 	ld a, [hli]
 	ldh [hChanInstLength], a
+;=@h9
 	ld a, d
-	jr jr_000_3599
+	jr .setDuty
 
-jr_000_35c5:
+.waveRAM
+;=@hb
 	xor a
 	ldh [rNR30], a
+;=@hc
 	ld d, a
 	ldh a, [hChanSweep]
 	ld e, a
 	cp $ff
-	jr nz, jr_000_35d4
+	jr nz, .haveWave
 
+;=@hd
 	ld e, [hl]
 	ld a, e
 	ldh [hChanSweep], a
 
-jr_000_35d4:
+.haveWave
+;=@he
 	ld [wSoundWave], a
+;=@hf
 	swap e
-	ld hl, $316e
+	ld hl, WavePatterns
 	add hl, de
 	ld de, $ff30
 	ld b, $10
 
-jr_000_35e2:
+.copyWave
+;=@hf
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_000_35e2
+	jr nz, .copyWave
 
-	jr jr_000_35aa
+;=@hg
+	jr .common
 
+;@ def ReadChannelEvents()
+;@ path: sound/engine
+;@ Reads the channel's events from event number hChanPosHi:hChanPos on (every
+;@ event is two bytes: a command and its operand) until a note or a pause.
+;@ Commands: $00-$9F a note (PlayNote; the operand is its length in ticks);
+;@ $A0 envelope (nibbles swapped), $A1 sweep / wave pattern, $A2 duty / wave
+;@ instrument length, $A3 vibrato (bit 7 off; else delay in bits 0-3, table in
+;@ bits 4-6), $A5 panning (1 = swap the sides), $A6 master volume, $A7 a pause
+;@ of operand ticks, $A8 instrument, $AE note table (bit 4), $AF tempo
+;@ slow-down; $Bn loop n times (operand 0: back to the loop point, operand $FC:
+;@ to the event number in the next event), $Cn instrument envelope row n with
+;@ operand steps, $Dn / $En volume slide up / down by n every operand ticks;
+;@ $FD sets the loop point, $FF ends the channel; other commands are skipped.
+;@ The bytes inside are an unused event skipper.
+;@ test: skip sound engine with ROM data and hardware writes
 ReadChannelEvents::
+;>@p0 p = hChanData + 2 * (hChanPosHi << 8 | hChanPos)
 	ldh a, [hChanPos]
 	ld l, a
 	ldh a, [hChanPosHi]
 	ld h, a
 	add hl, hl
 	ldh a, [hChanData]
+;=@p0
 	ld e, a
-	ldh a, [$ffe7]
+	ldh a, [hChanData + 1]
 	ld d, a
 	add hl, de
 
-Jump_000_35f8:
-jr_000_35f8:
+.next
+;> for _ in forever():
+;>     hChanPos = u8(hChanPos + 1)
 	ldh a, [hChanPos]
 	add $01
 	ldh [hChanPos], a
+;>     hChanPosHi += hChanPos == 0        # 16-bit event number + 1
 	ldh a, [hChanPosHi]
 	adc $00
 	ldh [hChanPosHi], a
+;>     cmd = mem[p]; p += 1
 	ld a, [hli]
+;>     if cmd >= 0xD0:
+;>@d1         if cmd >= 0xF0:
+;>@d2             if cmd == 0xFD:          # the loop point is here
+;>@d3                 hChanLoopPos = hChanPos
+;>@d4                 mem[0xFFFE] = hChanPosHi
+;>@d5             elif cmd == 0xFF:        # end of the channel
+;>@d6                 hChanPos = 0xFF; hChanPosHi = 0xFF
+;>@d7                 StopChannelOutput(); return
+;>@d8             p += 1
+;>@d9             continue
+;>@da         slide = -(cmd & 0x0F) if cmd >= 0xE0 else cmd & 0x0F
+;>@db         if wSoundHWChannel != 2:
+;>@dc             hChanVolSlide = u8(slide)
+;>@dd             hChanVolSlideRate = mem[p]
+;>@de             hChanVolSlideTimer = mem[p]
+;>@df         p += 1
 	cp $d0
-	jr nc, jr_000_3630
+	jr nc, .cmdD0
 
+;>     elif cmd >= 0xB0:
+;>@b1         if cmd >= 0xC0:              # instrument envelope
+;>@b2             if wSoundHWChannel != 2 and hChanEnvelope & 0x0F == 0:
+;>@b3                 hChanInstLength = mem[p]
+;>@b4                 mem[0xFFF0] = (cmd & 0x0F) << 4
+;>@b5             p += 1
+;>         else:                          # a loop
+;>@b6                 n = cmd & 0x0F
+;>@b7                 if n and mem[p] == 0:    # counter 1, back to the loop point
+;>@b8                     hChanLoop1 = u8(hChanLoop1 - 1)
+;>@b9                     if hChanLoop1 == 0:
+;>@ba                         return ReadChannelEvents()      # done: on after the loop
+;>@bb                     if hChanLoop1 & 0x80:   # first pass: arm the counter
+;>@bc                         hChanLoop1 = n
+;>@bd                 elif n:              # counter 2, to the event in the next event
+;>@be                     hChanLoop2 = u8(hChanLoop2 - 1)
+;>@bf                     if hChanLoop2 == 0:
+;>@bg                         hChanPos += 1; return ReadChannelEvents()   # skip the target
+;>@bh                     if hChanLoop2 & 0x80:
+;>@bi                         hChanLoop2 = n
+;>@bj                 if mem[p] == 0xFC:
+;>@bk                     hChanPos = mem[p + 1]; hChanPosHi = mem[p + 2]
+;>                 else:
+;>@bl                     hChanPos = hChanLoopPos; hChanPosHi = mem[0xFFFE]
+;>@bm                 return ReadChannelEvents()
 	cp $b0
-	jr nc, jr_000_366e
+	jr nc, .cmdB0
 
+;>     elif cmd >= 0xA0:
+;>@a1         if cmd == 0xA0:              # envelope
+;>@a2             hChanEnvelope = swap(mem[p])
+;>@a3             if not wSoundClaimed & wSoundChannelBits:
+;>@a4                 SetChannelEnvelope(hChanEnvelope)
+;>@a5         elif cmd == 0xA1:            # sweep, or the wave pattern
+;>@a6             if wSoundHWChannel != 2:
+;>@a7                 hChanSweep = mem[p]
+;>             else:
+;>@a8                 rNR30 = 0
+;>@a9                 hChanSweep = mem[p]
+;>@aa                 if not wSoundClaimed & wSoundChannelBits:
+;>@ab                     wSoundWave = hChanSweep
+;>@ac                     copy(0xFF30, WavePatterns + 16 * hChanSweep, 16)
+;>@ad         elif cmd == 0xA2:            # duty, or the wave channel's instrument length
+;>@ae             if wSoundHWChannel != 2:
+;>@af                 hChanDuty = (mem[p] & 3) << 6 | hChanDuty & 0x3F
+;>             else:
+;>@ag                 hChanInstLength = mem[p]
+;>@ah         elif cmd == 0xA3:            # vibrato
+;>@ai             v = mem[p]
+;>@aj             if v & 0x80:
+;>@ak                 hChanConfig &= 0x0F  # off
+;>             else:
+;>@al                 hChanVibDelay = (v & 0x0F) * 2; hChanVibTimer = hChanVibDelay
+;>@am                 hChanConfig = hChanConfig & 0x0F | v & 0x70 | 0x80
+;>@an         elif cmd == 0xA5:            # panning
+;>@ao             hChanPan = swap(hChanPan) if mem[p] == 1 else mem[p]
+;>@ap         elif cmd == 0xA6:
+;>@aq             rNR50 = mem[p]           # master volume
+;>@ar         elif cmd == 0xA7:            # a pause
+;>@as             hChanNoteTimer = mem[p]
+;>@at             return PlayNoteSetPan()
+;>@au         elif cmd == 0xA8:
+;>@av             hChanInstrument = mem[p]
+;>@aw         elif cmd == 0xAE:
+;>@ax             hChanDuty = hChanDuty & 0xEF | mem[p] & 0x10    # note table
+;>@ay         elif cmd == 0xAF:
+;>@az             hChanDuty = hChanDuty & 0xF0 | mem[p] & 0x0F    # tempo slow-down
+;>@c1         p += 1
 	cp $a0
-	jp nc, Jump_000_36cb
+	jp nc, .cmdA0
 
-	jp Jump_000_37ee
+;>     else:
+;>         return PlayNote(cmd, p)
+	jp PlayNote
 
 
-jr_000_3615:
+.cmdF0
+;=@d2
 	cp $fd
-	jr nz, jr_000_3624
+	jr nz, .notFD
 
+;=@d3
 	ldh a, [hChanPos]
 	ldh [hChanLoopPos], a
+;=@d4
 	ldh a, [hChanPosHi]
 	ldh [$fffe], a
 
-jr_000_3621:
+.skip
+;=@d8
 	inc hl
-	jr jr_000_35f8
+;=@d9
+	jr .next
 
-jr_000_3624:
+.notFD
+;=@d5
 	cp $ff
-	jr nz, jr_000_3621
+	jr nz, .skip
 
+;=@d6
 	ldh [hChanPos], a
 	ldh [hChanPosHi], a
+;=@d7
 	call StopChannelOutput
 	ret
 
 
-jr_000_3630:
+.cmdD0
+;=@d1
 	cp $f0
-	jr nc, jr_000_3615
+	jr nc, .cmdF0
 
+;=@da
 	cp $e0
-	jr nc, jr_000_363c
+	jr nc, .slideDown
 
 	and $0f
-	jr jr_000_3640
+	jr .slide
 
-jr_000_363c:
+.slideDown
+;=@da
 	and $0f
 	cpl
 	inc a
 
-jr_000_3640:
+.slide
+;=@db
 	ld b, a
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_3650
+	jr z, .slideDone
 
+;=@dc
 	ld a, b
 	ldh [hChanVolSlide], a
+;=@dd
 	ld a, [hl]
 	ldh [hChanVolSlideRate], a
+;=@de
 	ldh [hChanVolSlideTimer], a
 
-jr_000_3650:
+.slideDone
+;=@df
 	inc hl
-	jr jr_000_35f8
+	jr .next
 
-jr_000_3653:
+.cmdC0
+;=@b2
 	and $0f
 	ld b, a
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_366b
+	jr z, .instDone
 
+;=@b2
 	ldh a, [hChanEnvelope]
 	and $0f
-	jr nz, jr_000_366b
+	jr nz, .instDone
 
+;=@b3
 	ld a, [hl]
 	ldh [hChanInstLength], a
+;=@b4
 	ld a, b
 	swap a
 	ldh [$fff0], a
 
-jr_000_366b:
+.instDone
+;=@b5
 	inc hl
-	jr jr_000_35f8
+	jr .next
 
-jr_000_366e:
+.cmdB0
+;=@b1
 	cp $c0
-	jr nc, jr_000_3653
+	jr nc, .cmdC0
 
+;=@b6
 	and $0f
-	jr z, jr_000_3699
+;=@b7
+	jr z, .jump
 
 	ld e, a
 	ld a, [hl]
 	and a
-	jr nz, jr_000_368b
+	jr nz, .counter2
 
+;=@b8
 	ldh a, [hChanLoop1]
 	dec a
 	ldh [hChanLoop1], a
-	jr z, jr_000_36b0
+;=@b9
+	jr z, .loopDone
 
+;=@bb
 	bit 7, a
-	jr z, jr_000_3699
+	jr z, .jump
 
+;=@bc
 	ld a, e
 	ldh [hChanLoop1], a
-	jr jr_000_3699
+	jr .jump
 
-jr_000_368b:
+.counter2
+;=@be
 	ldh a, [hChanLoop2]
 	dec a
 	ldh [hChanLoop2], a
-	jr z, jr_000_36c2
+;=@bf
+	jr z, .loop2Done
 
+;=@bh
 	bit 7, a
-	jr z, jr_000_3699
+	jr z, .jump
 
+;=@bi
 	ld a, e
 	ldh [hChanLoop2], a
 
-jr_000_3699:
+.jump
+;=@bj
 	ld a, [hl]
 	cp $fc
-	jr z, jr_000_36a9
+	jr z, .jumpTarget
 
+;=@bl
 	ldh a, [hChanLoopPos]
 	ldh [hChanPos], a
 	ldh a, [$fffe]
 	ldh [hChanPosHi], a
+;=@bm
 	jp ReadChannelEvents
 
 
-jr_000_36a9:
+.jumpTarget
+;=@bk
 	inc hl
 	ld a, [hli]
 	ldh [hChanPos], a
 	ld a, [hl]
 	ldh [hChanPosHi], a
 
-jr_000_36b0:
+.loopDone
+;=@ba
 	jp ReadChannelEvents
 
 
 	db $f0, $e4, $c6, $01, $e0, $e4, $f0, $fd, $ce, $00, $e0, $fd, $c3, $ea, $35
 
-jr_000_36c2:
+.loop2Done
+;=@bg
 	ldh a, [hChanPos]
 	add $01
 	ldh [hChanPos], a
 	jp ReadChannelEvents
 
 
-Jump_000_36cb:
+.cmdA0
+;=@a1
 	cp $a0
-	jr nz, jr_000_36e5
+	jr nz, .notA0
 
+;=@a2
 	ld a, [hli]
 	swap a
 	ldh [hChanEnvelope], a
+;=@a3
 	ld a, [wSoundChannelBits]
 	ld b, a
 	ld a, [wSoundClaimed]
 	and b
-	jp nz, Jump_000_35f8
+	jp nz, .next
 
+;=@a4
 	call SetChannelEnvelope
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_36e5:
+.notA0
+;=@a5
 	cp $a1
-	jr nz, jr_000_3725
+	jr nz, .notA1
 
+;=@a6
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_36f6
+	jr z, .waveA1
 
+;=@a7
 	ld a, [hli]
 	ldh [hChanSweep], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_36f6:
+.waveA1
+;=@a8
 	xor a
 	ldh [rNR30], a
 	ld d, a
+;=@a9
 	ld a, [hli]
 	ld e, a
 	ldh [hChanSweep], a
+;=@aa
 	ld a, [wSoundChannelBits]
 	ld b, a
 	ld a, [wSoundClaimed]
 	and b
-	jr z, jr_000_370b
+	jr z, .loadWave
 
-	jp Jump_000_35f8
+;=@aa
+	jp .next
 
 
-jr_000_370b:
+.loadWave
+;=@ab
 	push hl
 	ld a, e
 	ld [wSoundWave], a
+;=@ac
 	swap e
-	ld hl, $316e
+	ld hl, WavePatterns
 	add hl, de
 	ld de, $ff30
 	ld b, $10
 
-jr_000_371b:
+.copyWave
+;=@ac
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_000_371b
+	jr nz, .copyWave
 
+;=@ac
 	pop hl
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_3725:
+.notA1
+;=@ad
 	cp $a2
-	jr nz, jr_000_3746
+	jr nz, .notA2
 
+;=@ae
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_3740
+	jr z, .waveA2
 
+;=@af
 	ld a, [hli]
 	rrca
 	rrca
 	and $c0
 	ld d, a
+;=@af
 	ldh a, [hChanDuty]
 	and $3f
 	or d
 	ldh [hChanDuty], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_3740:
+.waveA2
+;=@ag
 	ld a, [hli]
 	ldh [hChanInstLength], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_3746:
+.notA2
+;=@ah
 	cp $a3
-	jr nz, jr_000_376d
+	jr nz, .notA3
 
+;=@ai
 	ld a, [hli]
+;=@aj
 	bit 7, a
-	jr nz, jr_000_3767
+	jr nz, .vibratoOff
 
+;=@al
 	ld b, a
 	and $0f
 	add a
 	ldh [hChanVibDelay], a
 	ldh [hChanVibTimer], a
+;=@am
 	ld a, b
 	and $70
 	ld e, a
 	ldh a, [hChanConfig]
 	and $0f
 	or e
+;=@am
 	or $80
 
-jr_000_3762:
+.setConfig
+;=@am
 	ldh [hChanConfig], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_3767:
+.vibratoOff
+;=@ak
 	ldh a, [hChanConfig]
 	and $0f
-	jr jr_000_3762
+	jr .setConfig
 
-jr_000_376d:
+.notA3
+;=@an
 	cp $a5
-	jr nz, jr_000_377f
+	jr nz, .notA5
 
+;=@ao
 	ld a, [hli]
 	cp $01
-	jr nz, jr_000_377a
+	jr nz, .setPan
 
 	ldh a, [hChanPan]
 	swap a
 
-jr_000_377a:
+.setPan
+;=@ao
 	ldh [hChanPan], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_377f:
+.notA5
+;=@ap
 	cp $a6
-	jr nz, jr_000_3789
+	jr nz, .notA6
 
+;=@aq
 	ld a, [hli]
 	ldh [rNR50], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_3789:
+.notA6
+;=@ar
 	cp $a7
-	jr nz, jr_000_3793
+	jr nz, .notA7
 
+;=@as
 	ld a, [hl]
 	ldh [hChanNoteTimer], a
-	jp Jump_000_38a5
+;=@at
+	jp PlayNoteSetPan
 
 
-jr_000_3793:
+.notA7
+;=@au
 	cp $a8
-	jr nz, jr_000_379d
+	jr nz, .notA8
 
+;=@av
 	ld a, [hli]
 	ldh [hChanInstrument], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_379d:
+.notA8
+;=@aw
 	cp $ae
-	jr nz, jr_000_37af
+	jr nz, .notAE
 
+;=@ax
 	ld a, [hli]
 	and $10
 	ld b, a
 	ldh a, [hChanDuty]
 	and $ef
 	or b
+;=@ax
 	ldh [hChanDuty], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_37af:
+.notAE
+;=@ay
 	cp $af
-	jr nz, jr_000_37c1
+	jr nz, .otherA
 
+;=@az
 	ld a, [hli]
 	and $0f
 	ld b, a
 	ldh a, [hChanDuty]
 	and $f0
 	or b
+;=@az
 	ldh [hChanDuty], a
-	jp Jump_000_35f8
+	jp .next
 
 
-jr_000_37c1:
+.otherA
+;=@c1
 	inc hl
-	jp Jump_000_35f8
+	jp .next
 
 
 NoiseNotes::
 	db $00, $01, $11, $12, $14, $23, $07, $15, $17, $32, $33, $60, $61, $45, $53, $62
 
-jr_000_37d5:
+PlayRest::
 	xor a
 	ldh [hChanFreq], a
 	ld a, $80
@@ -11937,7 +12575,7 @@ jr_000_37e7:
 	ret
 
 
-Jump_000_37ee:
+PlayNote::
 	ld b, a
 	ld a, [hl]
 	ldh [hChanNoteTimer], a
@@ -11947,7 +12585,7 @@ Jump_000_37ee:
 
 	ld a, b
 	cp $1f
-	jr z, jr_000_37d5
+	jr z, PlayRest
 
 	cp $10
 	jr nc, jr_000_3810
@@ -11971,7 +12609,7 @@ jr_000_3815:
 	ld a, b
 	and $0f
 	cp $0c
-	jr nc, jr_000_37d5
+	jr nc, PlayRest
 
 	add a
 	ld e, a
@@ -12073,7 +12711,7 @@ jr_000_389e:
 	ld c, $14
 	call WriteChannelReg
 
-Jump_000_38a5:
+PlayNoteSetPan:
 	ld a, [wSoundChannelBits2]
 	ld b, a
 	cpl
@@ -12179,11 +12817,11 @@ UpdateVibrato::
 UpdateChannelVolume::
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_395d
+	jr z, SetWaveOutputLevel
 
 	ldh a, [$fff0]
 	and a
-	jr nz, jr_000_398e
+	jr nz, InstrumentStep
 
 	ldh a, [hChanEnvelope]
 
@@ -12219,12 +12857,12 @@ WriteChannelReg::
 	ret
 
 
-jr_000_395d:
+SetWaveOutputLevel::
 	ldh a, [hChanEnvelope]
 	ld c, $12
 	jr WriteChannelReg
 
-jr_000_3963:
+InstrumentWaveVolume::
 	ld a, e
 	srl a
 	add $02
@@ -12251,13 +12889,13 @@ UpdateInstrument::
 jr_000_3983:
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_398e
+	jr z, InstrumentStep
 
 	ldh a, [$fff0]
 	and a
 	ret z
 
-jr_000_398e:
+InstrumentStep:
 	ldh a, [hChanInstLength]
 	and a
 	ret z
@@ -12282,7 +12920,7 @@ jr_000_399e:
 
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_3963
+	jr z, InstrumentWaveVolume
 
 	ldh a, [$fff0]
 	or e

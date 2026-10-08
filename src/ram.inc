@@ -494,3 +494,110 @@ DEF wFloorObjKind EQU $C0AE ;@ u8 Floor generator: kind of the object being plac
 DEF wArrivalScreen EQU $C0AF ;@ u8 Floor generator: screen where Terry arrives
 DEF wSpotAround EQU $C0B0 ;@ u8[9] Floor generator: 3 x 3 spots around a place, 1 blocked / 0 free
 DEF wMonResist EQU $CB29 ;@ u8[27] Party monster record field: the 27 resistances (0-3)
+DEF wBattleType EQU $DB73 ;@ u8 Kind of battle: 0 wild encounter, 1 scripted battle, 2 tournament or link battle (no random HP spread, ailments not carried in)
+DEF wPartyBattlers EQU $DB74 ;@ u8 Number of own monsters taking part in the battle (1-3)
+DEF wBattleArg0 EQU $DB4C ;@ u8 Argument / result byte 0 of the battle helper routines (often a battle position or a skill)
+DEF wBattleArg1 EQU $DB4D ;@ u8 Argument / result byte 1 of the battle helper routines
+DEF wBattleArg2 EQU $DB4E ;@ u8 Argument / result byte 2 of the battle helper routines
+DEF wBattleArg3 EQU $DB4F ;@ u8 Argument / result byte 3 of the battle helper routines
+DEF wBattlerReload EQU $DB55 ;@ u8 Set while a battler is refreshed from its monster record (current HP, MP and ailments are kept); the battle items use it for the number of the message to show
+DEF wBattlerSpecies EQU $DC3C ;@ u8[8] Species of each battle position
+DEF wBattlerSex EQU $DB93 ;@ u8[8] Sex of each battle position (0 or 1)
+DEF wBattlerTactic EQU $DD03 ;@ u8[8] Tactic of each battle position (bits 0-1; from bits 4-5 of the record's sex byte)
+DEF wBattlerSexBits67 EQU $C876 ;@ u8[8] Bits 6-7 of each battler's record sex byte, kept through the battle and written back (outside battles a scratch copy of the menu state)
+DEF wSavedTeamTactic EQU $D929 ;@ u8 Tactic for the whole party chosen in the last battle (the next battle starts with it)
+DEF wTacticMenuRow EQU $D9FC ;@ u8 Tactic menu: 0 the whole party, 1-3 one monster
+DEF wTeamTactic EQU $D9FD ;@ u8 Tactic menu: setting for the whole party
+DEF wMonTactics EQU $D9FE ;@ u8[3] Tactic menu: setting of each own monster
+DEF wBattlerLevel EQU $DB9B ;@ u8[8] Level of each battle position
+DEF wBattlerWildness EQU $DC23 ;@ u8[16] Wildness of each battle position (u16 each; enemies 255)
+DEF wEnemyReward EQU $DC33 ;@ u8[9] Reward of each enemy (24-bit each, from its template bytes 1-2)
+DEF wEnemyTemplate3 EQU $DB85 ;@ u8[4] Byte 3 of each enemy's monster template
+DEF wBattlerPersonality1 EQU $DC44 ;@ u8[8] First personality byte of each battle position (record +$64)
+DEF wBattlerPersonality2 EQU $DC54 ;@ u8[8] Second personality byte of each battle position (record +$65)
+DEF wBattlerPersonality3 EQU $DC5C ;@ u8[8] Third personality byte of each battle position (record +$66; goes up by one for every battle survived)
+DEF wBattlerStat67 EQU $DC4C ;@ u8[8] Record byte +$67 of each battle position
+DEF wBattlerSkills EQU $DC64 ;@ u8[128] Skills of each battle position: 8 x (skill kind = high nibble of the skill table's word 1, skill number $FF = none), 16 bytes per position
+DEF wBattlerResist EQU $DD28 ;@ u8[56] Resistances of each battle position: 27 values of 2 bits packed into 7 bytes
+DEF wBattlerIntClass EQU $DD0B ;@ u8[16] Intelligence class of each battle position: 0 below 20, 1 below 179, 2 from 179 up
+DEF wPartyPersonality EQU $DA15 ;@ u8[3] Personality (0-26) of each party monster at the start of the battle
+DEF wTemplateReward EQU $DA19 ;@ u16 Monster template bytes 1-2: reward of the monster
+DEF wTemplateByte3 EQU $DA1B ;@ u8 Monster template byte 3
+DEF wTemplateLevel EQU $DA1C ;@ u8 Monster template: level
+DEF wTemplateHP EQU $DA1D ;@ u16 Monster template: maximum HP
+DEF wTemplateMP EQU $DA1F ;@ u16 Monster template: maximum MP
+DEF wTemplateAttack EQU $DA21 ;@ u16 Monster template: attack
+DEF wTemplateDefense EQU $DA23 ;@ u16 Monster template: defense
+DEF wTemplateAgility EQU $DA25 ;@ u16 Monster template: agility
+DEF wTemplateIntelligence EQU $DA27 ;@ u16 Monster template: intelligence
+DEF wTemplatePersonality1 EQU $DA29 ;@ u8 Monster template: first personality byte (record +$64)
+DEF wTemplatePersonality2 EQU $DA2A ;@ u8 Monster template: second personality byte (record +$65)
+DEF wTemplateStat67 EQU $DA2B ;@ u8 Monster template: record byte +$67
+DEF wTemplatePersonality3 EQU $DA2C ;@ u8 Monster template: third personality byte (record +$66)
+DEF wTemplateSkills EQU $DA2D ;@ u8[4] Monster template: four skills
+DEF wMonSexChance EQU $DA36 ;@ u8 MonsterStats byte 3: chance of sex 1 (0 never, 1 one in ten, 2 half, else nine in ten)
+DEF wMonStatsByte4 EQU $DA37 ;@ u8 MonsterStats byte 4 (goes to the high nibble of wBattlerTypeBits)
+DEF wMonStatsByte5 EQU $DA38 ;@ u8 MonsterStats byte 5 (goes to the low nibble of wBattlerTypeBits)
+DEF wBattleTemp EQU $DD72 ;@ u8 Scratch of the battle display: number of monsters on a side, or the battle position being worked on
+DEF wBattlerTypeBits EQU $DB8B ;@ u8[8] MonsterStats bytes 4 (high nibble) and 5 (low nibble) of each battle position
+DEF wBattleBGMap EQU $D9F8 ;@ u16 BG map address of the battle screen's top left corner (wTilemapBuffer is copied there)
+DEF wCursorBlinkTimer EQU $D9FB ;@ u8 Battle menu cursor blink counter (bit 4 hides the cursor)
+DEF wStatusIconShown EQU $DA0A ;@ u8[8] Status icon now loaded for each battle position (0 none, 1-6 an ailment, 7 down)
+DEF wPanelMode EQU $D9F3 ;@ u8 What the party panel shows: 0 HP and MP, 1-2 level and ailments, 3 the slot letters
+DEF wPanelCount EQU $C1D9 ;@ u8 Number of monsters in the party panel
+DEF wNameBattler EQU $DB60 ;@ u8 Battle position whose name is being copied (AppendEnemyLetter)
+DEF wNameDest EQU $DB5E ;@ u16 Where the name being copied ends up (AppendEnemyLetter adds the letter there)
+DEF wFieldInputBlock EQU $D9E8 ;@ u8 Nonzero: FieldInput ignores the buttons (cleared when a screen scroll ends)
+DEF wBattleStep EQU $D9EC ;@ u8 Battle mode step (index into BattleSteps)
+DEF wBattleSubStep EQU $D9ED ;@ u8 Step within the current battle step
+DEF wCommandStep EQU $D9F4 ;@ u8 Step of the battle command menu (BattleMenuSteps)
+DEF wCommandSubStep EQU $D9F5 ;@ u8 Step within the chosen battle menu entry
+DEF wBattleListCount EQU $D9F6 ;@ u8 Number of entries of the open battle list (skills or items)
+DEF wOrderStep EQU $D9F7 ;@ u8 Step of the direct orders for one monster (OrderSteps)
+DEF wTacticSlot EQU $DA01 ;@ u8 Tactic menu: where the chosen tactic is stored, as an offset from wTacticMenuRow (1 the whole party, 2-4 one monster)
+DEF wLayoutRow EQU $D9EA ;@ u16 Battle window drawing: buffer address (or screen position) of the row being drawn
+DEF wBattlerOrder EQU $DD13 ;@ u8[8] Command state of each battle position this turn: 0 still to choose, 1 chosen, 2 passed over, 3 loses the turn, $FF empty
+DEF wBattlerAction EQU $DCEC ;@ u8[16] Action of each battle position this turn: skill number and target, 2 bytes each ($FF $FF = the tactic decides)
+DEF wBattlerMenuMemory EQU $C1CD ;@ u8[8] Battle menu memory of each battle position: bits 4-5 last command row, bit 2 skill page, bits 0-1 skill row; bit 7 set when the battle starts
+DEF wTargetSkill EQU $DD76 ;@ u8 Skill (or item effect) whose target is being chosen; decides which positions the target cursor skips
+DEF wTargetCursorSkill EQU $C1C2 ;@ u8 Copy of wTargetSkill for the target cursor
+DEF wBattleItemTarget EQU $DB77 ;@ u8 Battle item: target kind from the item data, then the chosen battle position ($FF none)
+DEF wBattleItemEffect EQU $DB78 ;@ u8 Battle item: effect number of the chosen item ($FF none)
+DEF wRunTurn EQU $DB76 ;@ u8 Running away: 1 in the first turn (25 % chance), 2 in the second (50 %), 3 in the third (75 %); 0 or 4 and up always succeeds
+DEF wJoinCandidate EQU $DD61 ;@ u8 Battle position (4-6) of the enemy defeated last, which may ask to join ($FF none)
+DEF wBattleAnimRunning EQU $DD62 ;@ u8 Nonzero while a battle animation runs (StepAnimation is called every frame)
+DEF wBattleStackPtr EQU $DA79 ;@ u16 Stack pointer saved when the battle mode starts
+DEF wRewardTotal EQU $DD23 ;@ u8[3] Total reward (experience) of the defeated enemies, 24-bit
+DEF wSkillAmount EQU $DB56 ;@ u16 Amount the skill being carried out does (damage dealt, HP healed, poison damage at the end of the turn), worked out by the skill effect routines of bank $52
+DEF wLinkTurnOut EQU $C1DA ;@ u8[16] Turn data sent to the link partner: tactics, random seed, menu choice, actions, command states
+DEF wLinkTurnIn EQU $C1EA ;@ u8[16] Turn data received from the link partner (same layout as wLinkTurnOut)
+DEF wFallStep EQU $D9F1 ;@ u8 Step of BattlerFallSequence (a monster going down)
+DEF wSkillAmount2 EQU $DB5A ;@ u16 Second amount of a skill: HP the user gives up or takes back (sacrifice and recoil skills), shown in the message
+DEF wSkillStatusPtr EQU $DB61 ;@ u16 Address of the status byte a skill is about to change
+DEF wNamePos EQU $DB50 ;@ u8 Battle position whose name GetBattlerName writes (an enemy's letter A/B/C depends on it)
+DEF wEnemyMorph EQU $C1CA ;@ u8[3] For each enemy position: own party position it turned into with the transform skill $29 ($FF = none; its name then ends in "Like")
+DEF wLinkRandom EQU $C1ED ;@ u16 Random number state shared by the two Game Boys in a link battle (both sides draw the same numbers)
+DEF wBattleAnimDone EQU $DA82 ;@ u8 Nonzero once the battle animation of the current step has finished (bank $5F sets it); the action steps wait for it
+DEF wBattleSubStep2 EQU $D9EE ;@ u8 Step within wBattleSubStep: the stages of one skill being carried out
+DEF wBattleStepArg0 EQU $D9EF ;@ u8 Battle step scratch: a counter of the step, or the wBattleSubStep to go on with after a message ($FF = keep)
+DEF wBattleStepArg1 EQU $D9F0 ;@ u8 Battle step scratch: a counter of the step, or the wBattleSubStep2 to go on with after a message ($FF = keep)
+DEF wHitCount EQU $DD69 ;@ u8 Hits or targets done so far by a skill that strikes several times
+DEF wSkillResult EQU $DD6F ;@ u8 Kind of result of the skill just worked out (message and effect flags; bit 5: the amount is HP damage taken from the target)
+DEF wSkillResultValue EQU $DD70 ;@ u16 Value belonging to wSkillResult
+DEF wStatCapPos EQU $DD74 ;@ u8 Battle position whose stat limit StatLimitTimes is working out
+DEF wSkillMsgMiss EQU $DD71 ;@ u8 Battle message (bank $4C) shown when the skill fails
+DEF wSkillMsgMode EQU $DD6B ;@ u8 Kind of the battle message being set up (0, 1 or 2)
+DEF wJoinPoints EQU $DB83 ;@ u16 Points toward the enemy monster asking to join (meat raises them, healing an enemy adds, hurting it takes away; capped at 1600)
+DEF wSkillTempPtr EQU $DB5C ;@ u16 Scratch pointer of the skill effects (a battler's HP)
+DEF wStatPtr EQU $DB63 ;@ u16 Scratch pointer of the skill effects (the user's attack)
+DEF wItemMsgGroup EQU $DB54 ;@ u8 Battle items: text group of the item message
+DEF wBattleTempHigh EQU $DD73 ;@ u8 High byte of the 16-bit result in wBattleTemp (the stat routines of bank $57)
+DEF wSideFlags EQU $DB00 ;@ u8[2] Flags per side (0 own, 1 enemy): bit 2 a dragon was called (TatsuCall), 5 a wind blows (StormWind), 6 SuckAll was used
+DEF wSuckAllUsers EQU $DB4A ;@ u8[2] Per side: which positions used SuckAll (bit 2 + position)
+DEF wBattlerStatus1 EQU $DB03 ;@ u8 Status byte 1 of each battle position (wBattlerStatus + 1, 8 bytes apart): bit 0 spells suspended (StopSpell), 1 illusion (Surround), 2 attack doubled (TwinHits), 3 ALLCHANGE, 6 dancing stopped (DanceShut), 7 mouth bound (MouthShut)
+DEF wBattlerStatus2 EQU $DB04 ;@ u8 Status byte 2 of each battle position (8 bytes apart): bit 0 glowing (TakeMagic), 1 reflecting attacks (Bounce), 2 veil of light (Barrier), 5 reflecting spells (MagicBack), 6 wind (TailWind), 7 user of Massacre / EvilSlash
+DEF wBattlerStatus3 EQU $DB05 ;@ u8 Status byte 3 of each battle position (8 bytes apart): bit 0 frozen (FREEZY), 1 lured (LureDance), 2 stumbling (LegSweep, Trip), 3 licked (LushLicks), 4 shocked (WarCry), 5 feeling good (Ahhh), 6 magic wall, 7 open to spells (EerieLite)
+DEF wBattlerStatus4 EQU $DB06 ;@ u8 Status byte 4 of each battle position (8 bytes apart): bits 0-1 charging (ChargeUP), 2-3 high in the sky (HighJump), 4-5 breath held (SuckAir), 7 focused (Focus)
+DEF wBattlerStatus5 EQU $DB07 ;@ u8 Status byte 5 of each battle position (8 bytes apart): bits 0-1 blinded (SandStorm), 2-3 side-stepping (SideStep), 4-5 LifeSong, 6-7 iron lump (Ironize)
+DEF wBattlerStatus6 EQU $DB08 ;@ u8 Status byte 6 of each battle position (8 bytes apart): bit 0 called for help, 1 SuckAll, 2 Beserker, 3 Imitate, 5 Dodge, 6 a stat went up, 7 a stat went down
+DEF wBattlerStatus7 EQU $DB09 ;@ u8 Status byte 7 of each battle position (8 bytes apart): low nibble the defence stance (1 Defence, 2 StrongD, 4 BladeD)

@@ -1129,9 +1129,9 @@ Data_54_5236::
 	db $00, $00, $00
 
 Call_54_5249::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld b, a
 	ld hl, $4013
 	add hl, bc
@@ -1139,7 +1139,7 @@ Call_54_5249::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	add l
 	ld l, a
 	ld a, $00
@@ -1149,16 +1149,16 @@ Call_54_5249::
 	ld b, [hl]
 	ld c, a
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, b
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ret
 
 
 Call_54_526E::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld b, a
 	ld hl, $4013
 	add hl, bc
@@ -1166,7 +1166,7 @@ Call_54_526E::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	add l
 	ld l, a
 	ld a, $00
@@ -1177,11 +1177,11 @@ Call_54_526E::
 	ld c, a
 	inc hl
 	ld a, [hl]
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, b
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ret
 
 
@@ -1220,29 +1220,29 @@ Call_54_5298::
 
 Call_54_52C7::
 	ld a, [wSkillId]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, [wSkillUser]
 	bit 2, a
 	jr z, jr_054_52e0
 
 	ld a, $0f
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	jr jr_054_52e5
 
 jr_054_52e0:
 	ld a, $0b
-	ld [$db4e], a
+	ld [wBattleArg2], a
 
 jr_054_52e5:
 	call Call_54_526E
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld b, a
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -1252,7 +1252,7 @@ jr_054_52e5:
 	cp $02
 	jr z, jr_054_530a
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	add c
 	ld c, a
 	ld a, $00
@@ -1261,7 +1261,7 @@ jr_054_52e5:
 
 jr_054_530a:
 	ld a, c
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, b
 	ld [$db57], a
 	ret
@@ -1269,29 +1269,29 @@ jr_054_530a:
 
 Call_54_5313::
 	ld a, [wSkillId]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, [wSkillUser]
 	bit 2, a
 	jr z, jr_054_532c
 
 	ld a, $0f
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	jr jr_054_5331
 
 jr_054_532c:
 	ld a, $0b
-	ld [$db4e], a
+	ld [wBattleArg2], a
 
 jr_054_5331:
 	call Call_54_526E
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld b, a
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -1301,7 +1301,7 @@ jr_054_5331:
 	cp $02
 	jr z, jr_054_5356
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	add c
 	ld c, a
 	ld a, $00
@@ -1310,58 +1310,58 @@ jr_054_5331:
 
 jr_054_5356:
 	ld a, c
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, b
 	ld [$db57], a
 	ret
 
 
 Call_54_535F::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $d5
 	jr z, jr_054_539d
 
 	jr nc, jr_054_53a6
 
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $0a
-	ld [$db4e], a
-	ld a, [$db4c]
+	ld [wBattleArg2], a
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	push hl
 	call Call_54_5249
 	pop hl
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $01
 	jr z, jr_054_53a6
 
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	push hl
 	ld a, $02
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	call Call_54_5249
 	pop hl
 	ld a, l
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ret
 
 
 jr_054_539d:
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $12
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ret
 
 
 jr_054_53a6:
 	ld a, $00
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ret
 
 
@@ -1376,7 +1376,7 @@ Call_54_53AC::
 	and $7f
 	add b
 	ld a, a
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld hl, wBagItems
 	add l
 	ld l, a
@@ -1387,7 +1387,7 @@ Call_54_53AC::
 	ld [wItemId], a
 	ld hl, far_GetItemData
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld [wItemBagSlot], a
 	ld hl, far_MaybeUseUpItem
 	rst $10
@@ -1420,7 +1420,7 @@ Call_54_53F6::
 
 
 Call_54_5405::
-	ld a, [$d9ee]
+	ld a, [wBattleSubStep2]
 	rst $00
 
 JumpTable_54_5409::
@@ -1443,7 +1443,7 @@ Jump_54_5415::
 	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_55A0
-	ld hl, $d9ee
+	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
@@ -1470,7 +1470,7 @@ jr_054_5440:
 	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_5591
-	ld hl, $d9ee
+	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
@@ -1496,7 +1496,7 @@ jr_054_5466:
 
 	ld de, wTextArg0
 	ld a, e
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
 	ld a, [$dc40]
@@ -1504,7 +1504,7 @@ jr_054_5466:
 	ld h, $05
 	call CopySystemText
 	ld a, [$dc40]
-	ld [$d9ef], a
+	ld [wBattleStepArg0], a
 	ld hl, wLibraryFlags
 	call TestFlag
 	ld a, $02
@@ -1521,7 +1521,7 @@ jr_054_5493:
 	call Call_54_5591
 
 jr_054_54a2:
-	ld hl, $d9ee
+	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
@@ -1547,7 +1547,7 @@ jr_054_54b7:
 
 	ld de, wTextArg0
 	ld a, e
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
 	ld a, [$dc41]
@@ -1564,7 +1564,7 @@ jr_054_54b7:
 	jr nc, jr_054_5503
 
 jr_054_54e2:
-	ld [$d9f0], a
+	ld [wBattleStepArg1], a
 	ld a, [$dc41]
 	ld hl, wLibraryFlags
 	call TestFlag
@@ -1582,7 +1582,7 @@ jr_054_54f4:
 	call Call_54_5591
 
 jr_054_5503:
-	ld hl, $d9ee
+	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
@@ -1608,7 +1608,7 @@ jr_054_5518:
 
 	ld de, wTextArg0
 	ld a, e
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
 	ld a, [$dc42]
@@ -1635,7 +1635,7 @@ jr_054_5543:
 	jr nc, jr_054_5572
 
 jr_054_5551:
-	ld [$d9f1], a
+	ld [wFallStep], a
 	ld a, [$dc42]
 	ld hl, wLibraryFlags
 	call TestFlag
@@ -1653,7 +1653,7 @@ jr_054_5563:
 	call Call_54_5591
 
 jr_054_5572:
-	ld hl, $d9ee
+	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
@@ -1674,9 +1674,9 @@ Jump_54_5577::
 
 jr_054_5587:
 	ld a, $0d
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	xor a
-	ld [$d9ee], a
+	ld [wBattleSubStep2], a
 	ret
 
 
@@ -1721,24 +1721,24 @@ jr_054_55b7:
 
 Call_54_55BB::
 	call Random
-	ld a, [$dd61]
+	ld a, [wJoinCandidate]
 	or a
 	jr z, jr_054_5609
 
 	and $03
-	ld hl, $db85
+	ld hl, wEnemyTemplate3
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	cp $07
 	jr z, jr_054_5609
 
-	ld a, [$dd61]
-	ld hl, $dc3c
+	ld a, [wJoinCandidate]
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -1750,9 +1750,9 @@ Call_54_55BB::
 	push af
 	pop bc
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	push bc
-	ld a, [$db83]
+	ld a, [wJoinPoints]
 	ld l, a
 	ld a, [$db84]
 	ld h, a
@@ -1770,7 +1770,7 @@ jr_054_5604:
 	jr c, jr_054_560d
 
 jr_054_5609:
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 
 jr_054_560d:
@@ -1778,7 +1778,7 @@ jr_054_560d:
 
 
 Call_54_560E::
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld d, h
 	ld e, l
 	cp $01
@@ -1839,7 +1839,7 @@ jr_054_5654:
 
 
 Call_54_5655::
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	or a
 	jr z, jr_054_5682
 
@@ -1875,7 +1875,7 @@ jr_054_5682:
 
 
 Call_54_5683::
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	or a
 	jr z, jr_054_56c5
 

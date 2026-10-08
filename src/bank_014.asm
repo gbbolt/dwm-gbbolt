@@ -157,13 +157,13 @@ jr_014_4158:
 	ld de, wNewMonNameText
 	call SetNewMonByte
 	ld hl, wMonSkills
-	ld de, $da2d
+	ld de, wTemplateSkills
 	call CopyToNewMon4
 	ld hl, wMonLevel
-	ld de, $da1c
+	ld de, wTemplateLevel
 	call SetNewMonByte
 	ld hl, wMonMaxHP
-	ld de, $da1d
+	ld de, wTemplateHP
 	call CopyToNewMonWord
 	ld hl, wMonMaxHP
 	call RandomizeNewMonWord
@@ -182,7 +182,7 @@ jr_014_4158:
 	inc hl
 	ld [hl], b
 	ld hl, wMonMaxMP
-	ld de, $da1f
+	ld de, wTemplateMP
 	call CopyToNewMonWord
 	ld hl, wMonMaxMP
 	call RandomizeNewMonWord
@@ -201,40 +201,40 @@ jr_014_4158:
 	inc hl
 	ld [hl], b
 	ld hl, wMonAttack
-	ld de, $da21
+	ld de, wTemplateAttack
 	call CopyToNewMonWord
 	ld hl, wMonAttack
 	call RandomizeNewMonWord
 	ld hl, wMonDefense
-	ld de, $da23
+	ld de, wTemplateDefense
 	call CopyToNewMonWord
 	ld hl, wMonDefense
 	call RandomizeNewMonWord
 	ld hl, wMonAgility
-	ld de, $da25
+	ld de, wTemplateAgility
 	call CopyToNewMonWord
 	ld hl, wMonIntelligence
-	ld de, $da27
+	ld de, wTemplateIntelligence
 	call CopyToNewMonWord
 	ld hl, wMonIntelligence
 	call RandomizeNewMonWord
 	ld hl, wMonStat64
-	ld de, $da29
+	ld de, wTemplatePersonality1
 	call SetNewMonByte
 	ld hl, wMonStat64
 	call RandomizeNewMonByte
 	ld hl, wMonStat65
-	ld de, $da2a
+	ld de, wTemplatePersonality2
 	call SetNewMonByte
 	ld hl, wMonStat65
 	call RandomizeNewMonByte
 	ld hl, wMonStat66
-	ld de, $da2c
+	ld de, wTemplatePersonality3
 	call SetNewMonByte
 	ld hl, wMonStat66
 	call RandomizeNewMonByte
 	ld hl, wMonStat67
-	ld de, $da2b
+	ld de, wTemplateStat67
 	call SetNewMonByte
 	ld hl, wMonStat67
 	call RandomizeNewMonByte
@@ -325,7 +325,7 @@ jr_014_4264:
 	ld [hl], $00
 	call Random
 	ld hl, $459e
-	ld a, [$da36]
+	ld a, [wMonSexChance]
 	add l
 	ld l, a
 	ld a, $00
@@ -739,7 +739,10 @@ FixedMonNames::
 	db $f0, $f0, $f0, $f0, $27, $46, $57, $f0, $f0, $f0, $f0, $f0, $30, $3e, $56, $f0
 	db $f0, $f0, $f0, $f0, $33, $42, $51, $42, $f0, $f0, $f0, $f0, $30, $42, $51, $3e
 	db $f0, $f0, $f0, $f0, $30, $42, $51, $3e, $f0, $f0, $f0, $f0, $30, $46, $49, $3e
-	db $f0, $f0, $f0, $f0, $2e, $3e, $46, $f0, $f0, $f0, $f0, $f0, $64, $64, $64, $f0
+	db $f0, $f0, $f0, $f0, $2e, $3e, $46, $f0, $f0, $f0, $f0, $f0
+
+UnknownName::
+	db $64, $64, $64, $f0
 	db $f0, $f0, $f0, $f0
 
 CopyToNewMon::
@@ -977,6 +980,7 @@ jr_014_488f:
 	inc hl
 	jr jr_014_4874
 
+MonIdRemap::
 	db $04, $00, $e6, $01, $0b, $00, $0c, $00, $1f, $00, $e4, $01, $20, $00, $e5, $01
 	db $33, $00, $34, $00, $35, $00, $36, $00, $37, $00, $38, $00, $4b, $00, $4c, $00
 	db $4d, $00, $4e, $00, $4f, $00, $50, $00, $63, $00, $64, $00, $65, $00, $66, $00
@@ -985,7 +989,10 @@ jr_014_488f:
 	db $b1, $00, $b2, $00, $b3, $00, $b4, $00, $c7, $00, $c8, $00, $c9, $00, $ca, $00
 	db $cb, $00, $cc, $00, $cd, $00, $ce, $00, $cf, $00, $d0, $00, $d1, $00, $d2, $00
 	db $d3, $00, $d4, $00, $d5, $00, $d6, $00, $d7, $00, $d8, $00, $d9, $00, $da, $00
-	db $db, $00, $dc, $00, $dd, $00, $de, $00, $ff, $ff, $00, $00, $00, $03, $03, $03
+	db $db, $00, $dc, $00, $dd, $00, $de, $00, $ff, $ff
+
+SkillSupersedes::
+	db $00, $00, $00, $03, $03, $03
 	db $06, $06, $06, $09, $09, $09, $0c, $0c, $0c, $0f, $0f, $0f, $12, $12, $14, $15
 	db $15, $17, $18, $19, $1a, $1a, $1c, $1c, $1e, $1e, $20, $20, $22, $22, $24, $25
 	db $26, $27, $27, $29, $2a, $2b, $2b, $2b, $2e, $2e, $30, $30, $32, $33, $34, $35
@@ -1001,7 +1008,10 @@ jr_014_488f:
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $d5
 	db $d6, $d7, $d8, $d9, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $ff, $ff, $ff, $ff
+	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
+
+MonGenderTable::
+	db $ff, $00, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $00, $00, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00
@@ -1033,7 +1043,10 @@ jr_014_488f:
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00, $00, $00
+	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
+
+MonTemplates::
+	db $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $ff
 	db $ff, $ff, $ff, $08, $00, $00, $00, $01, $1e, $00, $00, $00, $0a, $00, $06, $00
 	db $05, $00, $01, $00, $64, $c8, $64, $c8, $ff, $ff, $ff, $ff, $08, $03, $00, $02

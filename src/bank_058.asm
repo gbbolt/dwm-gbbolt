@@ -254,7 +254,7 @@ FarTable_58::
 	dw Call_58_6367
 
 Call_58_41E9::
-	ld hl, $db56
+	ld hl, wSkillAmount
 	ld bc, $0008
 	xor a
 	call FillMemory
@@ -318,7 +318,7 @@ jr_058_4239:
 
 jr_058_4243:
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -367,7 +367,7 @@ jr_058_4276:
 	call Call_58_43FF
 	ld a, c
 	call GetBattlerHP
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
@@ -383,20 +383,20 @@ jr_058_4276:
 
 jr_058_429c:
 	ld a, l
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	jr jr_058_42ae
 
 jr_058_42a6:
 	ld a, $ff
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld [$db57], a
 
 jr_058_42ae:
 	pop bc
 	call Call_58_4FA7
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
@@ -425,7 +425,7 @@ jr_058_42cc:
 	call Call_58_43FF
 	ld a, c
 	call GetBattlerHP
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
@@ -441,20 +441,20 @@ jr_058_42cc:
 
 jr_058_42f2:
 	ld a, l
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	jr jr_058_4304
 
 jr_058_42fc:
 	ld a, $ff
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld [$db57], a
 
 jr_058_4304:
 	pop bc
 	call Call_58_4FA7
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
@@ -482,7 +482,7 @@ jr_058_431a:
 
 Call_58_432C::
 	ld a, $00
-	ld [$db63], a
+	ld [wStatPtr], a
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
@@ -495,7 +495,7 @@ jr_058_4337:
 
 Call_58_433E::
 	ld a, $00
-	ld [$db61], a
+	ld [wSkillStatusPtr], a
 	ld a, [$db58]
 	ld c, a
 	ld a, [$db59]
@@ -523,7 +523,7 @@ jr_058_4363:
 	ld b, h
 	ld c, l
 	ld a, e
-	ld [$db61], a
+	ld [wSkillStatusPtr], a
 	jr jr_058_4375
 
 jr_058_436b:
@@ -538,7 +538,7 @@ jr_058_4375:
 	jr nz, jr_058_434e
 
 	ld hl, wSkillTarget
-	ld a, [$db61]
+	ld a, [wSkillStatusPtr]
 	add [hl]
 	ld [wSkillTarget], a
 	ret
@@ -546,14 +546,14 @@ jr_058_4375:
 
 Call_58_4384::
 	ld a, $01
-	ld [$db63], a
+	ld [wStatPtr], a
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
 jr_058_438f:
 	ld a, c
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
 	jr nz, jr_058_439f
@@ -582,13 +582,13 @@ Call_58_43AA::
 	push hl
 	ld a, c
 	call GetBattlerDefense
-	ld a, [$db63]
+	ld a, [wStatPtr]
 	or a
 	jr z, jr_058_43d0
 
 	push hl
 	ld a, c
-	ld hl, $db08
+	ld hl, wBattlerStatus6
 	call AddEightTimes
 	ld a, [hl]
 	pop hl
@@ -625,7 +625,7 @@ Call_58_43D7::
 
 
 Call_58_43EA::
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
 	jr nz, jr_058_43fe
@@ -655,7 +655,7 @@ Call_58_43FF::
 	cp $dd
 	jr z, jr_058_4415
 
-	ld hl, far_Call_52_538F
+	ld hl, far_SkillDamageByKind
 	rst $10
 	jr jr_058_4419
 
@@ -673,7 +673,7 @@ Call_58_441B::
 	ret z
 
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -723,7 +723,7 @@ Jump_58_4453::
 	inc [hl]
 
 Jump_58_4463::
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	ld a, [wSkillTarget]
 	add l
 	ld l, a
@@ -782,7 +782,7 @@ jr_058_44b2:
 	ld de, $ffff
 
 jr_058_44b5:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -791,7 +791,7 @@ jr_058_44b5:
 	ld a, d
 	ld [hli], a
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	inc c
@@ -841,7 +841,7 @@ Call_58_44F7::
 	ld e, a
 	ld d, $03
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -854,9 +854,9 @@ Call_58_44F7::
 Jump_058_4515:
 jr_058_4515:
 	ld a, e
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, d
-	ld [$db50], a
+	ld [wNamePos], a
 	ld a, e
 	call CheckBattlerPresent
 	jr nc, jr_058_452b
@@ -891,13 +891,13 @@ jr_058_454a:
 
 jr_058_454d:
 	push hl
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld e, a
-	ld a, [$db50]
+	ld a, [wNamePos]
 	ld d, a
 	ld a, $03
 	sub d
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	add a
 	add l
 	ld l, a
@@ -910,9 +910,9 @@ jr_058_454d:
 	pop hl
 	ld b, h
 	ld c, l
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld e, a
-	ld a, [$db50]
+	ld a, [wNamePos]
 	ld d, a
 	ld a, $03
 	sub d
@@ -926,9 +926,9 @@ jr_058_454d:
 	ld a, c
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld e, a
-	ld a, [$db50]
+	ld a, [wNamePos]
 	ld d, a
 	inc e
 	dec d
@@ -940,7 +940,7 @@ jr_058_454d:
 
 Jump_058_4591:
 	xor a
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld b, d
 	ld c, e
 	xor a
@@ -951,19 +951,19 @@ Jump_058_4591:
 
 jr_058_459e:
 	ld a, c
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, b
-	ld [$db50], a
+	ld [wNamePos], a
 	ld a, c
 	call CheckBattlerPresent
 	jr c, jr_058_45e1
 
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	inc [hl]
 	ld a, c
 	call GetBattlerMaxHP
 	ld a, c
-	ld de, $db8b
+	ld de, wBattlerTypeBits
 	add e
 	ld e, a
 	ld a, $00
@@ -992,9 +992,9 @@ jr_058_45cc:
 	ld [$db53], a
 
 jr_058_45e1:
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld c, a
-	ld a, [$db50]
+	ld a, [wNamePos]
 	ld b, a
 	inc c
 	dec b
@@ -1006,12 +1006,12 @@ jr_058_45e1:
 	ld h, a
 	ld a, [$db53]
 	ld e, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	call Divide24
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	call Divide24
 	ld a, l
-	ld [$db61], a
+	ld [wSkillStatusPtr], a
 	ld a, h
 	ld [$db62], a
 	ld a, [wSkillUser]
@@ -1019,13 +1019,13 @@ jr_058_45e1:
 	ld e, a
 	ld d, $03
 	ld a, $ff
-	ld [$db4e], a
+	ld [wBattleArg2], a
 
 jr_058_461a:
 	ld a, e
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, d
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, e
 	call CheckBattlerPresent
 	jr c, jr_058_466e
@@ -1046,7 +1046,7 @@ jr_058_461a:
 	call CompareHLBC
 	jr z, jr_058_466e
 
-	ld a, [$db61]
+	ld a, [wSkillStatusPtr]
 	ld c, a
 	ld a, [$db62]
 	ld b, a
@@ -1056,11 +1056,11 @@ jr_058_461a:
 	jr nc, jr_058_466e
 
 	ld a, l
-	ld [$db61], a
+	ld [wSkillStatusPtr], a
 	ld a, h
 	ld [$db62], a
-	ld a, [$db4c]
-	ld [$db4e], a
+	ld a, [wBattleArg0]
+	ld [wBattleArg2], a
 	jr jr_058_466e
 
 jr_058_465e:
@@ -1069,19 +1069,19 @@ jr_058_465e:
 	cp $80
 	jr c, jr_058_466e
 
-	ld a, [$db4c]
-	ld [$db4e], a
+	ld a, [wBattleArg0]
+	ld [wBattleArg2], a
 
 jr_058_466e:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld e, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld d, a
 	inc e
 	dec d
 	jr nz, jr_058_461a
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	cp $ff
 	jr z, jr_058_4693
 
@@ -1093,7 +1093,7 @@ jr_058_466e:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	ld [hl], a
 	ret
 
@@ -1207,7 +1207,7 @@ jr_058_4716:
 
 	ld de, $0001
 	ld a, c
-	ld hl, $db03
+	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 2, [hl]
 	jr nz, jr_058_473d
@@ -1243,25 +1243,25 @@ Call_58_474B::
 	call Call_58_6556
 	ret z
 
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, [wSkillUser]
 	and $04
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld b, $03
 
 jr_058_4764:
 	push bc
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	call CheckBattlerPresent
 	jr c, jr_058_47ad
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	call Call_58_5C96
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	call GetBattlerDefense
 	ld a, [wLinkActive]
 	or a
@@ -1272,7 +1272,7 @@ jr_058_4764:
 	jr nc, jr_058_4795
 
 jr_058_4786:
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	and $03
 	cp $03
 	cp $03
@@ -1303,45 +1303,45 @@ jr_058_47ad:
 jr_058_47b0:
 	push hl
 	pop de
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	ld [hl], e
 	inc hl
 	ld [hl], d
 	inc hl
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	pop bc
-	ld hl, $db4e
+	ld hl, wBattleArg2
 	inc [hl]
 	dec b
 	jr nz, jr_058_4764
 
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld hl, $db63
+	ld hl, wStatPtr
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, [wSkillUser]
 	and $04
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	inc a
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, $02
-	ld [$db50], a
+	ld [wNamePos], a
 
 jr_058_47f0:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
@@ -1367,29 +1367,29 @@ jr_058_47f0:
 jr_058_4814:
 	push hl
 	pop bc
-	ld a, [$db4f]
-	ld [$db4e], a
+	ld a, [wBattleArg3]
+	ld [wBattleArg2], a
 
 jr_058_481c:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	inc hl
 	inc hl
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
-	ld hl, $db4f
+	ld [wBattleArg1], a
+	ld hl, wBattleArg3
 	inc [hl]
-	ld hl, $db50
+	ld hl, wNamePos
 	dec [hl]
-	ld a, [$db50]
+	ld a, [wNamePos]
 	or a
 	jr nz, jr_058_47f0
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	ld [wSkillTarget], a
 	ld a, [wSkillUser]
 	ld hl, $dced
@@ -1432,7 +1432,7 @@ jr_058_4873:
 	inc de
 	push hl
 	ld a, c
-	ld hl, $db04
+	ld hl, wBattlerStatus2
 	call AddEightTimes
 	ld a, [hl]
 	pop hl
@@ -1441,12 +1441,12 @@ jr_058_4873:
 
 	push hl
 	ld a, $03
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	xor $30
 	and $30
 	pop de
@@ -1505,7 +1505,7 @@ jr_058_48d4:
 	inc de
 	push hl
 	ld a, c
-	ld hl, $db04
+	ld hl, wBattlerStatus2
 	call AddEightTimes
 	ld a, [hl]
 	pop hl
@@ -1514,12 +1514,12 @@ jr_058_48d4:
 
 	push hl
 	ld a, $03
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	rlca
 	rlca
 	xor $30
@@ -1547,25 +1547,25 @@ Call_58_490E::
 	call Call_58_6556
 	ret z
 
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, [wSkillUser]
 	and $04
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld b, $03
 
 jr_058_4927:
 	push bc
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	call CheckBattlerPresent
 	jr c, jr_058_497a
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	call Call_58_60F3
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	ld hl, wBattlerAgility
 	add a
 	add l
@@ -1591,7 +1591,7 @@ jr_058_4927:
 	jr nc, jr_058_496a
 
 jr_058_495d:
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	and $03
 	cp $03
 	jr z, jr_058_496a
@@ -1617,45 +1617,45 @@ jr_058_497a:
 jr_058_497d:
 	push hl
 	pop de
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	ld [hl], e
 	inc hl
 	ld [hl], d
 	inc hl
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	pop bc
-	ld hl, $db4e
+	ld hl, wBattleArg2
 	inc [hl]
 	dec b
 	jr nz, jr_058_4927
 
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld hl, $db63
+	ld hl, wStatPtr
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, [wSkillUser]
 	and $04
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	inc a
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, $02
-	ld [$db50], a
+	ld [wNamePos], a
 
 jr_058_49bd:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
@@ -1681,29 +1681,29 @@ jr_058_49bd:
 jr_058_49e1:
 	push hl
 	pop bc
-	ld a, [$db4f]
-	ld [$db4e], a
+	ld a, [wBattleArg3]
+	ld [wBattleArg2], a
 
 jr_058_49e9:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld l, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld h, a
 	inc hl
 	inc hl
 	ld a, l
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, h
-	ld [$db4d], a
-	ld hl, $db4f
+	ld [wBattleArg1], a
+	ld hl, wBattleArg3
 	inc [hl]
-	ld hl, $db50
+	ld hl, wNamePos
 	dec [hl]
-	ld a, [$db50]
+	ld a, [wNamePos]
 	or a
 	jr nz, jr_058_49bd
 
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	ld [wSkillTarget], a
 	ld a, [wSkillUser]
 	ld hl, $dced
@@ -1729,7 +1729,7 @@ Call_58_4A21::
 	ld b, $03
 	push bc
 	xor a
-	ld hl, $db50
+	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
@@ -1760,21 +1760,21 @@ jr_058_4a37:
 
 	push bc
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $30
 	ld [hl], a
 	jr jr_058_4a9c
@@ -1782,7 +1782,7 @@ jr_058_4a37:
 jr_058_4a7c:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -1795,7 +1795,7 @@ jr_058_4a7c:
 jr_058_4a8d:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -1811,16 +1811,16 @@ jr_058_4a9c:
 
 	pop bc
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	inc c
 	dec b
 	call Call_58_5F0C
@@ -1851,7 +1851,7 @@ jr_058_4ac9:
 	call GetBattlerHP
 	push hl
 	ld a, c
-	ld hl, $db8b
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -1926,7 +1926,7 @@ jr_058_4b2d:
 	jr nc, jr_058_4b68
 
 	ld a, c
-	ld hl, $db03
+	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 7, [hl]
 	jr nz, jr_058_4b68
@@ -1934,12 +1934,12 @@ jr_058_4b2d:
 	ld de, $00ff
 	push de
 	ld a, $06
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	xor $c0
 	and $c0
 	pop de
@@ -1972,7 +1972,7 @@ Call_58_4B74::
 	ld b, $03
 	push bc
 	xor a
-	ld hl, $db50
+	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
@@ -2011,21 +2011,21 @@ jr_058_4ba0:
 
 	push bc
 	ld a, $03
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $30
 	ld [hl], a
 	jr jr_058_4c07
@@ -2033,7 +2033,7 @@ jr_058_4ba0:
 jr_058_4bd6:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -2046,7 +2046,7 @@ jr_058_4bd6:
 jr_058_4be7:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -2059,7 +2059,7 @@ jr_058_4be7:
 jr_058_4bf8:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -2075,16 +2075,16 @@ jr_058_4c07:
 
 	pop bc
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	call Call_58_5F0C
 	ret
 
@@ -2103,7 +2103,7 @@ jr_058_4c2b:
 
 	ld de, $0001
 	ld a, c
-	ld hl, $db8b
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -2129,12 +2129,12 @@ jr_058_4c2b:
 	ld de, $00ff
 	push de
 	ld a, $05
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	xor $0c
 	and $0c
 	pop de
@@ -2181,12 +2181,12 @@ jr_058_4c90:
 	ld hl, $00ff
 	push hl
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	xor $c0
 	and $c0
 	pop de
@@ -2233,13 +2233,13 @@ jr_058_4cd8:
 	jr z, jr_058_4d0b
 
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	ld de, $0001
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	rlca
 	rlca
 	xor $30
@@ -2276,7 +2276,7 @@ jr_058_4d21:
 
 	ld de, $0001
 	ld a, c
-	ld hl, $db8b
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -2321,7 +2321,7 @@ Call_58_4D5D::
 
 	call Call_58_627C
 	ld a, $01
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2332,7 +2332,7 @@ Call_58_4D6D::
 
 	call Call_58_627C
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2343,7 +2343,7 @@ Call_58_4D7D::
 
 	call Call_58_627C
 	ld a, $03
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2354,7 +2354,7 @@ Call_58_4D8D::
 
 	call Call_58_627C
 	ld a, $06
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2365,7 +2365,7 @@ Call_58_4D9D::
 
 	call Call_58_627C
 	ld a, $07
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2376,7 +2376,7 @@ Call_58_4DAD::
 
 	call Call_58_627C
 	ld a, $08
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2387,7 +2387,7 @@ Call_58_4DBD::
 
 	call Call_58_627C
 	ld a, $00
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2398,7 +2398,7 @@ Call_58_4DCD::
 
 	call Call_58_627C
 	ld a, $05
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2409,7 +2409,7 @@ Call_58_4DDD::
 
 	call Call_58_627C
 	ld a, $04
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_64FC
 	ret
 
@@ -2440,12 +2440,12 @@ jr_058_4df8:
 	ld de, $00ff
 	push de
 	ld a, $04
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $03
 	xor $03
 	pop de
@@ -2492,12 +2492,12 @@ jr_058_4e44:
 	ld de, $00ff
 	push de
 	ld a, $05
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $c0
 	xor $c0
 	pop de
@@ -2550,12 +2550,12 @@ jr_058_4e90:
 	ld de, $00ff
 	push de
 	ld a, $05
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $0c
 	xor $0c
 	pop de
@@ -2583,17 +2583,17 @@ Call_58_4ED8::
 	ld a, [wSkillUser]
 	and $04
 	xor $04
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	inc a
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $02
-	ld [$db4e], a
-	ld a, [$db4c]
+	ld [wBattleArg2], a
+	ld a, [wBattleArg0]
 	call CheckBattlerPresent
 	jr c, jr_058_4f1c
 
 	ld hl, wBattlerMaxHP
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	add a
 	add l
 	ld l, a
@@ -2604,7 +2604,7 @@ Call_58_4ED8::
 	ld b, [hl]
 	ld c, a
 	ld hl, wBattlerMaxMP
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	add a
 	add l
 	ld l, a
@@ -2622,7 +2622,7 @@ jr_058_4f1c:
 	ld e, $00
 
 jr_058_4f21:
-	ld hl, $db56
+	ld hl, wSkillAmount
 	ld a, c
 	ld [hli], a
 	ld a, b
@@ -2631,12 +2631,12 @@ jr_058_4f21:
 	ld [hl], a
 
 Jump_058_4f2a:
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	call CheckBattlerPresent
 	jr c, jr_058_4f57
 
 	ld hl, wBattlerMaxHP
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	add a
 	add l
 	ld l, a
@@ -2647,7 +2647,7 @@ Jump_058_4f2a:
 	ld b, [hl]
 	ld c, a
 	ld hl, wBattlerMaxMP
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	add a
 	add l
 	ld l, a
@@ -2685,26 +2685,26 @@ jr_058_4f5c:
 	jr c, jr_058_4f80
 
 jr_058_4f71:
-	ld hl, $db56
+	ld hl, wSkillAmount
 	ld a, c
 	ld [hli], a
 	ld a, b
 	ld [hli], a
 	ld a, e
 	ld [hl], a
-	ld a, [$db4d]
-	ld [$db4c], a
+	ld a, [wBattleArg1]
+	ld [wBattleArg0], a
 
 jr_058_4f80:
-	ld hl, $db4d
+	ld hl, wBattleArg1
 	inc [hl]
-	ld hl, $db4e
+	ld hl, wBattleArg2
 	dec [hl]
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	or a
 	jp nz, Jump_058_4f2a
 
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld [wSkillTarget], a
 	ld a, [wSkillUser]
 	ld hl, $dced
@@ -2721,7 +2721,7 @@ jr_058_4f80:
 
 Call_58_4FA7::
 	ld a, c
-	ld hl, $db8b
+	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
@@ -2734,14 +2734,14 @@ Call_58_4FA7::
 	push bc
 	push de
 	push hl
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
 	ld a, $32
 	call Multiply24
 	ld a, l
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	pop hl
@@ -2767,22 +2767,22 @@ Jump_058_4fdd:
 	jr c, jr_058_501e
 
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	push bc
 	ld a, c
 	and $03
-	ld de, $db50
+	ld de, wNamePos
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $30
 	ld [de], a
 	push de
@@ -2809,7 +2809,7 @@ jr_058_500e:
 jr_058_501e:
 	ld a, c
 	and $03
-	ld de, $db50
+	ld de, wNamePos
 	add e
 	ld e, a
 	ld a, $00
@@ -2820,7 +2820,7 @@ jr_058_501e:
 	ld de, $0000
 
 jr_058_5030:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -2828,15 +2828,15 @@ jr_058_5030:
 	ld [hli], a
 	ld a, d
 	ld [hl], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
@@ -2866,22 +2866,22 @@ Jump_058_5074:
 	jr c, jr_058_50b5
 
 	ld a, $00
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	push bc
 	ld a, c
 	and $03
-	ld de, $db50
+	ld de, wNamePos
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $30
 	ld [de], a
 	push de
@@ -2908,7 +2908,7 @@ jr_058_50a5:
 jr_058_50b5:
 	ld a, c
 	and $03
-	ld de, $db50
+	ld de, wNamePos
 	add e
 	ld e, a
 	ld a, $00
@@ -2919,7 +2919,7 @@ jr_058_50b5:
 	ld de, $ffff
 
 jr_058_50c7:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -2927,15 +2927,15 @@ jr_058_50c7:
 	ld [hli], a
 	ld a, d
 	ld [hl], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
@@ -2958,7 +2958,7 @@ Call_58_5100::
 
 	call Call_58_5E19
 	xor a
-	ld [$db50], a
+	ld [wNamePos], a
 	ld [$db51], a
 	ld [$db52], a
 	ld [$db53], a
@@ -2970,7 +2970,7 @@ jr_058_5118:
 
 	ld de, $0001
 	ld a, c
-	ld hl, $db08
+	ld hl, wBattlerStatus6
 	call AddEightTimes
 	bit 5, [hl]
 	jr nz, jr_058_5145
@@ -2997,7 +2997,7 @@ jr_058_5142:
 	ld de, $0000
 
 jr_058_5145:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -3006,7 +3006,7 @@ jr_058_5145:
 	ld [hl], d
 	inc hl
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	inc c
@@ -3035,7 +3035,7 @@ Call_58_5164::
 
 	call Call_58_5E19
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 	ld a, c
 	call CheckBattlerPresent
 	jr c, jr_058_51ac
@@ -3049,13 +3049,13 @@ Call_58_5164::
 
 	push bc
 	ld a, $03
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $c0
 	ld d, a
 	jr jr_058_51ae
@@ -3065,9 +3065,9 @@ jr_058_51ac:
 
 jr_058_51ae:
 	ld a, d
-	ld [$db50], a
+	ld [wNamePos], a
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 	inc c
 	dec b
 
@@ -3084,13 +3084,13 @@ Jump_058_51b8:
 
 	push bc
 	ld a, $03
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $c0
 	jr jr_058_51e5
 
@@ -3103,7 +3103,7 @@ jr_058_51e3:
 
 jr_058_51e5:
 	ld d, a
-	ld hl, $db50
+	ld hl, wNamePos
 	cp [hl]
 	jr c, jr_058_5200
 
@@ -3124,9 +3124,9 @@ jr_058_51e5:
 
 jr_058_5200:
 	ld a, d
-	ld [$db50], a
+	ld [wNamePos], a
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_5208:
 	inc c
@@ -3151,7 +3151,7 @@ Call_58_5211::
 	ld b, $03
 	push bc
 	xor a
-	ld hl, $db50
+	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
@@ -3181,21 +3181,21 @@ jr_058_522b:
 
 	push bc
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $c0
 	ld [hl], a
 	jr jr_058_528d
@@ -3203,7 +3203,7 @@ jr_058_522b:
 jr_058_526d:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -3216,7 +3216,7 @@ jr_058_526d:
 jr_058_527e:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -3232,16 +3232,16 @@ jr_058_528d:
 
 	pop bc
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	call Call_58_5F0C
 	ret
 
@@ -3257,7 +3257,7 @@ Call_58_52A9::
 	ld b, $03
 	push bc
 	xor a
-	ld hl, $db50
+	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
@@ -3275,7 +3275,7 @@ jr_058_52bf:
 	jr z, jr_058_530e
 
 	ld a, c
-	ld hl, $db04
+	ld hl, wBattlerStatus2
 	call AddEightTimes
 	ld a, [hl]
 	and $22
@@ -3283,21 +3283,21 @@ jr_058_52bf:
 
 	push bc
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $0c
 	ld [hl], a
 	jr jr_058_531d
@@ -3305,7 +3305,7 @@ jr_058_52bf:
 jr_058_52fd:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -3318,7 +3318,7 @@ jr_058_52fd:
 jr_058_530e:
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -3334,16 +3334,16 @@ jr_058_531d:
 
 	pop bc
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	call Call_58_5F0C
 	ret
 
@@ -3357,9 +3357,9 @@ Call_58_5339::
 
 	call Call_58_5E19
 	ld a, $00
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $c0
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	call Call_58_5FA6
 	ret
 
@@ -3373,9 +3373,9 @@ Call_58_5352::
 
 	call Call_58_5E19
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $30
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	call Call_58_5FA6
 	ret
 
@@ -3389,9 +3389,9 @@ Call_58_536B::
 
 	call Call_58_5E19
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $c0
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	call Call_58_5FA6
 	ret
 
@@ -3405,9 +3405,9 @@ Call_58_5384::
 
 	call Call_58_5E19
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $0c
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	call Call_58_5FA6
 	ret
 
@@ -3421,9 +3421,9 @@ Call_58_539D::
 
 	call Call_58_5E19
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $c0
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	call Call_58_6043
 	ret
 
@@ -3437,15 +3437,15 @@ Call_58_53B6::
 
 	call Call_58_5E19
 	ld a, $06
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $0c
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	call Call_58_6043
 	ret
 
 
 Call_58_53CF::
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	rst $00
 
 JumpTable_58_53D3::
@@ -3465,7 +3465,7 @@ Jump_58_53DF::
 	jr z, jr_058_5411
 
 	ld e, a
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -3483,18 +3483,18 @@ Jump_58_53DF::
 jr_058_5403:
 	ld a, e
 	ld [wSkillUser], a
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	xor a
-	ld [$d9ee], a
+	ld [wBattleSubStep2], a
 	jr jr_058_541d
 
 jr_058_5411:
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 
 jr_058_541d:
@@ -3511,7 +3511,7 @@ Jump_58_541E::
 
 Jump_58_5427::
 	xor a
-	ld [$dd69], a
+	ld [wHitCount], a
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
@@ -3529,7 +3529,7 @@ Jump_58_5427::
 	jr nc, jr_058_545b
 
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -3547,7 +3547,7 @@ jr_058_545b:
 	or a
 	call nz, Call_58_5A20
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -3563,7 +3563,7 @@ jr_058_5478:
 	call Call_58_5A40
 	call Call_58_5BA1
 	ld a, [wSkillUser]
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -3572,14 +3572,14 @@ jr_058_5478:
 	ld a, $02
 	ld [hl], a
 	xor a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ld hl, wSkillUser
 	inc [hl]
 	jp Jump_58_53DF
 
 
 Call_58_5498::
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $16
 	jr c, jr_058_54b1
 
@@ -3597,7 +3597,7 @@ Call_58_5498::
 
 jr_058_54b1:
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -3627,20 +3627,20 @@ Jump_58_54D1::
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	ld bc, $0010
 	ld a, $00
 	call FillMemory
 	xor a
 	ld [$db82], a
-	ld [$db55], a
-	ld hl, $db61
+	ld [wBattlerReload], a
+	ld hl, wSkillStatusPtr
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld de, $0800
@@ -3656,7 +3656,7 @@ Jump_058_5507:
 	jr c, jr_058_5587
 
 	ld a, e
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -3695,7 +3695,7 @@ jr_058_5543:
 	jr c, jr_058_5561
 
 	ld a, e
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -3715,26 +3715,26 @@ jr_058_5561:
 	ld b, a
 
 jr_058_5565:
-	ld hl, $db5e
+	ld hl, wNameDest
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, c
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db55]
-	ld hl, $db4c
+	ld a, [wBattlerReload]
+	ld hl, wBattleArg0
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], e
-	ld hl, $db55
+	ld hl, wBattlerReload
 	inc [hl]
-	ld hl, $db5e
+	ld hl, wNameDest
 	inc [hl]
-	ld hl, $db5e
+	ld hl, wNameDest
 	inc [hl]
 
 jr_058_5587:
@@ -3746,20 +3746,20 @@ jr_058_5587:
 	or a
 	jr nz, jr_058_55b3
 
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	cp $ff
 	jr z, jr_058_55b3
 
 	ld bc, $0200
-	ld hl, $db5e
+	ld hl, wNameDest
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, c
 	ld [hli], a
 	ld [hl], b
-	ld a, [$db55]
-	ld hl, $db4c
+	ld a, [wBattlerReload]
+	ld hl, wBattleArg0
 	add l
 	ld l, a
 	ld a, $00
@@ -3768,7 +3768,7 @@ jr_058_5587:
 	ld [hl], $10
 
 jr_058_55b3:
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	jr Jump_58_55C2
 
@@ -3788,15 +3788,15 @@ Jump_58_55C2::
 	ld d, $08
 
 jr_058_55c4:
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld hl, $db63
+	ld hl, wStatPtr
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -3807,18 +3807,18 @@ jr_058_55da:
 	jr c, jr_058_5615
 
 	ld a, l
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	ld a, c
 	ld [$db58], a
 	ld a, b
 	ld [$db59], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld [hli], a
 	ld a, [$db57]
 	ld [hli], a
@@ -3827,7 +3827,7 @@ jr_058_55da:
 	ld a, [$db59]
 	ld [hl], a
 	ld a, e
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	add l
 	ld l, a
 	ld a, $00
@@ -3844,14 +3844,14 @@ jr_058_5615:
 	cp d
 	jr z, jr_058_5635
 
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	inc hl
 	inc hl
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, [hli]
@@ -3875,7 +3875,7 @@ jr_058_5635:
 	adc d
 	ld d, a
 	ld a, [$db82]
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	ld b, $08
 
 jr_058_564c:
@@ -3891,7 +3891,7 @@ jr_058_564c:
 jr_058_5656:
 	ld a, $00
 	ld [$db82], a
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	jp Jump_58_5707
 
@@ -3959,7 +3959,7 @@ jr_058_56ab:
 	ld c, l
 	pop af
 	ld e, a
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -3988,7 +3988,7 @@ jr_058_56cc:
 
 
 Call_58_56CF::
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4038,12 +4038,12 @@ jr_058_5706:
 
 Jump_58_5707::
 	xor a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ld [$db82], a
 	ld [wSkillUser], a
 	ld [wSkillTarget], a
 	ld [wSkillId], a
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
@@ -4054,7 +4054,7 @@ Jump_58_5707::
 
 Call_58_5749::
 	ld a, $02
-	ld [$d9f0], a
+	ld [wBattleStepArg1], a
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_058_5766
@@ -4121,12 +4121,12 @@ jr_058_578b:
 	jr nz, jr_058_5788
 
 	ld a, $05
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ret
 
 
 Call_58_57A4::
-	ld a, [$db78]
+	ld a, [wBattleItemEffect]
 	cp $c2
 	jr c, jr_058_57e6
 
@@ -4136,7 +4136,7 @@ Call_58_57A4::
 	ld b, a
 	ld a, $01
 	ld [wTextGroup], a
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	cp $04
 	jr nc, jr_058_57c2
 
@@ -4150,7 +4150,7 @@ jr_058_57c2:
 
 Call_58_57C5::
 	ld a, [wSkillUser]
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
@@ -4161,7 +4161,7 @@ Call_58_57C5::
 	jr nz, jr_058_57fa
 
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4178,19 +4178,19 @@ jr_058_57e6:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ret
 
 
 jr_058_57f4:
 	ld a, $33
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ret
 
 
 jr_058_57fa:
 	ld a, $4f
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ret
 
 
@@ -4220,16 +4220,16 @@ Jump_058_58e8:
 	ld [wSkillTarget], a
 
 Jump_058_58f8:
-	ld a, [$db78]
+	ld a, [wBattleItemEffect]
 	cp $c5
 	jr nz, jr_058_5907
 
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	add $03
-	ld [$dd72], a
+	ld [wBattleTemp], a
 
 jr_058_5907:
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	ld hl, $5918
 	add l
 	ld l, a
@@ -4237,7 +4237,7 @@ jr_058_5907:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ret
 
 
@@ -4247,7 +4247,7 @@ Call_58_591E::
 	call Call_58_5C0B
 	cp $04
 	call nc, Call_58_593D
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	ld hl, $5937
 	add l
 	ld l, a
@@ -4288,8 +4288,8 @@ jr_058_594d:
 
 Call_58_5955::
 	xor a
-	ld [$dd72], a
-	ld [$dd73], a
+	ld [wBattleTemp], a
+	ld [wBattleTempHigh], a
 	ld a, [wSkillTarget]
 	and $04
 	ld c, a
@@ -4307,7 +4307,7 @@ jr_058_596f:
 	call CheckBattlerPresent
 	jr c, jr_058_5979
 
-	ld hl, $dd72
+	ld hl, wBattleTemp
 	inc [hl]
 
 jr_058_5979:
@@ -4315,7 +4315,7 @@ jr_058_5979:
 	dec b
 	jr nz, jr_058_596f
 
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	dec a
 	or a
 	jr z, jr_058_59d8
@@ -4328,15 +4328,15 @@ jr_058_5988:
 	call CheckBattlerPresent
 	jr c, jr_058_59b9
 
-	ld hl, $dd72
+	ld hl, wBattleTemp
 	inc [hl]
-	ld hl, $dd73
+	ld hl, wBattleTempHigh
 	ld a, [hl]
 	or a
 	jr nz, jr_058_59a8
 
 	ld a, c
-	ld de, $dc3c
+	ld de, wBattlerSpecies
 	add e
 	ld e, a
 	ld a, $00
@@ -4350,7 +4350,7 @@ jr_058_5988:
 jr_058_59a8:
 	push bc
 	ld a, c
-	ld bc, $dc3c
+	ld bc, wBattlerSpecies
 	add c
 	ld c, a
 	ld a, $00
@@ -4368,11 +4368,11 @@ jr_058_59b9:
 	dec b
 	jr nz, jr_058_5988
 
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	cp $01
 	jr z, Call_58_59CF
 
-	ld a, [$dd73]
+	ld a, [wBattleTempHigh]
 	cp $01
 	jr z, jr_058_59d3
 
@@ -4388,7 +4388,7 @@ jr_058_59d3:
 	ld a, $01
 
 jr_058_59d8:
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ret
 
 
@@ -4420,9 +4420,9 @@ jr_058_59fe:
 
 
 Call_58_5A02::
-	ld [$db60], a
+	ld [wNameBattler], a
 	push hl
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -4433,7 +4433,7 @@ Call_58_5A02::
 	ld h, $05
 	pop de
 	ld a, e
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
 	call CopySystemText
@@ -4452,7 +4452,7 @@ Call_58_5A20::
 
 jr_058_5a2e:
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4490,7 +4490,7 @@ jr_058_5a5a:
 
 jr_058_5a63:
 	ld a, [wSkillUser]
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hli]
 	and $0c
@@ -4501,7 +4501,7 @@ jr_058_5a63:
 	jp nz, Jump_058_5b1e
 
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4599,43 +4599,43 @@ jr_058_5a63:
 
 
 jr_058_5aed:
-	ld hl, $dc44
+	ld hl, wBattlerPersonality1
 	ld d, $01
 	jr jr_058_5b25
 
 jr_058_5af4:
-	ld hl, $dc44
+	ld hl, wBattlerPersonality1
 	ld d, $02
 	jr jr_058_5b63
 
 jr_058_5afb:
-	ld hl, $dc4c
+	ld hl, wBattlerStat67
 	ld d, $04
 	jr jr_058_5b25
 
 Call_58_5B02::
-	ld hl, $dc4c
+	ld hl, wBattlerStat67
 	ld d, $08
 	jr jr_058_5b63
 
 jr_058_5b09:
-	ld hl, $dc54
+	ld hl, wBattlerPersonality2
 	ld d, $10
 	jr jr_058_5b25
 
 jr_058_5b10:
-	ld hl, $dc54
+	ld hl, wBattlerPersonality2
 	ld d, $20
 	jr jr_058_5b63
 
 Call_58_5B17::
-	ld hl, $dc5c
+	ld hl, wBattlerPersonality3
 	ld d, $40
 	jr jr_058_5b25
 
 Jump_058_5b1e:
 jr_058_5b1e:
-	ld hl, $dc5c
+	ld hl, wBattlerPersonality3
 	ld d, $80
 	jr jr_058_5b63
 
@@ -4775,7 +4775,7 @@ jr_058_5bbb:
 
 jr_058_5bc4:
 	ld a, [wSkillUser]
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hli]
 	and $0c
@@ -4786,7 +4786,7 @@ jr_058_5bc4:
 	ret nz
 
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4843,7 +4843,7 @@ Call_58_5C0B::
 
 Call_58_5C18::
 	push hl
-	ld a, [$c1ed]
+	ld a, [wLinkRandom]
 	ld l, a
 	ld a, [$c1ee]
 	ld h, a
@@ -4857,7 +4857,7 @@ Call_58_5C18::
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, l
-	ld [$c1ed], a
+	ld [wLinkRandom], a
 	ld a, h
 	ld [$c1ee], a
 	pop hl
@@ -4876,7 +4876,7 @@ Call_58_5C3E::
 Call_58_5C48::
 	call Call_58_5498
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4887,25 +4887,25 @@ Call_58_5C48::
 	ld [wSkillId], a
 	ld a, [hl]
 	ld [wSkillTarget], a
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $17
 	jr z, jr_058_5c6e
 
 	ld a, $02
-	ld [$d9ef], a
+	ld [wBattleStepArg0], a
 	jr jr_058_5c73
 
 jr_058_5c6e:
 	ld a, $01
-	ld [$d9ef], a
+	ld [wBattleStepArg0], a
 
 jr_058_5c73:
 	xor a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ld a, $02
-	ld [$d9ee], a
+	ld [wBattleSubStep2], a
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -4915,11 +4915,11 @@ jr_058_5c73:
 	cp $02
 	ret nz
 
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	or a
 	ret nz
 
-	ld hl, $d9ee
+	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
@@ -4959,7 +4959,7 @@ jr_058_5cb9:
 	ld [$da13], a
 	ld hl, far_LoadMonTemplate2
 	rst $10
-	ld a, [$da23]
+	ld a, [wTemplateDefense]
 	ld c, a
 	ld a, [$da24]
 	ld b, a
@@ -4978,7 +4978,7 @@ jr_058_5cd6:
 
 jr_058_5cde:
 	ld a, b
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -4996,12 +4996,12 @@ jr_058_5ced:
 Call_58_5CEF::
 	ld hl, $db58
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, $00
-	ld [$db60], a
-	ld hl, $db56
+	ld [wNameBattler], a
+	ld hl, wSkillAmount
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -5012,8 +5012,8 @@ jr_058_5d08:
 	push de
 	push bc
 	call Call_58_5C3E
-	ld a, [$db60]
-	ld hl, $db50
+	ld a, [wNameBattler]
+	ld hl, wNamePos
 	and $03
 	add l
 	ld l, a
@@ -5024,7 +5024,7 @@ jr_058_5d08:
 	ld b, a
 	ld a, e
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -5040,7 +5040,7 @@ jr_058_5d08:
 	jr nz, jr_058_5d61
 
 	push hl
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -5060,7 +5060,7 @@ jr_058_5d08:
 	jr jr_058_5d5b
 
 jr_058_5d50:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -5072,18 +5072,18 @@ jr_058_5d5b:
 	ld h, b
 	ld l, c
 	ld a, e
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_5d61:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
@@ -5097,12 +5097,12 @@ jr_058_5d61:
 Call_58_5D86::
 	ld hl, $db58
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, $00
-	ld [$db60], a
-	ld hl, $db56
+	ld [wNameBattler], a
+	ld hl, wSkillAmount
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -5113,8 +5113,8 @@ jr_058_5d9f:
 	push de
 	push bc
 	call Call_58_5C3E
-	ld a, [$db60]
-	ld hl, $db50
+	ld a, [wNameBattler]
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -5123,7 +5123,7 @@ jr_058_5d9f:
 	ld a, [hl]
 	ld b, a
 	ld a, e
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
@@ -5139,7 +5139,7 @@ jr_058_5d9f:
 	jr nz, jr_058_5df4
 
 	push hl
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -5159,7 +5159,7 @@ jr_058_5d9f:
 	jr jr_058_5dee
 
 jr_058_5de3:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -5171,18 +5171,18 @@ jr_058_5dee:
 	ld h, b
 	ld l, c
 	ld a, e
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_5df4:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
@@ -5194,9 +5194,9 @@ jr_058_5df4:
 
 
 Call_58_5E19::
-	ld hl, $db56
+	ld hl, wSkillAmount
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, [wSkillUser]
@@ -5209,7 +5209,7 @@ Call_58_5E19::
 
 Call_58_5E2F::
 	ld a, c
-	ld hl, $db04
+	ld hl, wBattlerStatus2
 	call AddEightTimes
 	ld a, [hl]
 	and $22
@@ -5217,7 +5217,7 @@ Call_58_5E2F::
 
 
 Call_58_5E3A::
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
@@ -5264,7 +5264,7 @@ jr_058_5e70:
 
 
 Call_58_5E75::
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	ld a, [wSkillUser]
 	and $04
 	xor $04
@@ -5274,14 +5274,14 @@ Call_58_5E75::
 
 Call_58_5E81::
 	xor a
-	ld hl, $db50
+	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
 	call Call_58_5CEF
-	ld a, [$db60]
-	ld hl, $db4c
-	ld de, $db4c
+	ld a, [wNameBattler]
+	ld hl, wBattleArg0
+	ld de, wBattleArg0
 	add e
 	ld e, a
 	ld a, $00
@@ -5293,8 +5293,8 @@ Call_58_5E81::
 	ld [de], a
 	ld a, b
 	ld [hl], a
-	ld hl, $db56
-	ld a, [$db60]
+	ld hl, wSkillAmount
+	ld a, [wNameBattler]
 	add a
 	add l
 	ld l, a
@@ -5305,7 +5305,7 @@ Call_58_5E81::
 	ld d, [hl]
 	push hl
 	ld e, a
-	ld hl, $db56
+	ld hl, wSkillAmount
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
@@ -5321,9 +5321,9 @@ Call_58_5E81::
 
 Call_58_5EBF::
 	call Call_58_5D86
-	ld a, [$db60]
-	ld hl, $db4e
-	ld de, $db4c
+	ld a, [wNameBattler]
+	ld hl, wBattleArg2
+	ld de, wBattleArg0
 	add e
 	ld e, a
 	ld a, $00
@@ -5335,8 +5335,8 @@ Call_58_5EBF::
 	ld [de], a
 	ld a, b
 	ld [hl], a
-	ld hl, $db56
-	ld a, [$db60]
+	ld hl, wSkillAmount
+	ld a, [wNameBattler]
 	add a
 	add l
 	ld l, a
@@ -5347,7 +5347,7 @@ Call_58_5EBF::
 	ld d, [hl]
 	push hl
 	ld e, a
-	ld hl, $db5a
+	ld hl, wSkillAmount2
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
@@ -5379,14 +5379,14 @@ Call_58_5F01::
 Call_58_5F0C::
 	ld a, c
 	and $03
-	ld hl, $db50
+	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld d, [hl]
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	cp d
 	jr c, jr_058_5f3b
 
@@ -5407,16 +5407,16 @@ Call_58_5F0C::
 
 jr_058_5f33:
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, d
-	ld [$db4d], a
+	ld [wBattleArg1], a
 
 jr_058_5f3b:
 	inc c
 	dec b
 	jr nz, Call_58_5F0C
 
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld [wSkillTarget], a
 	ld a, [wSkillUser]
 	ld hl, $dced
@@ -5459,7 +5459,7 @@ Call_58_5F57::
 
 jr_058_5f77:
 	ld a, $ff
-	ld [$db4c], a
+	ld [wBattleArg0], a
 
 jr_058_5f7c:
 	ld hl, $ffff
@@ -5494,7 +5494,7 @@ Call_58_5F83::
 
 jr_058_5f9c:
 	ld a, $ff
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld de, $ffff
 
 jr_058_5fa4:
@@ -5504,21 +5504,21 @@ jr_058_5fa4:
 
 Call_58_5FA6::
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 	push bc
-	ld a, [$db4e]
-	ld [$db4c], a
+	ld a, [wBattleArg2]
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	call Call_58_5F57
-	ld a, [$db4c]
-	ld hl, $db4f
+	ld a, [wBattleArg0]
+	ld hl, wBattleArg3
 	and [hl]
-	ld [$db50], a
-	ld hl, $db56
+	ld [wNamePos], a
+	ld hl, wSkillAmount
 	ld a, e
 	ld [hli], a
 	ld [hl], d
@@ -5527,19 +5527,19 @@ Call_58_5FA6::
 
 jr_058_5fcf:
 	push bc
-	ld a, [$db4e]
-	ld [$db4c], a
+	ld a, [wBattleArg2]
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	call Call_58_5F57
-	ld a, [$db4c]
-	ld hl, $db4f
+	ld a, [wBattleArg0]
+	ld hl, wBattleArg3
 	and [hl]
 	ld h, a
-	ld a, [$db50]
+	ld a, [wNamePos]
 	cp h
 	jr c, jr_058_6027
 
@@ -5572,23 +5572,23 @@ jr_058_5fcf:
 	jr c, jr_058_6027
 
 jr_058_6013:
-	ld a, [$db4c]
-	ld hl, $db4f
+	ld a, [wBattleArg0]
+	ld hl, wBattleArg3
 	and [hl]
-	ld [$db50], a
-	ld hl, $db56
+	ld [wNamePos], a
+	ld hl, wSkillAmount
 	ld a, e
 	ld [hli], a
 	ld [hl], d
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_6027:
 	inc c
 	dec b
 	jr nz, jr_058_5fcf
 
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	ld [wSkillTarget], a
 	ld a, [wSkillUser]
 	ld hl, $dced
@@ -5605,21 +5605,21 @@ jr_058_6027:
 
 Call_58_6043::
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 	push bc
-	ld a, [$db4e]
-	ld [$db4c], a
+	ld a, [wBattleArg2]
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	call Call_58_5F83
-	ld a, [$db4c]
-	ld hl, $db4f
+	ld a, [wBattleArg0]
+	ld hl, wBattleArg3
 	and [hl]
-	ld [$db50], a
-	ld hl, $db56
+	ld [wNamePos], a
+	ld hl, wSkillAmount
 	ld a, e
 	ld [hli], a
 	ld [hl], d
@@ -5628,19 +5628,19 @@ Call_58_6043::
 
 jr_058_606c:
 	push bc
-	ld a, [$db4e]
-	ld [$db4c], a
+	ld a, [wBattleArg2]
+	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
-	ld hl, far_Call_52_6A8A
+	ld hl, far_GetResistByte
 	rst $10
 	pop bc
 	call Call_58_5F83
-	ld a, [$db4c]
-	ld hl, $db4f
+	ld a, [wBattleArg0]
+	ld hl, wBattleArg3
 	and [hl]
 	ld h, a
-	ld a, [$db50]
+	ld a, [wNamePos]
 	cp h
 	jr c, jr_058_60c4
 
@@ -5673,23 +5673,23 @@ jr_058_606c:
 	jr c, jr_058_60c4
 
 jr_058_60b0:
-	ld a, [$db4c]
-	ld hl, $db4f
+	ld a, [wBattleArg0]
+	ld hl, wBattleArg3
 	and [hl]
-	ld [$db50], a
-	ld hl, $db56
+	ld [wNamePos], a
+	ld hl, wSkillAmount
 	ld a, e
 	ld [hli], a
 	ld [hl], d
 	ld a, c
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_60c4:
 	inc c
 	dec b
 	jr nz, jr_058_606c
 
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	ld [wSkillTarget], a
 	ld a, [wSkillUser]
 	ld hl, $dced
@@ -5762,7 +5762,7 @@ jr_058_6116:
 	ld [$da13], a
 	ld hl, far_LoadMonTemplate2
 	rst $10
-	ld a, [$da25]
+	ld a, [wTemplateAgility]
 	ld c, a
 	ld a, [$da26]
 	ld b, a
@@ -5780,7 +5780,7 @@ jr_058_6132:
 
 jr_058_613a:
 	ld a, b
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -5818,12 +5818,12 @@ Call_58_6188::
 Call_58_619A::
 	ld hl, $db58
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, $00
-	ld [$db60], a
-	ld hl, $db56
+	ld [wNameBattler], a
+	ld hl, wSkillAmount
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -5831,7 +5831,7 @@ Call_58_619A::
 
 jr_058_61b3:
 	push hl
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -5861,18 +5861,18 @@ jr_058_61d9:
 	ld h, b
 	ld l, c
 	ld a, e
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_61df:
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
@@ -5880,7 +5880,7 @@ jr_058_61df:
 	dec d
 	jr nz, jr_058_61b3
 
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
@@ -5902,12 +5902,12 @@ jr_058_61df:
 
 Call_58_6224::
 	ld a, $00
-	ld [$db60], a
+	ld [wNameBattler], a
 	ld a, [$db58]
 	ld l, a
 	ld a, [$db59]
 	ld h, a
-	ld a, [$db5a]
+	ld a, [wSkillAmount2]
 	ld c, a
 	ld a, [$db5b]
 	ld b, a
@@ -5915,14 +5915,14 @@ Call_58_6224::
 	jr c, jr_058_624b
 
 	ld a, $01
-	ld [$db60], a
-	ld a, [$db5a]
+	ld [wNameBattler], a
+	ld a, [wSkillAmount2]
 	ld l, a
 	ld a, [$db5b]
 	ld h, a
 
 jr_058_624b:
-	ld a, [$db5c]
+	ld a, [wSkillTempPtr]
 	ld c, a
 	ld a, [$db5d]
 	ld b, a
@@ -5930,10 +5930,10 @@ jr_058_624b:
 	jr c, jr_058_625d
 
 	ld a, $02
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_625d:
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
@@ -5953,9 +5953,9 @@ jr_058_625d:
 
 
 Call_58_627C::
-	ld hl, $db56
+	ld hl, wSkillAmount
 	ld a, l
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
 	ld a, [wSkillUser]
@@ -5967,7 +5967,7 @@ Call_58_627C::
 
 
 Call_58_6292::
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
@@ -5975,15 +5975,15 @@ Call_58_6292::
 	ld [hli], a
 	ld a, d
 	ld [hl], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	add $01
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
@@ -5994,7 +5994,7 @@ Call_58_62BF::
 	ld a, [wSkillUser]
 	and $04
 	xor $04
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_62D9
 	ret
 
@@ -6002,13 +6002,13 @@ Call_58_62BF::
 Call_58_62CD::
 	ld a, [wSkillUser]
 	and $04
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_62D9
 	ret
 
 
 Call_58_62D9::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
 	ld b, $03
 
@@ -6021,7 +6021,7 @@ jr_058_62df:
 	dec b
 	jr nz, jr_058_62df
 
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
 
 jr_058_62ed:
@@ -6039,7 +6039,7 @@ jr_058_62ed:
 
 
 Call_58_62FD::
-	ld a, [$dd69]
+	ld a, [wHitCount]
 	or a
 	jr nz, jr_058_632a
 
@@ -6199,7 +6199,7 @@ jr_058_63c0:
 	and $07
 	ld c, a
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -6214,7 +6214,7 @@ jr_058_63c0:
 
 Call_58_63D6::
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -6273,7 +6273,7 @@ jr_058_6415:
 	jr nz, jr_058_6412
 
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -6367,7 +6367,7 @@ jr_058_6527:
 
 Call_58_6533::
 	ld a, c
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -6378,7 +6378,7 @@ Call_58_6533::
 	ld hl, far_GetMonsterStats
 	rst $10
 	ld a, [wMonStats]
-	ld hl, $db4c
+	ld hl, wBattleArg0
 	cp [hl]
 	ret
 
@@ -6403,7 +6403,7 @@ Call_58_6556::
 
 Call_58_655F::
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -6474,7 +6474,7 @@ Call_58_660D::
 	jr c, jr_058_6623
 
 	ld a, c
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
@@ -6494,7 +6494,7 @@ jr_058_6627:
 
 Call_58_6629::
 	ld a, [wSkillUser]
-	ld hl, $dd0b
+	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
@@ -6532,11 +6532,11 @@ jr_058_6656:
 
 Call_58_665A::
 	ld a, $00
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, $01
 	ld [$db5f], a
 	ld a, $02
-	ld [$db60], a
+	ld [wNameBattler], a
 
 jr_058_6669:
 	ld a, [$db5f]
@@ -6550,7 +6550,7 @@ jr_058_6669:
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld hl, $db58
 	add a
 	add l
@@ -6567,7 +6567,7 @@ jr_058_6669:
 	jr nz, jr_058_66bb
 
 	ld a, [$db5f]
-	ld hl, $db61
+	ld hl, wSkillStatusPtr
 	add a
 	add l
 	ld l, a
@@ -6577,8 +6577,8 @@ jr_058_6669:
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld a, [$db5e]
-	ld hl, $db61
+	ld a, [wNameDest]
+	ld hl, wSkillStatusPtr
 	add a
 	add l
 	ld l, a
@@ -6593,17 +6593,17 @@ jr_058_6669:
 
 jr_058_66b5:
 	ld a, [$db5f]
-	ld [$db5e], a
+	ld [wNameDest], a
 
 jr_058_66bb:
 	ld hl, $db5f
 	inc [hl]
-	ld a, [$db60]
+	ld a, [wNameBattler]
 	dec a
-	ld [$db60], a
+	ld [wNameBattler], a
 	jr nz, jr_058_6669
 
-	ld a, [$db5e]
+	ld a, [wNameDest]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
@@ -6633,7 +6633,7 @@ Call_58_66E7::
 	cp $01
 	jr z, jr_058_6714
 
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
@@ -6646,7 +6646,7 @@ Call_58_66E7::
 	ld a, h
 	ld [$db59], a
 	ld a, e
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, d
 	ld [$db57], a
 
@@ -6655,12 +6655,12 @@ jr_058_6714:
 	ld l, a
 	ld a, [$db59]
 	ld h, a
-	ld a, [$db5a]
+	ld a, [wSkillAmount2]
 	ld e, a
 	ld a, [$db5b]
 	ld d, a
 	ld a, l
-	ld [$db5a], a
+	ld [wSkillAmount2], a
 	ld a, h
 	ld [$db5b], a
 	ld a, e
@@ -6679,7 +6679,7 @@ Call_58_6737::
 	cp $10
 	jr z, jr_058_6750
 
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -6687,15 +6687,15 @@ Call_58_6737::
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	call Call_58_6794
 	ret
 
 
 jr_058_6750:
-	ld hl, $db78
+	ld hl, wBattleItemEffect
 	ld a, [hld]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	cp $c2
 	jr c, Call_58_6794
 
@@ -6733,14 +6733,14 @@ jr_058_677b:
 	cp $ff
 	call z, Call_58_6792
 	ld a, c
-	ld hl, $db07
+	ld hl, wBattlerStatus5
 	call AddEightTimes
 	ld a, [hl]
 	and $c0
 	jr nz, jr_058_6770
 
 jr_058_678d:
-	ld hl, $db77
+	ld hl, wBattleItemTarget
 	ld [hl], c
 	ret
 
@@ -6752,14 +6752,14 @@ Call_58_6792::
 
 Call_58_6794::
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $02
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	push hl
 	ld hl, far_Call_54_5249
 	rst $10
 	pop hl
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $03
 	cp $01
 	ret z
@@ -6783,7 +6783,7 @@ Call_58_67BA::
 	call Call_58_68A5
 	ld a, [wSkillUser]
 	call GetBattlerAttack
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
@@ -6793,13 +6793,13 @@ Call_58_67BA::
 	ld hl, $dd26
 	ld b, $0a
 	call Call_58_6918
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
 	srl b
 	rr c
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
@@ -6814,11 +6814,11 @@ Call_58_67BA::
 	ld hl, $dd26
 	ld b, $0a
 	call Call_58_6918
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
@@ -6833,12 +6833,12 @@ Call_58_67BA::
 	ld hl, $dd26
 	ld b, $0a
 	call Call_58_6918
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
 	add hl, hl
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
@@ -6859,7 +6859,7 @@ Call_58_67BA::
 Jump_058_6859:
 jr_058_6859:
 	ld a, [wSkillUser]
-	ld hl, $db03
+	ld hl, wBattlerStatus1
 	call AddEightTimes
 	ld a, [hli]
 	and $0c
@@ -6889,7 +6889,7 @@ jr_058_6880:
 	jr c, jr_058_689b
 
 	ld a, c
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hli]
 	and $0c
@@ -6962,26 +6962,26 @@ jr_058_68c8:
 	ld l, a
 	ld a, [$db59]
 	ld h, a
-	ld a, [$db5a]
+	ld a, [wSkillAmount2]
 	ld c, a
 	ld a, [$db5b]
 	ld b, a
 	ld a, l
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	call CompareHLBC
 	jr c, jr_058_6903
 
 	ld a, c
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, b
 	ld [$db57], a
 	ld h, b
 	ld l, c
 
 jr_058_6903:
-	ld a, [$db5c]
+	ld a, [wSkillTempPtr]
 	ld c, a
 	ld a, [$db5d]
 	ld b, a
@@ -6989,7 +6989,7 @@ jr_058_6903:
 	ret c
 
 	ld a, c
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, b
 	ld [$db57], a
 	ret

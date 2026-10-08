@@ -4958,370 +4958,547 @@ SkillMPCosts::
 	dw $0000, $0000, $0000, $0000, $0000, $0009, $0003, $0003    ; $D0
 	dw $0003, $0014, $0005, $0000, $0002, $0002, $0000, $0000    ; $D8
 
+;@ def SkillShowTargets()
+;@ path: menu/skills
+;@ Skill step 5: the healing skills for one monster ($2B-$2D, $30, $31, $33, $36)
+;@ show the party list with the HP of the monster under the cursor; the others
+;@ skip to step 7.
+;@ test: skip draws into VRAM
 SkillShowTargets::
+;>@c1 if wItemId not in (0x2B, 0x2C, 0x2D, 0x30, 0x31, 0x33, 0x36):
 	ld a, [wItemId]
 	cp $2b
-	jr z, jr_007_58f4
+	jr z, .target
 
 	cp $2c
-	jr z, jr_007_58f4
+	jr z, .target
 
+;=@c1
 	cp $2d
-	jr z, jr_007_58f4
+	jr z, .target
 
 	cp $30
-	jr z, jr_007_58f4
+	jr z, .target
 
 	cp $31
-	jr z, jr_007_58f4
+	jr z, .target
 
+;=@c1
 	cp $33
-	jr z, jr_007_58f4
+	jr z, .target
 
 	cp $36
-	jr z, jr_007_58f4
+	jr z, .target
 
+;>     wFieldMenuStep += 2
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ld hl, wFieldMenuStep
 	inc [hl]
+;>     return
 	ret
 
 
-jr_007_58f4:
-	ld de, $76d1
+.target
+;> DrawWindow(SkillListWindow)
+	ld de, SkillListWindow
 	call DrawWindow
-	ld de, $790d
+;> DrawWindow(SkillTargetListWindow)
+	ld de, SkillTargetListWindow
 	call DrawWindow
-	ld de, $7957
+;> DrawWindow(TargetHPWindow)
+	ld de, TargetHPWindow
 	call DrawWindow
+;> DrawSkillTargetHP()
 	call DrawSkillTargetHP
+;> MenuResetBlink()
 	call MenuResetBlink
-	ld de, $544e
+;> MenuDrawCursorAt(wConfirmChoice2, SkillMonCursorPos)
+	ld de, SkillMonCursorPos
 	ld a, [wConfirmChoice2]
 	call MenuDrawCursorAt
-	ld de, $56a4
+;>@c2 DrawListMarks(wConfirmChoice, SkillListCursorPos, 4, wMenuCount)
+	ld de, SkillListCursorPos
 	ld a, [wConfirmChoice]
 	ld b, $04
 	ld hl, wConfirmChoice
 	ld a, [wMenuCount]
 	ld c, a
+;=@c2
 	call DrawListMarks
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def UnusedDrawTargetHP()
+;@ path: unused
+;@ Never called: DrawSkillTargetHP for the monster in wConfirmChoice2.
+;@ test: skip writes the tilemap buffer through BufferAddress
 UnusedDrawTargetHP::
-	db $21, $11, $cb, $fa, $dd, $c8, $cd, $4f, $22, $21, $01, $02, $cd, $80, $68, $cd
-	db $71, $20, $21, $13, $cb, $fa, $dd, $c8, $cd, $4f, $22, $21, $05, $02, $cd, $80
-	db $68, $cd, $71, $20, $21, $0b, $cb, $fa, $dd, $c8, $cd, $4a, $22, $47, $21, $c5
-	db $01, $cd, $80, $68, $cb, $40, $3e, $e0, $28, $02, $3e, $d7, $22, $cb, $50, $3e
-	db $e0, $28, $02, $3e, $d8, $22, $cb, $78, $3e, $e0, $28, $02, $3e, $d9, $77, $c9
+;> PrintNumber3(GetPartyMonsterWord(wConfirmChoice2, wMonHP), BufferAddress(0x0201))
+	ld hl, wMonHP
+	ld a, [wConfirmChoice2]
+	call GetPartyMonsterWord
+	ld hl, $0201
+	call BufferAddress
+	call PrintNumber3
+;> PrintNumber3(GetPartyMonsterWord(wConfirmChoice2, wMonMaxHP), BufferAddress(0x0205))
+	ld hl, wMonMaxHP
+	ld a, [wConfirmChoice2]
+	call GetPartyMonsterWord
+	ld hl, $0205
+	call BufferAddress
+	call PrintNumber3
+;> status = GetPartyMonsterByte(wConfirmChoice2, wMonStatus)
+	ld hl, wMonStatus
+	ld a, [wConfirmChoice2]
+	call GetPartyMonsterByte
+	ld b, a
+;> p = BufferAddress(0x01C5)
+	ld hl, $01c5
+	call BufferAddress
+;>@c3 mem[p] = 0xD7 if status & 0x01 else 0xE0
+	bit 0, b
+	ld a, $e0
+	jr z, .mark1
 
+	ld a, $d7
+
+.mark1
+;=@c3
+	ld [hli], a
+;>@c4 mem[p + 1] = 0xD8 if status & 0x04 else 0xE0
+	bit 2, b
+	ld a, $e0
+	jr z, .mark2
+
+	ld a, $d8
+
+.mark2
+;=@c4
+	ld [hli], a
+;>@c5 mem[p + 2] = 0xD9 if status & 0x80 else 0xE0
+	bit 7, b
+	ld a, $e0
+	jr z, .mark3
+
+	ld a, $d9
+
+.mark3
+;=@c5
+	ld [hl], a
+	ret
+
+;@ def SkillTargetInput()
+;@ path: menu/skills
+;@ Skill step 6, choosing the monster to heal: Up/Down moves (the HP window
+;@ follows), B goes back to the skill list, A takes the monster (wItemTarget, its
+;@ name into wTextArg1).
+;@ test: skip draws into VRAM
 SkillTargetInput::
-	ld de, $544e
+;> old = wMenuChoice3
+	ld de, SkillMonCursorPos
 	ld hl, wMenuChoice3
 	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
+;> MoveMenuCursor(wMenuChoice3, wPartyCount, SkillMonCursorPos)
 	call MoveMenuCursor
+;>@c6 if (wMenuChoice3 & 0x7F) != (old & 0x7F):
 	pop af
 	and $7f
 	ld b, a
 	ld hl, wMenuChoice3
 	ld a, [hl]
 	and $7f
+;=@c6
 	cp b
-	jr z, jr_007_59a1
+	jr z, .buttons
 
+;>     DrawSkillTargetHP()
 	call DrawSkillTargetHP
+;>     MenuShowBuffer()
 	call MenuShowBuffer
 
-jr_007_59a1:
+.buttons
+;> if wJoyPressed & 0x02:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_59b6
+	jr z, .notB
 
+;>@c27     wFieldMenuStep -= 3
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
-	jr jr_007_59dd
+;=@c27
+	jr .done
 
-jr_007_59b6:
+.notB
+;> elif wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_007_59dd
+	jp z, .done
 
+;>     wItemTarget = wMenuChoice3 & 0x7F
 	ld a, [wMenuChoice3]
 	and $7f
 	ld [wItemTarget], a
+;>     CopyName(PartyMonsterField(wItemTarget, wMonName), wTextArg1)
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
 	call CopyName
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 
-Jump_007_59dd:
-jr_007_59dd:
+.done
 	ret
 
 
+;@ def DrawSkillTargetHP()
+;@ path: menu/skills
+;@ HP, max HP and ailment marks of the monster under the target cursor
+;@ (wMenuChoice3).
+;@ test: skip writes the tilemap buffer through BufferAddress
 DrawSkillTargetHP::
+;> PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonHP), BufferAddress(0x0201))
 	ld hl, wMonHP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
 	ld hl, $0201
 	call BufferAddress
 	call PrintNumber3
+;> PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonMaxHP), BufferAddress(0x0205))
 	ld hl, wMonMaxHP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
 	ld hl, $0205
 	call BufferAddress
 	call PrintNumber3
+;> status = GetPartyMonsterByte(wMenuChoice3, wMonStatus)
 	ld hl, wMonStatus
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterByte
 	ld b, a
+;> p = BufferAddress(0x01C5)
 	ld hl, $01c5
 	call BufferAddress
+;>@c7 mem[p] = 0xD7 if status & 0x01 else 0xE0
 	bit 0, b
 	ld a, $e0
-	jr z, jr_007_5a1a
+	jr z, .mark1
 
 	ld a, $d7
 
-jr_007_5a1a:
+.mark1
+;=@c7
 	ld [hli], a
+;>@c8 mem[p + 1] = 0xD8 if status & 0x04 else 0xE0
 	bit 2, b
 	ld a, $e0
-	jr z, jr_007_5a23
+	jr z, .mark2
 
 	ld a, $d8
 
-jr_007_5a23:
+.mark2
+;=@c8
 	ld [hli], a
+;>@c9 mem[p + 2] = 0xD9 if status & 0x80 else 0xE0
 	bit 7, b
 	ld a, $e0
-	jr z, jr_007_5a2c
+	jr z, .mark3
 
 	ld a, $d9
 
-jr_007_5a2c:
+.mark3
+;=@c9
 	ld [hl], a
 	ret
 
 
+;@ def SkillStartUse()
+;@ path: menu/skills
+;@ Skill step 7: the user's name and the skill's name (text group 6) into the
+;@ message arguments, then message $0E00 ("X used Y") - $0E09 for skill $7E - in
+;@ the message window, with sound $65.
+;@ test: skip prints text through another bank
 SkillStartUse::
+;>@c10 CopyName(PartyMonsterField(wMenuChoice2, wMonName), wTextArg0)
 	ld hl, wMonName
 	ld a, [wMenuChoice2]
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
+;=@c10
 	call CopyName
+;> CopySystemText(0x0600 | wItemId, wTextArg2)
 	ld a, [wItemId]
 	ld l, a
 	ld h, $06
 	ld de, wTextArg2
 	call CopySystemText
+;>@c11 PrintSystemText(0x0E09 if wItemId == 0x7E else 0x0E00)
 	ld hl, $0e00
 	ld a, [wItemId]
 	cp $7e
-	jr nz, jr_007_5a58
+	jr nz, .print
 
 	ld hl, $0e09
 
-jr_007_5a58:
+.print
+;=@c11
 	call PrintSystemText
+;> DrawWindow(0x2E07)                 # the message window
 	ld de, $2e07
 	call DrawWindow
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
+;> QueueSound(0x65)
 	ld a, $65
 	call QueueSound
 	ret
 
 
+;@ def SkillApply()
+;@ path: menu/skills
+;@ Skill step 8, after the message: checks the MP (message $0E02 if too few), lets
+;@ the battle code check the skill (wItemId $FF afterwards = no effect: message
+;@ $0E01, $0E08 for skill $38), then: the party heals $2E/$2F report per monster
+;@ (step 12 on); $37, $38 and $7E just take effect; the others print their
+;@ result ($0E07 for $36, $0E06 for $33, $0E04 for $30/$31, else $0E03) and take
+;@ effect (PaySkillMP).
+;@ test: skip calls routines in another bank
 SkillApply::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;>@c12 field = wMonSkills + 4 if wConfirmChoice2 else wMonSkills
 	ld a, [wConfirmChoice2]
 	cp $00
-	jr z, jr_007_5a7f
+	jr z, .first
 
-	ld hl, $caee
-	jr jr_007_5a82
+	ld hl, wMonSkills + 4
+	jr .pick
 
-jr_007_5a7f:
+.first
+;=@c12
 	ld hl, wMonSkills
 
-jr_007_5a82:
+.pick
+;>@c13 skill = PartyMonsterField(wMenuChoice2, field)[wConfirmChoice & 0x7F]
 	ld a, [wMenuChoice2]
 	call PartyMonsterField
 	ld a, [wConfirmChoice]
 	and $7f
 	add l
 	ld l, a
+;=@c13
 	ld a, $00
 	adc h
 	ld h, a
+;>@c14 cost = SkillMPCosts[skill]
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $0c
+	add LOW(SkillMPCosts)
 	ld l, a
+;=@c14
 	ld a, h
-	adc $57
+	adc HIGH(SkillMPCosts)
 	ld h, a
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
+;>@c15 if GetPartyMonsterWord(wMenuChoice2, wMonMP) < cost:
 	push bc
 	ld hl, wMonMP
 	ld a, [wMenuChoice2]
 	call PartyMonsterField
 	pop bc
 	ld a, [hli]
+;=@c15
 	sub c
 	ld a, [hl]
 	sbc b
+;>     msg = 0x0E02                    # not enough MP
 	ld hl, $0e02
-	jp c, Jump_007_5b16
+	jp c, .say
 
+;> else:
+;>     skill = wItemId
 	ld a, [wItemId]
 	push af
+;>     CheckFieldItemUse()                 # leaves $FF in wItemId when it would do nothing
 	ld hl, far_CheckFieldItemUse
 	rst $10
+;>     if wItemId == 0xFF:
 	pop bc
 	ld a, [wItemId]
 	cp $ff
 	ld a, b
-	jr z, jr_007_5b0c
+	jr z, .failed
 
+;>@f1         msg = 0x0E08 if skill == 0x38 else 0x0E01
+;>     elif wItemId in (0x2E, 0x2F):    # party heal: one message per monster first
 	ld a, [wItemId]
 	cp $2e
-	jr z, jr_007_5b06
+	jr z, .healAll
 
 	cp $2f
-	jr z, jr_007_5b06
+	jr z, .healAll
 
+;>@ha         wFieldMenuStep = 0x0C
+;>@ha         return
+;>     else:
+;>         if wItemId not in (0x37, 0x38, 0x7E):     # these have no result message
 	cp $37
-	jr z, jr_007_5afe
+	jr z, .noText
 
 	cp $38
-	jr z, jr_007_5afe
+	jr z, .noText
 
 	cp $7e
-	jr z, jr_007_5afe
+	jr z, .noText
 
+;>@c16             msg = 0x0E07 if wItemId == 0x36 else 0x0E06 if wItemId == 0x33 else 0x0E04 if wItemId in (0x30, 0x31) else 0x0E03
 	ld hl, $0e07
 	cp $36
-	jr z, jr_007_5afb
+	jr z, .result
 
 	ld hl, $0e06
 	cp $33
-	jr z, jr_007_5afb
+;=@c16
+	jr z, .result
 
 	ld hl, $0e04
 	cp $30
-	jr z, jr_007_5afb
+	jr z, .result
 
 	cp $31
-	jr z, jr_007_5afb
+;=@c16
+	jr z, .result
 
 	ld hl, $0e03
 
-jr_007_5afb:
+.result
+;>             PrintSystemText(msg)
 	call PrintSystemText
 
-jr_007_5afe:
+.noText
+;>         wFieldMenuStep += 1
+;>         PaySkillMP()
 	ld hl, wFieldMenuStep
 	inc [hl]
 	call PaySkillMP
+;>         return
 	ret
 
-
-jr_007_5b06:
+.healAll
+;=@ha
 	ld a, $0c
 	ld [wFieldMenuStep], a
 	ret
 
 
-jr_007_5b0c:
+.failed
+;=@f1
 	ld hl, $0e08
 	cp $38
-	jr z, jr_007_5b16
+	jr z, .say
 
 	ld hl, $0e01
 
-Jump_007_5b16:
-jr_007_5b16:
+.say
+;> PrintSystemText(msg)
 	call PrintSystemText
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def PaySkillMP()
+;@ path: menu/skills
+;@ Lets the skill take effect (bank $14), refreshes the party sprites and status
+;@ bar, then takes the skill's MP cost from the user (party place wMenuChoice2).
+;@ test: skip calls routines in another bank
 PaySkillMP::
+;> UseFieldItem()
 	ld hl, far_UseFieldItem
 	rst $10
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> BuildStatusBar()
 	call BuildStatusBar
+;>@c17 field = wMonSkills + 4 if wConfirmChoice2 else wMonSkills
 	ld a, [wConfirmChoice2]
 	cp $00
-	jr z, jr_007_5b35
+	jr z, .first
 
-	ld hl, $caee
-	jr jr_007_5b38
+	ld hl, wMonSkills + 4
+	jr .pick
 
-jr_007_5b35:
+.first
+;=@c17
 	ld hl, wMonSkills
 
-jr_007_5b38:
+.pick
+;>@c18 skill = PartyMonsterField(wMenuChoice2, field)[wConfirmChoice & 0x7F]
 	ld a, [wMenuChoice2]
 	call PartyMonsterField
 	ld a, [wConfirmChoice]
 	and $7f
 	add l
 	ld l, a
+;=@c18
 	ld a, $00
 	adc h
 	ld h, a
+;>@c19 cost = SkillMPCosts[skill]
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $0c
+	add LOW(SkillMPCosts)
 	ld l, a
+;=@c19
 	ld a, h
-	adc $57
+	adc HIGH(SkillMPCosts)
 	ld h, a
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
+;>@c20 mem16[PartyMonsterField(wMenuChoice2, wMonMP)] -= cost
 	push bc
 	ld hl, wMonMP
 	ld a, [wMenuChoice2]
 	call PartyMonsterField
 	pop bc
 	ld a, [hl]
+;=@c20
 	sub c
 	ld [hli], a
 	ld a, [hl]
@@ -5330,190 +5507,271 @@ jr_007_5b38:
 	ret
 
 
+;@ def SkillCloseAfterText()
+;@ path: menu/skills
+;@ Skill step 9: once the message is done, back to the main menu.
+;@ test: skip draws into VRAM
 SkillCloseAfterText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
 	ret
 
 
+;@ def SkillShowTextWindow()
+;@ path: menu/skills
+;@ Skill step 10: shows the message window (after "can't use that here" or a
+;@ fainted user) and goes on.
+;@ test: skip draws into VRAM
 SkillShowTextWindow::
+;> DrawWindow(0x2E07)
 	ld de, $2e07
 	call DrawWindow
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def SkillCloseAfterText2()
+;@ path: menu/skills
+;@ Skill step 11: once the message is done, back to the main menu.
+;@ test: skip draws into VRAM
 SkillCloseAfterText2::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
 	ret
 
 
+;@ def SkillHealAllReport0()
+;@ path: menu/skills
+;@ Skill step 12, party heal: if the first party monster is standing and not at full
+;@ HP, prints message $0E03 with its name (it is about to be healed).
+;@ test: skip prints text through another bank
 SkillHealAllReport0::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;>@c21 if not PartyMonsterField(0, wMonStatus)[0] & 0x80 and GetPartyMonsterWord(0, wMonMaxHP) != GetPartyMonsterWord(0, wMonHP):
 	ld hl, wMonStatus
 	ld a, $00
 	call PartyMonsterField
 	bit 7, [hl]
-	jr nz, jr_007_5be0
+	jr nz, .next
 
+;=@c21
 	ld a, $00
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
 	ld a, $00
 	ld hl, wMonHP
+;=@c21
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
+;=@c21
 	sbc b
 	ld h, a
 	ld a, h
 	or l
-	jr z, jr_007_5be0
+	jr z, .next
 
+;>@c22     CopyName(PartyMonsterField(0, wMonName), wTextArg1)
 	ld hl, wMonName
 	ld a, $00
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
+;=@c22
 	call CopyName
+;>     PrintSystemText(0x0E03)
 	ld hl, $0e03
 	call PrintSystemText
+;>     DrawWindow(0x2E07)
 	ld de, $2e07
 	call DrawWindow
+;>     MenuShowBuffer()
 	call MenuShowBuffer
 
-jr_007_5be0:
+.next
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def SkillHealAllReport1()
+;@ path: menu/skills
+;@ Skill step 13: SkillHealAllReport0 for the second party place (if filled).
+;@ test: skip prints text through another bank
 SkillHealAllReport1::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$ca8f]
+;>@c23 if wParty[1] != 0xFF and not PartyMonsterField(1, wMonStatus)[0] & 0x80 and GetPartyMonsterWord(1, wMonMaxHP) != GetPartyMonsterWord(1, wMonHP):
+	ld a, [wParty + 1]
 	cp $ff
-	jr z, jr_007_5c2f
+	jr z, .next
 
 	ld hl, wMonStatus
 	ld a, $01
 	call PartyMonsterField
+;=@c23
 	bit 7, [hl]
-	jr nz, jr_007_5c2f
+	jr nz, .next
 
 	ld a, $01
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;=@c23
 	ld a, $01
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
+;=@c23
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
 	ld a, h
 	or l
-	jr z, jr_007_5c2f
+;=@c23
+	jr z, .next
 
+;>@c24     CopyName(PartyMonsterField(1, wMonName), wTextArg1)
 	ld hl, wMonName
 	ld a, $01
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
+;=@c24
 	call CopyName
+;>     PrintSystemText(0x0E03)
 	ld hl, $0e03
 	call PrintSystemText
 
-jr_007_5c2f:
+.next
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def SkillHealAllReport2()
+;@ path: menu/skills
+;@ Skill step 14: SkillHealAllReport0 for the third party place (if filled).
+;@ test: skip prints text through another bank
 SkillHealAllReport2::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$ca90]
+;>@c25 if wParty[2] != 0xFF and not PartyMonsterField(2, wMonStatus)[0] & 0x80 and GetPartyMonsterWord(2, wMonMaxHP) != GetPartyMonsterWord(2, wMonHP):
+	ld a, [wParty + 2]
 	cp $ff
-	jr z, jr_007_5c7e
+	jr z, .next
 
 	ld hl, wMonStatus
 	ld a, $02
 	call PartyMonsterField
+;=@c25
 	bit 7, [hl]
-	jr nz, jr_007_5c7e
+	jr nz, .next
 
 	ld a, $02
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;=@c25
 	ld a, $02
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
+;=@c25
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
 	ld a, h
 	or l
-	jr z, jr_007_5c7e
+;=@c25
+	jr z, .next
 
+;>@c26     CopyName(PartyMonsterField(2, wMonName), wTextArg1)
 	ld hl, wMonName
 	ld a, $02
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
+;=@c26
 	call CopyName
+;>     PrintSystemText(0x0E03)
 	ld hl, $0e03
 	call PrintSystemText
 
-jr_007_5c7e:
+.next
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def SkillHealAllApply()
+;@ path: menu/skills
+;@ Skill step 15: once the messages are done, the party heal takes effect
+;@ (PaySkillMP) and the menu returns to the main menu.
+;@ test: skip calls routines in another bank
 SkillHealAllApply::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PaySkillMP()
 	call PaySkillMP
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
 	ret
@@ -6575,7 +6833,7 @@ DrawSaveMember::
 	ld a, [sPartyCount]
 	cp b
 	ei
-	jr nc, jr_007_6271
+	jr nc, DrawSaveMemberIcon
 
 	ld b, $20
 
@@ -6590,7 +6848,7 @@ ClearTextTiles2::
 	ret
 
 
-jr_007_6271:
+DrawSaveMemberIcon::
 	push bc
 	call MenuDrawNameTiles
 	pop bc
@@ -6882,20 +7140,39 @@ jr_007_644b:
 TacticsCursorPos::
 	db $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
 
+;@ def ShowMonsterStatus()
+;@ path: menu/viewer
+;@ Far entry 1 of bank 7: opens the monster status screen (the field menu's status
+;@ pages) on top of another screen, for the single monster wCurPartyMember (a
+;@ record slot); then runs it like UpdateMonsterStatus.
+;@ test: skip jumps through a table
 ShowMonsterStatus::
+;> wViewList = address(wCurPartyMember)     # a list of one entry
 	ld hl, wCurPartyMember
 	ld a, l
 	ld [wViewList], a
 	ld a, h
-	ld [$c931], a
+	ld [wViewList + 1], a
+;> wViewIndex = 0
+;> wViewCount = 0
 	xor a
 	ld [wViewIndex], a
 	ld [wViewCount], a
+;> UpdateMonsterStatus()
 
+;@ def UpdateMonsterStatus()
+;@ path: menu/viewer
+;@ Far entry 2 of bank 7, once a frame while the monster status screen is open:
+;@ runs step wFieldMenuStep. Up/Down pages through the monsters of wViewList
+;@ (wViewCount entries).
+;@ test: skip jumps through a table
 UpdateMonsterStatus::
+;> MonsterStatusSteps[wFieldMenuStep]()
 	ld a, [wFieldMenuStep]
 	rst $00
 
+;@ path: menu/viewer
+;@ Steps of the monster status screen (UpdateMonsterStatus).
 MonsterStatusSteps::
 	dw ViewerStart
 	dw ViewerOpen
@@ -6912,32 +7189,48 @@ MonsterStatusSteps::
 	dw ViewerRedrawPage2
 	dw ViewerRedrawPedigree
 
+;@ def ViewerStart()
+;@ path: menu/viewer
+;@ Viewer step 0: marks the overlay, starts at entry wViewIndex of the list.
 ViewerStart::
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
+;> wViewResult = wViewIndex
 	ld a, [wViewIndex]
 	ld [wViewResult], a
+;>@c1 wCurPartyMember = mem[wViewList + wViewIndex]
 	ld a, [wViewList]
 	ld l, a
-	ld a, [$c931]
+	ld a, [wViewList + 1]
 	ld h, a
 	ld a, [wViewIndex]
 	add l
+;=@c1
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ViewerOpen()
+;@ path: menu/viewer
+;@ Viewer step 1: sets up the menu screen; an egg only gets its picture and the
+;@ pedigree page (step 8).
+;@ test: skip draws into VRAM
 ViewerOpen::
+;> SetUpMenuScreen()
 	call SetUpMenuScreen
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
+;> if MonsterField(wCurPartyMember, wMonEgg)[0]:
 	ld a, [wCurPartyMember]
 	ld hl, wMonEgg
 	call MonsterField
@@ -6945,155 +7238,224 @@ ViewerOpen::
 	or a
 	ret z
 
+;>     StatusShowPicture()
 	call StatusShowPicture
+;>     wFieldMenuStep = 8
 	ld a, $08
 	ld [wFieldMenuStep], a
 	ret
 
 
+;@ def ViewerDrawPage1()
+;@ path: menu/viewer
+;@ Viewer step 2: the first status page (stats) with the picture.
+;@ test: skip draws into VRAM
 ViewerDrawPage1::
-	ld de, $70f7
+;> DrawWindow(StatusStatsWindow)
+	ld de, StatusStatsWindow
 	call DrawWindow
-	ld de, $71af
+;> DrawWindow(StatusHPWindow)
+	ld de, StatusHPWindow
 	call DrawWindow
+;> DrawStatusStats()
 	call DrawStatusStats
+;> StatusShowPicture()
 	call StatusShowPicture
 	ret
 
 
+;@ def ViewerPage1Input()
+;@ path: menu/viewer
+;@ Viewer step 3: Up/Down shows the previous/next monster of the list, B closes
+;@ the viewer, A turns to the second page.
+;@ test: skip draws into VRAM
 ViewerPage1Input::
+;> if ViewerChangeMonster():
 	call ViewerChangeMonster
-	jr z, jr_007_64e8
+	jr z, .buttons
 
+;>     ViewerDrawPage1()
 	call ViewerDrawPage1
+;>     wFieldMenuStep -= 1
 	ld hl, wFieldMenuStep
 	dec [hl]
 
-jr_007_64e8:
+.buttons
+;> if wJoyPressed & 0x02:
+;>     return ViewerClose()
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_64f2
+	jr z, .notB
 
 	jp ViewerClose
 
 
-jr_007_64f2:
+.notB
+;> if wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_007_6503
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 
-Jump_007_6503:
+.done
 	ret
 
 
+;@ def ViewerChangeMonster() -> f
+;@ path: menu/viewer
+;@ Up/Down (with repeat) moves to the previous/next entry of wViewList (wrapping)
+;@ and makes it wCurPartyMember; returns nz (flag) when the entry changed.
+;@ test: skip reads the list through a pointer
 ViewerChangeMonster::
+;> old = wViewResult
 	ld a, [wViewResult]
 	push af
+;> if wViewCount == 0:
+;>     return False
 	ld a, [wViewCount]
 	ld b, a
 	or a
-	jr z, jr_007_654b
+	jr z, .none
 
+;> if wJoyRepeat & 0x40:                 # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_007_6521
+	jr z, .notUp
 
+;>@c3     pos = wViewResult - 1 if wViewResult > 0 else wViewCount - 1
 	ld a, [wViewResult]
 	dec a
 	cp b
-	jr c, jr_007_6531
+	jr c, .store
 
 	dec b
 	ld a, b
-	jr jr_007_6531
+;=@c3
+	jr .store
 
-jr_007_6521:
+.notUp
+;> elif wJoyRepeat & 0x80:               # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_007_654b
+	jr z, .none
 
+;>     pos = wViewResult + 1 if wViewResult + 1 < wViewCount else 0
 	ld a, [wViewResult]
 	inc a
 	cp b
-	jr c, jr_007_6531
+	jr c, .store
 
 	ld a, $00
-
-jr_007_6531:
+;>@no else:
+;>@no     return False
+.store
+;> wViewResult = pos
 	ld [wViewResult], a
+;>@c2 wCurPartyMember = mem[wViewList + pos]
 	ld b, a
 	ld a, [wViewList]
 	ld l, a
-	ld a, [$c931]
+	ld a, [wViewList + 1]
 	ld h, a
 	ld a, b
+;=@c2
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;=@c2
 	ld [wCurPartyMember], a
+;> return pos != old
 	pop af
 	cp b
 	ret
 
 
-jr_007_654b:
+.none
+;=@no
 	pop af
 	xor a
 	ret
 
 
+;@ def ViewerShowPage2()
+;@ path: menu/viewer
+;@ Viewer step 4: the second status page.
+;@ test: skip draws into VRAM
 ViewerShowPage2::
+;> StatusShowPage2()
 	call StatusShowPage2
 	ret
 
 
+;@ def ViewerPage2Input()
+;@ path: menu/viewer
+;@ Viewer step 5: Up/Down redraws the page for another monster (step 12), B goes
+;@ back to page 1, A on to the skills; the monster's sprite walks meanwhile.
+;@ test: skip draws into VRAM
 ViewerPage2Input::
+;> if ViewerChangeMonster():
 	call ViewerChangeMonster
-	jr z, jr_007_655e
+	jr z, .buttons
 
+;>     wFieldMenuStep = 0x0C
 	ld a, $0c
 	ld [wFieldMenuStep], a
-	jr jr_007_6587
+	jr .done
 
-jr_007_655e:
+.buttons
+;> elif wJoyPressed & 0x02:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_6573
+	jr z, .notB
 
+;>@c4     wFieldMenuStep -= 3
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
-	jr jr_007_6587
+;=@c4
+	jr .done
 
-jr_007_6573:
+.notB
+;> else:
+;>     if wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_007_6584
+	jp z, .sprite
 
+;>         QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>         wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 
-Jump_007_6584:
+.sprite
+;>     DrawStatusSprite()
 	call DrawStatusSprite
 
-jr_007_6587:
+.done
 	ret
 
 
+;@ def ViewerShowSkills()
+;@ path: menu/viewer
+;@ Viewer step 6: the skills page (an egg closes the viewer instead).
+;@ test: skip draws into VRAM
 ViewerShowSkills::
+;> if MonsterField(wCurPartyMember, wMonEgg)[0]:
+;>     return ViewerClose()
 	ld a, [wCurPartyMember]
 	ld hl, wMonEgg
 	call MonsterField
@@ -7101,190 +7463,289 @@ ViewerShowSkills::
 	or a
 	jr nz, ViewerClose
 
+;> DrawMonSkillNames()
 	call DrawMonSkillNames
-	ld de, $737b
+;> DrawWindow(StatusSkillsWindow)
+	ld de, StatusSkillsWindow
 	call DrawWindow
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> LoadStatusPicture()
 	call LoadStatusPicture
+;> SetStatusPicPalette()
 	call SetStatusPicPalette
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ViewerSkillsInput()
+;@ path: menu/viewer
+;@ Viewer step 7: Up/Down redraws the skills for another monster, then the skills
+;@ page buttons (StatusSkillsButtons).
+;@ test: skip draws into VRAM
 ViewerSkillsInput::
+;> if ViewerChangeMonster():
 	call ViewerChangeMonster
-	jr z, jr_007_65b8
+	jr z, .buttons
 
+;>     ViewerShowSkills()
 	call ViewerShowSkills
+;>     wFieldMenuStep -= 1
 	ld hl, wFieldMenuStep
 	dec [hl]
 
-jr_007_65b8:
+.buttons
+;> StatusSkillsButtons()
 	call StatusSkillsButtons
 	ret
 
 
+;@ def ViewerShowPedigree()
+;@ path: menu/viewer
+;@ Viewer step 8: the pedigree page.
+;@ test: skip draws into VRAM
 ViewerShowPedigree::
+;> StatusShowPedigree()
 	call StatusShowPedigree
 	ret
 
 
+;@ def ViewerPedigreeInput()
+;@ path: menu/viewer
+;@ Viewer step 9: Up/Down redraws the pedigree for another monster (step 13),
+;@ otherwise the pedigree page buttons (StatusPedigreeButtons).
+;@ test: skip draws into VRAM
 ViewerPedigreeInput::
+;> if ViewerChangeMonster():
 	call ViewerChangeMonster
-	jr z, jr_007_65cc
+	jr z, .buttons
 
+;>     wFieldMenuStep = 0x0D
 	ld a, $0d
 	ld [wFieldMenuStep], a
-	jr jr_007_65cf
+	jr .done
 
-jr_007_65cc:
+.buttons
+;> else:
+;>     StatusPedigreeButtons()
 	call StatusPedigreeButtons
 
-jr_007_65cf:
+.done
 	ret
 
 
+;@ def ViewerStepNext()
+;@ path: menu/viewer
+;@ Viewer step 10: goes on (to ViewerClose).
 ViewerStepNext::
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ViewerRedrawPage2()
+;@ path: menu/viewer
+;@ Viewer step 12: page 2 for the new monster, back to its input (step 5).
+;@ test: skip draws into VRAM
 ViewerRedrawPage2::
+;> SyncStatusMonster()
 	call SyncStatusMonster
+;> DrawStatusPage2()
 	call DrawStatusPage2
+;> LoadStatusPicture()
 	call LoadStatusPicture
+;> SetStatusPicPalette()
 	call SetStatusPicPalette
+;> wFieldMenuStep = 5
 	ld a, $05
 	ld [wFieldMenuStep], a
 	ret
 
 
+;@ def ViewerRedrawPedigree()
+;@ path: menu/viewer
+;@ Viewer step 13: the pedigree for the new monster, back to its input (step 9).
+;@ test: skip draws into VRAM
 ViewerRedrawPedigree::
+;> SyncStatusMonster()
 	call SyncStatusMonster
+;> DrawPedigree()
 	call DrawPedigree
+;> LoadStatusPicture()
 	call LoadStatusPicture
+;> SetStatusPicPalette()
 	call SetStatusPicPalette
+;> wFieldMenuStep = 9
 	ld a, $09
 	ld [wFieldMenuStep], a
 	ret
 
 
+;@ def ViewerClose()
+;@ path: menu/viewer
+;@ Viewer step 11: clears the menu screen; from a game mode other than 0 the field
+;@ screen and its palettes and CGB attributes are restored. The caller's step
+;@ (wMenuSubStep) moves on.
+;@ test: skip calls routines in other banks
 ViewerClose::
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> ClearMenuBgMap()
 	call ClearMenuBgMap
+;> if wGameMode:
 	ld a, [wGameMode]
 	or a
-	jr z, jr_007_661b
+	jr z, .done
 
+;>     ReloadMapTileset()
 	ld hl, far_ReloadMapTileset
 	rst $10
+;>     LoadMapPalettes()
 	ld hl, far_LoadMapPalettes
 	rst $10
+;>     UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;>     RestoreFieldAttrMap()
 	call RestoreFieldAttrMap
+;>     LoadFieldActorGfx()
 	ld hl, far_LoadFieldActorGfx
 	rst $10
 
-jr_007_661b:
+.done
+;> wMenuOverlay = 0
 	ld a, $00
 	ld [wMenuOverlay], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def RestoreFieldAttrMap()
+;@ path: menu/screen
+;@ On a Game Boy Color, writes the field's BG attributes back after a menu: 16
+;@ rows of 20 tiles from the screen's top left corner, two 4-bit attributes per
+;@ byte of wScreenMap (high nibble first, 16 bytes a row of which 10 are used).
+;@ test: skip writes VRAM
 RestoreFieldAttrMap::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> WaitVRAMAccess()
+;> rVBK = 1
 	di
 	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
+;>@c1 p = 0x9800 + (hScrollY & 0xF8) * 4 + ((hScrollX >> 3) & 0x1F)
 	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
 	sla l
 	rla
+;=@c1
 	sla l
 	rla
 	ld h, $98
 	add h
 	ld h, a
 	ldh a, [hScrollX]
+;=@c1
 	rrca
 	rrca
 	rrca
 	and $1f
 	add l
 	ld l, a
+;=@c1
 	ld a, $00
 	adc h
 	ld h, a
+;> src = wScreenMap
+;>@r for row in range(16):
 	ld de, wScreenMap
 	ld c, $10
-
-jr_007_6655:
+.row
+;>     q = p
+;>@c     for i in range(10):
 	ld b, $0a
 	push hl
-
-jr_007_6658:
+.byte
+;>         WriteVRAM(mem[src] >> 4, q)
 	ld a, [de]
 	swap a
 	and $0f
 	call WriteVRAM
+;>@c2         q = NextMapColumn(q)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@c2
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>         WriteVRAM(mem[src] & 0x0F, q)
 	ld a, [de]
 	and $0f
 	call WriteVRAM
+;>@c3         q = NextMapColumn(q)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@c3
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>         src += 1
 	inc de
+;=@c
 	dec b
-	jr nz, jr_007_6658
+	jr nz, .byte
 
+;>@c4     src += 6
 	pop hl
 	ld a, e
 	add $06
 	ld e, a
 	ld a, d
 	adc $00
+;=@c4
 	ld d, a
+;>@c5     p = 0x9800 | ((p + 0x20) & 0x3FF)
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
 	or $98
+;=@c5
 	ld h, a
 	pop bc
+;=@r
 	dec c
-	jr nz, jr_007_6655
+	jr nz, .row
 
+;> WaitVRAMAccess()
+;> rVBK = 0
 	di
 	call WaitVRAMAccess
 	ld a, $00
@@ -7293,162 +7754,230 @@ jr_007_6658:
 	ret
 
 
+;@ def AlignScrollToTile(scroll: hl)
+;@ path: menu/screen
+;@ Rounds the 16-bit scroll position at `scroll` to the nearest multiple of 8, so
+;@ the menu windows line up with the background tiles.
+;@ test: skip writes through a pointer
 AlignScrollToTile::
+;> mem16[scroll] += 4
 	ld a, [hl]
 	add $04
 	ld [hli], a
 	ld a, [hl]
 	adc $00
 	ld [hld], a
+;> mem[scroll] &= 0xF8
 	ld a, [hl]
 	and $f8
 	ld [hl], a
 	ret
 
 
+;@ def LoadMonsterSprite(species: a, dest: hl)
+;@ path: menu/screen
+;@ Unpacks the walking sprite tiles of `species` (MonsterSpriteGfx entry species +
+;@ $10) to VRAM `dest`.
+;@ test: skip decompresses into VRAM
 LoadMonsterSprite::
+;>@c6 gfx = MonsterSpriteGfx[species + 0x10]
 	push hl
 	add $10
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $14
+;=@c6
+	add LOW(MonsterSpriteGfx)
 	ld l, a
 	ld a, h
-	adc $6e
+	adc HIGH(MonsterSpriteGfx)
 	ld h, a
 	ld e, [hl]
+;=@c6
 	inc hl
 	ld d, [hl]
+;> DecompressVRAM(gfx >> 8, gfx & 0xFF, dest)
 	pop hl
 	call DecompressVRAM
 	ret
 
 
+;@ def DrawStatusSprite()
+;@ path: menu/screen
+;@ On the second status page (not in game mode 0): the viewed monster's walking
+;@ sprite at X $90, Y $40 (tiles from $50 on), stepping every 16 frames unless it
+;@ has fainted.
+;@ test: skip calls a routine in another bank
 DrawStatusSprite::
+;> if not wGameMode:
+;>     return
 	ld a, [wGameMode]
 	or a
 	ret z
 
+;> species = GetViewedMonsterByte(wMonRecSpecies)
 	ld hl, wMonRecSpecies
 	call GetViewedMonsterByte
 	push af
+;> hSpriteX = 0x0090
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0040
 	ld a, $40
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@c7 hSpriteFrame = 1 if not GetViewedMonsterByte(wMonStatus) & 0x80 and wFrameCounter & 0x10 else 0
 	ld b, $00
 	push bc
 	push hl
 	ld hl, wMonStatus
 	call GetViewedMonsterByte
 	ld a, [hl]
+;=@c7
 	pop hl
 	pop bc
 	bit 7, a
-	jr nz, jr_007_6701
+	jr nz, .frame
 
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_007_6701
+;=@c7
+	jr z, .frame
 
 	ld b, $01
 
-jr_007_6701:
+.frame
+;=@c7
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x50
 	ld a, $50
 	ld [hli], a
+;> hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
+;@ def DrawPedigreeSprites()
+;@ path: menu/screen
+;@ On the pedigree page (not in game mode 0): the two parents' walking sprites at
+;@ X $90, Y $30 (tiles $60) and Y $78 (tiles $70), stepping every 16 frames;
+;@ nothing without parents.
+;@ test: skip calls a routine in another bank
 DrawPedigreeSprites::
+;> if not wGameMode:
+;>     return
 	ld a, [wGameMode]
 	or a
 	ret z
 
+;> if GetViewedMonsterByte(wMonParent1) == 0xFF:
+;>     return
 	ld hl, wMonParent1
 	call GetViewedMonsterByte
 	cp $ff
 	ret z
 
+;> for parent in range(2):
+;>     hSpriteX = 0x0090
 	push af
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteY = (0x0030, 0x0078)[parent]
 	ld a, $30
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteSet = GetViewedMonsterByte((wMonParent1, wMonParent2)[parent]) + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@c8     hSpriteFrame = 1 if wFrameCounter & 0x10 else 0
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_007_673b
+	jr z, .frame1
 
 	ld b, $01
 
-jr_007_673b:
+.frame1
+;=@c8
 	ld a, b
 	ld [hli], a
+;>     hSpriteTileBase = (0x60, 0x70)[parent]
 	ld a, $60
 	ld [hli], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
+;>@c9     DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
+;=@c9
 	ld hl, wMonParent2
 	call GetViewedMonsterByte
 	push af
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
+;=@c9
 	ld a, $00
 	ld [hli], a
 	ld a, $78
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;=@c9
 	pop af
 	add $10
 	ld [hli], a
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_007_676c
+;=@c9
+	jr z, .frame2
 
 	ld b, $01
 
-jr_007_676c:
+.frame2
+;=@c9
 	ld a, b
 	ld [hli], a
 	ld a, $70
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;=@c9
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
+;@ def DrawPartySprites()
+;@ path: menu/screen
+;@ On the main menu (state 2): each party monster's walking sprite under its
+;@ picture, at X $2F, $5F, $8F and Y $78 (tiles $50, $60, $70), stepping every 16
+;@ frames unless it has fainted.
+;@ test: skip calls a routine in another bank
 DrawPartySprites::
+;> if wStatusViewVars != 2 or not wPartyCount:
+;>     return
 	ld a, [wStatusViewVars]
 	cp $02
 	ret nz
@@ -7457,339 +7986,443 @@ DrawPartySprites::
 	or a
 	ret z
 
+;>@p for i in range(wPartyCount):
+;>     species = GetPartyMonsterByte(i, wMonRecSpecies)
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	push af
+;>     hSpriteX = 0x002F + 0x30 * i
 	ld hl, hSpriteX
 	ld a, $2f
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteY = 0x0078
 	ld a, $78
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@c10     hSpriteFrame = 1 if not GetPartyMonsterByte(i, wMonStatus) & 0x80 and wFrameCounter & 0x10 else 0
 	ld b, $00
 	push bc
 	push hl
 	ld hl, wMonStatus
 	ld a, $00
 	call GetPartyMonsterByte
+;=@c10
 	ld a, [hl]
 	pop hl
 	pop bc
 	bit 7, a
-	jr nz, jr_007_67bc
+	jr nz, .frame0
 
 	ld a, [wFrameCounter]
+;=@c10
 	bit 4, a
-	jr z, jr_007_67bc
+	jr z, .frame0
 
 	ld b, $01
 
-jr_007_67bc:
+.frame0
+;=@c10
 	ld a, b
 	ld [hli], a
+;>     hSpriteTileBase = 0x50 + 0x10 * i
 	ld a, $50
 	ld [hli], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
+;>     DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
+;=@p
 	ld a, [wPartyCount]
 	cp $01
 	ret z
 
+;=@p
 	ld a, $01
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	push af
 	ld hl, hSpriteX
 	ld a, $5f
+;=@p
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
 	ld a, $78
 	ld [hli], a
 	ld a, $00
+;=@p
 	ld [hli], a
 	pop af
 	add $10
 	ld [hli], a
 	ld b, $00
 	push bc
+;=@p
 	push hl
 	ld hl, wMonStatus
 	ld a, $01
 	call GetPartyMonsterByte
 	ld a, [hl]
 	pop hl
+;=@p
 	pop bc
 	bit 7, a
-	jr nz, jr_007_6806
+	jr nz, .frame1
 
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_007_6806
+	jr z, .frame1
 
+;=@p
 	ld b, $01
 
-jr_007_6806:
+.frame1
+;=@p
 	ld a, b
 	ld [hli], a
 	ld a, $60
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;=@p
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ld a, [wPartyCount]
 	cp $02
 	ret z
 
+;=@p
 	ld a, $02
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	push af
 	ld hl, hSpriteX
 	ld a, $8f
+;=@p
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
 	ld a, $78
 	ld [hli], a
 	ld a, $00
+;=@p
 	ld [hli], a
 	pop af
 	add $10
 	ld [hli], a
 	ld b, $00
 	push bc
+;=@p
 	push hl
 	ld hl, wMonStatus
 	ld a, $02
 	call GetPartyMonsterByte
 	ld a, [hl]
 	pop hl
+;=@p
 	pop bc
 	bit 7, a
-	jr nz, jr_007_6850
+	jr nz, .frame2
 
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_007_6850
+	jr z, .frame2
 
+;=@p
 	ld b, $01
 
-jr_007_6850:
+.frame2
+;=@p
 	ld a, b
 	ld [hli], a
 	ld a, $70
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;=@p
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
+;@ def NextMapColumn(addr: hl) -> hl
+;@ path: menu/screen
+;@ The BG map address one column to the right, wrapping within the 32-tile row.
 NextMapColumn::
+;>@c11 return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@c11
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@c11
 	ret
 
 
+;@ def AddMenuBgMap(offset: hl) -> hl
+;@ path: menu/screen
+;@ wMenuBgMap + `offset`, wrapped to stay inside the 1 KiB BG map wMenuBgMap is in.
 AddMenuBgMap::
+;> sum = wMenuBgMap + offset
 	ld a, [wMenuBgMap]
 	add l
 	ld l, a
-	ld a, [$c912]
+	ld a, [wMenuBgMap + 1]
 	adc h
+;>@c12 return (wMenuBgMap & 0xFC00) | (sum & 0x3FF)
 	and $03
 	ld h, a
-	ld a, [$c912]
+;=@c12
+	ld a, [wMenuBgMap + 1]
 	and $fc
 	or h
 	ld h, a
 	ret
 
 
+;@ def BufferAddress(offset: hl) -> hl
+;@ path: menu/screen
+;@ The address in wTilemapBuffer of screen offset `offset` (row * 32 + column).
 BufferAddress::
+;>@c19 return wTilemapBuffer + offset
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;=@c19
 	ret
 
 
+;@ def MenuMapAddress(offset: hl) -> hl
+;@ path: menu/screen
+;@ The BG map address of screen offset `offset` (row * 32 + column) for the
+;@ scrolled menu screen: the row from wMenuBgMap (AddMenuBgMap), then the column
+;@ with wrapping inside the row.
 MenuMapAddress::
+;> addr = AddMenuBgMap(offset & 0xFFE0)
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
 	call AddMenuBgMap
+;> for i in range(offset & 0x1F):
+;>@c20     addr = NextMapColumn(addr)
 	ld a, b
 	and $1f
-	jr z, jr_007_689e
+	jr z, .done
 
 	ld b, a
-
-jr_007_6898:
+.column
 	call NextMapColumn
 	dec b
-	jr nz, jr_007_6898
+;=@c20
+	jr nz, .column
 
-jr_007_689e:
+.done
+;> return addr
 	pop bc
 	ret
 
 
+;@ def DrawWindowToMap(window: de)
+;@ path: menu/screen
+;@ DrawWindow straight into the BG map (wrapping like the scrolled screen) instead
+;@ of the tilemap buffer.
+;@ test: skip writes VRAM
 DrawWindowToMap::
+;>@c13 line = addr = MenuMapAddress(mem16[window]); p = window + 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@c13
 	call MenuMapAddress
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
-
-jr_007_68af:
+	ldh [hNumber + 1], a
+.loop
+;> while (t := mem[p]) != 0xD9:        # $D9 ends the window
 	ld a, [de]
 	inc de
 	cp $d9
 	ret z
 
+;>     p += 1
+;>     if t == 0xD8:                   # $D8: next row
 	cp $d8
-	jr nz, jr_007_68d4
+	jr nz, .tile
 
+;>@c14         line = 0x9800 | ((line + 0x20) & 0x3FF)
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@c14
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, h
 	and $03
+;=@c14
 	or $98
 	ld h, a
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
-	jr jr_007_68af
+	ldh [hNumber + 1], a
+;>         addr = line
+	jr .loop
 
-jr_007_68d4:
+.tile
+;>     else:
+;>         WriteVRAM(t, addr)
 	call WriteVRAM
+;>         addr = NextMapColumn(addr)
 	call NextMapColumn
-	jr jr_007_68af
+	jr .loop
 
+;@ def DrawWindow(window: de)
+;@ path: menu/screen
+;@ Draws a window template into wTilemapBuffer. A template is a u16 screen offset
+;@ (row * 32 + column) followed by tile numbers, $D8 starting the next row and $D9
+;@ ending it.
+;@ test: skip reads a ROM template
 DrawWindow::
+;>@c15 line = addr = BufferAddress(mem16[window]); p = window + 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@c15
 	call BufferAddress
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
-
-jr_007_68eb:
+	ldh [hNumber + 1], a
+.loop
+;> while (t := mem[p]) != 0xD9:
 	ld a, [de]
 	inc de
 	cp $d9
 	ret z
 
+;>     p += 1
+;>     if t == 0xD8:
 	cp $d8
-	jr nz, jr_007_690a
+	jr nz, .tile
 
+;>@c16         line += 0x20
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@c16
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hNumber], a
+;=@c16
 	ld a, h
-	ldh [$ffd6], a
-	jr jr_007_68eb
+	ldh [hNumber + 1], a
+;>         addr = line
+	jr .loop
 
-jr_007_690a:
+.tile
+;>     else:
+;>         mem[addr] = t
+;>         addr += 1
 	ld [hli], a
-	jr jr_007_68eb
+	jr .loop
 
+;@ def MenuShowBuffer()
+;@ path: menu/screen
+;@ Copies wTilemapBuffer (18 rows of 32 tiles) to the BG map at wMenuBgMap,
+;@ wrapping inside the map as the scrolled screen does.
+;@ test: skip writes VRAM
 MenuShowBuffer::
+;> line = wMenuBgMap
 	ld a, [wMenuBgMap]
 	ld l, a
-	ld a, [$c912]
+	ld a, [wMenuBgMap + 1]
 	ld h, a
+;> src = wTilemapBuffer
+;>@r for row in range(18):
 	ld de, wTilemapBuffer
 	ld c, $12
-
-jr_007_691a:
+.row
+;>     addr = line
+;>@c     for col in range(32):
 	ld b, $20
 	push hl
-
-jr_007_691d:
+.col
+;>         WriteVRAM(mem[src], addr)
 	ld a, [de]
 	call WriteVRAM
+;>@c17         addr = NextMapColumn(addr)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@c17
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>         src += 1
 	inc de
+;=@c
 	dec b
-	jr nz, jr_007_691d
+	jr nz, .col
 
+;>@c18     line = 0x9800 | ((line + 0x20) & 0x3FF)
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@c18
 	or $98
 	ld h, a
 	pop bc
+;=@r
 	dec c
-	jr nz, jr_007_691a
+	jr nz, .row
 
 	ret
 

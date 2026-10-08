@@ -245,7 +245,7 @@ GetAnimationEntry::
 	ld c, a
 	ld a, [wPlayerAnimPtr + 1]
 	ld b, a
-;> p = AnimationSets + 2 * mem[obj + 1]
+;> p = AnimationSets + (2 * mem[obj + 1] & 0xFF)
 	inc bc
 	ld a, [bc]
 	add a
@@ -259,7 +259,7 @@ GetAnimationEntry::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-;> p = animations + 2 * mem[obj + 2]
+;> p = animations + (2 * mem[obj + 2] & 0xFF)
 	inc bc
 	ld a, [bc]
 	add a
@@ -275,7 +275,7 @@ GetAnimationEntry::
 ;> step = mem[obj + 3]
 	inc bc
 	ld a, [bc]
-;> p = script + 2 * step
+;> p = script + (2 * step & 0xFF)
 	add a
 	add l
 	ld l, a
@@ -652,10 +652,10 @@ InitCutscene0::
 ;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0x70
+;> mem[addr(hScrollY)] = 0x70            # low byte only
 	ld a, $70
 	ldh [hScrollY], a
 ;> hWX = 0
@@ -744,10 +744,10 @@ InitCutscene1::
 	xor a
 	ld [wFrameCounter], a
 	ld [wFrameCounter + 1], a
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0x70
+;> mem[addr(hScrollY)] = 0x70            # low byte only
 	ld a, $70
 	ldh [hScrollY], a
 ;> hWX = 0
@@ -831,10 +831,10 @@ InitCutscene2::
 	xor a
 	ld [wFrameCounter], a
 	ld [wFrameCounter + 1], a
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0x70
+;> mem[addr(hScrollY)] = 0x70            # low byte only
 	ld a, $70
 	ldh [hScrollY], a
 ;> hWX = 7
@@ -918,10 +918,10 @@ InitCutscene3::
 	xor a
 	ld [wFrameCounter], a
 	ld [wFrameCounter + 1], a
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0x70
+;> mem[addr(hScrollY)] = 0x70            # low byte only
 	ld a, $70
 	ldh [hScrollY], a
 ;> hWX = 7
@@ -1178,7 +1178,7 @@ Cutscene0PanUp::
 ;> wSceneTimer = 0
 	xor a
 	ld [wSceneTimer], a
-;> hScrollY -= 1
+;> mem[addr(hScrollY)] -= 1              # low byte only
 	ld hl, hScrollY
 	dec [hl]
 ;> if hScrollY != 0:
@@ -1235,10 +1235,10 @@ Cutscene0PanUp::
 ;@ hides when it wraps to X $E0; when it passes X $40 its sparkle (object 7, script 1) appears
 ;@ with sound $5D. When both are gone, the next star and sparkle are set up.
 Cutscene0Star1::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -1347,10 +1347,10 @@ Cutscene0Star1::
 ;@ path: event/cutscene
 ;@ Cutscene 0, second shooting star (like Cutscene0Star1): its sparkle shows when it passes X $10.
 Cutscene0Star2::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -1459,10 +1459,10 @@ Cutscene0Star2::
 ;@ path: event/cutscene
 ;@ Cutscene 0, third shooting star: hides at X $28, its sparkle shows at X $70.
 Cutscene0Star3::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -1571,10 +1571,10 @@ Cutscene0Star3::
 ;@ path: event/cutscene
 ;@ Cutscene 0, fourth shooting star: its sparkle shows at X $60.
 Cutscene0Star4::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -1683,10 +1683,10 @@ Cutscene0Star4::
 ;@ path: event/cutscene
 ;@ Cutscene 0, fifth shooting star: its sparkle shows at X $10 and the star is hidden at X 0.
 Cutscene0Star5::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -1805,10 +1805,10 @@ Cutscene0Star5::
 ;@ path: event/cutscene
 ;@ Cutscene 0, sixth shooting star: its sparkle shows at X $70 and the star is hidden at X $38.
 Cutscene0Star6::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -1927,10 +1927,10 @@ Cutscene0Star6::
 ;@ path: event/cutscene
 ;@ Cutscene 0, seventh shooting star: its sparkle shows at X $10.
 Cutscene0Star7::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -2040,10 +2040,10 @@ Cutscene0Star7::
 ;@ Cutscene 0, eighth shooting star: its sparkle shows at X $20; then sets up two stars at once
 ;@ (objects 0 and 14 with sparkles 7 and 21).
 Cutscene0Star8::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -2187,10 +2187,10 @@ Cutscene0Star8::
 ;@ without a sound at X $10) and object 0 (hidden at X $28, sparkle object 7 with sound $5D at
 ;@ X $70). Ends when all three are gone and sets up the next star.
 Cutscene0TwoStars::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # second star
@@ -2355,10 +2355,10 @@ Cutscene0TwoStars::
 ;@ path: event/cutscene
 ;@ Cutscene 0, ninth shooting star: its sparkle shows at X $40.
 Cutscene0Star9::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -2467,10 +2467,10 @@ Cutscene0Star9::
 ;@ path: event/cutscene
 ;@ Cutscene 0, tenth shooting star: its sparkle shows at X $10.
 Cutscene0Star10::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -2580,10 +2580,10 @@ Cutscene0Star10::
 ;@ Cutscene 0, last shooting star: hides at X $28, its sparkle shows at X $70. Then song 2 starts
 ;@ again and object 0 becomes the figure at X $50, Y $90 for the poses that follow.
 Cutscene0Star11::
-;> hScrollX = 0
+;> mem[addr(hScrollX)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollX], a
-;> hScrollY = 0
+;> mem[addr(hScrollY)] = 0               # low byte only
 	ld a, $00
 	ldh [hScrollY], a
 ;> hSpriteSet = 0                       # star
@@ -3239,7 +3239,7 @@ Cutscene1PanUp::
 ;> wSceneTimer = 0
 	xor a
 	ld [wSceneTimer], a
-;> hScrollY -= 1
+;> mem[addr(hScrollY)] -= 1              # low byte only
 	ld hl, hScrollY
 	dec [hl]
 ;> if hScrollY != 0:
@@ -3612,7 +3612,7 @@ CutsceneScrollDown::
 ;> wSceneTimer = 0
 	xor a
 	ld [wSceneTimer], a
-;> hScrollY -= 1
+;> mem[addr(hScrollY)] -= 1              # low byte only
 	ld hl, hScrollY
 	dec [hl]
 ;> if hScrollY != 8:
@@ -3703,7 +3703,7 @@ CutsceneQuake::
 	ld l, a
 	ld a, $00
 	adc h
-;> hScrollY = mem[p]
+;> mem[addr(hScrollY)] = mem[p]          # low byte only
 	ld h, a
 	ld a, [hl]
 	ldh [hScrollY], a
@@ -6107,7 +6107,7 @@ UpdateSceneObject::
 	ldh [hSpriteX + 1], a
 	ldh [hSpriteY + 1], a
 	ldh [hSpriteClip], a
-;> hSpriteX = mem[obj + 1]
+;> hSpriteX = mem[obj + 1]               # its high byte was cleared above
 	ld a, [hli]
 	ldh [hSpriteX], a
 ;> hSpriteY = mem[obj + 2]
@@ -6153,7 +6153,7 @@ UpdateSceneObject::
 ;> step = mem[left - 1]
 	ld a, [de]
 	dec de
-;> entry = script + 2 * step
+;> entry = script + (2 * step & 0xFF)
 	add a
 	add l
 	ld l, a
@@ -6228,7 +6228,7 @@ UpdateSceneObject::
 ;@ path: data
 ;@ Returns entry `index` of a table of 16-bit words.
 GetTableEntry::
-;> p = table + 2 * index
+;> p = table + (2 * index & 0xFF)
 	add a
 	add l
 	ld l, a
@@ -6252,7 +6252,7 @@ GetAnimationFirstPose::
 	ld c, a
 	ld a, [wPlayerAnimPtr + 1]
 	ld b, a
-;> p = AnimationSets + 2 * mem[obj]
+;> p = AnimationSets + (2 * mem[obj] & 0xFF)
 	ld hl, AnimationSets
 	ld a, [bc]
 	add a
@@ -6265,7 +6265,7 @@ GetAnimationFirstPose::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-;> p = animations + 2 * mem[obj + 1]
+;> p = animations + (2 * mem[obj + 1] & 0xFF)
 	inc bc
 	ld a, [bc]
 	add a
@@ -6281,7 +6281,7 @@ GetAnimationFirstPose::
 ;> step = mem[obj + 2]
 	inc bc
 	ld a, [bc]
-;> p = script + 2 * step
+;> p = script + (2 * step & 0xFF)
 	add a
 	add l
 	ld l, a

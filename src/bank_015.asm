@@ -4392,30 +4392,52 @@ VSDrawStatusParents::
 	ret
 
 
+;@ def TitleUpdateBreedLink()
+;@ path: link/breed
+;@ Game loop part of breeding over the link (game mode 0 step 3): the frames themselves run from
+;@ the serial interrupt (BreedLinkFrame); here the link timeout is counted and, while a status
+;@ screen is open (steps 6 and 14), the monster sprites on it are drawn.
+;@ test: skip calls routines in other banks
 TitleUpdateBreedLink::
+;> LinkFrameUpdate()
 	call LinkFrameUpdate
+;>@status if wTitleStep in (6, 0x0E):
 	ld a, [wTitleStep]
 	cp $06
-	jr z, jr_015_5471
+	jr z, .status
 
+;=@status
 	cp $0e
-	jr z, jr_015_5471
+	jr z, .status
 
 	ret
 
 
-jr_015_5471:
+.status
+;>     BreedDrawStatusMonster()
 	call BreedDrawStatusMonster
+;>     BreedDrawStatusParents()
 	call BreedDrawStatusParents
+;>     LoadFieldObjPalettes()
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
 	ret
 
 
+;@ def BreedLinkFrame()
+;@ path: link/breed
+;@ One frame of breeding over the link, run from the serial interrupt: the current step.
+;@ test: skip runs the link protocol
 BreedLinkFrame::
+;> BreedLinkSteps[wTitleStep]()
 	ld a, [wTitleStep]
 	rst $00
 
+;@ path: link/breed
+;@ Steps of breeding over the link: 0-7 choose a monster from the farm (INFO shows its status),
+;@ 8-10 exchange the two records and check the pair, 11-15 the BREED / CHECK / EXIT menu,
+;@ 16 back to the list, 17-18 refused (back to the title), 19-24 "Save the result of
+;@ breeding?", the last exchange and the offspring, 25 the partner cancelled.
 BreedLinkSteps::
 	dw BreedStart
 	dw BreedShowList
@@ -4444,169 +4466,252 @@ BreedLinkSteps::
 	dw BreedMakeOffspring
 	dw BreedPartnerCancelled
 
+;@ def BreedStart()
+;@ path: link/breed
+;@ Breeding step 0: lists the hatched monsters.
+;@ test: wTitleStep = rand(0, 3)
 BreedStart::
+;> CountBreedCandidates()
 	call CountBreedCandidates
+;> ListBreedCandidates()
 	call ListBreedCandidates
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def CountBreedCandidates() -> a
+;@ path: link/breed
+;@ Counts the hatched monsters (owned, not eggs) into wTitleListCount and returns the count.
 CountBreedCandidates::
+;> rec = wMonsters; count = 0
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_015_54c6:
+;>@for for slot in range(20):
+.loop
 	push de
+;>     if mem[rec]:
 	ld a, [de]
 	or a
-	jr z, jr_015_54d8
+	jr z, .next
 
+;>@egg         if mem[rec + 0x63] == 0:      # not an egg
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_015_54d8
+	jr nz, .next
 
+;>             count += 1
 	inc c
 
-jr_015_54d8:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
+;=@rec
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	dec b
-	jr nz, jr_015_54c6
+	jr nz, .loop
 
+;> wTitleListCount = count
 	ld a, c
 	ld [wTitleListCount], a
+;> return count
 	ret
 
 
+;@ def ListBreedCandidates()
+;@ path: link/breed
+;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots of all hatched
+;@ monsters.
 ListBreedCandidates::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> out = wSceneObjects
 	ld hl, wSceneObjects
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_015_54fe:
+;>@for for slot in range(20):
+.loop
 	push de
+;>     if mem[rec]:
 	ld a, [de]
 	or a
-	jr z, jr_015_5511
+	jr z, .next
 
+;>@egg         if mem[rec + 0x63] == 0:
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_015_5511
+	jr nz, .next
 
+;>             mem[out] = slot; out += 1
 	ld [hl], c
 	inc hl
 
-jr_015_5511:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
+;=@rec
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	inc c
 	dec b
-	jr nz, jr_015_54fe
+	jr nz, .loop
 
 	ret
 
 
+;@ def BreedShowList()
+;@ path: link/breed
+;@ Breeding step 1: once the text is done, draws the monster list and asks "Choose a monster
+;@ for breeding."
+;@ test: skip calls routines in other banks
 BreedShowList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
 	call DrawCursorMonName
+;> BreedDrawListNames()
 	call BreedDrawListNames
+;> BreedDrawWindows()
 	call BreedDrawWindows
+;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x021C)             # "Choose a monster for breeding."
 	ld hl, $021c
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def BreedDrawWindows()
+;@ path: link/breed
+;@ Draws the windows of the breeding list: the cursor monster's name and level, the list of
+;@ four names and the text box, with the list cursor.
+;@ test: skip draws through helpers
 BreedDrawWindows::
-	ld de, $6928
+;> DrawWindowLayout_15(TitleNameWindow)
+	ld de, TitleNameWindow
 	call DrawWindowLayout_15
+;> DrawCursorMonLevel()
 	call DrawCursorMonLevel
-	ld de, $67b5
+;> DrawWindowLayout_15(TitleListWindow)
+	ld de, TitleListWindow
 	call DrawWindowLayout_15
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
 	call DrawWindowLayout_15
+;> MenuResetBlink_15()
 	call MenuResetBlink_15
-	ld de, $564d
+;>@g7 MenuDrawListCursor_15(wLinkChoice, BreedListCursor, 4, wTitleListCount)
+	ld de, BreedListCursor
 	ld b, $04
 	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wLinkChoice
 	call MenuDrawListCursor_15
+;=@g7
 	ret
 
 
+;@ def BreedDrawListNames()
+;@ path: link/breed
+;@ Draws the names of the four list entries on the current page into the tiles from $9100 on
+;@ (as VSDrawListNames).
+;@ test: skip writes VRAM
 BreedDrawListNames::
+;>@entry entry = wSceneObjects + wMenuChoice2 * 4
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@entry
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9100
 	ld hl, $9100
+;> for i in range(4):                   # the fourth by running on into BreedDrawListName
+;>     entry, tiles = BreedDrawListName(entry, tiles)
 	call BreedDrawListName
 	call BreedDrawListName
 	call BreedDrawListName
 
+;@ def BreedDrawListName(entry: de, tiles: hl) -> (de, hl)
+;@ path: link/breed
+;@ A copy of VSDrawListName: the name of the monster in list entry `entry` into the 4 tiles at
+;@ `tiles` (blank for an empty entry); returns the next entry and tiles.
+;@ test: skip writes VRAM
 BreedDrawListName::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_015_55a5
+	jr z, .blank
 
+;>@name     DrawNameTiles_15(MonsterField(wMonName, mem[entry]), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	pop hl
 	push hl
 	call DrawNameTiles_15
+;>@ret     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret
 	adc $00
 	ld h, a
 	pop de
@@ -4614,22 +4719,28 @@ BreedDrawListName::
 	ret
 
 
-jr_015_55a5:
+;> else:
+;>     for i in range(32):              # blank tiles
+.blank
 	ld b, $20
 
-jr_015_55a7:
+.blankLoop
+;>         tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_015_55a7
+	jr nz, .blankLoop
 
+;>@ret2     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret2
 	adc $00
 	ld h, a
 	pop de
@@ -4637,206 +4748,297 @@ jr_015_55a7:
 	ret
 
 
+;@ def BreedListInput()
+;@ path: link/breed
+;@ Breeding step 2: moves the cursor through the monster list. A picks the monster; B refuses
+;@ to breed (byte $FD to the partner).
+;@ test: skip runs the link protocol
 BreedListInput::
+;> if wFadeState or wTextState:
+;>@wait     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;=@wait
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if not BreedCheckPartnerCancel():
+;>     return
 	call BreedCheckPartnerCancel
 	ret z
 
-	ld de, $564d
+;>@old old_page = wMenuChoice2; old_cursor = wLinkChoice
+	ld de, BreedListCursor
 	ld hl, wLinkChoice
 	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@old
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> MovePagedListCursor_15(wLinkChoice, 4, wTitleListCount, BreedListCursor)
 	call MovePagedListCursor_15
+;> if wLinkChoice != old_cursor:
 	pop af
 	ld hl, wLinkChoice
 	cp [hl]
-	jr z, jr_015_55f1
+	jr z, .samePos
 
+;>     DrawCursorMonName()
 	call DrawCursorMonName
+;>     DrawCursorMonLevel()
 	call DrawCursorMonLevel
+;>     CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
 
-jr_015_55f1:
+.samePos
+;> if wMenuChoice2 != old_page:
 	pop af
 	ld hl, wMenuChoice2
 	cp [hl]
-	jr z, jr_015_5604
+	jr z, .samePage
 
+;>     BreedDrawListNames()
 	call BreedDrawListNames
+;>     DrawCursorMonName()
 	call DrawCursorMonName
+;>     DrawCursorMonLevel()
 	call DrawCursorMonLevel
+;>     CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
 
-jr_015_5604:
+.samePage
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jp z, Jump_015_561e
+	jp z, .notB
 
+;>     PrintSystemText(0x0221)           # "Refused to breed."
 	ld hl, $0221
 	call PrintSystemText
+;>     wTitleStep = 0x19
 	ld a, $19
 	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFD
 	ld a, $fd
 	ld [wLinkSendByte], a
-	jr jr_015_564c
+	jr .done
 
-Jump_015_561e:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_564c
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
+;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
 	ld a, [wLinkChoice]
 	and $7f
+;=@pick
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@pick
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;>     wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 
-Jump_015_564c:
-jr_015_564c:
+.done
 	ret
 
 
-	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
+;@ path: link/breed
+;@ Cursor positions of the breeding list: the page number, then the four rows ($FFFF ends).
+BreedListCursor::
+	dw $0145
+	dw $0061, $00a1, $00e1, $0121
+	dw $ffff
 
+;@ def BreedPicked()
+;@ path: link/breed
+;@ Breeding step 3: goes on to the INFO / OK choice.
+;@ test: wTitleStep = rand(0, 30)
 BreedPicked::
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def BreedShowChoice()
+;@ path: link/breed
+;@ Breeding step 4: once the text is done, draws the INFO / OK window for the picked monster.
+;@ test: skip draws through helpers
 BreedShowChoice::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
+;> BreedDrawChoice()
 	call BreedDrawChoice
+;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def BreedDrawChoice()
+;@ path: link/breed
+;@ Draws the breeding list windows with the INFO / OK window and its cursor.
+;@ test: skip draws through helpers
 BreedDrawChoice::
+;> BreedDrawWindows()
 	call BreedDrawWindows
-	ld de, $6849
+;> DrawWindowLayout_15(InfoOkWindow)
+	ld de, InfoOkWindow
 	call DrawWindowLayout_15
+;> MenuResetBlink_15()
 	call MenuResetBlink_15
-	ld de, $5729
+;> MenuDrawCursorAt_15(wConfirmChoice, BreedChoiceCursor)
+	ld de, BreedChoiceCursor
 	ld a, [wConfirmChoice]
 	call MenuDrawCursorAt_15
 	ret
 
 
+;@ def BreedChoiceInput()
+;@ path: link/breed
+;@ Breeding step 5: INFO / OK. B goes back to the list, INFO opens the status screen. OK takes
+;@ the monster unless it is in the party (it must come from the farm) or below level 10; then
+;@ the exchange follows.
+;@ test: skip runs the link protocol
 BreedChoiceInput::
+;> if not BreedCheckPartnerCancel():
+;>     return
 	call BreedCheckPartnerCancel
 	ret z
 
-	ld de, $5729
+;> MoveMenuCursor_15(wConfirmChoice, 2, BreedChoiceCursor)
+	ld de, BreedChoiceCursor
 	ld hl, wConfirmChoice
 	ld b, $02
 	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_56bb
+	jr z, .notB
 
+;>     ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
+;>     DrawCursorMonName()
 	call DrawCursorMonName
+;>     BreedDrawListNames()
 	call BreedDrawListNames
+;>     BreedDrawWindows()
 	call BreedDrawWindows
+;>     CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
+;>@g8     wTitleStep -= 3                   # back to the list
 	ld hl, wTitleStep
 	dec [hl]
 	ld hl, wTitleStep
 	dec [hl]
 	ld hl, wTitleStep
 	dec [hl]
-	jp Jump_015_5728
+;=@g8
+	jp .done
 
 
-jr_015_56bb:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_5728
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice != 0x81:        # INFO
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_015_56dd
+	jr z, .ok
 
+;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
+;>         wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_015_5728
+	jp .done
 
 
-jr_015_56dd:
+;>@party     elif IsInStashedParty(wCurPartyMember) or mem[MonsterField(wMonsters, wCurPartyMember)] == 2:
+.ok
 	ld a, [wCurPartyMember]
 	ld b, a
 	call IsInStashedParty
-	jr nz, jr_015_56f4
+	jr nz, .inParty
 
+;=@party
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_015_5701
+	jr nz, .checkLevel
 
-jr_015_56f4:
+;>         PrintSystemText(0x025D)       # "Please choose a monster from the farm."
+.inParty
 	ld hl, $025d
 	call PrintSystemText
+;>         wTitleStep = 0x10
 	ld a, $10
 	ld [wTitleStep], a
-	jr jr_015_5728
+	jr .done
 
-jr_015_5701:
+;>     elif mem[MonsterField(wMonLevel, wCurPartyMember)] < 10:
+.checkLevel
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	cp $0a
-	jr nc, jr_015_571c
+	jr nc, .accept
 
+;>         PrintSystemText(0x0230)       # "Your monster is not old enough for breeding..."
 	ld hl, $0230
 	call PrintSystemText
+;>         wTitleStep = 0x10
 	ld a, $10
 	ld [wTitleStep], a
-	jr jr_015_5728
+	jr .done
 
-jr_015_571c:
+;>     else:
+;>@g9         wTitleStep += 3               # on to the exchange
+.accept
 	ld hl, wTitleStep
 	inc [hl]
 	ld hl, wTitleStep
@@ -4844,255 +5046,380 @@ jr_015_571c:
 	ld hl, wTitleStep
 	inc [hl]
 
-Jump_015_5728:
-jr_015_5728:
+.done
+;=@g9
 	ret
 
 
-	db $2e, $00, $6e, $00, $ff, $ff
+;@ path: link/breed
+;@ Cursor positions of the INFO / OK window of the breeding list ($FFFF ends).
+BreedChoiceCursor::
+	dw $002e, $006e
+	dw $ffff
 
+;@ def BreedShowStatus()
+;@ path: link/breed
+;@ Breeding step 6: runs the monster status screen for the picked monster until it closes.
+;@ test: skip calls routines in other banks
 BreedShowStatus::
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep:
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
+;>     wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def BreedStatusDone()
+;@ path: link/breed
+;@ Breeding step 7: after the status screen, loads the font again and redraws the list with
+;@ the INFO / OK window (back to step 5).
+;@ test: skip calls routines in other banks
 BreedStatusDone::
+;> DecompressVRAM(0x2E, 0x1E, 0x9000)   # font
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call DecompressVRAM
+;> PrintSystemText(0x021C)             # "Choose a monster for breeding."
 	ld hl, $021c
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
+;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
 	call DrawCursorMonName
+;> BreedDrawListNames()
 	call BreedDrawListNames
+;> BreedDrawChoice()
 	call BreedDrawChoice
+;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
+;> wTitleStep = 5
 	ld a, $05
 	ld [wTitleStep], a
 	ret
 
 
+;@ def BreedWait()
+;@ path: link/breed
+;@ Breeding step 8: "One moment please." and tells the partner this side is ready (byte 1).
+;@ test: skip prints text
 BreedWait::
+;> PrintSystemText(0x021F)
 	ld hl, $021f
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wLinkSendByte = 1
 	ld a, $01
 	ld [wLinkSendByte], a
 	ret
 
 
+;@ def BreedSendMonster()
+;@ path: link/breed
+;@ Breeding step 9: when the partner is ready, exchanges the chosen monsters' records ($95
+;@ bytes); the partner's arrives in wBreedParent2.
+;@ test: skip runs the link protocol
 BreedSendMonster::
+;> if not BreedCheckPartnerCancel():
+;>     return
 	call BreedCheckPartnerCancel
 	ret z
 
+;> if wLinkReceivedLast != 1:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wLinkSendLength = 0x95
 	ld a, $95
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;>@send wLinkSendPtr = MonsterField(wMonsters, wCurPartyMember)
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+;=@send
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wBreedParent2
 	ld hl, wBreedParent2
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
 	ret
 
 
+;@ def BreedCheckPair()
+;@ path: link/breed
+;@ Breeding step 10: when the records are exchanged ($F0), checks the pair: the two monsters
+;@ must be of different sex, and BreedCompatibility must allow the two personalities. Else a
+;@ message and back to the list.
+;@ test: skip calls routines in other banks
 BreedCheckPair::
+;> if wLinkReceivedLast != 0xF0:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;>@sex if mem[MonsterField(wMonGender, wCurPartyMember)] & 1 == wBreedParent2[0x0B] & 1:
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
-	ld a, [$d705]
+	ld a, [wBreedParent2 + $0b]
 	and $01
 	ld b, a
+;=@sex
 	ld a, [hl]
 	and $01
 	cp b
-	jr nz, jr_015_57ef
+	jr nz, .otherSex
 
+;>     PrintSystemText(0x021E)           # "Same gender. Cannot breed."
 	ld hl, $021e
 	call PrintSystemText
+;>     wTitleStep = 0x10
 	ld a, $10
 	ld [wTitleStep], a
-	jr jr_015_582e
+	jr .done
 
-jr_015_57ef:
+;> else:
+;>@pers     i = GetMonsterPersonality(wCurPartyMember) * 27
+.otherSex
 	ld a, [wCurPartyMember]
 	ld d, a
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	ld c, $1b
+;=@pers
 	call Multiply
+;>@pers2     i += GetMonsterPersonality(0x15)  # the partner's monster
 	push hl
 	ld d, $15
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	pop hl
+;=@pers2
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@compat     if BreedCompatibility[i] == 0:
 	ld a, l
-	add $7b
+	add LOW(BreedCompatibility)
 	ld l, a
 	ld a, h
-	adc $61
+	adc HIGH(BreedCompatibility)
 	ld h, a
+;=@compat
 	ld a, [hl]
 	or a
-	jr nz, jr_015_5825
+	jr nz, .compatible
 
+;>         PrintSystemText(0x025E)       # "Too bad... Breeding failed."
 	ld hl, $025e
 	call PrintSystemText
+;>         wTitleStep = 0x10
 	ld a, $10
 	ld [wTitleStep], a
-	jr jr_015_582e
+	jr .done
 
-jr_015_5825:
+;>     else:
+;>         wLinkSendByte = 0
+.compatible
 	ld a, $00
 	ld [wLinkSendByte], a
+;>         wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 
-jr_015_582e:
+.done
 	ret
 
 
+;@ def BreedAskBreed()
+;@ path: link/breed
+;@ Breeding step 11: asks "Want to breed?".
+;@ test: skip prints text
 BreedAskBreed::
+;> PrintSystemText(0x0220)
 	ld hl, $0220
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def BreedShowMenu()
+;@ path: link/breed
+;@ Breeding step 12: once the question is printed, draws the BREED / CHECK / EXIT window.
+;@ test: skip draws through helpers
 BreedShowMenu::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
+;> BreedDrawMenu()
 	call BreedDrawMenu
+;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def BreedDrawMenu()
+;@ path: link/breed
+;@ Draws the breeding list windows with the BREED / CHECK / EXIT window and its cursor.
+;@ test: skip draws through helpers
 BreedDrawMenu::
+;> BreedDrawWindows()
 	call BreedDrawWindows
-	ld de, $68e0
+;> DrawWindowLayout_15(BreedMenuWindow)
+	ld de, BreedMenuWindow
 	call DrawWindowLayout_15
+;> MenuResetBlink_15()
 	call MenuResetBlink_15
-	ld de, $58e1
+;> MenuDrawCursorAt_15(wConfirmChoice2, BreedMenuCursor)
+	ld de, BreedMenuCursor
 	ld a, [wConfirmChoice2]
 	call MenuDrawCursorAt_15
 	ret
 
 
+;@ def BreedMenuInput()
+;@ path: link/breed
+;@ Breeding step 13: BREED goes on to "Save the result of breeding?", CHECK shows the
+;@ partner's monster, EXIT or B refuses (byte $FE). A refusal from the partner ends it too.
+;@ test: skip runs the link protocol
 BreedMenuInput::
+;> if wLinkReceivedLast == 0xFE:        # the partner refused
 	ld a, [wLinkReceivedLast]
 	cp $fe
-	jr nz, jr_015_587d
+	jr nz, .input
 
+;>     PrintSystemText(0x0222)           # "Breeding refused."
 	ld hl, $0222
 	call PrintSystemText
+;>     wTitleStep = 0x11
 	ld a, $11
 	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
-jr_015_587d:
-	ld de, $58e1
+.input
+;> MoveMenuCursor_15(wConfirmChoice2, 3, BreedMenuCursor)
+	ld de, BreedMenuCursor
 	ld hl, wConfirmChoice2
 	ld b, $03
 	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_58a2
+	jr z, .notB
 
-jr_015_588f:
+;>     PrintSystemText(0x0221)           # "Refused to breed."
+.refuse
 	ld hl, $0221
 	call PrintSystemText
+;>     wTitleStep = 0x11
 	ld a, $11
 	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
-jr_015_58a2:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_58e0
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice2 == 0x80:       # BREED
 	ld a, [wConfirmChoice2]
 	cp $80
-	jr z, jr_015_58c8
+;>@six         wTitleStep += 6
+	jr z, .breed
 
+;>     elif wConfirmChoice2 == 0x82:     # EXIT: refuse as for B (the code above)
 	cp $82
-	jr z, jr_015_588f
+;>         pass                          # jumps to the B code above: "Refused to breed."
+	jr z, .refuse
 
+;>     else:                             # CHECK
+;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
+;>@g10         wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_015_58e0
 
 
-jr_015_58c8:
+.breed
+;=@six
 	ld hl, wTitleStep
 	inc [hl]
 	ld hl, wTitleStep
 	inc [hl]
 	ld hl, wTitleStep
 	inc [hl]
+;=@six
 	ld hl, wTitleStep
 	inc [hl]
 	ld hl, wTitleStep
@@ -5101,11 +5428,15 @@ jr_015_58c8:
 	inc [hl]
 
 Jump_015_58e0:
+;=@g10
 	ret
 
 
+;@ path: link/breed
+;@ Cursor positions of the BREED / CHECK / EXIT window ($FFFF ends).
 BreedMenuCursor::
-	db $2c, $00, $6c, $00, $ac, $00, $ff, $ff
+	dw $002c, $006c, $00ac
+	dw $ffff
 
 ;@ def BreedShowPartner()
 ;@ path: link/breed
@@ -7033,6 +7364,8 @@ NextBgColumn2_15::
 	ret
 
 
+;@ path: unused
+;@ A 27 x 27 table of 0/1 flags (729 bytes) that no code reads.
 BreedCompatibility::
 	db $01, $01, $01, $01, $00, $01, $00, $00, $01, $01, $01, $01, $01, $01, $01, $01
 	db $00, $00, $01, $00, $01, $01, $01, $01, $00, $00, $00, $01, $01, $01, $01, $01
@@ -7081,12 +7414,19 @@ BreedCompatibility::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $01, $00, $01, $00, $01, $01, $00, $00, $00
 
+;@ path: title/menu
+;@ Window layout of the title menu without a save: NEW GAME in a framed box (layout format:
+;@ tilemap-buffer offset, tile rows separated by $D8, $D9 at the end).
 TitleWindowNoSave::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $31, $28, $3a, $e0, $2a, $24
 	db $30, $28, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $fd, $d9
 
+;@ path: title/menu
+;@ Window layout of the title menu with a save: CONTINUE, NEW GAME, VS MODE and BREEDING.
+;@ Three more layouts follow that nothing draws: a small box with tiles $00-$03 and two pages
+;@ of a name-entry keyboard (letters, small letters and signs).
 TitleWindowWithSave::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $26, $32, $31, $37, $2c, $31, $38, $28, $e0, $ff, $d8, $fe, $e0
@@ -7131,10 +7471,15 @@ TitleWindowWithSave::
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/breed
+;@ The yes/no box of the breeding save question (YES / NO, the cursor at BreedSaveCursor).
 BreedSaveYesNoWindow::
 	db $0e, $01, $fa, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: title/menu
+;@ The save information window on CONTINUE: MASTER and the name, the party's three monster
+;@ names with their levels.
 SaveInfoWindow::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $30, $24, $36, $37, $28, $35, $e4, $00, $01
@@ -7145,6 +7490,8 @@ SaveInfoWindow::
 	db $65, $e4, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/menu
+;@ The monster list window of the link modes: WHO, then four rows of names (tiles $10-$1F).
 TitleListWindow::
 	db $00, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $3a, $2b, $32, $e0, $ff, $d8, $ec, $eb, $eb, $eb
@@ -7154,23 +7501,31 @@ TitleListWindow::
 	db $e0, $e0, $ff, $d8, $fe, $e0, $1c, $1d, $1e, $1f, $ff, $d8, $fc, $ee, $ee, $ee
 	db $ee, $ee, $fd, $d9
 
+;@ path: link/vs
+;@ The VS team window: three numbered rows with the chosen monsters' names.
 VSTeamWindow::
 	db $cd, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $f1
 	db $04, $05, $06, $07, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $f2
 	db $08, $09, $0a, $0b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $f3
 	db $0c, $0d, $0e, $0f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/menu
+;@ The INFO / OK choice box of the link lists.
 InfoOkWindow::
 	db $0d, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $2c, $31, $29, $32, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $32, $2e, $e0, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/menu
+;@ A YES / NO box of the link modes.
 YesNoWindow_15::
 	db $ae, $01, $fa, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/vs
+;@ The VS menu before the fight: FIGHT, PRIZE, EXIT.
 VSReadyWindow::
 	db $0b, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $29, $2c, $2a, $2b, $37
@@ -7179,6 +7534,8 @@ VSReadyWindow::
 	db $d8, $fe, $e0, $28, $3b, $2c, $37, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/breed
+;@ The link breeding menu: BREED, CHECK, EXIT.
 BreedMenuWindow::
 	db $0b, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $25, $35, $28, $28, $27, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
@@ -7186,6 +7543,9 @@ BreedMenuWindow::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $28, $3b, $2c, $37, $e0
 	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/menu
+;@ The name window of the link lists (the master's name, tiles $00-$03 and $20). The rest of the
+;@ bank after it is data nothing refers to (it looks like left-over graphics).
 TitleNameWindow::
 	db $40, $01, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $00

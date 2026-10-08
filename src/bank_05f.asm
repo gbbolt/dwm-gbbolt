@@ -583,7 +583,7 @@ Call_5F_43BA::
 	ld [$c0dc], a
 	ld a, h
 	ld [$c0dd], a
-	ld hl, far_Call_51_5569
+	ld hl, far_LoadMonsterPicFar
 	rst $10
 	ld hl, far_LoadMonPicPalette
 	rst $10
@@ -1649,7 +1649,7 @@ Call_5F_4A60::
 Jump_05f_4ae8:
 jr_05f_4ae8:
 	xor a
-	ld hl, $da82
+	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
 	ld b, $03
@@ -1674,7 +1674,7 @@ jr_05f_4b07:
 
 jr_05f_4b0b:
 	xor a
-	ld hl, $da82
+	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
 	ld a, $04
@@ -1691,18 +1691,18 @@ Call_5F_4B1B::
 
 	xor a
 	ld [$da34], a
-	ld a, [$da82]
+	ld a, [wBattleAnimDone]
 	or a
 	ret nz
 
-	ld a, [$db54]
+	ld a, [wItemMsgGroup]
 	cp $80
 	jr nz, jr_05f_4b40
 
 	ld a, $6c
 	call QueueSound
 	ld a, $ff
-	ld [$db54], a
+	ld [wItemMsgGroup], a
 	ret
 
 
@@ -1728,7 +1728,7 @@ JumpTable_5F_4B44::
 
 Jump_5F_4B60::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -1756,7 +1756,7 @@ jr_05f_4b84:
 	jr nc, Jump_5F_4BF4
 
 jr_05f_4b88:
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $0a
 	jr z, jr_05f_4b97
 
@@ -1818,7 +1818,7 @@ Jump_5F_4BCB::
 
 Jump_5F_4BF4::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	xor a
@@ -1864,7 +1864,7 @@ Jump_5F_4C2F::
 
 Jump_5F_4C3A::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ldh [hScrollY], a
 	xor a
@@ -1914,7 +1914,7 @@ Call_5F_4C6C::
 Jump_5F_4C7C::
 	call Call_5F_4C6C
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -1973,7 +1973,7 @@ Jump_5F_4CBE::
 
 Jump_5F_4CCE::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -2016,7 +2016,7 @@ Jump_5F_4CF6::
 
 Jump_5F_4D0A::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -2078,7 +2078,7 @@ Jump_5F_4D4F::
 
 Jump_5F_4D5F::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -2094,7 +2094,7 @@ Jump_5F_4D69::
 	ret z
 
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	xor a
@@ -2180,7 +2180,7 @@ Jump_5F_4DDE::
 
 Jump_5F_4DEE::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -2246,7 +2246,7 @@ Call_5F_4E3C::
 	bit 1, a
 	jr z, jr_05f_4e4e
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	jr jr_05f_4e51
 
 jr_05f_4e4e:
@@ -2305,7 +2305,7 @@ Call_5F_4E80::
 	bit 1, a
 	jr z, jr_05f_4ea3
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	jr jr_05f_4ea6
 
 jr_05f_4e97:
@@ -2313,7 +2313,7 @@ jr_05f_4e97:
 	bit 1, a
 	jr nz, jr_05f_4ea3
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	jr jr_05f_4ea6
 
 jr_05f_4ea3:
@@ -2617,7 +2617,7 @@ Jump_5F_504F::
 	ld a, $00
 	ld [wLCDEffect], a
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da87], a
 	xor a
@@ -2888,7 +2888,7 @@ Jump_5F_5237::
 	ldh [hScrollX], a
 	ldh [hScrollY], a
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	ret
@@ -2974,7 +2974,7 @@ Jump_5F_529F::
 
 Jump_5F_52C8::
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	xor a
 	ld [$da84], a
 	xor a
@@ -2994,11 +2994,11 @@ Call_5F_52D6::
 	ret nz
 
 jr_05f_52e4:
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $07
 	ret nz
 
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $04
 	ret
 
@@ -3112,18 +3112,18 @@ jr_05f_5382:
 	cp $80
 	jp z, Jump_05f_53e9
 
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $07
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $0a
 	jr z, jr_05f_53e3
 
 	cp $01
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ee]
+	ld a, [wBattleSubStep2]
 	cp $0e
 	jr nc, jr_05f_53e9
 
@@ -3132,18 +3132,18 @@ jr_05f_5382:
 
 Jump_05f_53a4:
 jr_05f_53a4:
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $07
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $0a
 	jr z, jr_05f_53e3
 
 	cp $01
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ee]
+	ld a, [wBattleSubStep2]
 	cp $05
 	jr z, jr_05f_53e9
 
@@ -3151,11 +3151,11 @@ jr_05f_53a4:
 
 
 Jump_05f_53be:
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $07
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $04
 	jr z, jr_05f_53e9
 
@@ -3163,15 +3163,15 @@ Jump_05f_53be:
 
 
 jr_05f_53cd:
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $07
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $0a
 	jr nz, jr_05f_53e9
 
-	ld a, [$d9ef]
+	ld a, [wBattleStepArg0]
 	cp $04
 	jr nz, jr_05f_53e9
 
@@ -3179,7 +3179,7 @@ jr_05f_53cd:
 
 
 jr_05f_53e3:
-	ld a, [$d9ef]
+	ld a, [wBattleStepArg0]
 	cp $01
 	ret z
 
@@ -3220,15 +3220,15 @@ jr_05f_5412:
 	or a
 	jr z, jr_05f_5433
 
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $07
 	jr nz, jr_05f_5433
 
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	cp $01
 	jr nz, jr_05f_5433
 
-	ld a, [$d9ee]
+	ld a, [wBattleSubStep2]
 	cp $05
 	jr nz, jr_05f_5433
 
@@ -3502,7 +3502,7 @@ Call_5F_5BB7::
 	ld bc, $0240
 	call FillMemory
 	xor a
-	ld hl, $da82
+	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
 	ld de, $ff00
@@ -3535,17 +3535,17 @@ Call_5F_5BB7::
 	call StartFade
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ld a, $01
 	ld [$dd68], a
 	ld a, $01
-	ld [$db54], a
+	ld [wItemMsgGroup], a
 	ld a, $01
-	ld [$da82], a
+	ld [wBattleAnimDone], a
 	ld a, $03
 	ld [wLinkChoice], a
 	ld a, $07
@@ -3573,7 +3573,7 @@ Call_5F_5C8D::
 	cp $09
 	jr nz, jr_05f_5c9b
 
-	ld a, [$da82]
+	ld a, [wBattleAnimDone]
 	or a
 	jp z, Jump_05f_5ec1
 
@@ -3582,7 +3582,7 @@ jr_05f_5c9b:
 	or a
 	ret nz
 
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	jp nz, Jump_05f_5ea3
 
@@ -3659,7 +3659,7 @@ Jump_5F_5CEF::
 
 
 Jump_5F_5D0A::
-	ld a, [$da82]
+	ld a, [wBattleAnimDone]
 	or a
 	jr z, jr_05f_5d30
 
@@ -3824,8 +3824,8 @@ Jump_05f_5dd7:
 	ld a, $60
 	ld [$dd63], a
 	ld a, $00
-	ld [$dd62], a
-	ld hl, $dd62
+	ld [wBattleAnimRunning], a
+	ld hl, wBattleAnimRunning
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
@@ -3841,7 +3841,7 @@ Call_5F_5E27::
 	call Call_5F_5F36
 	ld hl, $c56d
 	call Call_5F_5F36
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
@@ -3896,7 +3896,7 @@ Jump_05f_5e87:
 	ld a, $01
 	ld [wEnemyCount], a
 	xor a
-	ld hl, $da82
+	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
 	ld a, [wListLastRows]
@@ -3904,14 +3904,14 @@ Jump_05f_5e87:
 	jr Call_5F_5E27
 
 Jump_05f_5ea3:
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	jr z, jr_05f_5eb5
 
 	call Call_5F_5FFA
 	ld hl, far_StepAnimation
 	rst $10
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	ret nz
 
@@ -3928,7 +3928,7 @@ JumpTable_5F_5EB9::
 Jump_05f_5ec1:
 	ld hl, far_Call_5F_4B1B
 	rst $10
-	ld a, [$da82]
+	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
@@ -3959,7 +3959,7 @@ Jump_5F_5EE0::
 	call Call_5F_5F33
 	ld hl, $c56d
 	call Call_5F_5F36
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
@@ -3971,7 +3971,7 @@ Jump_5F_5EF4::
 	call Call_5F_5F36
 	ld hl, $c56d
 	call Call_5F_5F36
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
@@ -3982,7 +3982,7 @@ Jump_5F_5F0B::
 	call Call_5F_5F47
 	ld hl, $c56d
 	call Call_5F_5F36
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
@@ -3993,7 +3993,7 @@ Jump_5F_5F1F::
 	call Call_5F_5F33
 	ld hl, $c56d
 	call Call_5F_5F47
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
@@ -4192,14 +4192,14 @@ Call_5F_6014::
 	ld a, $01
 	ld [$dd68], a
 	ld a, $01
-	ld [$db54], a
+	ld [wItemMsgGroup], a
 	jr jr_05f_6053
 
 jr_05f_6049:
 	ld a, $00
 	ld [$dd68], a
 	ld a, $00
-	ld [$db54], a
+	ld [wItemMsgGroup], a
 
 jr_05f_6053:
 	ld a, [wMenuChoice2]
@@ -4314,22 +4314,22 @@ Call_5F_6251::
 	ld a, [wLinkFlags]
 	and $02
 	rlca
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	inc a
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, l
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, h
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	call Call_5F_62E5
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld l, a
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	ld h, a
 	ld a, [hl]
 	cp $ff
@@ -4337,15 +4337,15 @@ Call_5F_6251::
 
 	inc hl
 	ld a, l
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, h
-	ld [$db4e], a
-	ld hl, $db4c
+	ld [wBattleArg2], a
+	ld hl, wBattleArg0
 	inc [hl]
 	call Call_5F_62E5
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld l, a
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	ld h, a
 	ld a, [hl]
 	cp $ff
@@ -4353,15 +4353,15 @@ Call_5F_6251::
 
 	inc hl
 	ld a, l
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, h
-	ld [$db4e], a
-	ld hl, $db4c
+	ld [wBattleArg2], a
+	ld hl, wBattleArg0
 	inc [hl]
 	call Call_5F_62E5
 
 jr_05f_62d2:
-	ld hl, far_Call_50_768E
+	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
@@ -4373,14 +4373,14 @@ jr_05f_62d7:
 
 	xor a
 	ld [$da88], a
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
 Call_5F_62E5::
 	call Call_5F_633D
-	ld a, [$db4c]
-	ld hl, $dc44
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
@@ -4389,8 +4389,8 @@ Call_5F_62E5::
 	call Call_5F_6348
 	ld hl, $643a
 	call Call_5F_6360
-	ld a, [$db4c]
-	ld hl, $dc54
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality2
 	add l
 	ld l, a
 	ld a, $00
@@ -4399,8 +4399,8 @@ Call_5F_62E5::
 	call Call_5F_6348
 	ld hl, $6440
 	call Call_5F_6360
-	ld a, [$db4c]
-	ld hl, $dc4c
+	ld a, [wBattleArg0]
+	ld hl, wBattlerStat67
 	add l
 	ld l, a
 	ld a, $00
@@ -4409,8 +4409,8 @@ Call_5F_62E5::
 	call Call_5F_6348
 	ld hl, $6446
 	call Call_5F_6360
-	ld a, [$db4c]
-	ld hl, $dc5c
+	ld a, [wBattleArg0]
+	ld hl, wBattlerPersonality3
 	add l
 	ld l, a
 	ld a, $00
@@ -4424,7 +4424,7 @@ Call_5F_62E5::
 
 Call_5F_633D::
 	xor a
-	ld hl, $db4f
+	ld hl, wBattleArg3
 	ld bc, $0003
 	call FillMemory
 	ret
@@ -4434,19 +4434,19 @@ Call_5F_6348::
 	ld b, [hl]
 	ld a, $64
 	call Divide8
-	ld hl, $db4f
+	ld hl, wBattleArg3
 	ld [hl], b
 	ld b, a
 	ld a, $0a
 	call Divide8
-	ld hl, $db50
+	ld hl, wNamePos
 	ld [hl], b
 	ld [$db51], a
 	ret
 
 
 Call_5F_6360::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	and $03
 	add a
 	add l
@@ -4460,12 +4460,12 @@ Call_5F_6360::
 	ld de, wTilemapBuffer
 	add hl, de
 	ld c, $00
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	or c
 	jr z, jr_05f_638a
 
 	inc c
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld de, $6430
 	add e
 	ld e, a
@@ -4477,12 +4477,12 @@ Call_5F_6360::
 
 jr_05f_638a:
 	inc hl
-	ld a, [$db50]
+	ld a, [wNamePos]
 	or c
 	jr z, jr_05f_63a0
 
 	inc c
-	ld a, [$db50]
+	ld a, [wNamePos]
 	ld de, $6430
 	add e
 	ld e, a

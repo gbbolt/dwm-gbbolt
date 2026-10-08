@@ -85,6 +85,7 @@ ScriptMenuNone9::
 ;@ path: menu/window
 ;@ Rounds the 16-bit scroll position at `pos` to the nearest multiple of 8 pixels, so the menu
 ;@ windows line up with the background tiles.
+;@ test: skip writes through a pointer
 SnapToTile9::
 ;> v = mem16[pos] + 4
 	ld a, [hl]
@@ -263,6 +264,7 @@ DrawLayoutToVram9::
 ;@ a word, the buffer offset of its top left corner (row * 32 + column), then the tiles row by
 ;@ row: $D8 starts the next row, $D9 ends the layout. The window frame tiles are $FA/$FB top
 ;@ corners, $EF top edge, $FE/$FF sides, $FC/$FD bottom corners, $EE bottom edge, $E0 blank.
+;@ test: skip needs a real layout
 DrawWindowLayout9::
 ;> offset = mem16[layout]; layout += 2
 	ld a, [de]
@@ -1376,6 +1378,7 @@ PutWindowTile::
 ;@ Draws the list marks into wTilemapBuffer: at the first position of `positions` the arrow $E7 if
 ;@ the list has more pages (else the frame edge $EE) with the page number (mem[cursor + 1] + 1)
 ;@ in front of it, then the cursor (DrawCursorAt9 with the rest of the table).
+;@ test: skip uses hNumber as scratch
 DrawListFrame9::
 ;> row = mem[cursor]
 	ld a, [hli]
@@ -1441,6 +1444,7 @@ DrawListFrame9::
 ;@ path: menu/cursor
 ;@ Puts the cursor tile of entry `row` of `positions` into wTilemapBuffer only (the caller copies
 ;@ the buffer to the screen): $E9 if chosen (bit 7), else $E8, or $E0 in the hidden blink phase.
+;@ test: skip needs a real position table
 DrawCursorAt9::
 ;>@p pos = mem16[positions + 2 * (row & 0x7F)]
 	ld c, a
@@ -1677,7 +1681,7 @@ ShopInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(wLinkChoice, 0, 8)              # the menu cursors
+;> fill(addr(wLinkChoice), 0, 8)              # the menu cursors
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
@@ -1815,12 +1819,12 @@ ShopMainMenuInput::
 ;>     wLinkChoice |= 0x80
 	ld hl, wLinkChoice
 	set 7, [hl]
-;>     fill(wMenuChoice2, 0, 7)
+;>     fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
-;>     fill(wListCursor, 0, 8)
+;>     fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -1900,11 +1904,11 @@ ShopBuySteps::
 	dw ShopBuyDone
 
 ;@ def ShopBuyStart()
-;@ def ShopBuyStart()
 ;@ path: item/shop/buy
 ;@ Asks what the player wants and copies the shop's goods into wSceneObjects: map $50 has its
 ;@ own list, the town shops pick theirs by the screen of the map they are on (wMapScreen 0, 2, 4,
 ;@ 5; any other screen gets the screen-5 list).
+;@ test: skip prints a message
 ShopBuyStart::
 ;> PrintMenuText9(3)                    # "What would you like?"
 	ld hl, $0003
@@ -2723,12 +2727,12 @@ ShopBuyDone::
 	or a
 	ret nz
 
-;> fill(wMenuChoice2, 0, 7)
+;> fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
-;> fill(wListCursor, 0, 8)
+;> fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -3596,12 +3600,12 @@ ShopSellDone::
 	or a
 	ret nz
 
-;> fill(wMenuChoice2, 0, 7)
+;> fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
-;> fill(wListCursor, 0, 8)
+;> fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -3678,7 +3682,7 @@ VaultInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(wLinkChoice, 0, 8)
+;> fill(addr(wLinkChoice), 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
@@ -3850,7 +3854,7 @@ VaultMainMenuInput::
 ;>     wLinkChoice |= 0x80
 	ld hl, wLinkChoice
 	set 7, [hl]
-;>     fill(wMenuChoice2, 0, 7)
+;>     fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
@@ -4006,12 +4010,12 @@ VaultWhatMenuInput::
 ;>     wMenuChoice2 |= 0x80
 	ld hl, wMenuChoice2
 	set 7, [hl]
-;>     fill(wConfirmChoice, 0, 6)
+;>     fill(addr(wConfirmChoice), 0, 6)
 	ld hl, wConfirmChoice
 	ld bc, $0006
 	ld a, $00
 	call FillMemory
-;>     fill(wListCursor, 0, 8)
+;>     fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -4640,12 +4644,12 @@ VaultStoreDone::
 	or a
 	ret nz
 
-;> fill(wConfirmChoice, 0, 6)
+;> fill(addr(wConfirmChoice), 0, 6)
 	ld hl, wConfirmChoice
 	ld bc, $0006
 	ld a, $00
 	call FillMemory
-;> fill(wListCursor, 0, 8)
+;> fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -4793,6 +4797,7 @@ DrawDepositGoldWindow::
 ;@ $C8DF-$C8E1).
 ;@ test: skip draws to VRAM
 VaultDepositGoldInput::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;> UpdateGoldEntry(wConfirmChoice, DepositGoldDigitCursor, 3)
 	ld de, DepositGoldDigitCursor
 	ld hl, wConfirmChoice
@@ -4864,6 +4869,7 @@ DepositGoldDigitCursor::
 ;@ in $C8DF-$C8E1.
 ;@ test: skip uses the home gold routines
 VaultDepositGoldDoIt::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;>@g if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < amount:
 	ld hl, wLinkRefused
 	ld a, [wGold]
@@ -5475,12 +5481,12 @@ VaultTakeDone::
 	or a
 	ret nz
 
-;> fill(wConfirmChoice, 0, 6)
+;> fill(addr(wConfirmChoice), 0, 6)
 	ld hl, wConfirmChoice
 	ld bc, $0006
 	ld a, $00
 	call FillMemory
-;> fill(wListCursor, 0, 8)
+;> fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -5646,6 +5652,7 @@ DrawWithdrawGoldWindow::
 ;@ on.
 ;@ test: skip draws to VRAM
 VaultWithdrawGoldInput::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;> UpdateGoldEntry(wConfirmChoice, WithdrawGoldDigitCursor, 3)
 	ld de, WithdrawGoldDigitCursor
 	ld hl, wConfirmChoice
@@ -5716,6 +5723,7 @@ WithdrawGoldDigitCursor::
 ;@ (message 24); else it moves from the vault to the purse (message 25).
 ;@ test: skip uses the home gold routines
 VaultWithdrawGoldDoIt::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;>@v if wBankedGold[0] | wBankedGold[1] << 8 | wBankedGold[2] << 16 < amount:
 	ld hl, wLinkRefused
 	ld a, [wBankedGold]
@@ -5919,6 +5927,7 @@ UpdateGoldEntry::
 ;@ Lowers digit mem[digit] (0 = ten thousands ... 4 = ones) of the amount, 0 wrapping to 9.
 ;@ test: skip uses the home number routines
 GoldEntryDigitDown::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;>@pn PrintNumber5Zeros(amount, wNumberBackup)    # its five digits
 	push de
 	ld a, [hl]
@@ -6050,6 +6059,7 @@ GoldEntryDigitsToValue::
 ;@ Raises digit mem[digit] of the amount, 9 wrapping to 0.
 ;@ test: skip uses the home number routines
 GoldEntryDigitUp::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;>@pn PrintNumber5Zeros(amount, wNumberBackup)
 	push de
 	ld a, [hl]
@@ -6098,6 +6108,7 @@ GoldEntryDigitUp::
 ;@ is on blinks with the cursor tile $E6. Unless chosen (bit 7), it only redraws every 16 frames.
 ;@ test: skip writes VRAM
 DrawGoldEntry::
+;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
 ;>@pn PrintNumber5Zeros(amount, wNumberBackup)
 	ld c, a
 	push de
@@ -6382,7 +6393,7 @@ ArenaEntryInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(wLinkChoice, 0, 8)
+;> fill(addr(wLinkChoice), 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
@@ -6447,12 +6458,12 @@ ArenaEntryOpen::
 ;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;> fill(wLinkChoice, 0, 8)
+;> fill(addr(wLinkChoice), 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wListCursor, 0, 8)
+;> fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -7149,7 +7160,7 @@ GalleryInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(wLinkChoice, 0, 8)
+;> fill(addr(wLinkChoice), 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
@@ -7224,6 +7235,7 @@ GalleryOpen::
 ;@ path: menu/gallery
 ;@ Draws the full-screen frame (GalleryFrameLayout) and, with more than 8 entries, the arrow $E7 for
 ;@ the second page at row 16, column 18.
+;@ test: skip needs a real layout
 DrawGalleryFrame::
 ;> DrawWindowLayout9(GalleryFrameLayout)
 	ld de, GalleryFrameLayout
@@ -7597,7 +7609,7 @@ GalleryClose::
 	call BuildStatusBar
 ;> DrawStatusBar()
 	call DrawStatusBar
-;> Call_06_4D5A()
+;> LoadFieldActorGfx()
 	ld hl, far_LoadFieldActorGfx
 	rst $10
 ;> wMenuOverlay = 0
@@ -7732,7 +7744,7 @@ NameEntryInit::
 	call FillMemory
 ;> LoadCurrentName()
 	call LoadCurrentName
-;> fill(wLinkChoice, 0, 8)
+;> fill(addr(wLinkChoice), 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
@@ -7830,7 +7842,7 @@ NameEntryInit::
 ;@ wNameInput. A monster with no name yet gets its species' default name (text group 7).
 ;@ test: skip far call
 LoadCurrentName::
-;>@c CopyNameToBuffer(mem16[wChosenMonName], wNameInput, 8)
+;>@c CopyNameToBuffer(wChosenMonName, wNameInput, 8)
 	ld b, $08
 	ld a, [wChosenMonName]
 	ld l, a
@@ -7864,6 +7876,7 @@ LoadCurrentName::
 ;@ def CopyNameToBuffer(src: hl, dest: de, count: b)
 ;@ path: menu/names
 ;@ Copies up to `count` letters from `src` to `dest`, stopping at 0, $F0 or $9F.
+;@ test: skip copies through pointers
 CopyNameToBuffer::
 ;> for _ in range(count):
 ;>     c = mem[src]; src += 1
@@ -8290,7 +8303,7 @@ NameEntryInput::
 .input
 ;> DrawKeyboardCursor()
 	call DrawKeyboardCursor
-;> if wJoyPressed & 0x02:               # B: erase
+;> if wJoyPressed & 0x02 or (wJoyPressed & 0x01 and wMenuChoice2 * 17 + wLinkChoice == 0x40):   # B, or A on Back: erase
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .checkA
@@ -8365,8 +8378,8 @@ NameEntryInput::
 	jp .done
 
 .notEnd
-;>     if key == 0x40:                 # Back: erase as with B
-;>         return NameEntryInput_erase()
+;>     if key == 0x40:                 # Back: jumps to the erasing above
+;>         pass
 	cp $40
 	jp z, .erase
 
@@ -8943,7 +8956,7 @@ NameYesNoCursor::
 ;@ Then the field runs again (with wFieldFlags bit 7 set only that bit is cleared).
 ;@ test: skip decompresses graphics
 NameEntryFinish::
-;>@f fill(mem16[wChosenMonName], 0xF0, 8)
+;>@f fill(wChosenMonName, 0xF0, 8)
 	ld a, [wChosenMonName]
 	ld l, a
 	ld a, [wChosenMonName + 1]
@@ -8952,7 +8965,7 @@ NameEntryFinish::
 	ld a, $f0
 ;=@f
 	call FillMemory
-;> dest = mem16[wChosenMonName]
+;> dest = wChosenMonName
 	ld a, [wChosenMonName]
 	ld l, a
 	ld a, [wChosenMonName + 1]
@@ -9263,7 +9276,7 @@ CheckNameTaken::
 	ld a, h
 	adc $00
 	ld h, a
-;>@s     if p == mem16[wChosenMonName]:   # the monster being named
+;>@s     if p == wChosenMonName:   # the monster being named
 ;>         continue
 	ld a, [wChosenMonName]
 	ld e, a

@@ -4262,7 +4262,7 @@ jr_006_606b:
 	jp nz, ScrollToNextScreen
 
 ;> if mem[0xD9E8]: return
-	ld a, [$d9e8]
+	ld a, [wFieldInputBlock]
 	or a
 	jp nz, Jump_006_6284
 
@@ -4705,7 +4705,7 @@ RunNameEntry::
 SwapMenuState::
 ;> p = wMenuStep; q = 0xC876
 	ld hl, wMenuStep
-	ld de, $c876
+	ld de, wBattlerSexBits67
 ;>@i for i in range(8):
 	ld b, $08
 
@@ -5132,7 +5132,7 @@ jr_006_6427:
 	rst $10
 ;> mem[0xD9E8] = 0
 	xor a
-	ld [$d9e8], a
+	ld [wFieldInputBlock], a
 	ret
 
 

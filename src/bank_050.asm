@@ -4,24 +4,31 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $050", ROMX[$4000], BANK[$50]
 
+;@ path: battle/flow
+;@ Bank number byte that FarCall reads to know which bank is switched in.
 BankNumber_50::
 	db $50
 
+;@ path: battle/flow
+;@ Far-call entry points of bank $50 (the battle mode): 0 battle init, 1 battle frame
+;@ with the link and animation work, 2 battle frame logic, 3 redraw the battle windows,
+;@ 4 status icon update, 5 copy the screen buffer, 6 HP/MP numbers, 7 the message that
+;@ announces an action, 8 to 10 battle messages that end a menu or the battle.
 FarTable_50::
 	dw Call_50_5DC9
 	dw Call_50_5E21
 	dw Call_50_5E49
 	dw Call_50_6053
-	dw Call_50_7C4D
-	dw Call_50_768E
-	dw Call_50_79EB
+	dw UpdateStatusIcon_50
+	dw CopyTilemapBufferToScreen_50
+	dw PrintPanelHPMP
 	dw Call_50_59EB
 	dw Call_50_5B58
 	dw Call_50_5C78
 	dw Call_50_5CB4
 
 Call_50_4017::
-	ld a, [$d9f4]
+	ld a, [wCommandStep]
 	rst $00
 
 JumpTable_50_401B::
@@ -41,12 +48,12 @@ Jump_50_4031::
 	ld hl, far_Call_55_479B
 	rst $10
 	xor a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
 	ld a, $ff
@@ -120,7 +127,7 @@ jr_050_40a5:
 	ld a, d
 	ld [wSkillTarget], a
 	ld b, $08
-	ld hl, $c1cd
+	ld hl, wBattlerMenuMemory
 
 jr_050_40b2:
 	set 7, [hl]
@@ -128,7 +135,7 @@ jr_050_40b2:
 	dec b
 	jr nz, jr_050_40b2
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ld bc, $0300
 	ld a, [wLinkFlags]
@@ -139,7 +146,7 @@ jr_050_40b2:
 
 jr_050_40c8:
 	ld a, c
-	ld [$db61], a
+	ld [wSkillStatusPtr], a
 
 jr_050_40cc:
 	ld a, c
@@ -147,7 +154,7 @@ jr_050_40cc:
 	jr c, jr_050_40e8
 
 	ld a, c
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hli]
 	and $0c
@@ -158,7 +165,7 @@ jr_050_40cc:
 	jr z, jr_050_40e8
 
 	ld a, c
-	ld [$db61], a
+	ld [wSkillStatusPtr], a
 	ret
 
 
@@ -173,17 +180,17 @@ jr_050_40e8:
 Jump_50_40ED::
 	ld hl, far_Call_55_4774
 	rst $10
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $6ed2
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $419b
 	ld a, [wLinkChoice]
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f4
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -193,7 +200,7 @@ Jump_50_4114::
 	and $08
 	jr z, jr_050_412d
 
-	ld a, [$d9f3]
+	ld a, [wPanelMode]
 	or a
 	jr nz, jr_050_4124
 
@@ -204,25 +211,25 @@ jr_050_4124:
 	ld a, $03
 
 jr_050_4126:
-	ld [$d9f3], a
-	call Call_50_7A87
+	ld [wPanelMode], a
+	call DrawPanelConditions
 	ret
 
 
 jr_050_412d:
 	ld de, $419b
 	ld hl, wLinkChoice
-	call Call_50_782E
+	call UpdateGridCursor_50
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_050_419a
 
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	xor a
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ld hl, wLinkChoice
 	set 7, [hl]
 	ld hl, wMenuChoice2
@@ -251,22 +258,23 @@ jr_050_4176:
 
 	ld a, [wPartyBarTiles]
 	ld [wConfirmChoice2], a
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 	call Call_50_5708
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 	ld a, $81
 	ld [wMenuChoice2], a
 	ld a, $01
-	ld [$d9fc], a
+	ld [wTacticMenuRow], a
 
 jr_050_419a:
 	ret
 
 
+BattleMenuCursors::
 	db $c1, $01, $01, $02, $c7, $01, $07, $02, $ff, $ff
 
 Call_50_41A5::
@@ -293,12 +301,12 @@ jr_050_41b7:
 
 
 jr_050_41b9:
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $0002
 	ld a, $09
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -306,8 +314,8 @@ jr_050_41b9:
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
@@ -316,9 +324,9 @@ Jump_50_41E0::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	ld a, $01
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
@@ -327,7 +335,7 @@ Jump_50_41EE::
 	and $08
 	jr z, jr_050_4207
 
-	ld a, [$d9f3]
+	ld a, [wPanelMode]
 	or a
 	jr nz, jr_050_41fe
 
@@ -338,8 +346,8 @@ jr_050_41fe:
 	ld a, $03
 
 jr_050_4200:
-	ld [$d9f3], a
-	call Call_50_7A87
+	ld [wPanelMode], a
+	call DrawPanelConditions
 	ret
 
 
@@ -355,13 +363,13 @@ JumpTable_50_420B::
 	dw Jump_50_4794
 
 Jump_50_4215::
-	ld a, [$d9f3]
+	ld a, [wPanelMode]
 	or a
 	jr z, jr_050_4224
 
 	ld a, $03
-	ld [$d9f3], a
-	call Call_50_7B8F
+	ld [wPanelMode], a
+	call DrawPanelLetters
 	ret
 
 
@@ -384,15 +392,15 @@ jr_050_423c:
 	call CopyName
 	ld a, $f6
 	call Call_50_6AA0
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79AE
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawMessageWindowAndPanel
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 
 jr_050_4259:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -406,7 +414,7 @@ Jump_50_425E::
 	ld [wLinkSendByte], a
 
 jr_050_4269:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -420,7 +428,7 @@ Jump_50_426E::
 	cp $01
 	ret nz
 
-	ld de, $dd03
+	ld de, wBattlerTactic
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_050_4288
@@ -428,7 +436,7 @@ Jump_50_426E::
 	ld de, $dd07
 
 jr_050_4288:
-	ld hl, $c1da
+	ld hl, wLinkTurnOut
 	ld a, [de]
 	ld [hli], a
 	inc de
@@ -449,7 +457,7 @@ jr_050_4288:
 	bit 1, a
 	jr nz, jr_050_42af
 
-	ld de, $dcec
+	ld de, wBattlerAction
 	jr jr_050_42b2
 
 jr_050_42af:
@@ -473,7 +481,7 @@ jr_050_42b2:
 	inc de
 	ld a, [de]
 	ld [hli], a
-	ld de, $dd13
+	ld de, wBattlerOrder
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_050_42d0
@@ -493,12 +501,12 @@ jr_050_42d0:
 	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld hl, $c1da
+	ld hl, wLinkTurnOut
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $c1ea
+	ld hl, wLinkTurnIn
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
@@ -507,7 +515,7 @@ jr_050_42d0:
 	ld [wLinkSendByte], a
 
 Jump_050_42fc:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -528,10 +536,10 @@ Jump_50_4301::
 	bit 1, a
 	jr z, jr_050_431f
 
-	ld de, $dd03
+	ld de, wBattlerTactic
 
 jr_050_431f:
-	ld hl, $c1ea
+	ld hl, wLinkTurnIn
 	ld a, [hli]
 	ld [de], a
 	inc de
@@ -554,7 +562,7 @@ jr_050_431f:
 	jr jr_050_4343
 
 jr_050_4340:
-	ld de, $dcec
+	ld de, wBattlerAction
 
 jr_050_4343:
 	ld a, [hli]
@@ -579,7 +587,7 @@ jr_050_4343:
 	bit 1, a
 	jr z, jr_050_4361
 
-	ld de, $dd13
+	ld de, wBattlerOrder
 
 jr_050_4361:
 	ld a, [hli]
@@ -595,7 +603,7 @@ jr_050_4361:
 	jr nz, jr_050_438a
 
 	ld a, [wRandomHigh]
-	ld [$c1ed], a
+	ld [wLinkRandom], a
 	ld a, [wRandomLow]
 	ld [$c1ee], a
 	ld a, [wLinkChoice]
@@ -605,7 +613,7 @@ jr_050_4361:
 	jr jr_050_43a2
 
 jr_050_438a:
-	ld a, [$c1ed]
+	ld a, [wLinkRandom]
 	ld [wRandomHigh], a
 	ld a, [$c1ee]
 	ld [wRandomLow], a
@@ -616,7 +624,7 @@ jr_050_438a:
 
 Jump_050_43a2:
 jr_050_43a2:
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -624,23 +632,23 @@ jr_050_43a2:
 Jump_50_43A7::
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79AE
-	call Call_50_768E
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawMessageWindowAndPanel
+	call CopyTilemapBufferToScreen_50
 	xor a
 	ld [wSkillUser], a
 	xor a
 	ld [wLinkNoEnd], a
 	xor a
-	ld [$d9f4], a
-	ld hl, $d9ec
+	ld [wCommandStep], a
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
 Jump_50_43C8::
-	ld a, [$d9f5]
+	ld a, [wCommandSubStep]
 	rst $00
 
 JumpTable_50_43CC::
@@ -648,12 +656,12 @@ JumpTable_50_43CC::
 	dw Jump_50_4411
 
 Jump_50_43D0::
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld c, $00
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_050_43ed
@@ -665,9 +673,9 @@ Jump_50_43D0::
 
 jr_050_43ed:
 	ld a, c
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ld a, b
-	ld [$dd73], a
+	ld [wBattleTempHigh], a
 
 jr_050_43f5:
 	ld a, c
@@ -687,22 +695,22 @@ jr_050_4401:
 	jr nz, jr_050_43f5
 
 	ld a, $ff
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $ff
-	ld [$db78], a
+	ld [wBattleItemEffect], a
 	ret
 
 
 Jump_50_4411::
 	ld a, $04
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	xor a
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
 Jump_50_441B::
-	ld a, [$d9f5]
+	ld a, [wCommandSubStep]
 	rst $00
 
 JumpTable_50_441F::
@@ -715,23 +723,25 @@ JumpTable_50_441F::
 
 Jump_50_442B::
 	ld a, $00
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
+UnusedTacticStepFar::
 	db $21, $06, $55, $d7, $21, $f5, $d9, $34, $c9
 
 Jump_50_443A::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld a, $00
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld de, $6ed2
-	call Call_50_75F0
+	call DrawWindowLayout_50
 	ret
 
 
+UnusedTacticWhoMenu::
 	db $11, $1a, $6f, $cd, $f0, $75, $cd, $48, $78, $11, $aa, $44, $fa, $fc, $d9, $cb
 	db $ff, $ea, $db, $c8, $cd, $0b, $79, $cd, $8e, $76, $21, $f5, $d9, $34, $c9
 
@@ -739,13 +749,13 @@ Jump_50_446E::
 	ld de, $44aa
 	ld hl, wMenuChoice2
 	ld b, $02
-	call Call_50_77F7
+	call UpdateMenuCursor_50
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_050_4487
 
 	ld a, $01
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jr jr_050_44a9
 
 jr_050_4487:
@@ -755,12 +765,12 @@ jr_050_4487:
 
 	ld a, [wMenuChoice2]
 	res 7, a
-	ld [$d9fc], a
+	ld [wTacticMenuRow], a
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
-	ld a, [$db61]
+	ld a, [wSkillStatusPtr]
 	ld [wConfirmChoice2], a
 	call Call_50_5708
 
@@ -769,12 +779,13 @@ jr_050_44a9:
 	ret
 
 
+TacticWhoCursors::
 	db $c1, $01, $01, $02, $ff, $ff
 
 Jump_50_44B0::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, wMonName
 	ld a, [wConfirmChoice2]
 	call Call_50_5B07
@@ -785,17 +796,17 @@ Jump_50_44B0::
 	ld e, l
 	ld d, h
 	ld hl, $96c0
-	call Call_50_7700
+	call PrintNameToTiles_50
 	ld de, $74a3
 	ld a, [wMenuChoice2]
 	cp $81
-	call z, Call_50_75F0
+	call z, DrawWindowLayout_50
 	ld de, $6f60
-	call Call_50_75F0
-	ld a, [$db73]
+	call DrawWindowLayout_50
+	ld a, [wBattleType]
 	cp $02
 	call z, Call_50_4550
-	ld a, [$d9fc]
+	ld a, [wTacticMenuRow]
 	or a
 	jr z, jr_050_4507
 
@@ -808,36 +819,36 @@ Jump_50_44B0::
 	jr z, jr_050_451b
 
 	ld a, $04
-	ld [$da01], a
+	ld [wTacticSlot], a
 	ld a, [$da00]
 	jr jr_050_4523
 
 jr_050_4507:
 	ld a, $01
-	ld [$da01], a
-	ld a, [$d9fd]
+	ld [wTacticSlot], a
+	ld a, [wTeamTactic]
 	jr jr_050_4523
 
 jr_050_4511:
 	ld a, $02
-	ld [$da01], a
-	ld a, [$d9fe]
+	ld [wTacticSlot], a
+	ld a, [wMonTactics]
 	jr jr_050_4523
 
 jr_050_451b:
 	ld a, $03
-	ld [$da01], a
+	ld [wTacticSlot], a
 	ld a, [$d9ff]
 
 jr_050_4523:
 	set 7, a
 	ld [wConfirmChoice], a
-	call Call_50_7848
+	call ResetCursorBlink_50
 	ld de, $4715
 	ld a, [wConfirmChoice]
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f5
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
@@ -850,7 +861,7 @@ jr_050_453c:
 	cp $03
 	jp c, Jump_50_44B0
 
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 	inc [hl]
 	ret
@@ -862,7 +873,7 @@ Call_50_4550::
 	ret nz
 
 	ld hl, $0202
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	ld de, $4567
 	ld b, $08
 
@@ -876,16 +887,17 @@ jr_050_4560:
 	ret
 
 
+TournamentTacticTiles::
 	db $8f, $90, $e0, $d6, $e3, $e0, $d6, $98
 
 Jump_50_456F::
 	ld de, $4715
 	ld hl, wConfirmChoice
 	ld b, $04
-	call Call_50_77F7
+	call UpdateMenuCursor_50
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_050_45f5
+	jr z, TacticMenuConfirm
 
 jr_050_4581:
 	ld hl, far_Call_55_47C3
@@ -910,7 +922,7 @@ jr_050_4581:
 	jr c, jr_050_4581
 
 	ld a, [wConfirmChoice2]
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -923,7 +935,7 @@ jr_050_4581:
 	ld a, $00
 	ld [hl], a
 	ld a, [wConfirmChoice2]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -933,7 +945,7 @@ jr_050_4581:
 	ld a, $ff
 	ld [hli], a
 	ld [hl], a
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	dec [hl]
 	xor a
 	ld [wConfirmChoice], a
@@ -942,25 +954,26 @@ jr_050_4581:
 
 jr_050_45d6:
 	call Call_50_4F6E
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	dec [hl]
 	dec [hl]
 	dec [hl]
 	jp Jump_050_4714
 
 
+UnusedTacticBack::
 	db $3e, $00, $ea, $f5, $d9, $3e, $01, $ea, $f4, $d9, $cd, $08, $57, $c3, $ed, $40
 	db $c3, $14, $47
 
-jr_050_45f5:
+TacticMenuConfirm::
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_050_4714
 
 	ld a, $59
 	call QueueSound
-	ld a, [$da01]
-	ld hl, $d9fc
+	ld a, [wTacticSlot]
+	ld hl, wTacticMenuRow
 	add l
 	ld l, a
 	ld a, $00
@@ -970,7 +983,7 @@ jr_050_45f5:
 	res 7, a
 	ld [hl], a
 	cp $03
-	jp z, Jump_050_471f
+	jp z, TacticDirectOrders
 
 	ld a, [wMenuChoice2]
 	cp $80
@@ -978,7 +991,7 @@ jr_050_45f5:
 
 Call_50_4620::
 	ld a, [wConfirmChoice2]
-	ld de, $dd13
+	ld de, wBattlerOrder
 	add e
 	ld e, a
 	ld a, $00
@@ -987,7 +1000,7 @@ Call_50_4620::
 	ld a, $01
 	ld [de], a
 	ld a, [wConfirmChoice2]
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
@@ -1006,7 +1019,7 @@ Call_50_4620::
 	bit 1, a
 	jr nz, jr_050_4659
 
-	ld hl, $db74
+	ld hl, wPartyBattlers
 	jr jr_050_465c
 
 jr_050_4659:
@@ -1018,7 +1031,7 @@ jr_050_465c:
 	cp [hl]
 	jr z, Call_50_46C6
 
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	dec [hl]
 	xor a
 	ld [wConfirmChoice], a
@@ -1047,7 +1060,7 @@ jr_050_467c:
 	jr z, jr_050_469c
 
 	ld a, c
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -1061,7 +1074,7 @@ jr_050_4699:
 
 jr_050_469c:
 	ld a, c
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -1074,7 +1087,7 @@ jr_050_469c:
 	ld a, $01
 	ld [hl], a
 	ld a, c
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
@@ -1092,7 +1105,7 @@ jr_050_46c2:
 	jr nz, jr_050_467c
 
 Call_50_46C6::
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 	ld bc, $0400
 	ld a, [wLinkFlags]
@@ -1141,7 +1154,7 @@ jr_050_4701:
 
 Call_50_4707::
 	ld a, c
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -1156,16 +1169,17 @@ jr_050_4714:
 	ret
 
 
+TacticCursors::
 	db $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
 
-Jump_050_471f:
+TacticDirectOrders::
 	call Call_50_5C2F
 	jp z, Call_50_4620
 
 	ld a, $04
 	ld [wLinkChoice], a
 	xor a
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_47BE
 	ld a, [wSkillUser]
 	cp $01
@@ -1181,7 +1195,7 @@ Call_50_473D::
 	jr z, jr_050_4750
 
 	push af
-	ld hl, $c876
+	ld hl, wBattlerSexBits67
 	ld a, [wConfirmChoice2]
 	add l
 	ld l, a
@@ -1197,12 +1211,12 @@ jr_050_4750:
 
 Jump_50_4751::
 	call Call_50_4764
-	call Call_50_774E
-	ld hl, $d9f4
+	call ClearTilemapBuffer_50
+	ld hl, wCommandStep
 	inc [hl]
 	ld a, $ff
-	ld [$db77], a
-	ld [$db78], a
+	ld [wBattleItemTarget], a
+	ld [wBattleItemEffect], a
 	ret
 
 
@@ -1230,7 +1244,7 @@ jr_050_4779:
 	jr c, jr_050_478f
 
 	ld a, c
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -1251,7 +1265,7 @@ jr_050_478f:
 
 
 Jump_50_4794::
-	ld a, [$d9f7]
+	ld a, [wOrderStep]
 	rst $00
 
 JumpTable_50_4798::
@@ -1282,7 +1296,7 @@ Call_50_47BE::
 	jr c, jr_050_47b0
 
 	ld a, [wConfirmChoice2]
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
 	jr nz, jr_050_47b0
@@ -1300,9 +1314,9 @@ Call_50_47BE::
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ld a, [wConfirmChoice2]
-	ld hl, $c1cd
+	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
@@ -1322,7 +1336,7 @@ jr_050_47ff:
 	swap a
 	and $03
 	ld [wMenuChoice3], a
-	ld hl, $d9f7
+	ld hl, wOrderStep
 	inc [hl]
 	xor a
 	ld [$c1c1], a
@@ -1330,9 +1344,9 @@ jr_050_47ff:
 
 
 Jump_50_4816::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld a, [$c1c1]
 	or a
 	jr nz, jr_050_4836
@@ -1343,22 +1357,22 @@ Jump_50_4816::
 	ld e, l
 	ld d, h
 	ld hl, $96c0
-	call Call_50_7700
+	call PrintNameToTiles_50
 
 jr_050_4836:
 	ld de, $6f49
 	ld a, [wMenuChoice2]
-	call Call_50_75F0
+	call DrawWindowLayout_50
 	ld de, $74ba
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $496d
 	ld a, [wMenuChoice3]
 	set 7, a
 	ld [wMenuChoice3], a
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f7
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wOrderStep
 	inc [hl]
 	ret
 
@@ -1367,7 +1381,7 @@ Jump_50_485E::
 	ld de, $496d
 	ld hl, wMenuChoice3
 	ld b, $03
-	call Call_50_77F7
+	call UpdateMenuCursor_50
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_050_48d5
@@ -1389,7 +1403,7 @@ jr_050_4870:
 	jr c, jr_050_4870
 
 	ld a, [wConfirmChoice2]
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
 	jr nz, jr_050_4870
@@ -1399,7 +1413,7 @@ jr_050_4870:
 	jr nz, jr_050_4870
 
 	ld a, [wConfirmChoice2]
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -1408,7 +1422,7 @@ jr_050_4870:
 	ld a, $00
 	ld [hl], a
 	xor a
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_4F6E
 	call Call_50_47BE
 	ret
@@ -1420,12 +1434,12 @@ jr_050_48b7:
 	ld a, $81
 	ld [wLinkChoice], a
 	ld a, $03
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ld a, [wConfirmChoice]
 	res 7, a
 	ld [wConfirmChoice], a
 	xor a
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	jp Jump_50_44B0
 
 
@@ -1443,7 +1457,7 @@ jr_050_48d5:
 	swap a
 	ld b, a
 	ld a, [wConfirmChoice2]
-	ld hl, $c1cd
+	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
@@ -1468,7 +1482,7 @@ jr_050_490c:
 	call Call_50_4F80
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ret
 
 
@@ -1486,28 +1500,28 @@ jr_050_4918:
 
 	call Call_50_4F86
 	ld a, $07
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ret
 
 
 jr_050_4937:
 	call Call_50_4975
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_050_4945
 
-	ld hl, $d9f7
+	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
 jr_050_4945:
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $0202
 	ld a, $09
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -1515,8 +1529,8 @@ jr_050_4945:
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
@@ -1524,11 +1538,12 @@ Jump_050_496c:
 	ret
 
 
+CommandCursors::
 	db $81, $01, $c1, $01, $01, $02, $ff, $ff
 
 Call_50_4975::
 	ld a, [wConfirmChoice2]
-	ld hl, $dc64
+	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
@@ -1536,7 +1551,7 @@ Call_50_4975::
 	adc h
 	ld h, a
 	xor a
-	ld [$db55], a
+	ld [wBattlerReload], a
 	ld bc, $0800
 
 jr_050_498a:
@@ -1554,9 +1569,9 @@ jr_050_498a:
 	cp $7e
 	jr z, jr_050_49a2
 
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	inc a
-	ld [$db55], a
+	ld [wBattlerReload], a
 
 jr_050_49a2:
 	inc hl
@@ -1566,26 +1581,26 @@ jr_050_49a2:
 
 jr_050_49a7:
 	ld a, c
-	ld [$d9f6], a
+	ld [wBattleListCount], a
 	ret
 
 
 Jump_50_49AC::
 	call Call_50_49D8
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $74f4
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $4cca
 	ld b, $04
-	ld a, [$d9f6]
+	ld a, [wBattleListCount]
 	ld c, a
 	ld hl, wLinkRefused
-	call Call_50_78E9
-	call Call_50_768E
-	ld hl, $d9f7
+	call DrawListCursor_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wOrderStep
 	inc [hl]
 	ret
 
@@ -1633,7 +1648,7 @@ jr_050_4a11:
 
 jr_050_4a19:
 	ld de, $0901
-	call Call_50_76C7
+	call PrintTextToTiles_50
 	pop hl
 	ld a, l
 	add $90
@@ -1650,13 +1665,13 @@ jr_050_4a19:
 Jump_50_4A2C::
 	ld de, $4cca
 	ld hl, wLinkRefused
-	ld a, [$d9f6]
+	ld a, [wBattleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
 	ld a, [hld]
 	push af
-	call Call_50_776E
+	call UpdateListCursor_50
 	pop af
 	ld hl, wLinkPartnerChoice
 	cp [hl]
@@ -1670,7 +1685,7 @@ jr_050_4a48:
 	jr z, jr_050_4a65
 
 	ld a, $01
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	jp Jump_50_4816
 
 
@@ -1699,7 +1714,7 @@ jr_050_4a65:
 	add a
 	add a
 	add [hl]
-	ld [$db54], a
+	ld [wItemMsgGroup], a
 	add a
 	ld hl, $dc65
 	add l
@@ -1723,11 +1738,11 @@ jr_050_4a65:
 
 	call Call_50_4F86
 	ld a, [hl]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld [wSkillId], a
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, [wConfirmChoice2]
-	ld hl, $c1cd
+	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
@@ -1736,20 +1751,20 @@ jr_050_4a65:
 	ld a, [hl]
 	and $f0
 	ld b, a
-	ld a, [$db54]
+	ld a, [wItemMsgGroup]
 	or b
 	ld [hl], a
 	xor a
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $02
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld hl, far_Call_54_5249
 	rst $10
 	call Call_50_56EB
 	call Call_50_4BD1
 	ret c
 
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	bit 0, a
 	jp z, Jump_050_4b6b
 
@@ -1757,7 +1772,7 @@ jr_050_4a65:
 	jr z, jr_050_4af0
 
 	ld a, $07
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ld a, [wConfirmChoice2]
 	and $04
 	xor $04
@@ -1768,7 +1783,7 @@ jr_050_4af0:
 	jr nz, jr_050_4b54
 
 	ld a, $05
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ld a, [wConfirmChoice2]
 	and $04
 
@@ -1791,7 +1806,7 @@ jr_050_4afe:
 	call Call_50_4F95
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ret
 
 
@@ -1813,7 +1828,7 @@ Call_50_4B26::
 
 jr_050_4b34:
 	ld c, $00
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 
 jr_050_4b39:
 	ld b, a
@@ -1851,7 +1866,7 @@ jr_050_4b54:
 	call Call_50_4F95
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_56EB
 	ld hl, far_Call_55_479B
 	rst $10
@@ -1861,7 +1876,7 @@ jr_050_4b54:
 Jump_050_4b6b:
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_56EB
 	ld hl, far_Call_55_479B
 	rst $10
@@ -1873,7 +1888,7 @@ Jump_050_4b6b:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld b, a
 	ld a, [wConfirmChoice2]
 	and $04
@@ -1906,14 +1921,14 @@ jr_050_4ba3:
 Call_50_4BA4::
 	push bc
 	ld a, b
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	xor a
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $04
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld hl, far_Call_54_5249
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
 	ld b, $00
 	ld a, [wConfirmChoice2]
@@ -1933,7 +1948,7 @@ Call_50_4BA4::
 
 
 Call_50_4BD1::
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	cp $14
 	jr z, jr_050_4c21
 
@@ -2027,7 +2042,7 @@ jr_050_4c40:
 	push bc
 	ld a, [wConfirmChoice2]
 	ld [wSkillUser], a
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld [wSkillId], a
 	ld hl, far_Call_58_642C
 	rst $10
@@ -2056,7 +2071,7 @@ jr_050_4c72:
 	push bc
 	ld a, [wConfirmChoice2]
 	ld [wSkillUser], a
-	ld a, [$db4f]
+	ld a, [wBattleArg3]
 	ld [wSkillId], a
 	ld hl, far_Call_58_6379
 	rst $10
@@ -2074,19 +2089,19 @@ jr_050_4c96:
 jr_050_4c9a:
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	scf
 	ret
 
 
 Call_50_4CA4::
 	push hl
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	pop hl
 	ld a, $03
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -2094,27 +2109,28 @@ Call_50_4CA4::
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
+SkillListCursors::
 	db $2a, $02, $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
 
 Jump_50_4CD6::
 	ld a, [wSkillId]
-	ld [$dd76], a
+	ld [wTargetSkill], a
 	ld a, a
-	ld [$c1c2], a
+	ld [wTargetCursorSkill], a
 	ld hl, far_Call_55_47FF
 	rst $10
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $70c9
-	call Call_50_75F0
+	call DrawWindowLayout_50
 	call Call_50_5BD7
-	call Call_50_7848
+	call ResetCursorBlink_50
 	ld de, $5339
 	ld a, [wLinkFlags]
 	rlca
@@ -2134,17 +2150,17 @@ jr_050_4d10:
 	res 2, b
 	set 7, b
 	ld a, b
-	ld [$dd72], a
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f7
+	ld [wBattleTemp], a
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
 Jump_50_4D23::
 	ld de, $5339
-	ld hl, $dd72
+	ld hl, wBattleTemp
 	ld a, [wConfirmChoice2]
 	cp $04
 	jr c, jr_050_4d35
@@ -2153,7 +2169,7 @@ Jump_50_4D23::
 	jr jr_050_4d38
 
 jr_050_4d35:
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 
 jr_050_4d38:
 	ld b, a
@@ -2167,7 +2183,7 @@ jr_050_4d38:
 	jr z, jr_050_4d51
 
 	ld a, $03
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	jr jr_050_4d9b
 
 jr_050_4d51:
@@ -2175,7 +2191,7 @@ jr_050_4d51:
 	bit 0, a
 	jp z, Jump_050_4d9b
 
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	res 7, a
 	ld c, a
 	ld a, [wLinkFlags]
@@ -2190,7 +2206,7 @@ jr_050_4d68:
 	jr nc, jr_050_4d84
 
 	ld a, [wConfirmChoice2]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -2210,7 +2226,7 @@ jr_050_4d84:
 	call QueueSound
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_56EB
 	ld hl, far_Call_55_479B
 	rst $10
@@ -2224,14 +2240,14 @@ Jump_050_4d9c:
 jr_050_4d9c:
 	ld a, c
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D2E
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	ld [wNamePos], a
+	call GetBattlerName_50
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $fa00
 	ld a, $0a
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -2239,23 +2255,23 @@ jr_050_4d9c:
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
 Jump_50_4DCD::
 	ld a, [wSkillId]
-	ld [$dd76], a
+	ld [wTargetSkill], a
 	ld a, a
-	ld [$c1c2], a
+	ld [wTargetCursorSkill], a
 	call Call_50_53DC
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $7113
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $5664
 	ld a, [wLinkFlags]
 	rlca
@@ -2276,22 +2292,22 @@ jr_050_4e05:
 	res 2, b
 	set 7, b
 	ld a, b
-	ld [$dd72], a
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f7
+	ld [wBattleTemp], a
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
 Jump_50_4E18::
 	ld de, $5664
-	ld hl, $dd72
+	ld hl, wBattleTemp
 	ld a, [wConfirmChoice2]
 	cp $04
 	jr c, jr_050_4e2a
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	jr jr_050_4e2d
 
 jr_050_4e2a:
@@ -2317,7 +2333,7 @@ jr_050_4e2d:
 	ld a, $03
 
 jr_050_4e4c:
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_56EB
 	jr jr_050_4e89
 
@@ -2326,7 +2342,7 @@ jr_050_4e54:
 	bit 0, a
 	jp z, Jump_050_4e89
 
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	res 7, a
 	ld c, a
 	ld a, [wLinkFlags]
@@ -2345,7 +2361,7 @@ jr_050_4e6b:
 	call QueueSound
 	call Call_50_4F45
 	ld a, $0b
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	call Call_50_56EB
 	ld hl, far_Call_55_479B
 	rst $10
@@ -2360,9 +2376,9 @@ Jump_50_4E8A::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	ld a, $01
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ret
 
 
@@ -2371,12 +2387,12 @@ Jump_50_4E98::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	ld a, [wMenuChoice3]
 	and $01
 	add a
 	inc a
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	ret
 
 
@@ -2388,7 +2404,7 @@ Jump_50_4EAB::
 	ld a, $81
 	ld [wLinkChoice], a
 	ld a, $04
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	call Call_50_4620
 	call Call_50_56EB
 	ld hl, far_Call_55_479B
@@ -2398,7 +2414,7 @@ Jump_50_4EAB::
 
 jr_050_4ec9:
 	ld a, [wConfirmChoice2]
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -2433,7 +2449,7 @@ jr_050_4ed7:
 	jr c, jr_050_4f16
 
 	ld a, [wConfirmChoice2]
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
 	jr nz, jr_050_4ec9
@@ -2443,14 +2459,14 @@ jr_050_4ed7:
 	jr nz, jr_050_4ec9
 
 	xor a
-	ld [$d9f7], a
+	ld [wOrderStep], a
 	jr jr_050_4f61
 
 jr_050_4f16:
 	ld a, [hl]
 	push bc
 	ld b, a
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -2462,7 +2478,7 @@ jr_050_4f16:
 	ld a, b
 	ld [hl], a
 	pop bc
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -2476,13 +2492,13 @@ jr_050_4f36:
 	ld a, $81
 	ld [wLinkChoice], a
 	ld a, $04
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	call Call_50_46C6
 	jr jr_050_4f61
 
 Call_50_4F45::
 	ld a, [wConfirmChoice2]
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -2490,7 +2506,7 @@ Call_50_4F45::
 	ld h, a
 	ld [hl], $01
 	ld a, [wConfirmChoice2]
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
@@ -2503,11 +2519,12 @@ jr_050_4f61:
 	ret
 
 
+UnusedRedrawBattleWindows::
 	db $cd, $4e, $77, $cd, $4c, $79, $cd, $b4, $79, $c9, $c9, $c9
 
 Call_50_4F6E::
 	ld a, [wConfirmChoice2]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -2529,7 +2546,7 @@ Call_50_4F80::
 
 Call_50_4F86::
 	ld a, [wConfirmChoice2]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -2583,7 +2600,7 @@ Jump_50_4FBB::
 	or a
 	ret nz
 
-	ld a, [$d9f5]
+	ld a, [wCommandSubStep]
 	rst $00
 
 JumpTable_50_4FC4::
@@ -2604,7 +2621,7 @@ JumpTable_50_4FC4::
 	dw Call_50_56EB
 
 Jump_50_4FE2::
-	ld a, [$db73]
+	ld a, [wBattleType]
 	cp $02
 	jr z, jr_050_503a
 
@@ -2629,14 +2646,14 @@ jr_050_4fec:
 	ld a, [hl]
 	add $af
 	ld a, a
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $0a
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld hl, far_Call_54_5249
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $01
 	pop bc
 	jr nz, jr_050_5035
@@ -2646,18 +2663,18 @@ jr_050_4fec:
 	jr nz, jr_050_4fec
 
 jr_050_5020:
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $f300
 	call Call_50_51AA
 	ld a, $0b
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
 jr_050_5035:
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
@@ -2671,20 +2688,20 @@ jr_050_503a:
 Jump_50_5040::
 	call Call_50_50AC
 	call Call_50_506F
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $6fce
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $51c0
 	ld b, $04
-	ld a, [$d9f6]
+	ld a, [wBattleListCount]
 	ld c, a
 	ld hl, wMenuChoice2
-	call Call_50_78E9
-	call Call_50_768E
-	ld hl, $d9f5
+	call DrawListCursor_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
@@ -2718,7 +2735,7 @@ jr_050_5092:
 	ld a, $08
 	ld [wTextGroup], a
 	ld de, $0901
-	call Call_50_76C7
+	call PrintTextToTiles_50
 	pop hl
 	ld a, l
 	add $90
@@ -2750,20 +2767,20 @@ jr_050_50b3:
 
 jr_050_50c0:
 	ld a, c
-	ld [$d9f6], a
+	ld [wBattleListCount], a
 	ret
 
 
 Jump_50_50C5::
 	ld de, $51c0
 	ld hl, wMenuChoice2
-	ld a, [$d9f6]
+	ld a, [wBattleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
 	ld a, [hld]
 	push af
-	call Call_50_776E
+	call UpdateListCursor_50
 	pop af
 	ld hl, wConfirmChoice
 	cp [hl]
@@ -2779,7 +2796,7 @@ jr_050_50e1:
 	ld hl, far_Call_55_47C3
 	rst $10
 	ld a, $01
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	jp Jump_050_517a
 
 
@@ -2802,22 +2819,22 @@ jr_050_50f4:
 	ld h, a
 	ld a, $af
 	add [hl]
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld hl, far_Call_54_535F
 	rst $10
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	or a
 	jr z, jr_050_5199
 
-	ld a, [$db4c]
-	ld [$db77], a
-	ld a, [$db4d]
-	ld [$db78], a
+	ld a, [wBattleArg0]
+	ld [wBattleItemTarget], a
+	ld a, [wBattleArg1]
+	ld [wBattleItemEffect], a
 	ld a, $59
 	call QueueSound
 	ld hl, far_Call_55_47D7
 	rst $10
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	cp $11
 	jr z, jr_050_514e
 
@@ -2830,7 +2847,7 @@ jr_050_50f4:
 	cp $22
 	jr z, jr_050_5170
 
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 	jr jr_050_517a
 
@@ -2840,28 +2857,28 @@ jr_050_514e:
 
 	call Call_50_56EB
 	ld a, $07
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_517a
 
 jr_050_515d:
 	ld a, $04
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $09
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_517a
 
 jr_050_5169:
 	ld a, $05
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_517a
 
 jr_050_5170:
 	ld a, $00
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 
 jr_050_5175:
 	ld a, $09
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 
 Jump_050_517a:
 jr_050_517a:
@@ -2893,17 +2910,17 @@ jr_050_518c:
 	ret nz
 
 	ld a, e
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ret
 
 
 jr_050_5199:
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $f200
 	ld a, $0a
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 
 Call_50_51AA::
 	ld a, l
@@ -2913,26 +2930,27 @@ Call_50_51AA::
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
+ItemListCursors::
 	db $2a, $02, $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
 
 Jump_50_51CC::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $7045
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $5288
 	xor a
 	ld [wConfirmChoice2], a
 	ld a, [wConfirmChoice2]
 	ld b, a
-	ld a, [$db78]
+	ld a, [wBattleItemEffect]
 	cp $c2
 	jr c, jr_050_51fb
 
@@ -2945,9 +2963,9 @@ Jump_50_51CC::
 
 jr_050_51fb:
 	ld a, b
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f5
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
@@ -2956,16 +2974,16 @@ Jump_50_5207::
 	ld de, $5288
 	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_50_77F7
+	call UpdateMenuCursor_50
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_050_5227
 
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	dec [hl]
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	dec [hl]
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	dec [hl]
 	jr jr_050_5287
 
@@ -2984,7 +3002,7 @@ jr_050_5227:
 	cp $80
 	jr z, jr_050_526d
 
-	ld a, [$db78]
+	ld a, [wBattleItemEffect]
 	cp $c2
 	jr c, jr_050_524f
 
@@ -2992,59 +3010,60 @@ jr_050_5227:
 	jr c, jr_050_525f
 
 jr_050_524f:
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	and $0f
 	bit 0, a
 	jr z, jr_050_525f
 
 	ld a, $07
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5287
 
 jr_050_525f:
 	ld a, $04
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $09
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5287
 
 	db $18, $1a
 
 jr_050_526d:
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	and $0f
 	bit 0, a
 	jr z, jr_050_527d
 
 	ld a, $05
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5287
 
 jr_050_527d:
 	ld a, $09
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ld a, $00
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 
 Jump_050_5287:
 jr_050_5287:
 	ret
 
 
+ItemUseCursors::
 	db $c1, $01, $01, $02, $ff, $ff
 
 Jump_50_528E::
-	ld a, [$db78]
-	ld [$dd76], a
+	ld a, [wBattleItemEffect]
+	ld [wTargetSkill], a
 	ld a, a
-	ld [$c1c2], a
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	ld [wTargetCursorSkill], a
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $707f
-	call Call_50_75F0
+	call DrawWindowLayout_50
 	call Call_50_5BD7
-	call Call_50_7848
+	call ResetCursorBlink_50
 	ld de, $5339
 	ld a, [wLinkFlags]
 	rlca
@@ -3065,9 +3084,9 @@ jr_050_52c4:
 	set 7, b
 	ld a, b
 	ld [wMenuChoice3], a
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f5
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
@@ -3075,7 +3094,7 @@ jr_050_52c4:
 Jump_50_52D7::
 	ld de, $5339
 	ld hl, wMenuChoice3
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld a, [wLinkFlags]
 	rlca
@@ -3086,18 +3105,18 @@ Jump_50_52D7::
 	bit 1, a
 	jr z, jr_050_5309
 
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	and $f0
 	cp $20
 	jr z, jr_050_5302
 
 	ld a, $03
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5338
 
 jr_050_5302:
 	ld a, $01
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5338
 
 jr_050_5309:
@@ -3111,20 +3130,20 @@ jr_050_5309:
 	call CheckBattlerPresent
 	jr nc, jr_050_5323
 
-	ld a, [$db78]
+	ld a, [wBattleItemEffect]
 	cp $bb
-	jr nz, jr_050_5341
+	jr nz, ItemAllyTargetGone
 
 jr_050_5323:
 	ld a, c
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 
 Jump_050_5338:
@@ -3132,19 +3151,20 @@ jr_050_5338:
 	ret
 
 
+AllyTargetCursors::
 	db $81, $01, $c1, $01, $01, $02, $ff, $ff
 
-jr_050_5341:
+ItemAllyTargetGone::
 	ld a, c
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D2E
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	ld [wNamePos], a
+	call GetBattlerName_50
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $fa00
 	ld a, $0c
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -3152,23 +3172,23 @@ jr_050_5341:
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
 Jump_50_5372::
-	ld a, [$db78]
-	ld [$dd76], a
+	ld a, [wBattleItemEffect]
+	ld [wTargetSkill], a
 	ld a, a
-	ld [$c1c2], a
+	ld [wTargetCursorSkill], a
 	call Call_50_53DC
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld de, $7113
-	call Call_50_75F0
-	call Call_50_7848
+	call DrawWindowLayout_50
+	call ResetCursorBlink_50
 	ld de, $5664
 	ld a, [wLinkFlags]
 	rlca
@@ -3190,9 +3210,9 @@ jr_050_53aa:
 	set 7, b
 	ld a, b
 	ld [wMenuChoice3], a
-	call Call_50_790B
-	call Call_50_768E
-	ld hl, $d9f5
+	call DrawCursorAt_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
@@ -3202,12 +3222,12 @@ Call_50_53BD::
 	rlca
 	and $04
 	xor $04
-	ld [$dd73], a
+	ld [wBattleTempHigh], a
 	ret
 
 
 Call_50_53C9::
-	ld a, [$dd76]
+	ld a, [wTargetSkill]
 	cp $30
 	jr z, jr_050_53da
 
@@ -3237,8 +3257,8 @@ Call_50_53DC::
 	jr c, jr_050_53fe
 
 	xor a
-	ld [$db4e], a
-	ld a, [$c1ca]
+	ld [wBattleArg2], a
+	ld a, [wEnemyMorph]
 	cp $ff
 	jr z, jr_050_5403
 
@@ -3252,12 +3272,12 @@ jr_050_53fe:
 jr_050_5403:
 	call Call_50_547E
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	call Call_50_5530
 
 jr_050_540e:
 	xor a
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, [wEncCount]
 	cp $00
 	jr nz, jr_050_541e
@@ -3266,9 +3286,9 @@ jr_050_540e:
 	jr Call_50_548C
 
 jr_050_541e:
-	ld a, [$dd73]
+	ld a, [wBattleTempHigh]
 	inc a
-	ld [$dd73], a
+	ld [wBattleTempHigh], a
 	call CheckBattlerPresent
 	call c, Call_50_53C9
 	jr c, jr_050_5439
@@ -3287,12 +3307,12 @@ jr_050_5439:
 jr_050_543e:
 	call Call_50_5485
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	call Call_50_553D
 
 jr_050_5449:
 	xor a
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, [wEncCount]
 	cp $01
 	jr nz, jr_050_5456
@@ -3300,9 +3320,9 @@ jr_050_5449:
 	jr Call_50_548C
 
 jr_050_5456:
-	ld a, [$dd73]
+	ld a, [wBattleTempHigh]
 	inc a
-	ld [$dd73], a
+	ld [wBattleTempHigh], a
 	call CheckBattlerPresent
 	call c, Call_50_53C9
 	jr c, jr_050_5470
@@ -3321,7 +3341,7 @@ jr_050_5470:
 jr_050_5472:
 	call Call_50_548C
 	ld a, $01
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	call Call_50_554A
 	ret
 
@@ -3354,7 +3374,7 @@ Call_50_5491::
 Jump_050_549e:
 	xor a
 	ld [$c1d7], a
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	ld [$c1d8], a
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -3439,26 +3459,26 @@ Call_50_5530::
 	call Call_50_55F9
 	ld hl, $88c0
 	ld a, $00
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	jr jr_050_556a
 
 Call_50_553D::
 	call Call_50_55F9
 	ld hl, $8960
 	ld a, $01
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	jr jr_050_556a
 
 Call_50_554A::
 	call Call_50_55F9
 	ld hl, $8a00
 	ld a, $02
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	jr jr_050_556a
 
 Call_50_5557::
 	push hl
-	call Call_50_7700
+	call PrintNameToTiles_50
 	pop hl
 	ld a, l
 	add $40
@@ -3474,11 +3494,11 @@ Call_50_5557::
 jr_050_556a:
 	push hl
 	push hl
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	add $04
-	ld [$db50], a
+	ld [wNamePos], a
 	ld hl, wTextArg0
-	call Call_50_7D2E
+	call GetBattlerName_50
 	pop hl
 	ld a, [wTextTiles]
 	ld c, a
@@ -3494,7 +3514,7 @@ jr_050_556a:
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	or a
 	jr nz, jr_050_55a0
 
@@ -3526,11 +3546,11 @@ jr_050_55a3:
 	ld a, d
 	ld [wTextBoxLineLength], a
 	pop hl
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	or a
 	ret nz
 
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	or a
 	jr nz, jr_050_55e3
 
@@ -3587,19 +3607,19 @@ Jump_50_5602::
 	bit 1, a
 	jr z, jr_050_563a
 
-	ld a, [$db77]
+	ld a, [wBattleItemTarget]
 	and $f0
 	cp $10
 	jr z, jr_050_5630
 
 	ld a, $03
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5663
 
 jr_050_5630:
 	call Call_50_56EB
 	ld a, $01
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	jr jr_050_5663
 
 jr_050_563a:
@@ -3614,16 +3634,16 @@ jr_050_563a:
 	call CheckBattlerPresent
 	jr nc, jr_050_5656
 
-	ld a, [$db78]
+	ld a, [wBattleItemEffect]
 	cp $bb
-	jr nz, jr_050_566c
+	jr nz, ItemEnemyTargetGone
 
 jr_050_5656:
 	ld a, c
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $59
 	call QueueSound
-	ld hl, $d9f5
+	ld hl, wCommandSubStep
 	inc [hl]
 
 Jump_050_5663:
@@ -3631,17 +3651,18 @@ jr_050_5663:
 	ret
 
 
+EnemyTargetCursors::
 	db $81, $01, $c1, $01, $01, $02, $ff, $ff
 
-jr_050_566c:
+ItemEnemyTargetGone::
 	ld a, c
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D2E
+	ld [wNamePos], a
+	call GetBattlerName_50
 	call Call_50_5708
 	ld hl, $fa00
 	ld a, $0d
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -3649,14 +3670,14 @@ jr_050_566c:
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
 Jump_50_5697::
-	ld hl, $dd13
-	ld a, [$db74]
+	ld hl, wBattlerOrder
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld a, $01
 
@@ -3665,8 +3686,8 @@ jr_050_56a0:
 	dec b
 	jr nz, jr_050_56a0
 
-	call Call_50_774E
-	ld hl, $d9f4
+	call ClearTilemapBuffer_50
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -3676,9 +3697,9 @@ Jump_50_56AC::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	ld a, $01
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
@@ -3687,11 +3708,11 @@ Jump_50_56BA::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	xor a
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	xor a
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
@@ -3700,9 +3721,9 @@ Jump_50_56CB::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	ld a, $05
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
@@ -3711,12 +3732,13 @@ Jump_50_56D9::
 	or a
 	ret nz
 
-	call Call_50_774E
+	call ClearTilemapBuffer_50
 	ld a, $07
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
+UnusedFarCall55::
 	db $21, $06, $55, $d7
 
 Call_50_56EB::
@@ -3740,19 +3762,19 @@ jr_050_56f5:
 	dec c
 	jr nz, jr_050_56f3
 
-	call Call_50_768E
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
 Call_50_5708::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ret
 
 
 Jump_50_5712::
-	ld a, [$d9f5]
+	ld a, [wCommandSubStep]
 	rst $00
 
 JumpTable_50_5716::
@@ -3762,7 +3784,7 @@ JumpTable_50_5716::
 	dw Jump_50_583B
 
 Jump_50_571E::
-	ld a, [$db73]
+	ld a, [wBattleType]
 	or a
 	jr z, jr_050_5738
 
@@ -3783,19 +3805,19 @@ jr_050_5738:
 	ld de, wPlayerName
 	ld hl, wTextArg0
 	call CopyName
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld a, $2a
 	call Call_50_6AA0
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ld a, $ff
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $ff
-	ld [$db78], a
-	ld hl, $d9f5
+	ld [wBattleItemEffect], a
+	ld hl, wCommandSubStep
 	inc [hl]
 	ld a, $6d
 	call QueueSound
@@ -3809,12 +3831,12 @@ jr_050_576c:
 
 
 Call_50_5772::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld hl, $0502
 	ld a, $03
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
@@ -3822,13 +3844,13 @@ Call_50_5772::
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
+	call DrawWindowLayout_50
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $7213
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
@@ -3837,11 +3859,11 @@ Jump_50_57A8::
 	or a
 	ret nz
 
-	ld a, [$db73]
+	ld a, [wBattleType]
 	or a
 	jr nz, jr_050_5808
 
-	ld a, [$db76]
+	ld a, [wRunTurn]
 	or a
 	jr z, jr_050_5808
 
@@ -3875,8 +3897,8 @@ jr_050_57cf:
 	call Call_50_58D0
 	jr c, jr_050_5808
 
-	ld hl, $dd13
-	ld a, [$db74]
+	ld hl, wBattlerOrder
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld a, $03
 
@@ -3885,26 +3907,26 @@ jr_050_57e8:
 	dec b
 	jr nz, jr_050_57e8
 
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld a, $b9
 	call Call_50_6AA0
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
-	ld hl, $d9f5
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
+	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
 
 jr_050_5808:
 	xor a
-	ld [$db4e], a
-	ld hl, $d9f4
+	ld [wBattleArg2], a
+	ld hl, wCommandStep
 	inc [hl]
 	ld a, $0a
-	ld [$d9ec], a
+	ld [wBattleStep], a
 	ld hl, wEnemyDown
 	ld a, $ff
 	ld [hli], a
@@ -3912,14 +3934,14 @@ jr_050_5808:
 	ld [hli], a
 	ld [hl], a
 	ld a, $02
-	ld [$db55], a
+	ld [wBattlerReload], a
 	call Call_50_590C
-	ld a, [$db73]
+	ld a, [wBattleType]
 	or a
 	ret z
 
 	ld a, $01
-	ld [$db55], a
+	ld [wBattlerReload], a
 	ret
 
 
@@ -3928,7 +3950,7 @@ Jump_50_5831::
 	or a
 	ret nz
 
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	inc [hl]
 	ret
 
@@ -3937,7 +3959,7 @@ Jump_50_583B::
 	ld de, $58a0
 	ld hl, $c1d5
 	ld b, $02
-	call Call_50_77F7
+	call UpdateMenuCursor_50
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_050_5892
@@ -3949,9 +3971,9 @@ Jump_50_583B::
 	ld de, wPlayerName
 	ld hl, wTextArg0
 	call CopyName
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $06
@@ -3959,16 +3981,16 @@ Jump_50_583B::
 	ld hl, far_StartText_4C
 	rst $10
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ld a, $ff
-	ld [$db77], a
+	ld [wBattleItemTarget], a
 	ld a, $ff
-	ld [$db78], a
+	ld [wBattleItemEffect], a
 	ld a, $6d
 	call QueueSound
 	ld a, $01
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
@@ -3978,12 +4000,13 @@ jr_050_5892:
 
 jr_050_5895:
 	xor a
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld [wLinkChoice], a
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
+YesNoCursors::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 Call_50_58A6::
@@ -4072,7 +4095,7 @@ jr_050_58f7:
 
 Call_50_5900::
 	ld a, c
-	ld hl, $db9b
+	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
@@ -4087,16 +4110,16 @@ Call_50_590C::
 
 Jump_050_590f:
 	ld a, c
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, b
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, c
 	call CheckBattlerPresent
 	jr c, jr_050_5991
 
 	ld de, $0000
 	ld a, c
-	ld hl, $dc5c
+	ld hl, wBattlerPersonality3
 	add l
 	ld l, a
 	ld a, $00
@@ -4110,7 +4133,7 @@ Jump_050_590f:
 
 jr_050_5931:
 	ld a, c
-	ld hl, $db9b
+	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
@@ -4146,8 +4169,8 @@ jr_050_5954:
 jr_050_595a:
 	ld hl, $59b6
 	add hl, de
-	ld a, [$db4c]
-	ld bc, $dc44
+	ld a, [wBattleArg0]
+	ld bc, wBattlerPersonality1
 	add c
 	ld c, a
 	ld a, $00
@@ -4180,9 +4203,9 @@ jr_050_595a:
 	call Call_50_599F
 
 jr_050_5991:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld c, a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	ld b, a
 	inc c
 	dec b
@@ -4218,6 +4241,7 @@ jr_050_59b4:
 	ret
 
 
+RunPersonalityChanges::
 	db $fc, $00, $00, $f6, $fd, $00, $00, $fb, $fe, $00, $00, $fd, $ff, $00, $00, $fe
 	db $f8, $00, $00, $f1, $fa, $00, $00, $f6, $fc, $00, $00, $fb, $fe, $00, $00, $fd
 
@@ -4228,18 +4252,18 @@ Jump_50_59D6::
 	ld a, [$db59]
 	ld h, a
 	call Call_50_56F1
-	ld a, [$db5a]
-	ld [$d9f4], a
+	ld a, [wSkillAmount2]
+	ld [wCommandStep], a
 	ret
 
 
 Call_50_59EB::
 	ld a, [wSkillUser]
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D2E
+	ld [wNamePos], a
+	call GetBattlerName_50
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4267,7 +4291,7 @@ jr_050_5a19:
 
 jr_050_5a1c:
 	ld a, [wSkillUser]
-	ld hl, $dcec
+	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
@@ -4285,7 +4309,7 @@ jr_050_5a1c:
 	call CopySystemText
 	ld a, $00
 	ld [wTextGroup], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	ld [wTextIndex], a
 	cp $ff
 	ret z
@@ -4303,8 +4327,8 @@ Call_50_5A50::
 Call_50_5A53::
 	ld a, [hl]
 	ld hl, wTextArg2
-	ld [$db50], a
-	call Call_50_7D2E
+	ld [wNamePos], a
+	call GetBattlerName_50
 	ret
 
 
@@ -4313,7 +4337,7 @@ Call_50_5A5E::
 	ld [wSkillTarget], a
 	ld hl, far_Call_58_5955
 	rst $10
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	or a
 	jr z, jr_050_5a1c
 
@@ -4325,7 +4349,7 @@ Call_50_5A71::
 	ld [wSkillTarget], a
 	ld hl, far_Call_58_5955
 	rst $10
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	or a
 	jr z, Call_50_5AC5
 
@@ -4390,8 +4414,8 @@ jr_050_5aad:
 Call_50_5AC5::
 	ld a, [wSkillTarget]
 	ld hl, wTextArg2
-	ld [$db50], a
-	call Call_50_7D2E
+	ld [wNamePos], a
+	call GetBattlerName_50
 	ret
 
 
@@ -4409,28 +4433,29 @@ Call_50_5AD2::
 	ret
 
 
+SpecialActionNames::
 	db $19, $a1, $2a, $70
 
 Call_50_5AE5::
 	push af
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	pop af
 	call Call_50_6AA0
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ld a, $00
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld a, $00
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
 Call_50_5B07::
 	push bc
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ld b, a
 	call CheckBattlerCanAct
 	jr c, jr_050_5b55
@@ -4467,8 +4492,8 @@ Call_50_5B07::
 
 jr_050_5b35:
 	push hl
-	ld a, [$dd72]
-	ld hl, $dd03
+	ld a, [wBattleTemp]
+	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
@@ -4477,8 +4502,8 @@ jr_050_5b35:
 	ld a, [hl]
 	or $e0
 	ld [hl], a
-	ld a, [$dd72]
-	ld hl, $dd13
+	ld a, [wBattleTemp]
+	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -4496,18 +4521,18 @@ jr_050_5b56:
 
 
 Call_50_5B58::
-	call Call_50_774E
-	call Call_50_794C
-	call Call_50_79B4
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
+	call DrawBattlePanel
 	ld a, $e0
 	call Call_50_6AA0
 	ld de, $2e07
-	call Call_50_75F0
-	call Call_50_768E
+	call DrawWindowLayout_50
+	call CopyTilemapBufferToScreen_50
 	ld a, $00
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld a, $00
-	ld [$d9f5], a
+	ld [wCommandSubStep], a
 	ret
 
 
@@ -4576,7 +4601,7 @@ Call_50_5BBC::
 Call_50_5BC5::
 	push bc
 	ld b, a
-	ld a, [$c1c2]
+	ld a, [wTargetCursorSkill]
 	cp $30
 	jr z, jr_050_5bd4
 
@@ -4603,7 +4628,7 @@ jr_050_5be0:
 	call CheckBattlerPresent
 	jr nc, jr_050_5bfb
 
-	ld a, [$dd76]
+	ld a, [wTargetSkill]
 	cp $30
 	jr z, jr_050_5bfb
 
@@ -4650,7 +4675,7 @@ jr_050_5c14:
 	ld a, h
 	adc $01
 	ld h, a
-	call Call_50_758E
+	call TilemapBufferAddr_50
 
 jr_050_5c1f:
 	ld a, [hl]
@@ -4676,7 +4701,7 @@ Call_50_5C2F::
 	cp $83
 	ret nz
 
-	ld a, [$db73]
+	ld a, [wBattleType]
 	cp $02
 	ret nz
 
@@ -4687,7 +4712,7 @@ Call_50_5C2F::
 
 Call_50_5C40::
 	ld a, $00
-	ld [$dd23], a
+	ld [wRewardTotal], a
 	ld a, $00
 	ld [$dd24], a
 	ld a, $00
@@ -4695,7 +4720,7 @@ Call_50_5C40::
 	ld a, [wEnemyCount]
 	ld b, a
 	ld hl, wEnemyDown
-	ld de, $dc33
+	ld de, wEnemyReward
 
 jr_050_5c59:
 	ld a, [hli]
@@ -4703,7 +4728,7 @@ jr_050_5c59:
 	jr nz, jr_050_5c71
 
 	push hl
-	ld hl, $dd23
+	ld hl, wRewardTotal
 	ld a, [de]
 	add [hl]
 	ld [hli], a
@@ -4767,7 +4792,7 @@ jr_050_5c9a:
 	ld e, $03
 
 jr_050_5ca4:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $02
 	jr c, jr_050_5cad
 
@@ -4820,9 +4845,9 @@ jr_050_5ce4:
 
 jr_050_5ce7:
 	ld a, $4f
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ld a, $ff
-	ld [$db73], a
+	ld [wBattleType], a
 	ld a, $eb
 	jr jr_050_5d0b
 
@@ -4839,14 +4864,14 @@ jr_050_5d01:
 
 jr_050_5d04:
 	ld a, $69
-	ld [$dd72], a
+	ld [wBattleTemp], a
 	ld a, $ed
 
 jr_050_5d0b:
 	call Call_50_6AA0
 	ld a, $02
 	call QueueMusic
-	ld a, [$dd72]
+	ld a, [wBattleTemp]
 	call QueueSound
 	ret
 
@@ -4866,8 +4891,8 @@ jr_050_5d22:
 
 Call_50_5D29::
 	ld a, $02
-	ld [$db55], a
-	ld a, [$db73]
+	ld [wBattlerReload], a
+	ld a, [wBattleType]
 	or a
 	jr nz, jr_050_5d46
 
@@ -4883,15 +4908,15 @@ Call_50_5D29::
 
 jr_050_5d46:
 	ld a, $01
-	ld [$db76], a
+	ld [wRunTurn], a
 	ret
 
 
 jr_050_5d4c:
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	call Call_50_696D
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $02
 	jr c, jr_050_5d5c
 
@@ -4908,19 +4933,19 @@ jr_050_5d5c:
 	add $03
 	call Call_50_6AA0
 	ld a, $00
-	ld [$db55], a
+	ld [wBattlerReload], a
 	ret
 
 
 jr_050_5d71:
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	call Call_50_696D
 	ld a, $04
 	ld [wSkillUser], a
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $02
 	jr c, jr_050_5d8a
 
@@ -4937,7 +4962,7 @@ jr_050_5d8a:
 	add $09
 	call Call_50_6AA0
 	ld a, $01
-	ld [$db55], a
+	ld [wBattlerReload], a
 	ret
 
 
@@ -4971,7 +4996,7 @@ jr_050_5dbc:
 	or a
 	jr nz, jr_050_5dc8
 
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 
 jr_050_5dc8:
@@ -4981,7 +5006,7 @@ jr_050_5dc8:
 Call_50_5DC9::
 	ld hl, sp+$00
 	ld a, l
-	ld [$da79], a
+	ld [wBattleStackPtr], a
 	ld a, h
 	ld [$da7a], a
 	xor a
@@ -4998,16 +5023,16 @@ Call_50_5DC9::
 	ld a, h
 	ld [$c83f], a
 	xor a
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	ld bc, $0008
 	call FillMemory
 	xor a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
 	xor a
-	ld [$d9ed], a
-	ld [$dd62], a
+	ld [wBattleSubStep], a
+	ld [wBattleAnimRunning], a
 	call DisableSTATInterrupts
 	xor a
 	ld [wSkillAnimSprites], a
@@ -5015,7 +5040,7 @@ Call_50_5DC9::
 	ld [wMenuOverlay], a
 	xor a
 	ld [$c87e], a
-	ld hl, far_Call_51_423E
+	ld hl, far_StartBattleScreen
 	rst $10
 	ret
 
@@ -5031,7 +5056,7 @@ Call_50_5E21::
 	ret nz
 
 	call UpdateSkillAnimation
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	ret z
 
@@ -5048,7 +5073,7 @@ jr_050_5e3e:
 	ret nz
 
 	call UpdateSkillAnimation
-	call Call_50_6D78
+	call UpdatePlayTime
 
 Call_50_5E49::
 	ld a, [wFadeState]
@@ -5085,6 +5110,7 @@ Call_50_5E49::
 	ret
 
 
+SkillAnimGfx::
 	db $00, $5a, $01, $5a, $02, $5a, $03, $5a, $04, $5a, $05, $5a, $06, $5a, $07, $5a
 	db $08, $5a, $09, $5a, $0a, $5a, $0b, $5a, $0c, $5a, $0d, $5a, $0e, $5a, $0f, $5a
 	db $10, $5a, $11, $5a, $12, $5a, $13, $5a, $14, $5a, $15, $5a, $16, $5a, $17, $5a
@@ -5093,7 +5119,7 @@ Call_50_5E49::
 	db $12, $5b, $13, $5b, $14, $5b, $15, $5b, $16, $5b
 
 Jump_050_5ede:
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	jr z, jr_050_5ef9
 
@@ -5105,7 +5131,7 @@ Jump_050_5ede:
 	rst $10
 
 jr_050_5eee:
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	ret nz
 
@@ -5115,7 +5141,7 @@ jr_050_5eee:
 
 
 jr_050_5ef9:
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	cp $0d
 	jr z, jr_050_5f17
 
@@ -5123,7 +5149,7 @@ jr_050_5ef9:
 	or a
 	jr z, jr_050_5f17
 
-	ld a, [$da82]
+	ld a, [wBattleAnimDone]
 	or a
 	jr z, jr_050_5f17
 
@@ -5137,7 +5163,7 @@ jr_050_5ef9:
 
 
 jr_050_5f17:
-	ld a, [$da82]
+	ld a, [wBattleAnimDone]
 	or a
 	jr z, jr_050_5f2f
 
@@ -5155,11 +5181,11 @@ jr_050_5f17:
 
 
 jr_050_5f2f:
-	ld a, [$db73]
+	ld a, [wBattleType]
 	cp $ff
 	jr z, jr_050_5f5e
 
-	ld a, [$d9ec]
+	ld a, [wBattleStep]
 	rst $00
 
 JumpTable_50_5F3A::
@@ -5190,7 +5216,7 @@ jr_050_5f5e:
 	ret nz
 
 	xor a
-	ld [$db73], a
+	ld [wBattleType], a
 	ret
 
 
@@ -5205,7 +5231,7 @@ Jump_50_5F6D::
 
 	ld hl, $0c00
 	call PrintSystemText
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
@@ -5214,7 +5240,7 @@ jr_050_5f86:
 	call Call_50_6974
 	ld a, $05
 	ld [wMonStats], a
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
@@ -5245,17 +5271,17 @@ jr_050_5fa3:
 Jump_50_5FAE::
 	call Call_50_5D29
 	call Call_50_68FC
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	xor a
-	ld [$d9ee], a
+	ld [wBattleSubStep2], a
 	ret
 
 
 Jump_50_5FC1::
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
 	ld [wLinkChoice], a
@@ -5265,10 +5291,10 @@ Jump_50_5FC1::
 	ld bc, $0008
 	xor a
 	call FillMemory
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	ld b, a
 	ld c, $00
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	call Call_50_5FF8
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -5306,7 +5332,7 @@ jr_050_6008:
 
 
 Call_50_600D::
-	ld de, $dcec
+	ld de, wBattlerAction
 	ld bc, $0800
 
 jr_050_6013:
@@ -5315,13 +5341,13 @@ jr_050_6013:
 	jr c, jr_050_6046
 
 	ld a, c
-	ld hl, $db06
+	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
 	jr z, jr_050_6046
 
 	ld a, c
-	ld hl, $c1cd
+	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
@@ -5331,7 +5357,7 @@ jr_050_6013:
 	jr nz, jr_050_6046
 
 	ld a, c
-	ld hl, $dd03
+	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
@@ -5364,25 +5390,25 @@ Jump_50_6051::
 	jr jr_050_6067
 
 Call_50_6053::
-	call Call_50_774E
-	call Call_50_794C
+	call ClearTilemapBuffer_50
+	call DrawEnemyPictures
 	ld a, [$da88]
 	or a
 	jr nz, jr_050_6063
 
-	call Call_50_79AE
+	call DrawMessageWindowAndPanel
 	ret
 
 
 jr_050_6063:
-	call Call_50_79B4
+	call DrawBattlePanel
 	ret
 
 
 jr_050_6067:
 	call Call_50_4017
 	xor a
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ret
 
 
@@ -5397,11 +5423,11 @@ Jump_50_606F::
 
 
 Jump_50_6079::
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [$d9ed], a
-	ld [$d9ee], a
+	ld [wBattleSubStep], a
+	ld [wBattleSubStep2], a
 	ld [$dd75], a
 	ld [$dd6c], a
 	ld [$dd68], a
@@ -5409,7 +5435,7 @@ Jump_50_6079::
 	or a
 	jr z, Jump_50_60B6
 
-	ld a, [$c1ed]
+	ld a, [wLinkRandom]
 	ld l, a
 	ld a, [$c1ee]
 	ld h, a
@@ -5423,16 +5449,16 @@ Jump_50_6079::
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, l
-	ld [$c1ed], a
+	ld [wLinkRandom], a
 	ld a, h
 	ld [$c1ee], a
 
 Jump_50_60B6::
-	ld hl, far_Call_52_6C4D
+	ld hl, far_RunActionStep
 	rst $10
-	call Call_50_79B4
-	call Call_50_7627
-	ld a, [$d9ec]
+	call DrawBattlePanel
+	call RefreshPanelDigits
+	ld a, [wBattleStep]
 	cp $08
 	ret nz
 
@@ -5450,13 +5476,13 @@ Jump_50_60CB::
 
 
 jr_050_60d6:
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [$db4c], a
-	ld [$db4d], a
-	ld [$db4e], a
-	ld [$d9ed], a
+	ld [wBattleArg0], a
+	ld [wBattleArg1], a
+	ld [wBattleArg2], a
+	ld [wBattleSubStep], a
 	call Call_50_6053
 	jp Jump_50_6AAC
 
@@ -5472,14 +5498,14 @@ Jump_50_60ED::
 	ld a, $d2
 	ld [hli], a
 	ld [hl], $e2
-	ld a, [$db4e]
+	ld a, [wBattleArg2]
 	cp $02
 	jr nz, jr_050_6112
 
 	ld hl, far_Call_52_76C8
 	rst $10
 	xor a
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, $05
 	ld [wMonStats], a
 	ret
@@ -5496,9 +5522,9 @@ jr_050_6112:
 
 
 jr_050_611d:
-	call Call_50_774E
-	call Call_50_79AE
-	call Call_50_768E
+	call ClearTilemapBuffer_50
+	call DrawMessageWindowAndPanel
+	call CopyTilemapBufferToScreen_50
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_050_6139
@@ -5506,26 +5532,26 @@ jr_050_611d:
 	ld a, $01
 	ld [wLinkNoEnd], a
 	ld a, $10
-	ld [$d9ec], a
+	ld [wBattleStep], a
 	jp Jump_050_6196
 
 
 jr_050_6139:
 	call Call_50_5C40
-	ld hl, far_Call_51_4A96
+	ld hl, far_SaveBattleResults
 	rst $10
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_050_6150
 
 	xor a
-	ld [$dd61], a
-	ld hl, $d9ec
+	ld [wJoinCandidate], a
+	ld hl, wBattleStep
 	inc [hl]
 	jr jr_050_6196
 
 jr_050_6150:
-	ld hl, $dd23
+	ld hl, wRewardTotal
 	ld a, [hli]
 	or [hl]
 	inc hl
@@ -5563,7 +5589,7 @@ jr_050_618f:
 	call PrintSystemText
 
 jr_050_6192:
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 
 Jump_050_6196:
@@ -5573,7 +5599,7 @@ jr_050_6196:
 
 Call_50_6197::
 	call Call_50_61CD
-	ld a, [$dd23]
+	ld a, [wRewardTotal]
 	ld l, a
 	ld a, [$dd24]
 	ld h, a
@@ -5633,7 +5659,7 @@ Call_50_61E2::
 	ldh [$ffd9], a
 	ld a, e
 	ldh [$ffda], a
-	ld a, [$dd23]
+	ld a, [wRewardTotal]
 	ld l, a
 	ld a, [$dd24]
 	ld h, a
@@ -5850,10 +5876,10 @@ Jump_50_62F0::
 	jr c, jr_050_6316
 
 jr_050_630d:
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ret
 
 
@@ -5872,12 +5898,12 @@ jr_050_6318:
 	cp $14
 	jr nz, jr_050_6318
 
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [$d9f4], a
+	ld [wCommandStep], a
 	ld hl, far_Call_54_55BB
 	rst $10
 	ret
@@ -5886,11 +5912,12 @@ jr_050_6318:
 jr_050_6337:
 	ld hl, far_RollLevelUpGains
 	rst $10
-	ld hl, far_Call_51_5B31
+	ld hl, far_ApplyLevelUp
 	rst $10
 	ret
 
 
+UnusedPartyCode::
 	db $fe, $ff, $c8, $ea, $c0, $ca, $78, $21, $15, $da, $85, $6f, $3e, $00, $8c, $67
 	db $e5, $fa, $c0, $ca, $57, $21, $07, $01, $d7, $7a, $e1, $be, $c8, $77, $6f, $26
 	db $0a, $11, $90, $c1, $cd, $7a, $09, $fa, $c0, $ca, $21, $c2, $ca, $cd, $3b, $22
@@ -5942,23 +5969,23 @@ jr_050_63a4:
 
 
 Jump_50_63C1::
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr nz, jr_050_63cc
 
-	ld hl, far_Call_51_5578
+	ld hl, far_LevelUpScreen
 	rst $10
 	ret
 
 
 jr_050_63cc:
 	ld a, $0e
-	ld [$d9ec], a
+	ld [wBattleStep], a
 	ret
 
 
 Jump_50_63D2::
-	ld a, [$d9f4]
+	ld a, [wCommandStep]
 	cp $24
 	jr z, jr_050_63de
 
@@ -5967,17 +5994,17 @@ Jump_50_63D2::
 	ret nz
 
 jr_050_63de:
-	ld a, [$dd61]
+	ld a, [wJoinCandidate]
 	cp $ff
 	jr nz, jr_050_63ea
 
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
 jr_050_63ea:
-	ld a, [$dd61]
+	ld a, [wJoinCandidate]
 	sub $04
 	add a
 	ld hl, wEncSpecies
@@ -5992,7 +6019,7 @@ jr_050_63ea:
 	ld [$da13], a
 	ld hl, far_RemapMonId
 	rst $10
-	ld hl, far_Call_51_5C33
+	ld hl, far_RecruitScreen
 	rst $10
 	ret
 
@@ -6034,7 +6061,7 @@ Jump_50_640A::
 	call Call_50_66D3
 	xor a
 	ld [wScriptRunning], a
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	cp $01
 	ret nz
 
@@ -6064,7 +6091,7 @@ jr_050_6486:
 	call Call_50_66D3
 	xor a
 	ld [wScriptRunning], a
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	cp $01
 	jr z, jr_050_64af
 
@@ -6082,7 +6109,7 @@ jr_050_64a0:
 	ld [wScriptRunning], a
 	ld a, $03
 	ld [$d999], a
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	cp $01
 	ret nz
 
@@ -6128,7 +6155,7 @@ jr_050_64f5:
 	cp $02
 	jr nz, jr_050_6546
 
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	cp $01
 	ret nz
 
@@ -6174,7 +6201,7 @@ Call_50_6535::
 
 
 jr_050_6546:
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	cp $01
 	jr z, jr_050_6559
 
@@ -6266,7 +6293,7 @@ jr_050_65c7:
 Jump_50_65DC::
 	ld a, $01
 	ld [wLinkSendByte], a
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
@@ -6291,7 +6318,7 @@ jr_050_65f9:
 	cp $ff
 	jr z, jr_050_6663
 
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	or a
 	jr z, jr_050_6663
 
@@ -6510,6 +6537,7 @@ Call_50_6766::
 	ret
 
 
+ArenaTeamGfx::
 	db $0b, $00, $0a, $00, $11, $00, $0b, $00, $0a, $00, $da, $01, $0b, $00, $0a, $00
 	db $0b, $00, $0b, $00, $0a, $00, $02, $00, $0b, $00, $0a, $00, $0b, $00, $0b, $00
 	db $0a, $00, $0f, $00, $0b, $00, $0a, $00, $0c, $00, $0b, $00, $0a, $00, $13, $00
@@ -6724,7 +6752,7 @@ jr_050_68fb:
 
 
 Call_50_68FC::
-	ld a, [$db55]
+	ld a, [wBattlerReload]
 	cp $02
 	jr z, jr_050_6913
 
@@ -6753,7 +6781,7 @@ jr_050_691f:
 	ld de, $0000
 
 jr_050_6922:
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	ld b, $04
 	ld c, $00
 
@@ -6878,16 +6906,16 @@ jr_050_69b9:
 	ld a, $04
 
 jr_050_69bb:
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld a, $00
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ret
 
 
 Call_50_69C4::
 	ld a, $00
 	ld [wTextGroup], a
-	ld a, [$db4d]
+	ld a, [wBattleArg1]
 	or a
 	jr z, jr_050_69d3
 
@@ -6896,7 +6924,7 @@ Call_50_69C4::
 
 
 jr_050_69d3:
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $05
 	jr z, jr_050_6a1c
 
@@ -6948,7 +6976,7 @@ jr_050_6a1c:
 	jr jr_050_6a57
 
 Call_50_6A26::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $05
 	jr z, jr_050_6a45
 
@@ -6975,7 +7003,7 @@ jr_050_6a45:
 Jump_050_6a4f:
 jr_050_6a4f:
 	call Call_50_6AA3
-	ld hl, $d9ec
+	ld hl, wBattleStep
 	inc [hl]
 	ret
 
@@ -6983,7 +7011,7 @@ jr_050_6a4f:
 jr_050_6a57:
 	call Call_50_6AA3
 	ld a, $01
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld a, $05
 	ld [wMonStats], a
 	ret
@@ -6992,36 +7020,36 @@ jr_050_6a57:
 Call_50_6A65::
 	ld a, $04
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D7F
+	ld [wNamePos], a
+	call GetSpeciesName_50
 	ret
 
 
 Call_50_6A71::
 	ld a, $04
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D7F
+	ld [wNamePos], a
+	call GetSpeciesName_50
 	ld a, $05
 	ld hl, wTextArg1
-	ld [$db50], a
-	call Call_50_7D7F
+	ld [wNamePos], a
+	call GetSpeciesName_50
 	ret
 
 
 Call_50_6A88::
 	ld a, $05
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D7F
+	ld [wNamePos], a
+	call GetSpeciesName_50
 	ret
 
 
 Call_50_6A94::
 	ld a, $06
 	ld hl, wTextArg0
-	ld [$db50], a
-	call Call_50_7D7F
+	ld [wNamePos], a
+	call GetSpeciesName_50
 	ret
 
 
@@ -7037,7 +7065,7 @@ Call_50_6AA3::
 
 
 Jump_50_6AAC::
-	ld a, [$d9ed]
+	ld a, [wBattleSubStep]
 	rst $00
 
 JumpTable_50_6AB0::
@@ -7049,7 +7077,7 @@ JumpTable_50_6AB0::
 	dw Jump_50_6D0C
 
 Jump_50_6ABC::
-	ld hl, $db00
+	ld hl, wSideFlags
 	res 4, [hl]
 	res 6, [hl]
 	inc hl
@@ -7094,12 +7122,12 @@ jr_050_6ae9:
 	ld a, [hl]
 	and $03
 	ld [hli], a
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	xor a
 	ld [wSkillUser], a
 	ld [$d9f2], a
-	ld [$d9f3], a
+	ld [wPanelMode], a
 	jr Jump_50_6B11
 
 	db $c9
@@ -7117,22 +7145,22 @@ Call_50_6B06::
 
 
 Jump_50_6B11::
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	ld a, [wSkillUser]
 	call CheckBattlerPresent
 	jr nc, Jump_50_6B25
 
 	ld a, $05
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	jp Jump_50_6D0C
 
 
 Jump_50_6B25::
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	ld a, [wSkillUser]
-	ld hl, $db07
+	ld hl, wBattlerStatus5
 	call AddEightTimes
 	ld a, [hl]
 	and $3f
@@ -7147,7 +7175,7 @@ Jump_50_6B25::
 	sub $40
 	jr nz, jr_050_6b4f
 
-	call Call_50_7E1E
+	call GetSkillUserName
 	ld a, $dd
 	call Call_50_6AA0
 	xor a
@@ -7159,7 +7187,7 @@ jr_050_6b4f:
 	or d
 	ld [hl], a
 	ld a, $05
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ld a, b
 	or a
 	jp z, Jump_50_6D0C
@@ -7176,7 +7204,7 @@ Jump_050_6b5e:
 	jr nz, jr_050_6b74
 
 	ld a, $05
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	jp Jump_50_6D0C
 
 
@@ -7185,13 +7213,13 @@ jr_050_6b74:
 	jr z, jr_050_6b81
 
 	ld a, $e1
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld d, $10
 	jr jr_050_6b88
 
 jr_050_6b81:
 	ld a, $e2
-	ld [$db4c], a
+	ld [wBattleArg0], a
 	ld d, $06
 
 jr_050_6b88:
@@ -7208,18 +7236,18 @@ jr_050_6b88:
 jr_050_6b99:
 	call Call_50_6BC4
 	ld a, l
-	ld [$db56], a
+	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	ld a, [wSkillUser]
-	call Call_50_7E1E
+	call GetSkillUserName
 	ld hl, wTextArg1
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
 	call Number16ToDecimal
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	call Call_50_6AA0
 	ld a, $05
 	ld [wMonStats], a
@@ -7227,7 +7255,7 @@ jr_050_6b99:
 
 
 Call_50_6BC4::
-	ld a, [$db4c]
+	ld a, [wBattleArg0]
 	cp $e1
 	jr z, jr_050_6be7
 
@@ -7281,7 +7309,7 @@ Jump_50_6C02::
 
 
 jr_050_6c14:
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
@@ -7295,7 +7323,7 @@ jr_050_6c14:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$db56]
+	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
@@ -7324,10 +7352,10 @@ jr_050_6c43:
 	or c
 	jr z, jr_050_6c59
 
-	call Call_50_79B4
-	call Call_50_7627
+	call DrawBattlePanel
+	call RefreshPanelDigits
 	ld a, $05
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	jp Jump_50_6D0C
 
 
@@ -7337,18 +7365,18 @@ jr_050_6c59:
 	ld hl, far_Call_58_5749
 	rst $10
 	ld a, [wSkillUser]
-	ld [$db4c], a
-	ld hl, far_Call_51_4BE8
+	ld [wBattleArg0], a
+	ld hl, far_DefeatBattler
 	rst $10
-	call Call_50_7C4D
+	call UpdateStatusIcon_50
 	ld a, $04
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	ld a, [wSkillUser]
-	call Call_50_7E1E
+	call GetSkillUserName
 	ld a, $ea
 	call Call_50_6AA0
-	call Call_50_79B4
-	call Call_50_7627
+	call DrawBattlePanel
+	call RefreshPanelDigits
 	ld a, [wLinkActive]
 	or a
 	ret nz
@@ -7361,12 +7389,12 @@ jr_050_6c59:
 	ret z
 
 	ld a, [wSkillUser]
-	ld [$dd61], a
+	ld [wJoinCandidate], a
 	ret
 
 
 Jump_50_6C9B::
-	ld hl, $d9ed
+	ld hl, wBattleSubStep
 	inc [hl]
 	ld a, [wSkillUser]
 	and $04
@@ -7391,15 +7419,15 @@ jr_050_6cb4:
 
 jr_050_6cbe:
 	ld a, $00
-	ld [$db55], a
+	ld [wBattlerReload], a
 
 jr_050_6cc3:
 	ld a, $0a
-	ld [$d9ec], a
+	ld [wBattleStep], a
 	ld a, $02
 	call QueueMusic
 	ld a, $02
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ret
 
 
@@ -7420,7 +7448,7 @@ jr_050_6ce4:
 	jr nz, jr_050_6cd3
 
 	ld a, $01
-	ld [$db55], a
+	ld [wBattlerReload], a
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_050_6cc3
@@ -7453,14 +7481,14 @@ Jump_50_6D0C::
 	jr c, Jump_50_6D0C
 
 	ld a, $01
-	ld [$d9ed], a
+	ld [wBattleSubStep], a
 	jp Jump_50_6B11
 
 
 jr_050_6d22:
 	ld bc, $0300
 	ld de, $0001
-	ld hl, $dd13
+	ld hl, wBattlerOrder
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_050_6d33
@@ -7522,8 +7550,8 @@ jr_050_6d68:
 	inc hl
 	inc c
 	ld a, $03
-	ld [$d9ec], a
-	ld hl, $db76
+	ld [wBattleStep], a
+	ld hl, wRunTurn
 	ld a, [hl]
 	cp $ff
 	ret z
@@ -7532,109 +7560,226 @@ jr_050_6d68:
 	ret
 
 
-Call_50_6D78::
+;@ def UpdatePlayTime()
+;@ path: system/clock
+;@ Counts the play time on by one frame: 60 frames make a second, 60 seconds a minute,
+;@ 60 minutes an hour. The clock stops at 99:59:59.
+;@ test: wPlayFrames = rand(0, 59); wPlaySeconds = rand(0, 59); wPlayMinutes = rand(0, 59); wPlayHours = rand(0, 99)
+UpdatePlayTime::
+;> wPlayFrames += 1
 	ld a, [wPlayFrames]
 	inc a
 	ld [wPlayFrames], a
+;> if wPlayFrames != 60:
+;>     return
 	cp $3c
 	ret nz
 
+;> wPlayFrames = 0
 	xor a
 	ld [wPlayFrames], a
+;> wPlaySeconds += 1
 	ld a, [wPlaySeconds]
 	inc a
 	ld [wPlaySeconds], a
+;> if wPlaySeconds != 60:
+;>     return
 	cp $3c
 	ret nz
 
+;> wPlaySeconds = 0
 	xor a
 	ld [wPlaySeconds], a
+;> wPlayMinutes += 1
 	ld a, [wPlayMinutes]
 	inc a
 	ld [wPlayMinutes], a
+;> if wPlayMinutes != 60:
+;>     return
 	cp $3c
 	ret nz
 
+;> wPlayMinutes = 0
 	xor a
 	ld [wPlayMinutes], a
+;> wPlayHours += 1
 	ld a, [wPlayHours]
 	inc a
 	ld [wPlayHours], a
+;> if wPlayHours != 100:
+;>     return
 	cp $64
 	ret nz
 
+;> wPlayHours = 99                       # the clock stops at 99:59:59
 	ld a, $63
 	ld [wPlayHours], a
+;> wPlayMinutes = 59
 	ld a, $3b
 	ld [wPlayMinutes], a
+;> wPlaySeconds = 59
 	ld [wPlaySeconds], a
+;> wPlayFrames = 0
 	xor a
 	ld [wPlayFrames], a
 	ret
 
 
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $70, $71, $72, $73, $da, $e0, $74, $75
-	db $76, $77, $db, $e0, $78, $79, $7a, $7b, $dc, $e0, $ff, $d8, $ec, $eb, $eb, $eb
-	db $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed
-	db $d8, $fe, $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0
-	db $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
-	db $d8, $fe, $70, $71, $72, $73, $da, $e0, $74, $75, $76, $77, $db, $e0, $ff, $d8
-	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe
-	db $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e2
-	db $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $70, $71, $72, $73, $da, $e0, $ff, $d8
-	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e1, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $a0, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87, $88, $89, $e0, $86, $89, $8a, $8b
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $7c, $81, $80, $7f, $e0, $e0, $7d, $7e, $7f, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $a0, $01, $fa, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9a, $82, $9b, $82, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $84, $9c
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $01, $fa, $ef, $ef
-	db $ef, $ef, $fb, $d8, $fe, $6c, $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $fd, $d9, $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
-	db $fe, $e0, $96, $88, $91, $8d, $87, $8a, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $8b, $86, $94, $8a, $95, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $96, $91, $8e, $89, $86, $90, $8e, $8c, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $96, $90, $8b, $8b, $91, $8f
-	db $95, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
-	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
-	db $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $95, $96, $97, $98, $99
-	db $9a, $9b, $9c, $9d, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $9e, $9f, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a7
-	db $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb
-	db $d8, $fe, $e0, $85, $86, $87, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed
-	db $d8, $fe, $e0, $7e, $84, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $88, $87, $89, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87
-	db $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72
-	db $73, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76
-	db $77, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a
-	db $7b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $20, $01, $fa, $ef, $ef
-	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $86, $88, $87, $e0, $ff, $d8, $ec, $eb, $eb
-	db $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72, $73, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76, $77, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
-	db $95, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $9e, $9f, $ff, $d8, $fe
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a0
-	db $a1, $a2, $a3, $a4, $a5, $a6, $a7, $a8, $a9, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef
+;@ path: battle/panel
+;@ Window layout (DrawWindowLayout_50 format: a u16 buffer offset, then tile rows ended by
+;@ $D8, $D9 at the end) of the party panel at the top of the battle screen with three
+;@ monsters: name tiles $70-$73 / $74-$77 / $78-$7B, slot marks $DA-$DC, an "HP" row
+;@ ($E1) and an "MP" row ($E2) under each name; $EC/$EB/$ED a divider line.
+StatusWindow3::
+	dw $0000                     ; row 0, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $70, $71, $72, $73, $da, $e0, $74, $75, $76, $77, $db, $e0, $78, $79, $7a, $7b, $dc, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: battle/panel
+;@ Party panel layout for two monsters (see StatusWindow3).
+StatusWindow2::
+	dw $0000                     ; row 0, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $70, $71, $72, $73, $da, $e0, $74, $75, $76, $77, $db, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/panel
+;@ Party panel layout for one monster (see StatusWindow3).
+StatusWindow1::
+	dw $0000                     ; row 0, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $70, $71, $72, $73, $da, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e1, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/menu
+;@ Layout of the battle menu at the bottom left: four commands in two columns (their
+;@ words are text tiles $7C-$8B printed into VRAM), cursor places in BattleMenuCursors.
+BattleMenuWindow::
+	dw $01a0                     ; row 13, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $85, $86, $87, $88, $89, $e0, $86, $89, $8a, $8b, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $7c, $81, $80, $7f, $e0, $e0, $7d, $7e, $7f, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/tactics
+;@ Layout of a small two-row window at the bottom left; only UnusedTacticWhoMenu draws it.
+TacticWhoWindow::
+	dw $01a0                     ; row 13, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $9a, $82, $9b, $82, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $84, $9c, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/orders
+;@ Name plate (tiles $6C-$6F) of the monster that gets direct orders, row 8.
+CommandNameWindow::
+	dw $0100                     ; row 8, column 0
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $6c, $6d, $6e, $6f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/tactics
+;@ Layout of the tactic window: four rows of words (text tiles $86-$96), cursor places
+;@ in TacticCursors.
+TacticWindow::
+	dw $0120                     ; row 9, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $96, $88, $91, $8d, $87, $8a, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $8b, $86, $94, $8a, $95, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $96, $91, $8e, $89, $86, $90, $8e, $8c, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $96, $90, $8b, $8b, $91, $8f, $95, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: battle/item
+;@ Layout of the item list in battle: four rows of item names printed into tiles $8C-$AF.
+BattleItemWindow::
+	dw $0120                     ; row 9, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $95, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9e, $9f, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/item
+;@ Layout of a two-choice window under a title (tiles $85-$87), cursor places in
+;@ ItemUseCursors.
+ItemUseWindow::
+	dw $0160                     ; row 11, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $85, $86, $87, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $7e, $84, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $88, $87, $89, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/item
+;@ Layout of the window that picks an own monster for an item: a title and the three
+;@ name tiles $70-$7B, cursor places in AllyTargetCursors.
+ItemAllyTargetWindow::
+	dw $0120                     ; row 9, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $85, $86, $87, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $70, $71, $72, $73, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $74, $75, $76, $77, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/orders
+;@ Layout of the window that picks an own monster as a skill's target (as
+;@ ItemAllyTargetWindow with another title).
+SkillAllyTargetWindow::
+	dw $0120                     ; row 9, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $86, $88, $87, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $70, $71, $72, $73, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $74, $75, $76, $77, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/orders
+;@ Layout of the window that picks an enemy: three rows of enemy names printed into tiles
+;@ $8C-$A9, cursor places in EnemyTargetCursors.
+EnemyTargetWindow::
+	dw $0160                     ; row 11, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $95, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $9e, $9f, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $a7, $a8, $a9, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7177::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $d4, $e0, $d5, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $d5, $d5, $d6, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $48, $00
+	db $fe, $e0, $d5, $d5, $d6, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow719C::
+	db $48, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $36
 	db $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $3f, $40, $41, $42, $43, $44, $45
@@ -7642,22 +7787,37 @@ Call_50_6D78::
 	db $d8, $fe, $e0, $48, $49, $4a, $4b, $4c, $4d, $4e, $4f, $50, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $51, $52, $53
 	db $54, $55, $56, $57, $58, $59, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
+	db $ee, $ee, $ee, $fd, $d9
+
+YesNoWindow::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9e
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $40, $00, $fa, $ef, $ef, $ef
+	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7238::
+	db $40, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8, $ec, $eb, $eb, $eb
 	db $eb, $eb, $ed, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $90, $91, $92, $93, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $94, $95, $96, $97, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $98, $99, $9a, $9b, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $0d, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
+	db $ee, $ee, $fd, $d9
+
+UnusedWindow7292::
+	db $0d, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $89, $8a, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $20, $01
+	db $89, $8a, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow72BC::
+	db $20, $01
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8
 	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72, $73, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76, $77, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef, $ef, $ef, $ef, $ef
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7306::
+	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $0f
 	db $10, $11, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -7666,13 +7826,22 @@ Call_50_6D78::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $2d, $2e, $2f
 	db $30, $31, $32, $33, $34, $35, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $c0, $00, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow739B::
+	db $c0, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9c, $d6, $d5, $e0, $e2, $e3
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e5, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a0, $a1, $a2, $ff
+	db $d9
+
+UnusedWindow73CF::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a0, $a1, $a2, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a3, $a4, $a5, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow73F4::
+	db $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $24, $25, $26, $27, $28, $29, $2a, $2b
 	db $2c, $48, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $2d, $2e, $2f, $30, $31, $32, $33, $34, $35, $49, $ff, $d8
@@ -7680,15 +7849,27 @@ Call_50_6D78::
 	db $36, $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $4a, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $3f, $40, $41, $42
 	db $43, $44, $45, $46, $47, $4b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $0c, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7474::
+	db $0c, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $a6, $a7, $a8, $a9, $aa, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $89, $8a, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $c0, $00, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $6c
-	db $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef
+	db $ee, $ee, $ee, $fd, $d9
+
+TacticNameWindow::
+	db $c0, $00, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $6c
+	db $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+CommandWindow::
+	db $60, $01, $fa, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $89, $82, $e0, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $82, $86, $81, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $83, $8a, $85, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+BattleSkillWindow::
+	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $95, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $ff, $d8, $fe, $e0, $e0, $e0
@@ -7697,7 +7878,7 @@ Call_50_6D78::
 	db $e0, $ff, $d8, $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
-Call_50_756B::
+NextBufferColumn_50::
 	push af
 	ld a, l
 	and $e0
@@ -7713,8 +7894,8 @@ Call_50_756B::
 	ret
 
 
-Call_50_757A::
-	ld a, [$d9f8]
+BattleOffsetToMap::
+	ld a, [wBattleBGMap]
 	add l
 	ld l, a
 	ld a, [$d9f9]
@@ -7728,7 +7909,7 @@ Call_50_757A::
 	ret
 
 
-Call_50_758E::
+TilemapBufferAddr_50::
 	ld a, l
 	add $00
 	ld l, a
@@ -7738,13 +7919,13 @@ Call_50_758E::
 	ret
 
 
-Call_50_7597::
+PosToScreenMap_50::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_50_757A
+	call BattleOffsetToMap
 	ld a, b
 	and $1f
 	jr z, jr_050_75ac
@@ -7752,7 +7933,7 @@ Call_50_7597::
 	ld b, a
 
 jr_050_75a6:
-	call Call_50_756B
+	call NextBufferColumn_50
 	dec b
 	jr nz, jr_050_75a6
 
@@ -7761,22 +7942,23 @@ jr_050_75ac:
 	ret
 
 
+DrawWindowLayoutVRAM_50::
 	db $1a, $6f, $13, $1a, $67, $13, $cd, $97, $75, $7d, $ea, $ea, $d9, $7c, $ea, $eb
 	db $d9, $1a, $13, $fe, $d9, $c8, $fe, $d8, $20, $20, $fa, $ea, $d9, $6f, $fa, $eb
 	db $d9, $67, $7d, $c6, $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67
 	db $7d, $ea, $ea, $d9, $7c, $ea, $eb, $d9, $18, $d7, $cd, $ad, $1a, $cd, $6b, $75
 	db $18, $cf
 
-Call_50_75F0::
+DrawWindowLayout_50::
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 
@@ -7789,7 +7971,7 @@ jr_050_7601:
 	cp $d8
 	jr nz, jr_050_7624
 
-	ld a, [$d9ea]
+	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
@@ -7800,7 +7982,7 @@ jr_050_7601:
 	adc $00
 	ld h, a
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 	jr jr_050_7601
@@ -7809,8 +7991,8 @@ jr_050_7624:
 	ld [hli], a
 	jr jr_050_7601
 
-Call_50_7627::
-	ld a, [$db74]
+RefreshPanelDigits::
+	ld a, [wPartyBattlers]
 	ld c, a
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -7823,7 +8005,7 @@ jr_050_7636:
 	push bc
 	ld b, $25
 	ld c, $62
-	call Call_50_7656
+	call CopyPanelSlotToScreen
 	pop bc
 	dec c
 	ret z
@@ -7831,7 +8013,7 @@ jr_050_7636:
 	push bc
 	ld b, $2b
 	ld c, $68
-	call Call_50_7656
+	call CopyPanelSlotToScreen
 	pop bc
 	dec c
 	ret z
@@ -7839,12 +8021,12 @@ jr_050_7636:
 	push bc
 	ld b, $31
 	ld c, $6e
-	call Call_50_7656
+	call CopyPanelSlotToScreen
 	pop bc
 	ret
 
 
-Call_50_7656::
+CopyPanelSlotToScreen::
 	ld l, b
 	ld h, $98
 	ld a, b
@@ -7866,7 +8048,7 @@ Call_50_7656::
 	ld a, $00
 	adc d
 	ld d, a
-	call Call_50_76B2
+	call CopyTileRowToScreen_50
 	ld b, $03
 	ld a, c
 	add $20
@@ -7878,12 +8060,12 @@ Call_50_7656::
 	ld a, $00
 	adc d
 	ld d, a
-	call Call_50_76B2
+	call CopyTileRowToScreen_50
 	ret
 
 
-Call_50_768E::
-	ld a, [$d9f8]
+CopyTilemapBufferToScreen_50::
+	ld a, [wBattleBGMap]
 	ld l, a
 	ld a, [$d9f9]
 	ld h, a
@@ -7893,7 +8075,7 @@ Call_50_768E::
 jr_050_769b:
 	ld b, $20
 	push hl
-	call Call_50_76B2
+	call CopyTileRowToScreen_50
 	pop hl
 	push bc
 	ld bc, $0020
@@ -7909,7 +8091,7 @@ jr_050_769b:
 	ret
 
 
-Call_50_76B2::
+CopyTileRowToScreen_50::
 	ld a, [de]
 	call WriteVRAM
 	ld a, l
@@ -7924,12 +8106,12 @@ Call_50_76B2::
 	ld l, a
 	inc de
 	dec b
-	jr nz, Call_50_76B2
+	jr nz, CopyTileRowToScreen_50
 
 	ret
 
 
-Call_50_76C7::
+PrintTextToTiles_50::
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
@@ -7963,7 +8145,7 @@ Call_50_76C7::
 	ret
 
 
-Call_50_7700::
+PrintNameToTiles_50::
 	push hl
 	ld hl, wTextArg0
 	call CopyName
@@ -8006,7 +8188,7 @@ Call_50_7700::
 	ret
 
 
-Call_50_774E::
+ClearTilemapBuffer_50::
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
@@ -8021,10 +8203,11 @@ jr_050_7754:
 	ret
 
 
+ClearScreenMap_50::
 	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
 	db $c9
 
-Call_50_776E::
+UpdateListCursor_50::
 	ld a, c
 	ld [wListLastRows], a
 	inc de
@@ -8116,7 +8299,7 @@ jr_050_77d5:
 	push bc
 	push de
 	push hl
-	call Call_50_78B0
+	call DrawPageNumber_50
 	pop hl
 	pop de
 	pop bc
@@ -8134,13 +8317,13 @@ jr_050_77d5:
 	inc hl
 	ld a, [hld]
 	cp c
-	jr nz, Call_50_77F7
+	jr nz, UpdateMenuCursor_50
 
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
-Call_50_77F7::
+UpdateMenuCursor_50::
 	res 7, [hl]
 	ld a, [wJoyRepeat]
 	bit 6, a
@@ -8173,7 +8356,7 @@ jr_050_7817:
 
 jr_050_7818:
 	xor a
-	ld [$d9fb], a
+	ld [wCursorBlinkTimer], a
 	push hl
 	push de
 	pop de
@@ -8189,11 +8372,11 @@ jr_050_7820:
 
 jr_050_7829:
 	ld a, [hl]
-	call Call_50_784D
+	call DrawMenuCursor_50
 	ret
 
 
-Call_50_782E::
+UpdateGridCursor_50::
 	res 7, [hl]
 	ld a, [wJoyRepeat]
 	and $c0
@@ -8212,23 +8395,23 @@ jr_050_783c:
 	xor $02
 	jr jr_050_7817
 
-Call_50_7848::
+ResetCursorBlink_50::
 	xor a
-	ld [$d9fb], a
+	ld [wCursorBlinkTimer], a
 	ret
 
 
-Call_50_784D::
+DrawMenuCursor_50::
 	ld c, a
 	bit 7, a
 	jr nz, jr_050_7862
 
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	and $0f
 	push af
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	inc a
-	ld [$d9fb], a
+	ld [wCursorBlinkTimer], a
 	pop af
 	ld a, c
 	ret nz
@@ -8249,12 +8432,12 @@ jr_050_7865:
 	ret z
 
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 	push de
 	push bc
-	call Call_50_7597
+	call PosToScreenMap_50
 	pop bc
 	pop de
 	ld a, c
@@ -8267,7 +8450,7 @@ jr_050_7865:
 	bit 7, c
 	jr nz, jr_050_7897
 
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_050_7897
@@ -8277,7 +8460,7 @@ jr_050_7865:
 jr_050_7897:
 	call WriteVRAM
 	push af
-	ld a, [$d9ea]
+	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
@@ -8292,7 +8475,7 @@ jr_050_7897:
 	inc b
 	jr jr_050_7865
 
-Call_50_78B0::
+DrawPageNumber_50::
 	ld a, b
 	cp c
 	ret nc
@@ -8318,7 +8501,7 @@ Call_50_78B0::
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_50_7597
+	call PosToScreenMap_50
 	pop bc
 	pop de
 	ld a, c
@@ -8341,7 +8524,7 @@ Call_50_78B0::
 	ret
 
 
-Call_50_78E9::
+DrawListCursor_50::
 	ld a, [hli]
 	push af
 	push hl
@@ -8376,7 +8559,7 @@ jr_050_7902:
 jr_050_790a:
 	pop af
 
-Call_50_790B::
+DrawCursorAt_50::
 	ld c, a
 	add a
 	add e
@@ -8390,19 +8573,19 @@ Call_50_790B::
 	ld a, [de]
 	ld h, a
 	ld a, l
-	ld [$d9ea], a
+	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 	push de
 	push bc
-	call Call_50_7597
+	call PosToScreenMap_50
 	pop bc
 	pop de
 	ld a, $e9
 	bit 7, c
 	jr nz, jr_050_7938
 
-	ld a, [$d9fb]
+	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_050_7938
@@ -8411,7 +8594,7 @@ Call_50_790B::
 
 jr_050_7938:
 	push af
-	ld a, [$d9ea]
+	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
@@ -8426,7 +8609,7 @@ jr_050_7938:
 	ret
 
 
-Call_50_794C::
+DrawEnemyPictures::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_050_795e
@@ -8435,7 +8618,7 @@ Call_50_794C::
 	bit 1, a
 	jr z, jr_050_795e
 
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 	jr jr_050_7961
 
 jr_050_795e:
@@ -8450,37 +8633,37 @@ jr_050_7961:
 
 	ld a, $00
 	ld hl, $00c7
-	call Call_50_7996
+	call DrawPictureBlock
 	ret
 
 
 jr_050_7972:
 	ld a, $00
 	ld hl, $00c4
-	call Call_50_7996
+	call DrawPictureBlock
 	ld hl, $00ca
-	call Call_50_7996
+	call DrawPictureBlock
 	ret
 
 
 jr_050_7981:
 	ld a, $00
 	ld hl, $00c1
-	call Call_50_7996
+	call DrawPictureBlock
 	ld hl, $00c7
-	call Call_50_7996
+	call DrawPictureBlock
 	ld hl, $00cd
-	call Call_50_7996
+	call DrawPictureBlock
 	ret
 
 
-Call_50_7996::
+DrawPictureBlock::
 	ld c, $06
 
 jr_050_7998:
 	push hl
 	push af
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	pop af
 	ld b, $06
 
@@ -8499,16 +8682,16 @@ jr_050_79a0:
 	ret
 
 
-Call_50_79AE::
+DrawMessageWindowAndPanel::
 	ld de, $2e07
-	call Call_50_75F0
+	call DrawWindowLayout_50
 
-Call_50_79B4::
-	ld a, [$d9f3]
+DrawBattlePanel::
+	ld a, [wPanelMode]
 	or a
-	jp nz, Call_50_7A87
+	jp nz, DrawPanelConditions
 
-Call_50_79BB::
+DrawPanelNumbers::
 	ld a, [wLinkActive]
 	or a
 	jr nz, jr_050_79c6
@@ -8518,10 +8701,10 @@ Call_50_79BB::
 	ret z
 
 jr_050_79c6:
-	call Call_50_79CB
-	jr Call_50_79EB
+	call DrawPanelFrame
+	jr PrintPanelHPMP
 
-Call_50_79CB::
+DrawPanelFrame::
 	ld hl, $7a7f
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -8531,7 +8714,7 @@ Call_50_79CB::
 	jr jr_050_79dd
 
 jr_050_79da:
-	ld a, [$db74]
+	ld a, [wPartyBattlers]
 
 jr_050_79dd:
 	add a
@@ -8543,11 +8726,11 @@ jr_050_79dd:
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	call Call_50_75F0
+	call DrawWindowLayout_50
 	ret
 
 
-Call_50_79EB::
+PrintPanelHPMP::
 	ld hl, wBattlerHP
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -8561,7 +8744,7 @@ jr_050_79f8:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0062
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	call PrintNumber3
 	pop hl
 	ld bc, $0020
@@ -8570,9 +8753,9 @@ jr_050_79f8:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0082
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	call PrintNumber3
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	cp $01
 	ret z
 
@@ -8589,7 +8772,7 @@ jr_050_7a29:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0068
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	call PrintNumber3
 	pop hl
 	ld bc, $0020
@@ -8598,9 +8781,9 @@ jr_050_7a29:
 	ld b, [hl]
 	ld c, a
 	ld hl, $0088
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	call PrintNumber3
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	cp $02
 	ret z
 
@@ -8617,7 +8800,7 @@ jr_050_7a5a:
 	ld b, [hl]
 	ld c, a
 	ld hl, $006e
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	call PrintNumber3
 	pop hl
 	ld bc, $0020
@@ -8626,24 +8809,28 @@ jr_050_7a5a:
 	ld b, [hl]
 	ld c, a
 	ld hl, $008e
-	call Call_50_758E
+	call TilemapBufferAddr_50
 	call PrintNumber3
 	ret
 
 
-	db $eb, $79, $16, $7a, $47, $7a, $9a, $6e, $9a, $6e, $3e, $6e, $be, $6d
+UnusedHPPrintParts::
+	db $eb, $79, $16, $7a, $47, $7a
 
-Call_50_7A87::
+StatusWindowLayouts::
+	db $9a, $6e, $9a, $6e, $3e, $6e, $be, $6d
+
+DrawPanelConditions::
 	cp $03
-	jp z, Call_50_7B8F
+	jp z, DrawPanelLetters
 
-	call Call_50_79CB
+	call DrawPanelFrame
 	ld hl, $9800
 	ld a, l
-	ld [$d9f8], a
+	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
@@ -8654,7 +8841,7 @@ Call_50_7A87::
 
 jr_050_7aa9:
 	ld hl, $7bee
-	call Call_50_7C06
+	call PanelSlotAddr
 	push hl
 	ld a, c
 	call CheckBattlerPresent
@@ -8670,7 +8857,7 @@ jr_050_7abc:
 	pop hl
 	ld [hl], a
 	ld hl, $7bf4
-	call Call_50_7C06
+	call PanelSlotAddr
 	ld [hl], $de
 	inc hl
 	ld a, $e4
@@ -8690,28 +8877,28 @@ jr_050_7abc:
 	dec b
 	jr nz, jr_050_7aa9
 
-	ld a, [$d9f3]
+	ld a, [wPanelMode]
 	cp $02
 	jr z, jr_050_7b0a
 
-	call Call_50_768E
+	call CopyTilemapBufferToScreen_50
 	ld hl, $8da0
 	ld a, $02
-	call Call_50_7C2A
+	call LoadStatusIcon
 	ld hl, $8db0
 	ld a, $04
-	call Call_50_7C2A
+	call LoadStatusIcon
 	ld hl, $8dc0
 	ld a, $06
-	call Call_50_7C2A
+	call LoadStatusIcon
 	ld hl, $8dd0
 	ld a, $03
-	call Call_50_7C2A
-	ld hl, $d9f3
+	call LoadStatusIcon
+	ld hl, wPanelMode
 	inc [hl]
 
 jr_050_7b0a:
-	ld a, [$c1d9]
+	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
@@ -8722,12 +8909,12 @@ jr_050_7b0a:
 
 jr_050_7b19:
 	ld hl, $7bf4
-	call Call_50_7C06
+	call PanelSlotAddr
 	inc hl
 	inc hl
 	push bc
 	ld a, c
-	ld bc, $db9b
+	ld bc, wBattlerLevel
 	add c
 	ld c, a
 	ld a, $00
@@ -8743,7 +8930,7 @@ jr_050_7b19:
 	jr c, jr_050_7b87
 
 	ld hl, $7bfa
-	call Call_50_7C06
+	call PanelSlotAddr
 	push hl
 	ld a, c
 	ld hl, wBattlerStatus
@@ -8757,7 +8944,7 @@ jr_050_7b19:
 	jr z, jr_050_7b56
 
 	ld a, $00
-	call Call_50_7C1C
+	call PutAilmentTile
 
 jr_050_7b56:
 	inc de
@@ -8765,7 +8952,7 @@ jr_050_7b56:
 	jr z, jr_050_7b60
 
 	ld a, $01
-	call Call_50_7C1C
+	call PutAilmentTile
 
 jr_050_7b60:
 	inc de
@@ -8773,7 +8960,7 @@ jr_050_7b60:
 	jr z, jr_050_7b6a
 
 	ld a, $02
-	call Call_50_7C1C
+	call PutAilmentTile
 
 jr_050_7b6a:
 	inc de
@@ -8781,7 +8968,7 @@ jr_050_7b6a:
 	jr z, jr_050_7b74
 
 	ld a, $03
-	call Call_50_7C1C
+	call PutAilmentTile
 
 jr_050_7b74:
 	inc de
@@ -8789,26 +8976,26 @@ jr_050_7b74:
 	jr z, jr_050_7b7e
 
 	ld a, $04
-	call Call_50_7C1C
+	call PutAilmentTile
 
 jr_050_7b7e:
 	bit 0, [hl]
 	jr z, jr_050_7b87
 
 	ld a, $05
-	call Call_50_7C1C
+	call PutAilmentTile
 
 jr_050_7b87:
 	inc c
 	dec b
 	jr nz, jr_050_7b19
 
-	call Call_50_768E
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
-Call_50_7B8F::
-	ld a, [$c1d9]
+DrawPanelLetters::
+	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
@@ -8819,13 +9006,13 @@ Call_50_7B8F::
 
 jr_050_7b9e:
 	ld hl, $7bee
-	call Call_50_7C06
+	call PanelSlotAddr
 	ld a, c
 	and $03
 	add $da
 	ld [hl], a
 	ld hl, $7bf4
-	call Call_50_7C06
+	call PanelSlotAddr
 	ld [hl], $e1
 	ld a, $20
 	add l
@@ -8846,14 +9033,14 @@ jr_050_7b9e:
 	push bc
 	push de
 	push hl
-	ld hl, $da0a
+	ld hl, wStatusIconShown
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $ff
-	call Call_50_7C4D
+	call UpdateStatusIcon_50
 	pop hl
 	pop de
 	pop bc
@@ -8863,16 +9050,26 @@ jr_050_7b9e:
 	jr nz, jr_050_7b9e
 
 	xor a
-	ld [$d9f3], a
-	call Call_50_79BB
-	call Call_50_768E
+	ld [wPanelMode], a
+	call DrawPanelNumbers
+	call CopyTilemapBufferToScreen_50
 	ret
 
 
-	db $25, $00, $2b, $00, $31, $00, $61, $00, $67, $00, $6d, $00, $81, $00, $87, $00
-	db $8d, $00, $dc, $d7, $db, $dd, $da, $d8
+StatusNamePositions::
+	db $25, $00, $2b, $00, $31, $00
 
-Call_50_7C06::
+StatusHPPositions::
+	db $61, $00, $67, $00, $6d, $00
+
+StatusIconPositions::
+	db $81, $00, $87, $00
+	db $8d, $00
+
+StatusIconTiles::
+	db $dc, $d7, $db, $dd, $da, $d8
+
+PanelSlotAddr::
 	ld a, c
 	and $03
 	add a
@@ -8893,7 +9090,7 @@ Call_50_7C06::
 	ret
 
 
-Call_50_7C1C::
+PutAilmentTile::
 	push hl
 	ld hl, $7c00
 	add l
@@ -8907,7 +9104,7 @@ Call_50_7C1C::
 	ret
 
 
-Call_50_7C2A::
+LoadStatusIcon::
 	push hl
 	ld hl, $7c3d
 	add a
@@ -8924,9 +9121,10 @@ Call_50_7C2A::
 	ret
 
 
+StatusFaceGfx::
 	db $02, $5b, $03, $5b, $04, $5b, $05, $5b, $06, $5b, $07, $5b, $08, $5b, $09, $5b
 
-Call_50_7C4D::
+UpdateStatusIcon_50::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_050_7c73
@@ -9041,7 +9239,7 @@ jr_050_7cd4:
 jr_050_7cd6:
 	push af
 	ld a, c
-	ld hl, $da0a
+	ld hl, wStatusIconShown
 	add l
 	ld l, a
 	ld a, $00
@@ -9050,28 +9248,29 @@ jr_050_7cd6:
 	ld d, [hl]
 	pop af
 	cp d
-	call nz, Call_50_7CED
+	call nz, StoreStatusIcon_50
 	pop hl
-	call nz, Call_50_7C2A
+	call nz, LoadStatusIcon
 	pop de
 	ret
 
 
-Call_50_7CED::
+StoreStatusIcon_50::
 	ld [hl], a
 	ret
 
 
+UnusedClearAttrMap::
 	db $fa, $1d, $c8, $b7, $c8, $3e, $01, $e0, $4f, $fa, $f8, $d9, $6f, $fa, $f9, $d9
 	db $67, $0e, $12, $06, $20, $e5, $3e, $00, $cd, $ad, $1a, $7d, $e6, $e0, $f5, $7d
 	db $3c, $e6, $1f, $6f, $f1, $b5, $6f, $05, $20, $ec, $e1, $c5, $01, $20, $00, $09
 	db $7c, $e6, $03, $f6, $98, $67, $c1, $0d, $20, $d9, $3e, $00, $e0, $4f, $c9
 
-Call_50_7D2E::
+GetBattlerName_50::
 	cp $03
 	jr nc, jr_050_7d4c
 
-Call_50_7D32::
+GetPartyMonName_50::
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
@@ -9093,7 +9292,7 @@ jr_050_7d41:
 jr_050_7d48:
 	ld a, b
 	pop bc
-	jr Call_50_7D32
+	jr GetPartyMonName_50
 
 jr_050_7d4c:
 	push bc
@@ -9113,7 +9312,7 @@ jr_050_7d4c:
 	push hl
 	ld a, b
 	and $03
-	ld hl, $c1ca
+	ld hl, wEnemyMorph
 	add l
 	ld l, a
 	ld a, $00
@@ -9132,17 +9331,17 @@ jr_050_7d72:
 
 jr_050_7d75:
 	push af
-	call Call_50_7D7F
+	call GetSpeciesName_50
 	pop af
-	ld hl, far_Call_51_4CB3
+	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret
 
 
-Call_50_7D7F::
-	ld [$db60], a
+GetSpeciesName_50::
+	ld [wNameBattler], a
 	push hl
-	ld hl, $dc3c
+	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
@@ -9153,7 +9352,7 @@ Call_50_7D7F::
 	ld h, $05
 	pop de
 	ld a, e
-	ld [$db5e], a
+	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
 	call CopySystemText
@@ -9161,7 +9360,7 @@ Call_50_7D7F::
 
 
 jr_050_7d9d:
-	call Call_50_7D32
+	call GetPartyMonName_50
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
@@ -9172,8 +9371,8 @@ jr_050_7d9d:
 	ld [hli], a
 	ld [hl], $f0
 	push hl
-	ld hl, $c1ca
-	ld a, [$db50]
+	ld hl, wEnemyMorph
+	ld a, [wNamePos]
 	and $03
 	cp $01
 	jr z, jr_050_7dc9
@@ -9242,7 +9441,7 @@ jr_050_7df4:
 	ld a, $02
 
 jr_050_7df7:
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ld [hli], a
 	ld [hl], $f0
 	ret
@@ -9251,25 +9450,27 @@ jr_050_7df7:
 jr_050_7dfe:
 	pop hl
 	xor a
-	ld [$db4d], a
+	ld [wBattleArg1], a
 	ret
 
 
+UnusedTargetName::
 	db $21, $a0, $c1, $18, $03, $21, $80, $c1, $7d, $ea, $4e, $db, $7c, $ea, $4f, $db
 	db $fa, $89, $db, $ea, $50, $db, $cd, $2e, $7d, $c9
 
-Call_50_7E1E::
+GetSkillUserName::
 	ld hl, wTextArg0
 	ld a, l
-	ld [$db4e], a
+	ld [wBattleArg2], a
 	ld a, h
-	ld [$db4f], a
+	ld [wBattleArg3], a
 	ld a, [wSkillUser]
-	ld [$db50], a
-	call Call_50_7D2E
+	ld [wNamePos], a
+	call GetBattlerName_50
 	ret
 
 
+Bank50Padding::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

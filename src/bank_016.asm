@@ -4,9 +4,16 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $016", ROMX[$4000], BANK[$16]
 
+;@ path: breed/offspring
+;@ Bank $16 holds the breeding rules (which pair gives which offspring, its plus value, stats,
+;@ resistances and skills), the set-up of a monster that joins, and the gate world floors
+;@ (which floor comes next, the random floor layout, its stairs, chests and characters, and
+;@ the random encounter counter).
 BankNumber_16::
 	db $16
 
+;@ path: breed/offspring
+;@ Far-call entry points of bank $16.
 FarTable_16::
 	dw MakeOffspring
 	dw LookupBreedPair
@@ -19,300 +26,406 @@ FarTable_16::
 	dw CountEncounterSteps
 	dw GetFloorScreenMap
 
+;@ def MakeOffspring()
+;@ path: breed/offspring
+;@ Makes the egg of a breeding: the parents' records are in wBreedParent1 (the pedigree, slot
+;@ $14) and wBreedParent2 (the mate, slot $15). The egg goes into the first free monster slot
+;@ (on the farm). Its species comes from BreedResult; its plus value is the parents' plus + 1
+;@ (more for high levels), its level limit grows with the plus; its stats and resistances are
+;@ inherited from both parents; its sex is random (by the species' sex chance), and it gets
+;@ the base skills of its species and of both parents' species and the skills the parents
+;@ learned (each skill as the first of its series).
+;@ test: skip calls routines in other banks
 MakeOffspring::
+;> rec = wMonsters
 	ld de, wMonsters
+;>@find for slot in range(20):         # the first free slot
 	ld b, $14
 	ld c, $00
 
-jr_016_401c:
+.find
+;>     if mem[rec] == 0: break
 	ld a, [de]
 	or a
-	jr z, jr_016_402d
+	jr z, .found
 
+;>     rec += 0x95
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@find
 	inc c
 	dec b
-	jr nz, jr_016_401c
+	jr nz, .find
 
+;> else:
+;>     return                           # no free slot
 	ret
 
 
-jr_016_402d:
+.found
+;> wCurPartyMember = slot
 	ld a, c
 	ld [wCurPartyMember], a
+;> wLeaderSlot = slot
 	ld [wLeaderSlot], a
+;> fill(OffspringField(wMonsters), 0x95, 0)
 	ld hl, wMonsters
 	call OffspringField
 	ld bc, $0095
 	xor a
 	call FillMemory
+;> fill(OffspringField(wMonSkills), 8, 0xFF)
 	ld hl, wMonSkills
 	call OffspringField
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
+;> fill(OffspringField(wMonSkillList), 0x19, 0xFF)
 	ld hl, wMonSkillList
 	call OffspringField
 	ld bc, $0019
 	ld a, $ff
 	call FillMemory
+;> mem[OffspringField(wMonsters)] = 1  # kept on the farm
 	ld hl, wMonsters
 	call OffspringField
 	ld [hl], $01
-	ld a, [$d66e]
+;> wBreedQuery = wBreedParent1[9]      # the pedigree's species
+	ld a, [wBreedParent1 + 9]
 	ld [wBreedQuery], a
-	ld a, [$d703]
+;> wBreedSpecies2 = wBreedParent2[9]   # the mate's species
+	ld a, [wBreedParent2 + 9]
 	ld [wBreedSpecies2], a
+;> wBreedSlot1 = 0x14; wBreedSlot2 = 0x15
 	ld a, $14
 	ld [wBreedSlot1], a
 	ld a, $15
 	ld [wBreedSlot2], a
+;> BreedResult()
 	call BreedResult
+;> mem[OffspringField(wMonRecSpecies)] = wBreedPair[0]
 	ld hl, wMonRecSpecies
 	call OffspringField
 	ld a, [wBreedPair]
 	ld [hl], a
+;> wMonSpecies = wBreedPair[0]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
+;> SetFlag(wLibraryFlags, wMonSpecies)  # the library knows it now
 	ld a, [wMonSpecies]
 	ld hl, wLibraryFlags
 	call SetFlag
+;> mem[OffspringField(wMonFamily)] = wMonStats[0]
 	ld hl, wMonFamily
 	call OffspringField
 	ld a, [wMonStats]
 	ld [hl], a
+;>@plus plus = min(wOffspringPlus, 99)
 	ld a, [wOffspringPlus]
 	push af
 	ld hl, wMonPlus
 	call OffspringField
 	pop af
 	cp $63
-	jr c, jr_016_40b3
+;=@plus
+	jr c, .plusOk
 
 	ld a, $63
 
-jr_016_40b3:
+.plusOk
+;> mem[OffspringField(wMonPlus)] = plus
 	ld [hl], a
+;>@limit limit = plus * 2 + wMonStats[1]     # the species' level limit
 	ld hl, wMonPlus
 	call OffspringField
 	ld a, [hl]
 	ld l, a
 	ld h, $00
 	add hl, hl
-	ld a, [$da34]
+;=@limit
+	ld a, [wMonStats + 1]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@clamp limit = min(max(limit, 2), 99)
 	ld a, h
 	or a
-	jr nz, jr_016_40d7
+	jr nz, .max
 
+;=@clamp
 	ld a, l
 	cp $02
-	jr nc, jr_016_40d3
+	jr nc, .notLow
 
 	ld a, $02
 
-jr_016_40d3:
+.notLow
+;=@clamp
 	cp $63
-	jr c, jr_016_40d9
+	jr c, .limitOk
 
-jr_016_40d7:
+.max
+;=@clamp
 	ld a, $63
 
-jr_016_40d9:
+.limitOk
+;> mem[OffspringField(wMonMaxLevel)] = limit
 	push af
 	ld hl, wMonMaxLevel
 	call OffspringField
 	pop af
 	ld [hl], a
+;> mem[OffspringField(wMonLevel)] = 1
 	ld hl, wMonLevel
 	call OffspringField
 	ld [hl], $01
+;> hp = InheritStat16(wMonMaxHP)
 	ld hl, wMonMaxHP
 	call InheritStat16
+;>@hp mem16[OffspringField(wMonHP)] = hp
 	push bc
 	ld hl, wMonHP
 	call OffspringField
 	pop bc
 	ld a, c
 	ld [hli], a
+;=@hp
 	ld [hl], b
+;> mp = InheritStat16(wMonMaxMP)
 	ld hl, wMonMaxMP
 	call InheritStat16
+;>@mp mem16[OffspringField(wMonMP)] = mp
 	push bc
 	ld hl, wMonMP
 	call OffspringField
 	pop bc
 	ld a, c
 	ld [hli], a
+;=@mp
 	ld [hl], b
+;> for field in (wMonAttack, wMonDefense, wMonAgility, wMonIntelligence):
+;>@s16     InheritStat16(field)
 	ld hl, wMonAttack
 	call InheritStat16
+;=@s16
 	ld hl, wMonDefense
 	call InheritStat16
 	ld hl, wMonAgility
 	call InheritStat16
+;=@s16
 	ld hl, wMonIntelligence
 	call InheritStat16
+;> for field in (wMonStat64, wMonStat65, wMonStat67, wMonStat66):
+;>@s8     InheritStat8(field)
 	ld hl, wMonStat64
 	call InheritStat8
 	ld hl, wMonStat65
 	call InheritStat8
+;=@s8
 	ld hl, wMonStat67
 	call InheritStat8
 	ld hl, wMonStat66
 	call InheritStat8
+;> CopyToOffspring(wMonResist, wMonResistances, 27)   # the species' resistances
 	ld hl, wMonResist
 	ld de, wMonResistances
 	ld b, $1b
 	call CopyToOffspring
+;> InheritResistances()
 	call InheritResistances
+;> Random()
 	call Random
-	ld hl, $44cc
-	ld a, [$da36]
+;>@sex if wRandomHigh < SexChanceTable[wMonStats[3]]:
+	ld hl, SexChanceTable
+	ld a, [wMonStats + 3]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sex
 	ld h, a
 	ld a, [wRandomHigh]
 	cp [hl]
-	jr z, jr_016_4169
+	jr z, .sexDone
 
-	jr nc, jr_016_4169
+;=@sex
+	jr nc, .sexDone
 
+;>     mem[OffspringField(wMonGender)] = 1
 	ld hl, wMonGender
 	call OffspringField
 	ld [hl], $01
 
-jr_016_4169:
+.sexDone
+;> mem[OffspringField(wMonEgg)] = 1     # an egg
 	ld hl, wMonEgg
 	call OffspringField
 	ld [hl], $01
+;> SetOffspringParents()
 	call SetOffspringParents
-	ld de, $da39
+;> AddSkillsOfList(wMonStats + 6, 3)    # the offspring species' base skills
+	ld de, wMonStats + 6
 	ld b, $03
 	call AddSkillsOfList
-	ld a, [$d66e]
+;> wMonSpecies = wBreedParent1[9]; GetMonsterStats()
+	ld a, [wBreedParent1 + 9]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld de, $da39
+;> AddSkillsOfList(wMonStats + 6, 3)    # the pedigree species' base skills
+	ld de, wMonStats + 6
 	ld b, $03
 	call AddSkillsOfList
-	ld a, [$d703]
+;> wMonSpecies = wBreedParent2[9]; GetMonsterStats()
+	ld a, [wBreedParent2 + 9]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld de, $da39
+;> AddSkillsOfList(wMonStats + 6, 3)    # the mate species' base skills
+	ld de, wMonStats + 6
 	ld b, $03
 	call AddSkillsOfList
-	ld de, $d68e
+;> AddSkillsOfList(wBreedParent1 + 0x29, 8)   # the skills the pedigree learned
+	ld de, wBreedParent1 + $29
 	ld b, $08
 	call AddSkillsOfList
-	ld de, $d723
+;> AddSkillsOfList(wBreedParent2 + 0x29, 8)   # the skills the mate learned
+	ld de, wBreedParent2 + $29
 	ld b, $08
 	call AddSkillsOfList
 	ret
 
 
+;@ def OffspringField(field: hl) -> hl
+;@ path: breed/offspring
+;@ Address of a record field (given as its address in record 0) of monster wCurPartyMember.
+;@ test: skip calls MonsterField
 OffspringField::
+;> return MonsterField(field, wCurPartyMember)
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
 
 
+;@ def InheritStat16(field: hl) -> bc
+;@ path: breed/offspring
+;@ Inherits a 16-bit stat: q = (pedigree's + mate's value) / 4, plus q * n / 50 where n is
+;@ CountForeignMasters (the more foreign masters in the pedigree, the stronger); at least 1.
+;@ Stores it in the offspring's record and returns it.
+;@ test: skip calls routines through MonsterField
 InheritStat16::
+;>@p p = field + 0x14 * 0x95             # the pedigree's record (slot 20)
 	push hl
 	ld a, l
 	add $a4
 	ld l, a
 	ld a, h
 	adc $0b
+;=@p
 	ld h, a
+;>@q q = (mem16[p] + mem16[p + 0x95]) // 4   # + the mate's (slot 21)
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld a, l
 	add $94
 	ld l, a
+;=@q
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, [hli]
 	add c
 	ld c, a
+;=@q
 	ld a, [hl]
 	adc b
 	ld b, a
 	srl b
 	rr c
 	srl b
+;=@q
 	rr c
+;> dest = OffspringField(field)
 	pop hl
 	push bc
 	call OffspringField
 	pop bc
 	push hl
 	push bc
+;>@value value = q + q * CountForeignMasters() // 50
 	push bc
 	call CountForeignMasters
 	pop bc
 	call Multiply24
 	ld a, $32
 	call Divide16
+;=@value
 	pop bc
 	add hl, bc
 	ld c, l
 	ld b, h
+;> if value == 0:
+;>     value = 1
 	ld a, c
 	or b
-	jr nz, jr_016_41fa
+	jr nz, .store
 
 	ld bc, $0001
 
-jr_016_41fa:
+.store
+;> mem16[dest] = value
 	pop hl
 	ld a, c
 	ld [hli], a
 	ld [hl], b
+;> return value
 	ret
 
 
+;@ def InheritStat8(field: hl)
+;@ path: breed/offspring
+;@ Inherits an 8-bit stat: the average of the pedigree's and the mate's value.
+;@ test: skip calls routines through MonsterField
 InheritStat8::
+;>@p p = field + 0x14 * 0x95             # the pedigree's record (slot 20)
 	push hl
 	ld a, l
 	add $a4
 	ld l, a
 	ld a, h
 	adc $0b
+;=@p
 	ld h, a
+;>@value value = (mem[p] + mem[p + 0x95]) // 2
 	ld a, [hl]
 	ld c, a
 	ld b, $00
 	ld a, l
 	add $95
 	ld l, a
+;=@value
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, [hl]
 	add c
 	ld c, a
+;=@value
 	ld a, $00
 	add b
 	ld b, a
 	srl b
 	rr c
+;> mem[OffspringField(field)] = value
 	pop hl
 	push bc
 	call OffspringField
@@ -321,7 +434,12 @@ InheritStat8::
 	ret
 
 
+;@ def CopyToOffspring(field: hl, src: de, count: b)
+;@ path: breed/offspring
+;@ Copies `count` bytes from `src` into a field of the offspring's record.
+;@ test: skip calls MonsterField
 CopyToOffspring::
+;> dest = OffspringField(field)
 	push bc
 	push de
 	ld a, [wCurPartyMember]
@@ -329,211 +447,293 @@ CopyToOffspring::
 	pop de
 	pop bc
 
-jr_016_4231:
+.loop
+;>@copy copy(dest, src, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_016_4231
+	jr nz, .loop
 
 	ret
 
 
+;@ def SetOffspringParents()
+;@ path: breed/offspring
+;@ Writes the pedigree into the offspring's record: species, master's name, name and plus of
+;@ each parent. The female parent becomes parent 2, so the order depends on the pedigree's sex.
+;@ test: skip calls MonsterField
 SetOffspringParents::
-	ld a, [$d670]
+;> if wBreedParent1[0x0B] & 1:         # the pedigree is female: the mate is parent 1
+	ld a, [wBreedParent1 + $0b]
 	and $01
 	or a
-	jp nz, Jump_016_42aa
+	jp nz, .swapped
 
+;>     mem[OffspringField(wMonParent1)] = wBreedParent1[9]
 	ld hl, wMonParent1
 	call OffspringField
-	ld a, [$d66e]
+	ld a, [wBreedParent1 + 9]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent1Master, wBreedParent1 + 0x0C, 8)
 	ld hl, wMonParent1Master
-	ld de, $d671
+	ld de, wBreedParent1 + $0c
 	ld b, $08
 	call CopyToOffspring
-	ld hl, $cae0
+;>     mem[OffspringField(wMonParent1Master + 8)] = wPlayerName[8]
+	ld hl, wMonParent1Master + 8
 	call OffspringField
-	ld a, [$ca4a]
+	ld a, [wPlayerName + 8]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent1Name, wBreedParent1 + 1, 8)
 	ld hl, wMonParent1Name
-	ld de, $d666
+	ld de, wBreedParent1 + 1
 	ld b, $08
 	call CopyToOffspring
+;>     mem[OffspringField(wMonParent1Plus)] = wBreedParent1[0x62]
 	ld hl, wMonParent1Plus
 	call OffspringField
-	ld a, [$d6c7]
+	ld a, [wBreedParent1 + $62]
 	ld [hl], a
+;>     mem[OffspringField(wMonParent2)] = wBreedParent2[9]
 	ld hl, wMonParent2
 	call OffspringField
-	ld a, [$d703]
+	ld a, [wBreedParent2 + 9]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent2Master, wBreedParent2 + 0x0C, 8)
 	ld hl, wMonParent2Master
-	ld de, $d706
+	ld de, wBreedParent2 + $0c
 	ld b, $08
 	call CopyToOffspring
-	ld hl, $cae9
+;>     mem[OffspringField(wMonParent2Master + 8)] = wPlayerName[8]
+	ld hl, wMonParent2Master + 8
 	call OffspringField
-	ld a, [$ca4a]
+	ld a, [wPlayerName + 8]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent2Name, wBreedParent2 + 1, 8)
 	ld hl, wMonParent2Name
-	ld de, $d6fb
+	ld de, wBreedParent2 + 1
 	ld b, $08
 	call CopyToOffspring
+;>     mem[OffspringField(wMonParent2Plus)] = wBreedParent2[0x62]
 	ld hl, wMonParent2Plus
 	call OffspringField
-	ld a, [$d75c]
+	ld a, [wBreedParent2 + $62]
 	ld [hl], a
 	ret
 
 
-Jump_016_42aa:
+;> else:
+;>     mem[OffspringField(wMonParent1)] = wBreedParent2[9]
+.swapped
 	ld hl, wMonParent1
 	call OffspringField
-	ld a, [$d703]
+	ld a, [wBreedParent2 + 9]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent1Master, wBreedParent2 + 0x0C, 8)
 	ld hl, wMonParent1Master
-	ld de, $d706
+	ld de, wBreedParent2 + $0c
 	ld b, $08
 	call CopyToOffspring
-	ld hl, $cae0
+;>     mem[OffspringField(wMonParent1Master + 8)] = wPlayerName[8]
+	ld hl, wMonParent1Master + 8
 	call OffspringField
-	ld a, [$ca4a]
+	ld a, [wPlayerName + 8]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent1Name, wBreedParent2 + 1, 8)
 	ld hl, wMonParent1Name
-	ld de, $d6fb
+	ld de, wBreedParent2 + 1
 	ld b, $08
 	call CopyToOffspring
+;>     mem[OffspringField(wMonParent1Plus)] = wBreedParent2[0x62]
 	ld hl, wMonParent1Plus
 	call OffspringField
-	ld a, [$d75c]
+	ld a, [wBreedParent2 + $62]
 	ld [hl], a
+;>     mem[OffspringField(wMonParent2)] = wBreedParent1[9]
 	ld hl, wMonParent2
 	call OffspringField
-	ld a, [$d66e]
+	ld a, [wBreedParent1 + 9]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent2Master, wBreedParent1 + 0x0C, 8)
 	ld hl, wMonParent2Master
-	ld de, $d671
+	ld de, wBreedParent1 + $0c
 	ld b, $08
 	call CopyToOffspring
-	ld hl, $cae9
+;>     mem[OffspringField(wMonParent2Master + 8)] = wPlayerName[8]
+	ld hl, wMonParent2Master + 8
 	call OffspringField
-	ld a, [$ca4a]
+	ld a, [wPlayerName + 8]
 	ld [hl], a
+;>     CopyToOffspring(wMonParent2Name, wBreedParent1 + 1, 8)
 	ld hl, wMonParent2Name
-	ld de, $d666
+	ld de, wBreedParent1 + 1
 	ld b, $08
 	call CopyToOffspring
+;>     mem[OffspringField(wMonParent2Plus)] = wBreedParent1[0x62]
 	ld hl, wMonParent2Plus
 	call OffspringField
-	ld a, [$d6c7]
+	ld a, [wBreedParent1 + $62]
 	ld [hl], a
 	ret
 
 
+;@ def CountForeignMasters() -> a
+;@ path: breed/offspring
+;@ Counts the 9-byte names in the pedigree that differ from the player's name: each parent's
+;@ master, and, for a parent that has parents itself, the two names at record offsets $83
+;@ and $8C (where SetOffspringParents keeps its parents' names). 0-6.
+;@ test: skip compares records in RAM
 CountForeignMasters::
+;> n = 0
 	ld c, $00
-	ld hl, $d671
+;> n += CountIfNotPlayerName(wBreedParent1 + 0x0C)
+	ld hl, wBreedParent1 + $0c
 	call CountIfNotPlayerName
-	ld a, [$d67a]
+;> if wBreedParent1[0x15] != 0xFF:     # the pedigree has parents
+;>     n += CountIfNotPlayerName(wBreedParent1 + 0x83)
+	ld a, [wBreedParent1 + $15]
 	cp $ff
-	ld hl, $d6e8
+	ld hl, wBreedParent1 + $83
 	call nz, CountIfNotPlayerName
-	ld a, [$d67b]
+;> if wBreedParent1[0x16] != 0xFF:
+;>     n += CountIfNotPlayerName(wBreedParent1 + 0x8C)
+	ld a, [wBreedParent1 + $16]
 	cp $ff
-	ld hl, $d6f1
+	ld hl, wBreedParent1 + $8c
 	call nz, CountIfNotPlayerName
-	ld hl, $d706
+;> n += CountIfNotPlayerName(wBreedParent2 + 0x0C)
+	ld hl, wBreedParent2 + $0c
 	call CountIfNotPlayerName
-	ld a, [$d70f]
+;> if wBreedParent2[0x15] != 0xFF:
+;>     n += CountIfNotPlayerName(wBreedParent2 + 0x83)
+	ld a, [wBreedParent2 + $15]
 	cp $ff
-	ld hl, $d77d
+	ld hl, wBreedParent2 + $83
 	call nz, CountIfNotPlayerName
-	ld a, [$d710]
+;> if wBreedParent2[0x16] != 0xFF:
+;>     n += CountIfNotPlayerName(wBreedParent2 + 0x8C)
+	ld a, [wBreedParent2 + $16]
 	cp $ff
-	ld hl, $d786
+	ld hl, wBreedParent2 + $8c
 	call nz, CountIfNotPlayerName
+;> return n
 	ld a, c
 	ret
 
 
+;@ def CountIfNotPlayerName(name: hl, n: c) -> c
+;@ path: breed/offspring
+;@ Compares the 9 bytes at `name` with wPlayerName; returns `n` + 1 if they differ.
+;@ test: c = rand(0, 5)
 CountIfNotPlayerName::
+;> for i in range(9):
 	ld de, wPlayerName
 	ld b, $09
 
-jr_016_4354:
+.loop
+;>     if mem[wPlayerName + i] != mem[name + i]:
 	ld a, [de]
 	cp [hl]
-	jr z, jr_016_435a
+	jr z, .same
 
+;>@next         return n + 1
 	inc c
 	ret
 
 
-jr_016_435a:
+.same
+;=@next
 	inc de
 	inc hl
 	dec b
-	jr nz, jr_016_4354
+	jr nz, .loop
 
+;> return n
 	ret
 
 
+;@ def InheritResistances()
+;@ path: breed/offspring
+;@ Runs InheritResistance for each of the 27 resistances (wBreedTemp is the index).
+;@ test: skip calls MonsterField
 InheritResistances::
+;> wBreedTemp = 0
 	xor a
 	ld [wBreedTemp], a
+;> for i in range(27):
 	ld b, $1b
 
-jr_016_4366:
+.loop
+;>     InheritResistance()
 	push bc
 	call InheritResistance
+;>     wBreedTemp += 1
 	ld hl, wBreedTemp
 	inc [hl]
 	pop bc
 	dec b
-	jr nz, jr_016_4366
+	jr nz, .loop
 
 	ret
 
 
+;@ def InheritResistance()
+;@ path: breed/offspring
+;@ Resistance wBreedTemp of the offspring (0-3, starting as its species' value) may rise by
+;@ the sum s of the parents' values (0-6): below 2, s = 3 raises it with a chance of plus/100,
+;@ s = 4 plus/30, s = 5 two tries of plus/10 and plus/30, s = 6 always once and then plus/20;
+;@ a value of 2 rises to 3 for s = 5 with plus/200, s = 6 plus/40. 3 is the top.
+;@ test: skip calls MonsterField
 InheritResistance::
+;>@r r = mem[OffspringField(wMonResist + wBreedTemp)]
 	ld a, [wBreedTemp]
 	ld hl, wMonResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@r
 	ld h, a
 	call OffspringField
 	ld a, [hl]
+;> if r == 3:
+;>     return
 	cp $03
 	ret z
 
+;> if r == 2:
+;>     return InheritTopResistance()    # (the second half of this routine)
 	cp $02
 	jp z, Jump_016_43fc
 
+;>@s s = wBreedParent1[0x68 + wBreedTemp] + wBreedParent2[0x68 + wBreedTemp]
 	ld a, [wBreedTemp]
-	ld hl, $d6cd
+	ld hl, wBreedParent1 + $68
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hl]
 	push af
 	ld a, [wBreedTemp]
-	ld hl, $d762
+	ld hl, wBreedParent2 + $68
 	add l
+;=@s
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	pop af
 	add [hl]
+;> ResistanceGainTable[s & 7]()
 	and $07
 	rst $00
 
+;@ path: breed/offspring
+;@ What a resistance below 2 gains, by the sum of the parents' values.
 ResistanceGainTable::
 	dw ResistanceKeep
 	dw ResistanceKeep
@@ -543,11 +743,21 @@ ResistanceGainTable::
 	dw ResistanceGainPlus10And30
 	dw ResistanceGainAndPlus20
 
+;@ def ResistanceKeep()
+;@ path: breed/offspring
+;@ The resistance stays.
 ResistanceKeep::
+;> return
 	ret
 
 
+;@ def ResistanceGainPlus100()
+;@ path: breed/offspring
+;@ The resistance rises by one (to at most 2) with a chance of plus/100.
+;@ test: skip calls MonsterField
 ResistanceGainPlus100::
+;> if PlusChance(100, wOffspringPlus):
+;>     RaiseResistanceTo2()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $64
@@ -556,7 +766,13 @@ ResistanceGainPlus100::
 	ret
 
 
+;@ def ResistanceGainPlus30()
+;@ path: breed/offspring
+;@ The resistance rises by one (to at most 2) with a chance of plus/30.
+;@ test: skip calls MonsterField
 ResistanceGainPlus30::
+;> if PlusChance(30, wOffspringPlus):
+;>     RaiseResistanceTo2()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $1e
@@ -565,12 +781,21 @@ ResistanceGainPlus30::
 	ret
 
 
+;@ def ResistanceGainPlus10And30()
+;@ path: breed/offspring
+;@ Two tries: with a chance of plus/10, then of plus/30, the resistance rises by one (to at
+;@ most 2).
+;@ test: skip calls MonsterField
 ResistanceGainPlus10And30::
+;> if PlusChance(10, wOffspringPlus):
+;>     RaiseResistanceTo2()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $0a
 	call PlusChance
 	call c, RaiseResistanceTo2
+;> if PlusChance(30, wOffspringPlus):
+;>     RaiseResistanceTo2()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $1e
@@ -579,8 +804,15 @@ ResistanceGainPlus10And30::
 	ret
 
 
+;@ def ResistanceGainAndPlus20()
+;@ path: breed/offspring
+;@ The resistance rises by one, and once more with a chance of plus/20 (to at most 2).
+;@ test: skip calls MonsterField
 ResistanceGainAndPlus20::
+;> RaiseResistanceTo2()
 	call RaiseResistanceTo2
+;> if PlusChance(20, wOffspringPlus):
+;>     RaiseResistanceTo2()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $14
@@ -589,28 +821,35 @@ ResistanceGainAndPlus20::
 	ret
 
 
+;> def InheritTopResistance():          # a resistance of 2
+;>@s2     s = wBreedParent1[0x68 + wBreedTemp] + wBreedParent2[0x68 + wBreedTemp]
 Jump_016_43fc:
 	ld a, [wBreedTemp]
-	ld hl, $d6cd
+	ld hl, wBreedParent1 + $68
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s2
 	ld h, a
 	ld a, [hl]
 	push af
 	ld a, [wBreedTemp]
-	ld hl, $d762
+	ld hl, wBreedParent2 + $68
 	add l
+;=@s2
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	pop af
 	add [hl]
+;>     ResistanceTopTable[s & 7]()
 	and $07
 	rst $00
 
+;@ path: breed/offspring
+;@ What a resistance of 2 gains, by the sum of the parents' values.
 ResistanceTopTable::
 	dw ResistanceTopKeep
 	dw ResistanceTopKeep
@@ -620,11 +859,21 @@ ResistanceTopTable::
 	dw ResistanceTopPlus200
 	dw ResistanceTopPlus40
 
+;@ def ResistanceTopKeep()
+;@ path: breed/offspring
+;@ The resistance stays.
 ResistanceTopKeep::
+;> return
 	ret
 
 
+;@ def ResistanceTopPlus200()
+;@ path: breed/offspring
+;@ The resistance rises to 3 with a chance of plus/200.
+;@ test: skip calls MonsterField
 ResistanceTopPlus200::
+;> if PlusChance(200, wOffspringPlus):
+;>     RaiseResistanceTo3()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $c8
@@ -633,7 +882,13 @@ ResistanceTopPlus200::
 	ret
 
 
+;@ def ResistanceTopPlus40()
+;@ path: breed/offspring
+;@ The resistance rises to 3 with a chance of plus/40.
+;@ test: skip calls MonsterField
 ResistanceTopPlus40::
+;> if PlusChance(40, wOffspringPlus):
+;>     RaiseResistanceTo3()
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $28
@@ -642,13 +897,20 @@ ResistanceTopPlus40::
 	ret
 
 
+;@ def PlusChance(range: a, plus: b) -> carry
+;@ path: breed/offspring
+;@ True (carry) with a chance of `plus` / `range`: a random number below `range` is
+;@ compared with `plus`.
+;@ test: skip calls Random
 PlusChance::
+;>@roll return Random() % range < plus
 	push bc
 	push af
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
+;=@roll
 	ld h, a
 	pop af
 	call Divide16
@@ -657,50 +919,77 @@ PlusChance::
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls: lowers resistance wBreedTemp of the offspring by one (not below 0).
+UnusedLowerResistance::
 	db $fa, $72, $da, $21, $29, $cb, $85, $6f, $3e, $00, $8c, $67, $cd, $b1, $41, $7e
 	db $b7, $c8, $35, $c9
 
+;@ def RaiseResistanceTo3()
+;@ path: breed/offspring
+;@ Raises resistance wBreedTemp of the offspring by one, unless it is 3 already.
+;@ test: skip calls MonsterField
 RaiseResistanceTo3::
+;>@p p = OffspringField(wMonResist + wBreedTemp)
 	ld a, [wBreedTemp]
 	ld hl, wMonResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p
 	ld h, a
 	call OffspringField
+;> if mem[p] != 3:
 	ld a, [hl]
 	cp $03
 	ret z
 
+;>     mem[p] += 1
 	inc [hl]
 	ret
 
 
+;@ def RaiseResistanceTo2()
+;@ path: breed/offspring
+;@ Raises resistance wBreedTemp of the offspring by one, unless it is 2 already.
+;@ test: skip calls MonsterField
 RaiseResistanceTo2::
+;>@p p = OffspringField(wMonResist + wBreedTemp)
 	ld a, [wBreedTemp]
 	ld hl, wMonResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p
 	ld h, a
 	call OffspringField
+;> if mem[p] != 2:
 	ld a, [hl]
 	cp $02
 	ret z
 
+;>     mem[p] += 1
 	inc [hl]
 	ret
 
 
+;@ def AddSkillsOfList(skills: de, count: b)
+;@ path: breed/offspring
+;@ Adds the series of each of `count` skills to the offspring's list of skills to learn
+;@ (AddBaseSkill).
+;@ test: skip calls MonsterField
 AddSkillsOfList::
+;> for i in range(count):
+;>@loop     AddBaseSkill(mem[skills + i])
 	ld a, [de]
 	inc de
 	push bc
 	push de
 	call AddBaseSkill
 	pop de
+;=@loop
 	pop bc
 	dec b
 	jr nz, AddSkillsOfList
@@ -708,20 +997,32 @@ AddSkillsOfList::
 	ret
 
 
+;@ def AddBaseSkill(skill: a)
+;@ path: breed/offspring
+;@ Adds the first skill of `skill`'s series (SkillBaseTable) to the offspring's list of skills
+;@ to learn (wMonSkillList, 25 places), unless it is there already or the list is full.
+;@ test: skip calls MonsterField
 AddBaseSkill::
+;> if skill == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
-	ld hl, $4874
+;>@base base = SkillBaseTable[skill]
+	ld hl, SkillBaseTable
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@base
 	ld a, [hl]
+;> if base == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> p = OffspringField(wMonSkillList)
 	push af
 	ld hl, wMonSkillList
 	call OffspringField
@@ -729,39 +1030,59 @@ AddBaseSkill::
 	ld b, $19
 	ld c, a
 
-jr_016_44be:
+.loop
+;>@loop for i in range(25):
+;>     if mem[p + i] == base: return    # known already
 	ld a, [hl]
 	cp c
 	ret z
 
+;>     if mem[p + i] == 0xFF:           # the first free place
 	cp $ff
-	jr nz, jr_016_44c7
+	jr nz, .next
 
+;>         mem[p + i] = base; return
 	ld [hl], c
 	ret
 
 
-jr_016_44c7:
+.next
+;=@loop
 	inc hl
 	dec b
-	jr nz, jr_016_44be
+	jr nz, .loop
 
 	ret
 
 
+;@ path: breed/rules
+;@ Chance (of 256) that the offspring gets sex 1, by the species' sex-ratio class (template stat
+;@ 3): never, about 10%, 50%, about 84%.
 SexChanceTable::
 	db $00, $1a, $80, $d6
 
+;@ def ClearBreedCountUnlinked()
+;@ path: breed/rules
+;@ Outside link mode clears wBreedCount.
+;@ test: wLinkActive = rand(0, 1)
 ClearBreedCountUnlinked::
+;> if wLinkActive:
+;>     return
 	ld a, [wLinkActive]
 	or a
 	ret nz
 
+;> wBreedCount = 0
 	xor a
 	ld [wBreedCount], a
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls: breeding-count helpers that count the party or farm monsters of a
+;@ species (through $1DFB and $453D / $4553) and step wBreedCount, plus two small loops over
+;@ the monster list.
+UnusedBreedCountRule::
 	db $fa, $71, $da, $fe, $ff, $28, $2e, $cd, $d0, $12, $fa, $99, $c8, $fe, $03, $d0
 	db $06, $c8, $16, $d7, $cd, $3d, $45, $fa, $9a, $c8, $47, $79, $b7, $c8, $cd, $fb
 	db $1d, $06, $c8, $16, $d7, $5f, $cd, $53, $45, $78, $ea, $71, $da, $21, $e6, $d9
@@ -773,264 +1094,379 @@ ClearBreedCountUnlinked::
 	db $78, $cd, $7e, $26, $d1, $c1, $28, $04, $79, $bb, $c8, $0c, $04, $78, $ba, $20
 	db $ea, $06, $ff, $c9
 
+;@ def BreedResult()
+;@ path: breed/rules
+;@ Works out the offspring of the pedigree wBreedQuery and the mate wBreedSpecies2 (monster
+;@ slots wBreedSlot1 / wBreedSlot2) into wBreedPair[0], and its plus value into
+;@ wOffspringPlus: first the special pairs (FindSpecialPair), then the pair table by species
+;@ and family (FindPairByFamily); with no match the offspring is of the pedigree's species.
+;@ test: skip calls routines in other banks
 BreedResult::
+;> wBreedPair[0] = 0xFF
 	ld a, $ff
 	ld [wBreedPair], a
+;> wBreedTemp = 0xFF
 	ld a, $ff
 	ld [wBreedTemp], a
+;> wBreedFamily1 = 0xFF
 	ld a, $ff
 	ld [wBreedFamily1], a
+;> wBreedFamily2 = 0xFF
 	ld a, $ff
 	ld [wBreedFamily2], a
+;> wOffspringPlus = 0xFF
 	ld a, $ff
 	ld [wOffspringPlus], a
+;> FindSpecialPair()
 	call FindSpecialPair
+;> if wBreedPair[0] != 0xFF:
+;>     return
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
+;> FindPairByFamily()
 	call FindPairByFamily
+;> ClearBreedCountUnlinked()
 	call ClearBreedCountUnlinked
+;> if wBreedPair[0] != 0xFF:
+;>     return
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
+;> wBreedPair[0] = wBreedQuery          # no rule: the pedigree's species
 	ld a, [wBreedQuery]
 	ld [wBreedPair], a
 	ret
 
 
+;@ def BreedResultPreview()
+;@ path: breed/rules
+;@ BreedResult without clearing wBreedCount (used to show the result before breeding).
+;@ test: skip calls routines in other banks
 BreedResultPreview::
+;> wBreedPair[0] = 0xFF
 	ld a, $ff
 	ld [wBreedPair], a
+;> wBreedTemp = 0xFF
 	ld a, $ff
 	ld [wBreedTemp], a
+;> wBreedFamily1 = 0xFF
 	ld a, $ff
 	ld [wBreedFamily1], a
+;> wBreedFamily2 = 0xFF
 	ld a, $ff
 	ld [wBreedFamily2], a
+;> wOffspringPlus = 0xFF
 	ld a, $ff
 	ld [wOffspringPlus], a
+;> FindSpecialPair()
 	call FindSpecialPair
+;> if wBreedPair[0] != 0xFF:
+;>     return
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
+;> FindPairByFamily()
 	call FindPairByFamily
+;> if wBreedPair[0] != 0xFF:
+;>     return
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
+;> wBreedPair[0] = wBreedQuery
 	ld a, [wBreedQuery]
 	ld [wBreedPair], a
 	ret
 
 
+;@ def FindPairByFamily()
+;@ path: breed/rules
+;@ Looks the pair up in BreedPairTable: first with the mate's species, then (when nothing
+;@ matched) with the mate's family ($F0 + family).
+;@ test: skip calls routines in other banks
 FindPairByFamily::
+;> if wBreedSpecies2 >= 0xF0:          # the mate is given as a family already
+;>     return FindPairInTable()
 	ld a, [wBreedSpecies2]
 	cp $f0
 	jr nc, FindPairInTable
 
+;> query = wBreedQuery
 	ld a, [wBreedQuery]
 	push af
+;> FindPairInTable()
 	call FindPairInTable
+;> wBreedQuery = query
 	pop af
 	ld [wBreedQuery], a
+;> if wBreedPair[0] != 0xFF:
+;>     return
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
+;> wMonSpecies = wBreedSpecies2; GetMonsterStats()
 	ld a, [wBreedSpecies2]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
+;> family = 0xF0 + wMonStats[0]        # the mate's family
 	ld a, [wMonStats]
 	add $f0
+;> wBreedSpecies2 = family; return FindPairInTable()   # runs on into it
 	ld [wBreedSpecies2], a
 
+;@ def FindPairInTable()
+;@ path: breed/rules
+;@ Searches BreedPairTable (the entry number is the offspring species) for an entry whose mate
+;@ matches wBreedSpecies2 (a family entry $FA matches any family) and whose pedigree is
+;@ wBreedQuery (taken at once) or the pedigree's family (remembered, the search goes on).
+;@ test: skip reads the pair table
 FindPairInTable::
+;> if wBreedQuery < 0xF0:
 	ld a, [wBreedQuery]
 	cp $f0
-	jr nc, jr_016_4615
+	jr nc, .search
 
+;>     wMonSpecies = wBreedQuery; GetMonsterStats()
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
+;>     wBreedTemp = 0xF0 + wMonStats[0] # the pedigree's family
 	ld a, [wMonStats]
 	add $f0
 	ld [wBreedTemp], a
 
-jr_016_4615:
-	ld hl, $4974
+.search
+;> p = BreedPairTable; species = -1
+	ld hl, BreedPairTable
 	ld d, $ff
 
-jr_016_461a:
+.loop
+;>@loop while True:
+;>     species += 1
 	inc d
+;>     pedigree, mate = mem[p], mem[p + 1]; p += 2
 	ld b, [hl]
 	inc hl
 	ld c, [hl]
 	inc hl
+;>     if pedigree == 0 and mate == 0:  # the end
+;>         return
 	ld a, b
 	or c
 	ret z
 
+;>     if pedigree == 0xFF and mate == 0xFF:
+;>         continue
 	ld a, b
 	and c
 	cp $ff
-	jr z, jr_016_461a
+	jr z, .loop
 
+;>@mate     if not (wBreedSpecies2 & 0xF0 == 0xF0 and mate == 0xFA) and mate != wBreedSpecies2:
 	ld a, [wBreedSpecies2]
 	and $f0
 	cp $f0
-	jr nz, jr_016_4636
+	jr nz, .compareMate
 
+;=@mate
 	ld a, c
 	cp $fa
-	jr z, jr_016_463c
+	jr z, .mateOk
 
-jr_016_4636:
+.compareMate
+;=@mate
 	ld a, [wBreedSpecies2]
 	cp c
-	jr nz, jr_016_461a
+;>         continue
+	jr nz, .loop
 
-jr_016_463c:
+.mateOk
+;>     if pedigree == wBreedQuery:      # this exact species
 	ld a, [wBreedQuery]
 	cp b
-	jr z, jr_016_464e
+;>@found         wBreedPair[0] = species; return
+	jr z, .found
 
+;>     if pedigree == wBreedTemp:       # the pedigree's family: keep looking for a better one
 	ld a, [wBreedTemp]
 	cp b
-	jr nz, jr_016_464c
+	jr nz, .next
 
+;>         wBreedPair[0] = species
 	ld a, d
 	ld [wBreedPair], a
 
-jr_016_464c:
-	jr jr_016_461a
+.next
+;=@loop
+	jr .loop
 
-jr_016_464e:
+.found
+;=@found
 	ld a, d
 	ld [wBreedPair], a
 	ret
 
 
+;@ def FindSpecialPair()
+;@ path: breed/rules
+;@ Works out the offspring's plus value, then searches SpecialPairTable. Plus: the pedigree's
+;@ plus (outside link mode the higher of both parents') + 1, + 1/2/3/4 when the parents'
+;@ levels add up to at least 40/60/76/100, at most 99. A special pair found sets the offspring
+;@ and adds its plus bonus.
+;@ test: skip calls routines in other banks
 FindSpecialPair::
+;> plus = mem[MonsterField(wMonPlus, wBreedSlot1)]
 	ld a, [wBreedSlot1]
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	ld b, a
+;> if not wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_016_467d
+	jr nz, .linked
 
+;>@max     plus = max(plus, mem[MonsterField(wMonPlus, wBreedSlot2)])
 	ld a, [wBreedSlot1]
 	ld hl, wMonPlus
 	call MonsterField
 	ld b, [hl]
 	push bc
 	ld a, [wBreedSlot2]
+;=@max
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	pop bc
 	cp b
-	jr nc, jr_016_467e
+	jr nc, .plusOne
 
-jr_016_467d:
+.linked
+;=@max
 	ld a, b
 
-jr_016_467e:
+.plusOne
+;> wOffspringPlus = plus + 1
 	inc a
 	ld [wOffspringPlus], a
+;>@levels levels = mem[MonsterField(wMonLevel, wBreedSlot1)] + mem[MonsterField(wMonLevel, wBreedSlot2)]
 	ld a, [wBreedSlot1]
 	ld hl, wMonLevel
 	call MonsterField
 	ld b, [hl]
 	push bc
 	ld a, [wBreedSlot2]
+;=@levels
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	pop bc
 	add b
+;>@bonus bonus = 4 if levels >= 100 else 3 if levels >= 76 else 2 if levels >= 60 else 1 if levels >= 40 else 0
 	ld c, $04
 	cp $64
-	jr nc, jr_016_46b3
+	jr nc, .bonus
 
+;=@bonus
 	ld c, $03
 	cp $4c
-	jr nc, jr_016_46b3
+	jr nc, .bonus
 
+;=@bonus
 	ld c, $02
 	cp $3c
-	jr nc, jr_016_46b3
+	jr nc, .bonus
 
+;=@bonus
 	ld c, $01
 	cp $28
-	jr nc, jr_016_46b3
+	jr nc, .bonus
 
+;=@bonus
 	ld c, $00
 
-jr_016_46b3:
+.bonus
+;> wOffspringPlus += bonus
 	ld a, [wOffspringPlus]
 	add c
 	ld [wOffspringPlus], a
+;> if wOffspringPlus >= 99:
+;>     wOffspringPlus = 99
 	ld a, [wOffspringPlus]
 	cp $63
-	jr c, jr_016_46c6
+	jr c, .plusOk
 
 	ld a, $63
 	ld [wOffspringPlus], a
 
-jr_016_46c6:
+.plusOk
+;> if wBreedQuery < 0xF0:
 	ld a, [wBreedQuery]
 	cp $f0
-	jr nc, jr_016_46dc
+	jr nc, .family2
 
+;>     wMonSpecies = wBreedQuery; GetMonsterStats()
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
+;>     wBreedFamily1 = 0xF0 + wMonStats[0]
 	ld a, [wMonStats]
 	add $f0
 	ld [wBreedFamily1], a
 
-jr_016_46dc:
+.family2
+;> if wBreedSpecies2 < 0xF0:
 	ld a, [wBreedSpecies2]
 	cp $f0
-	jr nc, jr_016_46f2
+	jr nc, .search
 
+;>     wMonSpecies = wBreedSpecies2; GetMonsterStats()
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
+;>     wBreedFamily2 = 0xF0 + wMonStats[0]
 	ld a, [wMonStats]
 	add $f0
 	ld [wBreedFamily2], a
 
-jr_016_46f2:
-	ld hl, $4b30
+.search
+;> p = SpecialPairTable
+	ld hl, SpecialPairTable
 
-jr_016_46f5:
+.loop
+;>@loop while mem[p] != 0xFF:
 	ld a, [hl]
 	cp $ff
-	jr z, jr_016_4710
+	jr z, .done
 
+;>     CheckSpecialPair(p)
 	push hl
 	call CheckSpecialPair
 	pop hl
+;>     if wBreedPair[0] != 0xFF: break
 	ld a, [wBreedPair]
 	cp $ff
-	jr nz, jr_016_4710
+	jr nz, .done
 
+;>     p += 5
 	ld a, l
 	add $05
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_016_46f5
+;=@loop
+	jr .loop
 
-jr_016_4710:
+.done
+;> if wOffspringPlus >= 99:
+;>     wOffspringPlus = 99
 	ld a, [wOffspringPlus]
 	cp $63
 	ret c
@@ -1040,124 +1476,170 @@ jr_016_4710:
 	ret
 
 
+;@ def CheckSpecialPair(entry: hl)
+;@ path: breed/rules
+;@ Tests one SpecialPairTable entry (pedigree, mate, lowest plus, offspring, plus bonus): the
+;@ pedigree and mate bytes match a species or a family ($F0 + family); when they match and
+;@ the offspring's plus is high enough, sets the offspring and adds the bonus.
+;@ test: skip reads the pair table
 CheckSpecialPair::
+;>@ped if entry[0] in (wBreedQuery, wBreedFamily1):
 	ld a, [wBreedQuery]
 	cp [hl]
-	jr z, jr_016_4728
+	jr z, .pedigreeOk
 
+;=@ped
 	ld a, [wBreedFamily1]
 	cp [hl]
-	jr nz, jr_016_4749
+	jr nz, .done
 
-jr_016_4728:
+.pedigreeOk
+;>@mate     if entry[1] in (wBreedSpecies2, wBreedFamily2):
 	inc hl
 	ld a, [wBreedSpecies2]
 	cp [hl]
-	jr z, jr_016_4735
+	jr z, .mateOk
 
+;=@mate
 	ld a, [wBreedFamily2]
 	cp [hl]
-	jr nz, jr_016_4749
+	jr nz, .done
 
-jr_016_4735:
+.mateOk
+;>         if wOffspringPlus >= entry[2]:
 	inc hl
 	ld a, [wOffspringPlus]
 	cp [hl]
-	jr c, jr_016_4749
+	jr c, .done
 
+;>             wBreedPair[0] = entry[3]
 	inc hl
 	ld a, [hl]
 	ld [wBreedPair], a
+;>             wOffspringPlus += entry[4]
 	inc hl
 	ld a, [wOffspringPlus]
 	add [hl]
 	ld [wOffspringPlus], a
 
-jr_016_4749:
+.done
 	ret
 
 
+;@ def InitJoinedMonster()
+;@ path: monster/join
+;@ Sets up monster wCurPartyMember when it joins (after a battle or hatching): wildness 0,
+;@ Terry as its master, and a new list of skills to learn: first the series of its species'
+;@ and (when it has parents) its parents' species' base skills, then those already in its
+;@ list. It is no egg any more.
+;@ test: skip calls routines in other banks
 InitJoinedMonster::
+;> mem16[CurMonField(wMonWildness)] = 0
 	ld hl, wMonWildness
 	call CurMonField
 	xor a
 	ld [hli], a
 	ld [hl], a
+;> CopyToCurMon(wMonMaster, wPlayerName, 8)
 	ld hl, wMonMaster
 	ld de, wPlayerName
 	ld b, $08
 	call CopyToCurMon
-	ld hl, $cad5
+;> mem[CurMonField(wMonMaster + 8)] = wPlayerName[8]
+	ld hl, wMonMaster + 8
 	call CurMonField
-	ld a, [$ca4a]
+	ld a, [wPlayerName + 8]
 	ld [hl], a
+;> fill(wSceneObjects, 0x19, 0xFF)      # the new list
 	ld hl, wSceneObjects
 	ld bc, $0019
 	ld a, $ff
 	call FillMemory
+;> wMonSpecies = mem[CurMonField(wMonRecSpecies)]; GetMonsterStats()
 	ld hl, wMonRecSpecies
 	call CurMonField
 	ld a, [hl]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld de, $da39
+;> AddSkillsToScratch(wMonStats + 6, 3)
+	ld de, wMonStats + 6
 	ld b, $03
 	call AddSkillsToScratch
+;> parent = mem[CurMonField(wMonParent1)]
 	ld hl, wMonParent1
 	call CurMonField
 	ld a, [hl]
+;> if parent != 0xFF:
 	cp $ff
-	jr z, jr_016_47b9
+	jr z, .own
 
+;>     wMonSpecies = parent; GetMonsterStats()
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld de, $da39
+;>     AddSkillsToScratch(wMonStats + 6, 3)
+	ld de, wMonStats + 6
 	ld b, $03
 	call AddSkillsToScratch
+;>     wMonSpecies = mem[CurMonField(wMonParent2)]; GetMonsterStats()
 	ld hl, wMonParent2
 	call CurMonField
 	ld a, [hl]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld de, $da39
+;>     AddSkillsToScratch(wMonStats + 6, 3)
+	ld de, wMonStats + 6
 	ld b, $03
 	call AddSkillsToScratch
 
-jr_016_47b9:
+.own
+;> AddSkillsByChance(CurMonField(wMonSkillList), 0x19)   # then the old list
 	ld hl, wMonSkillList
 	call CurMonField
 	ld e, l
 	ld d, h
 	ld b, $19
 	call AddSkillsByChance
+;>@copy copy(CurMonField(wMonSkillList), wSceneObjects, 0x19)
 	ld hl, wMonSkillList
 	call CurMonField
 	ld de, wSceneObjects
 	ld b, $19
 
-jr_016_47d1:
+.copy
+;=@copy
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_016_47d1
+	jr nz, .copy
 
+;> mem[CurMonField(wMonEgg)] = 0
 	ld hl, wMonEgg
 	call CurMonField
 	ld [hl], $00
 	ret
 
 
+;@ def CurMonField(field: hl) -> hl
+;@ path: monster/join
+;@ Address of a record field (given as its address in record 0) of monster wCurPartyMember.
+;@ test: skip calls MonsterField
 CurMonField::
+;> return MonsterField(field, wCurPartyMember)
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
 
 
+;@ def CopyToCurMon(field: hl, src: de, count: b)
+;@ path: monster/join
+;@ Copies `count` bytes from `src` into a field of monster wCurPartyMember.
+;@ test: skip calls MonsterField
 CopyToCurMon::
+;> dest = CurMonField(field)
 	push bc
 	push de
 	ld a, [wCurPartyMember]
@@ -1165,23 +1647,31 @@ CopyToCurMon::
 	pop de
 	pop bc
 
-jr_016_47f1:
+.loop
+;>@copy copy(dest, src, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_016_47f1
+	jr nz, .loop
 
 	ret
 
 
+;@ def AddSkillsToScratch(skills: de, count: b)
+;@ path: monster/join
+;@ Adds the series of each of `count` skills to the skill list being built in wSceneObjects.
+;@ test: skip reads the skill table
 AddSkillsToScratch::
+;> for i in range(count):
+;>@loop     AddSkillToScratch(mem[skills + i])
 	ld a, [de]
 	inc de
 	push bc
 	push de
 	call AddSkillToScratch
 	pop de
+;=@loop
 	pop bc
 	dec b
 	jr nz, AddSkillsToScratch
@@ -1189,36 +1679,49 @@ AddSkillsToScratch::
 	ret
 
 
+;@ def AddSkillsByChance(skills: de, count: b)
+;@ path: monster/join
+;@ Meant to add each of `count` skills with a chance of plus/100 (a random number below 100
+;@ compared with the monster's plus), but the result of the comparison is jumped over: every
+;@ skill is added (AddSkillToScratch).
+;@ test: skip calls Random
 AddSkillsByChance::
+;> for i in range(count):
+;>@roll     roll = Random() % 100            # (not used)
 	push bc
 	push de
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
+;=@roll
 	ld h, a
 	ld a, $64
 	call Divide16
 	ld b, a
 	push bc
 	ld hl, wMonPlus
+;=@roll
 	call CurMonField
 	pop bc
 	ld a, [hl]
 	cp b
 	pop de
 	pop bc
-	jr jr_016_482b
+;=@roll
+	jr .add
 
 	db $13, $05, $20, $db, $c9
 
-jr_016_482b:
+.add
+;>@add     AddSkillToScratch(mem[skills + i])
 	ld a, [de]
 	inc de
 	push bc
 	push de
 	call AddSkillToScratch
 	pop de
+;=@add
 	pop bc
 	dec b
 	jr nz, AddSkillsByChance
@@ -1226,62 +1729,91 @@ jr_016_482b:
 	ret
 
 
+;@ def AddSkillToScratch(skill: a)
+;@ path: monster/join
+;@ Adds the first skill of `skill`'s series (SkillBaseTable) to the 25-place skill list in
+;@ wSceneObjects, unless it is there already or the list is full.
+;@ test: skip reads the skill table
 AddSkillToScratch::
+;> if skill == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
-	ld hl, $4874
+;>@base base = SkillBaseTable[skill]
+	ld hl, SkillBaseTable
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@base
 	ld a, [hl]
+;> if base == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> p = wSceneObjects
 	ld hl, wSceneObjects
 	ld b, $19
 	ld c, a
 
-jr_016_484e:
+.loop
+;>@loop for i in range(25):
+;>     if mem[p + i] == base: return
 	ld a, [hl]
 	cp c
 	ret z
 
+;>     if mem[p + i] == 0xFF:
 	cp $ff
-	jr nz, jr_016_4857
+	jr nz, .next
 
+;>         mem[p + i] = base; return
 	ld [hl], c
 	ret
 
 
-jr_016_4857:
+.next
+;=@loop
 	inc hl
 	dec b
-	jr nz, jr_016_484e
+	jr nz, .loop
 
 	ret
 
 
+;@ def LookupBreedPair()
+;@ path: breed/rules
+;@ Reads the BreedPairTable entry of offspring species wBreedQuery: the pedigree into
+;@ wBreedPair[0], the mate into wBreedPair[1] (species, or $F0 + family; $FF none).
+;@ test: wBreedQuery = rand(0, 0xD9)
 LookupBreedPair::
+;>@p p = BreedPairTable + 2 * wBreedQuery
 	ld a, [wBreedQuery]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $74
+	add LOW(BreedPairTable)
+;=@p
 	ld l, a
 	ld a, h
-	adc $49
+	adc HIGH(BreedPairTable)
 	ld h, a
+;> wBreedPair[0] = mem[p]
 	ld a, [hli]
 	ld [wBreedPair], a
+;> wBreedPair[1] = mem[p + 1]
 	ld a, [hl]
 	ld [wBreedTemp], a
 	ret
 
 
+;@ path: breed/rules
+;@ For each of the 256 skill ids the first skill of its series ($FF: none), so an offspring
+;@ learns a series from its start.
 SkillBaseTable::
 	db $00, $00, $00, $03, $03, $03, $06, $06, $06, $09, $09, $09, $0c, $0c, $0c, $0f
 	db $0f, $0f, $12, $12, $14, $15, $15, $17, $18, $19, $1a, $1a, $1c, $1c, $1e, $1e
@@ -1299,6 +1831,10 @@ SkillBaseTable::
 	db $ff, $ff, $ff, $ff, $ff, $d5, $d6, $d7, $d8, $d9, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
+;@ path: breed/rules
+;@ The breeding pairs, 2 bytes per offspring species (the entry number is the species):
+;@ pedigree, mate. A byte below $F0 is a species, $F0 + n stands for any monster of family n,
+;@ $FA for any family; $FF $FF marks a species with no pair, $00 $00 ends the table.
 BreedPairTable::
 	db $f0, $f1, $f0, $f2, $f0, $f3, $f0, $f4, $f0, $f5, $f0, $f6, $f0, $f7, $f0, $f8
 	db $ff, $ff, $f0, $5a, $f0, $2e, $f0, $c6, $f0, $bd, $f0, $33, $ff, $ff, $f0, $f9
@@ -1329,6 +1865,9 @@ BreedPairTable::
 	db $cf, $13, $d0, $24, $cc, $43, $cd, $d0, $d3, $80, $d4, $d2, $d5, $6d, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00
 
+;@ path: breed/rules
+;@ The special pairs that need a minimum plus value, 5 bytes each: pedigree, mate (species or
+;@ $F0 + family), lowest plus, offspring species, plus bonus; $FF ends the table.
 SpecialPairTable::
 	db $00, $1b, $00, $0c
 	db $00, $00, $24, $00, $0c, $00, $00, $25, $00, $0c, $00, $00, $2a, $00, $0c, $00
@@ -1590,148 +2129,201 @@ SpecialPairTable::
 	db $f8, $3a, $00, $bd, $00, $f8, $41, $00, $bd, $00, $f8, $42, $00, $bd, $00, $f8
 	db $7f, $00, $c5, $00, $f8, $81, $00, $c5, $00, $ff
 
+;@ def NextGateFloor()
+;@ path: field/gatefloor
+;@ Picks where the stairs of a gate floor lead. Entering the gate (bit 7 of wOnGateFloor clear)
+;@ starts its world at floor 0. The world's GateWorldTable entry gives its tables; on the last
+;@ floor the way leads to the boss room (a fixed map), on every third floor of the later
+;@ worlds there is a 50% chance of a special floor (SpecialFloorChances, SpecialFloorTable),
+;@ else the next floor's map is drawn from FloorMapTables.
+;@ test: skip calls routines in other banks
 NextGateFloor::
+;> if not wOnGateFloor:
+;>     return
 	ld a, [wOnGateFloor]
 	or a
 	ret z
 
+;> if wGameStarted & 0x80:              # a continued game: the floor is restored
+;>     return
 	ld a, [wGameStarted]
 	bit 7, a
 	ret nz
 
+;> wGateFloor += 1
 	ld hl, wGateFloor
 	inc [hl]
+;> wWorldFlags = 0
 	xor a
 	ld [wWorldFlags], a
+;> if not wOnGateFloor & 0x80:          # just came through the gate
 	ld a, [wOnGateFloor]
 	bit 7, a
-	jr nz, jr_016_5b72
+	jr nz, .known
 
+;>     wGateWorld = wMapId
 	ld a, [wMapId]
 	ld [wGateWorld], a
+;>     wGateFloor = 0
 	xor a
 	ld [wGateFloor], a
 
-jr_016_5b72:
+.known
+;> LoadFloorMusic()
 	ld hl, far_LoadFloorMusic
 	rst $10
+;>@world world = GateWorldTable + wGateWorld * 8
 	ld a, [wGateWorld]
 	add a
 	add a
 	add a
-	ld hl, $70a6
+	ld hl, GateWorldTable
 	add l
+;=@world
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> wGateFloorSet = mem[world]
 	ld a, [hli]
 	ld [wGateFloorSet], a
+;> wGateSpecialSet = mem[world + 1]
 	ld a, [hli]
 	ld [wGateSpecialSet], a
+;> wGateClass = mem[world + 2]
 	ld a, [hli]
 	ld [wGateClass], a
+;> wGateFloors = mem[world + 3]
 	push hl
 	ld a, [hli]
 	ld [wGateFloors], a
+;> wGateWorldMap = mem[world + 4]
 	ld a, [hli]
 	ld [wGateWorldMap], a
+;> wFloorLoot = mem[world + 7]
 	inc hl
 	inc hl
 	ld a, [hl]
 	ld [wFloorLoot], a
+;> if wGateFloor + 1 != wGateFloors:    # not yet the last floor
 	pop hl
 	ld a, [wGateFloor]
 	ld b, a
 	inc a
 	cp [hl]
-	jr z, jr_016_5be1
+	jr z, .last
 
+;>@special     if wGateWorld and wRandomHigh & 0x10 and wGateFloor % 3 == 2:
 	ld a, [wGateWorld]
 	or a
-	jr z, jr_016_5bbf
+	jr z, .normal
 
+;=@special
 	ld a, [wRandomHigh]
 	bit 4, a
-	jr z, jr_016_5bbf
+	jr z, .normal
 
+;=@special
 	ld a, $03
 	call Divide8
 	cp $02
-	jr z, jr_016_5c1c
+;>         return SpecialFloor()        # (below)
+	jr z, .special
 
-jr_016_5bbf:
+.normal
+;>@pick     wGateFloorSet = PickByPercent(FloorMapTables + wGateFloorSet * 16)
 	ld a, [wGateFloorSet]
 	add a
 	add a
 	add a
 	add a
-	ld hl, $71a6
+	ld hl, FloorMapTables
+;=@pick
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	call PickByPercent
+;=@pick
 	ld [wGateFloorSet], a
+;>     wMapId = wGateFloorSet
 	ld a, [wGateFloorSet]
 	ld [wMapId], a
+;>     wOnGateFloor = 1
 	ld a, $01
 	ld [wOnGateFloor], a
+;>     return
 	ret
 
 
-jr_016_5be1:
+;>@last boss = GateWorldTable + wGateWorld * 8 + 4    # the last floor: the boss room
+.last
 	ld a, [wGateWorld]
 	add a
 	add a
 	add a
-	ld hl, $70aa
+	ld hl, GateWorldTable + 4
 	add l
+;=@last
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> wMapId = mem[boss]
 	ld a, [hli]
 	ld [wMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>@wx wWarpX = (mem[boss + 1] << 4) + 8    # tile column to pixels
 	ld a, [hli]
 	swap a
 	ld b, a
 	and $f0
 	or $08
 	ld [wWarpX], a
+;=@wx
 	ld a, b
 	and $0f
 	ld [$c970], a
+;>@wy wWarpY = (mem[boss + 2] << 4) + 8
 	ld a, [hli]
 	swap a
 	ld b, a
 	and $f0
 	or $08
 	ld [wWarpY], a
+;=@wy
 	ld a, b
 	and $0f
 	ld [$c972], a
+;> return
 	ret
 
 
-jr_016_5c1c:
+;> def SpecialFloor():
+;>@sp     wGateSpecialSet = PickByPercent(SpecialFloorChances + wGateSpecialSet * 8)
+.special
 	ld a, [wGateSpecialSet]
 	add a
 	add a
 	add a
-	ld hl, $72a6
+	ld hl, SpecialFloorChances
 	add l
+;=@sp
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	call PickByPercent
 	ld [wGateSpecialSet], a
+;>     SpecialFloorTable[wGateSpecialSet]()    # jump table right below
 	rst $00
 
+;@ path: field/gatefloor
+;@ The special floors a gate world may hold (picked by SpecialFloorChances): rooms with items,
+;@ a battle room with three monster teams, and several fixed rooms (maps $50-$5C).
 SpecialFloorTable::
 	dw SpecialFloorItems
 	dw SpecialFloorArenaItems
@@ -1742,29 +2334,44 @@ SpecialFloorTable::
 	dw SpecialFloorRooms57
 	dw SpecialFloorRooms54
 
+;@ def SpecialFloorItems()
+;@ path: field/gatefloor
+;@ Special floor 0: rolls eight items (RollFloorItems), then one of the rooms $5A-$5C.
+;@ test: skip calls Random
 SpecialFloorItems::
+;> RollFloorItems()
 	call RollFloorItems
 
+;@ def WarpToRandomRoom5A()
+;@ path: field/gatefloor
+;@ Warps to one of the rooms $5A, $5B (both at 72, 72) or $5C (at 104, 72), picked at random.
+;@ test: wRandomHigh = rand(0, 255)
 WarpToRandomRoom5A::
+;> room = wRandomHigh % 3
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
 	call Divide8
+;> if room == 0:
 	cp $01
-	jr z, jr_016_5c77
+	jr z, .room1
 
 	cp $02
-	jr z, jr_016_5c98
+	jr z, .room2
 
+;>     wMapId = 0x5A
 	ld a, $5a
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
@@ -1773,16 +2380,21 @@ WarpToRandomRoom5A::
 	ret
 
 
-jr_016_5c77:
+;> elif room == 1:
+;>     wMapId = 0x5B
+.room1
 	ld a, $5b
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
@@ -1791,16 +2403,21 @@ jr_016_5c77:
 	ret
 
 
-jr_016_5c98:
+;> else:
+;>     wMapId = 0x5C
+.room2
 	ld a, $5c
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
@@ -1809,26 +2426,42 @@ jr_016_5c98:
 	ret
 
 
+;@ def SpecialFloorArenaItems()
+;@ path: field/gatefloor
+;@ Special floor 1: clears the 8 bytes from wArenaWins on, puts one special item in one of the
+;@ first four (RollSpecialItem), then one of the rooms $5A-$5C.
+;@ test: skip calls Random
 SpecialFloorArenaItems::
+;> fill(wArenaWins, 8, 0xFF)
 	ld hl, wArenaWins
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
+;> RollSpecialItem()
 	call RollSpecialItem
+;> WarpToRandomRoom5A()
 	call WarpToRandomRoom5A
 	ret
 
 
+;@ def SpecialFloorRoom53()
+;@ path: field/gatefloor
+;@ Special floor 2: the fixed room $53, arriving at (72, 104).
+;@ test: none
 SpecialFloorRoom53::
+;> wMapId = 0x53
 	ld a, $53
 	ld [wMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;> wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;> wWarpY = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpY], a
@@ -1837,16 +2470,24 @@ SpecialFloorRoom53::
 	ret
 
 
+;@ def SpecialFloorRoom51()
+;@ path: field/gatefloor
+;@ Special floor 3: the fixed room $51, arriving at (72, 104).
+;@ test: none
 SpecialFloorRoom51::
+;> wMapId = 0x51
 	ld a, $51
 	ld [wMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;> wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;> wWarpY = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpY], a
@@ -1855,16 +2496,24 @@ SpecialFloorRoom51::
 	ret
 
 
+;@ def SpecialFloorRoom50()
+;@ path: field/gatefloor
+;@ Special floor 4: the fixed room $50, arriving at (72, 104).
+;@ test: none
 SpecialFloorRoom50::
+;> wMapId = 0x50
 	ld a, $50
 	ld [wMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;> wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;> wWarpY = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpY], a
@@ -1873,233 +2522,339 @@ SpecialFloorRoom50::
 	ret
 
 
+;@ def SpecialFloorTeams()
+;@ path: field/gatefloor
+;@ Special floor 5: the battle room $52. Rolls three teams of three monsters matched to the
+;@ party's average level (RollLevelEncounter): two are stored as wArenaTeam1/wArenaTeam2, the
+;@ third stays the current encounter and gets its graphics set up. Arrival at (104, 104).
+;@ test: skip calls routines in other banks
 SpecialFloorTeams::
+;> wArenaWins = 0
 	xor a
 	ld [wArenaWins], a
+;> wArenaPrize = 0
 	ld [wArenaPrize], a
+;> RollLevelEncounter()
 	call RollLevelEncounter
+;>@t1a wArenaTeam1[0] = wEncSpecies[0]       # three u16 species
 	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
 	ld [wArenaTeam1], a
+;=@t1a
 	ld a, h
 	ld [$d9d2], a
+;>@t1b wArenaTeam1[1] = wEncSpecies[1]
 	ld a, [$da05]
 	ld l, a
 	ld a, [$da06]
 	ld h, a
 	ld a, l
 	ld [$d9d3], a
+;=@t1b
 	ld a, h
 	ld [$d9d4], a
+;>@t1c wArenaTeam1[2] = wEncSpecies[2]
 	ld a, [$da07]
 	ld l, a
 	ld a, [$da08]
 	ld h, a
 	ld a, l
 	ld [$d9d5], a
+;=@t1c
 	ld a, h
 	ld [$d9d6], a
+;> RollLevelEncounter()
 	call RollLevelEncounter
+;>@t2a wArenaTeam2[0] = wEncSpecies[0]
 	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
 	ld [wArenaTeam2], a
+;=@t2a
 	ld a, h
 	ld [$d9da], a
+;>@t2b wArenaTeam2[1] = wEncSpecies[1]
 	ld a, [$da05]
 	ld l, a
 	ld a, [$da06]
 	ld h, a
 	ld a, l
 	ld [$d9db], a
+;=@t2b
 	ld a, h
 	ld [$d9dc], a
+;>@t2c wArenaTeam2[2] = wEncSpecies[2]
 	ld a, [$da07]
 	ld l, a
 	ld a, [$da08]
 	ld h, a
 	ld a, l
 	ld [$d9dd], a
+;=@t2c
 	ld a, h
 	ld [$d9de], a
+;> RollLevelEncounter()
 	call RollLevelEncounter
+;> SetGateTeamGfx(wEncGfx)
 	ld hl, wEncGfx
 	call SetGateTeamGfx
+;> wMapId = 0x52
 	ld a, $52
 	ld [wMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;> wWarpX = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;> wWarpY = 0x0068
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
+;> wArenaRound = 0
 	xor a
 	ld [wArenaRound], a
 	ret
 
 
+;@ def SetGateTeamGfx(dest: hl)
+;@ path: field/gatefloor
+;@ Fills the three 2-byte graphics entries at dest for the encounter monsters: unused entries
+;@ get $FF, 0; each monster (wEncCount + 1 of them) gets its template's graphics id and 1.
+;@ test: skip calls routines in other banks
 SetGateTeamGfx::
+;>@clr mem[dest:dest+6] = [0xFF, 0, 0xFF, 0, 0xFF, 0]
 	push hl
 	ld a, $ff
 	ld [hli], a
 	xor a
 	ld [hli], a
 	ld a, $ff
+;=@clr
 	ld [hli], a
 	xor a
 	ld [hli], a
 	ld a, $ff
 	ld [hli], a
 	xor a
+;=@clr
 	ld [hl], a
 	pop hl
+;>@m0 wNewMonId = wEncSpecies[0]
 	push hl
 	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
+;=@m0
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;> mem[dest] = MonTemplateGfx()
 	call MonTemplateGfx
 	pop hl
 	ld [hli], a
+;> mem[dest + 1] = 1
 	ld a, $01
 	ld [hli], a
+;> if wEncCount == 0:
+;>     return
 	ld a, [wEncCount]
 	or a
 	ret z
 
+;>@m1 wNewMonId = wEncSpecies[1]
 	push hl
 	ld a, [$da05]
 	ld l, a
 	ld a, [$da06]
 	ld h, a
 	ld a, l
+;=@m1
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;> mem[dest + 2] = MonTemplateGfx()
 	call MonTemplateGfx
 	pop hl
 	ld [hli], a
+;> mem[dest + 3] = 1
 	ld a, $01
 	ld [hli], a
+;> if wEncCount == 1:
+;>     return
 	ld a, [wEncCount]
 	cp $01
 	ret z
 
+;>@m2 wNewMonId = wEncSpecies[2]
 	push hl
 	ld a, [$da07]
 	ld l, a
 	ld a, [$da08]
 	ld h, a
 	ld a, l
+;=@m2
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;> mem[dest + 4] = MonTemplateGfx()
 	call MonTemplateGfx
 	pop hl
 	ld [hli], a
+;> mem[dest + 5] = 1
 	ld a, $01
 	ld [hli], a
 	ret
 
 
+;@ def MonTemplateGfx() -> a
+;@ path: field/gatefloor
+;@ Loads the template of species wNewMonId and returns its graphics id (template byte + $10).
+;@ test: skip calls routines in other banks
 MonTemplateGfx::
+;> LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
+;> return wNewMonNameText + 0x10
 	ld a, [wNewMonNameText]
 	add $10
 	ret
 
 
+;@ def RollLevelEncounter()
+;@ path: field/gatefloor
+;@ Rolls an encounter of three monsters fitting the party: the average level of the party's
+;@ monsters picks a species range (9 species ids from 2 below level 4, then 18-species ranges
+;@ $0D, $21, $39, $51, $69, $81, $9D, $B5 at levels 4, 10, 16, 22, 28, 34, 40, 46), and each
+;@ of the three species is drawn at random from it.
+;@ test: skip calls routines in other banks
 RollLevelEncounter::
+;> total = 0
 	ld hl, $0000
+;> count = 0
 	ld c, $00
+;> total, count = AddMonLevel(wParty[0], total, count)
 	ld a, [wParty]
 	call AddMonLevel
+;> total, count = AddMonLevel(wParty[1], total, count)
 	ld a, [$ca8f]
 	call AddMonLevel
+;> total, count = AddMonLevel(wParty[2], total, count)
 	ld a, [$ca90]
 	call AddMonLevel
+;> level = total // count
 	ld a, c
 	call Divide16
 	ld a, l
+;> first, size = 0x02, 0x09
 	ld hl, $0209
+;> if level >= 4:
+;>     first, size = 0x0D, 0x12
 	cp $04
 	jr c, jr_016_5ea7
 
 	ld hl, $0d12
+;> if level >= 10:
+;>     first, size = 0x21, 0x12
 	cp $0a
 	jr c, jr_016_5ea7
 
 	ld hl, $2112
+;> if level >= 16:
+;>     first, size = 0x39, 0x12
 	cp $10
 	jr c, jr_016_5ea7
 
 	ld hl, $3912
+;> if level >= 22:
+;>     first, size = 0x51, 0x12
 	cp $16
 	jr c, jr_016_5ea7
 
 	ld hl, $5112
+;> if level >= 28:
+;>     first, size = 0x69, 0x12
 	cp $1c
 	jr c, jr_016_5ea7
 
 	ld hl, $6912
+;> if level >= 34:
+;>     first, size = 0x81, 0x12
 	cp $22
 	jr c, jr_016_5ea7
 
 	ld hl, $8112
+;> if level >= 40:
+;>     first, size = 0x9D, 0x12
 	cp $28
 	jr c, jr_016_5ea7
 
 	ld hl, $9d12
+;> if level >= 46:
+;>     first, size = 0xB5, 0x12
 	cp $2e
 	jr c, jr_016_5ea7
 
 	ld hl, $b512
+;> RollEncounterSpecies(first, size)    # (below)
 	jr jr_016_5ea7
 
+;@ def AddMonLevel(slot: a, total: hl, count: c) -> (hl, c)
+;@ path: field/gatefloor
+;@ Adds the level of the monster in slot to total and counts it; an empty slot ($FF) is skipped.
+;@ test: skip calls routines in other banks
 AddMonLevel::
+;> if slot == 0xFF:
+;>     return total, count
 	cp $ff
 	ret z
 
+;>@lv level = MonsterField(slot, wMonLevel)
 	push bc
 	push hl
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	pop hl
+;=@lv
 	pop bc
+;>@g1 return total + level, count + 1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	inc c
+;=@g1
 	ret
 
 
+;> def RollEncounterSpecies(first, size):
+;>     wEncCount = 2                    # three monsters
 jr_016_5ea7:
 	ld a, $02
 	ld [wEncCount], a
+;>     wEncSpecies[0] = RandomInRange(first, size)
 	call RandomInRange
 	ld [wEncSpecies], a
+;>     wEncSpecies[1] = RandomInRange(first, size)
 	call RandomInRange
 	ld [$da05], a
+;>     wEncSpecies[2] = RandomInRange(first, size)
 	call RandomInRange
 	ld [$da07], a
+;>     clear_high_bytes(wEncSpecies)   # the species ids are below 256
 	xor a
 	ld [$da04], a
 	ld [$da06], a
@@ -2107,38 +2862,56 @@ jr_016_5ea7:
 	ret
 
 
+;@ def RandomInRange(first: h, size: l) -> a
+;@ path: field/gatefloor
+;@ Returns a random number from first to first + size - 1.
+;@ test: h = rand(0, 100); l = rand(1, 50)
 RandomInRange::
+;> Random()
 	push hl
 	call Random
+;>@g2 return wRandomHigh % size + first
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, l
 	call Divide8
 	pop hl
 	add h
+;=@g2
 	ret
 
 
+;@ def SpecialFloorRooms57()
+;@ path: field/gatefloor
+;@ Special floor 6: one of the rooms $57 (arriving at 248, 184), $58 or $59 (both at 24, 40),
+;@ picked at random.
+;@ test: wRandomHigh = rand(0, 255)
 SpecialFloorRooms57::
+;> room = wRandomHigh % 3
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
 	call Divide8
+;> if room == 0:
 	cp $01
-	jr z, jr_016_5f0a
+	jr z, .room1
 
 	cp $02
-	jr z, jr_016_5f2b
+	jr z, .room2
 
+;>     wMapId = 0x57
 	ld a, $57
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x00F8
 	ld hl, $00f8
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x00B8
 	ld hl, $00b8
 	ld a, l
 	ld [wWarpY], a
@@ -2147,16 +2920,21 @@ SpecialFloorRooms57::
 	ret
 
 
-jr_016_5f0a:
+;> elif room == 1:
+;>     wMapId = 0x58
+.room1
 	ld a, $58
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x0018
 	ld hl, $0018
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x0028
 	ld hl, $0028
 	ld a, l
 	ld [wWarpY], a
@@ -2165,16 +2943,21 @@ jr_016_5f0a:
 	ret
 
 
-jr_016_5f2b:
+;> else:
+;>     wMapId = 0x59
+.room2
 	ld a, $59
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x0018
 	ld hl, $0018
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x0028
 	ld hl, $0028
 	ld a, l
 	ld [wWarpY], a
@@ -2183,26 +2966,37 @@ jr_016_5f2b:
 	ret
 
 
+;@ def SpecialFloorRooms54()
+;@ path: field/gatefloor
+;@ Special floor 7: one of the rooms $54 (arriving at 216, 216), $55 (at 72, 360) or $56
+;@ (at 232, 184), picked at random.
+;@ test: wRandomHigh = rand(0, 255)
 SpecialFloorRooms54::
+;> room = wRandomHigh % 3
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
 	call Divide8
+;> if room == 0:
 	cp $01
-	jr z, jr_016_5f7e
+	jr z, .room1
 
 	cp $02
-	jr z, jr_016_5f9f
+	jr z, .room2
 
+;>     wMapId = 0x54
 	ld a, $54
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x00D8
 	ld hl, $00d8
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x00D8
 	ld hl, $00d8
 	ld a, l
 	ld [wWarpY], a
@@ -2211,16 +3005,21 @@ SpecialFloorRooms54::
 	ret
 
 
-jr_016_5f7e:
+;> elif room == 1:
+;>     wMapId = 0x55
+.room1
 	ld a, $55
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x0168
 	ld hl, $0168
 	ld a, l
 	ld [wWarpY], a
@@ -2229,16 +3028,21 @@ jr_016_5f7e:
 	ret
 
 
-jr_016_5f9f:
+;> else:
+;>     wMapId = 0x56
+.room2
 	ld a, $56
 	ld [wMapId], a
+;>     wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;>     wWarpX = 0x00E8
 	ld hl, $00e8
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
+;>     wWarpY = 0x00B8
 	ld hl, $00b8
 	ld a, l
 	ld [wWarpY], a
@@ -2247,55 +3051,89 @@ jr_016_5f9f:
 	ret
 
 
+;@ def PickByPercent(list: hl) -> a
+;@ path: field/gatefloor
+;@ Picks an index from a cumulative percent list: rolls 0-99 and returns the index of the first
+;@ entry above the roll. Entries of 0 are never picked; an entry of 100 always ends the search.
+;@ test: skip calls Random
 PickByPercent::
+;>@roll roll = Random() % 100
 	push hl
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;=@roll
 	ld a, $64
 	call Divide16
 	pop hl
 	ld c, a
+;> index = -1
+;> while True:
 	ld b, $ff
 
-jr_016_5fd5:
+;>     index += 1; entry = list[index]
+.loop
 	ld a, [hl]
 	inc b
 	inc hl
+;>     if entry != 0 and (entry == 100 or entry >= roll):
+;>@hit         return index
 	or a
-	jr z, jr_016_5fd5
+	jr z, .loop
 
+;=@hit
 	cp $64
-	jr z, jr_016_5fe2
+	jr z, .found
 
+;=@hit
 	cp c
-	jr c, jr_016_5fd5
+	jr c, .loop
 
-jr_016_5fe2:
+.found
 	ld a, b
 	ret
 
 
+;@ def MakeGateFloor()
+;@ path: field/gatefloor
+;@ Builds a new gate floor. Off the gate floors it only clears the floor's character. On a gate
+;@ floor it loads the floor tiles and, unless the floor comes from a save, makes a random floor:
+;@ a 4 x 4 grid of screens (wFloorLayout: screen shape in the high nibble, variant in the low;
+;@ $F_ = no screen), either a preset layout or screens joined by matching exits, then the
+;@ stairs, the floor's special character, Terry's arrival spot and the objects (chests, pots and
+;@ the like, up to 3 per screen). Whenever one of these finds no room in 64 tries, the whole
+;@ floor is made again.
+;@ test: skip calls routines in other banks
 MakeGateFloor::
+;> ResetEncounterCounter()
 	call ResetEncounterCounter
+;> if not wOnGateFloor:
 	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_016_6002
 
+;>     wFloorNpcScreen = 0xFF
 	ld a, $ff
 	ld [wFloorNpcScreen], a
+;>     wFloorNpcKind = 0
 	xor a
 	ld [wFloorNpcKind], a
+;>     wFloorNpcVariant = 0
 	ld [wFloorNpcVariant], a
+;>     wFloorEvent = 0
 	xor a
 	ld [wFloorEvent], a
+;>     wFloorSteps = 0
 	xor a
 	ld [wFloorSteps], a
+;>     return
 	ret
 
 
+;> for i in range(8):                   # the floor tiles
+;>@g3     DecompressVRAM(0x2E, 0x15 + i, 0x8500 + i * 0x40)
 jr_016_6002:
 	ld de, $2e15
 	ld hl, $8500
@@ -2303,79 +3141,105 @@ jr_016_6002:
 	ld de, $2e16
 	ld hl, $8540
 	call DecompressVRAM
+;=@g3
 	ld de, $2e17
 	ld hl, $8580
 	call DecompressVRAM
 	ld de, $2e18
 	ld hl, $85c0
 	call DecompressVRAM
+;=@g3
 	ld de, $2e19
 	ld hl, $8600
 	call DecompressVRAM
 	ld de, $2e1a
 	ld hl, $8640
 	call DecompressVRAM
+;=@g3
 	ld de, $2e1b
 	ld hl, $8680
 	call DecompressVRAM
 	ld de, $2e1c
 	ld hl, $86c0
 	call DecompressVRAM
+;> if not wGameStarted & 0x80:          # a saved floor is already in memory
+;>     return NewGateFloor()            # (right below the table)
 	ld a, [wGameStarted]
 	bit 7, a
 	jr z, jr_016_605b
 
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ path: field/gatefloor
+;@ The kinds of floor layout NewGateFloor picks from (wFloorKind): random screens three times in
+;@ five, random screens without variants and a preset layout once each.
+FloorKindTable::
 	db $00, $00, $00, $01, $02
 
-Jump_016_605b:
+;@ def NewGateFloor()
+;@ path: field/gatefloor
+;@ Makes a random gate floor (see MakeGateFloor): the layout of screens, then the stairs, the
+;@ floor's special character, Terry's arrival spot and the objects. Starts over whenever a spot
+;@ cannot be found in 64 tries.
+;@ test: skip calls routines in other banks
+NewGateFloor::
 jr_016_605b:
+;>@g6 wFloorKind = FloorKindTable[Random() % 5]
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $05
 	call Divide8
-	ld hl, $6056
+	ld hl, FloorKindTable
+;=@g6
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;=@g6
 	ld [wFloorKind], a
+;> fill(wFloorsSeen, 16, 0)
 	ld hl, wFloorsSeen
 	ld bc, $0010
 	xor a
 	call FillMemory
+;> fill(wFloorLayout, 16, 0xFF)
 	ld hl, wFloorLayout
 	ld bc, $0010
 	ld a, $ff
 	call FillMemory
+;> if wFloorKind == 2:
 	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_016_60b9
 
+;>@g8     preset = PresetLayouts + (Random() % 21) * 16
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $15
 	call Divide8
 	ld l, a
+;=@g8
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	ld a, l
+;=@g8
 	add $36
 	ld l, a
 	ld a, h
 	adc $77
 	ld h, a
+;>@g10     wFloorLayout[0:16] = preset[0:16]
 	ld de, wFloorLayout
 	ld b, $10
 
@@ -2384,23 +3248,31 @@ jr_016_60b0:
 	ld [de], a
 	inc de
 	dec b
+;=@g10
 	jr nz, jr_016_60b0
 
 	jp Jump_016_616c
 
 
+;> else:
+;>     order = FloorFillOrder           # the screens in the order they are filled
 jr_016_60b9:
-	ld hl, $7096
+	ld hl, FloorFillOrder
+;>@g11     left = wFloorMusic + 1           # number of screens of this floor
 	ld a, [wFloorMusic]
 	inc a
 	ld b, a
 	push hl
 	ld a, [hl]
 	ld c, a
+;=@g11
 	push bc
+;>     opens = 0
 	ld a, b
 	cp $09
 	ld bc, $0000
+;>     if left < 9:                     # small floors: the first screen opens right and/or down
+;>@g12         opens = next(m for n in range(1, 257) if (m := (wRandomHigh + n) & 5))
 	jr nc, jr_016_60d8
 
 	ld a, [wRandomHigh]
@@ -2410,10 +3282,13 @@ jr_016_60d1:
 	inc b
 	ld a, b
 	and $05
+;=@g12
 	jr z, jr_016_60d1
 
 	ld b, a
 
+;>     while (shape := PickScreenShape(opens, 0)) == 0x0F:
+;>         pass                         # until a fitting shape comes up
 jr_016_60d8:
 	push bc
 	call PickScreenShape
@@ -2421,27 +3296,33 @@ jr_016_60d8:
 	cp $0f
 	jr z, jr_016_60d8
 
+;>@g13     wFloorLayout[order[0]] = shape
 	pop bc
 	push af
 	ld a, c
 	ld hl, wFloorLayout
 	add l
 	ld l, a
+;=@g13
 	ld a, $00
 	adc h
 	ld h, a
 	pop af
 	ld [hl], a
 	pop hl
+;=@g13
 	inc hl
 	dec b
 
+;>     for screen in order[1:left]:     # each joins the screens placed before it
+;>         opens, closed = GetScreenExits(screen)
 jr_016_60f2:
 	push hl
 	ld a, [hl]
 	ld c, a
 	push bc
 	call GetScreenExits
+;>         shape = 0xFF if not opens else PickScreenShape(opens, closed)
 	ld a, b
 	or a
 	ld a, $ff
@@ -2449,6 +3330,7 @@ jr_016_60f2:
 
 	call PickScreenShape
 
+;>@g15         wFloorLayout[screen] = shape
 jr_016_6102:
 	pop bc
 	push af
@@ -2456,17 +3338,20 @@ jr_016_6102:
 	ld hl, wFloorLayout
 	add l
 	ld l, a
+;=@g15
 	ld a, $00
 	adc h
 	ld h, a
 	pop af
 	ld [hl], a
 	pop hl
+;=@g15
 	inc hl
 	dec b
 	jr nz, jr_016_60f2
 
-	ld hl, $7096
+;>     for screen in FloorFillOrder:    # close every exit that leads nowhere
+	ld hl, FloorFillOrder
 	ld b, $10
 
 jr_016_611a:
@@ -2475,9 +3360,11 @@ jr_016_611a:
 	cp $ff
 	jr z, jr_016_6140
 
+;>         opens, closed = GetScreenExits(screen)
 	ld c, a
 	push bc
 	call GetScreenExits
+;>@g17         shape = 0x0F if not opens else PickScreenShape(opens, opens ^ 0x0F)
 	ld a, b
 	or a
 	ld a, $0f
@@ -2485,9 +3372,11 @@ jr_016_611a:
 
 	ld a, b
 	xor $0f
+;=@g17
 	ld c, a
 	call PickScreenShape
 
+;>@g18         wFloorLayout[screen] = shape
 jr_016_6132:
 	pop bc
 	push af
@@ -2495,6 +3384,7 @@ jr_016_6132:
 	ld hl, wFloorLayout
 	add l
 	ld l, a
+;=@g18
 	ld a, $00
 	adc h
 	ld h, a
@@ -2503,16 +3393,19 @@ jr_016_6132:
 
 jr_016_6140:
 	pop hl
+;=@g18
 	inc hl
 	dec b
 	jr nz, jr_016_611a
 
+;>     for i in range(16):              # shape to the high nibble, add a variant
 	ld hl, wFloorLayout
 	ld b, $10
 
 jr_016_614a:
 	push bc
 	push hl
+;>@g20         variant = 12 if wFloorKind == 1 else Random() % 12
 	ld c, $0c
 	ld a, [wFloorKind]
 	cp $01
@@ -2520,11 +3413,13 @@ jr_016_614a:
 
 	call Random
 	ld a, [wRandomHigh]
+;=@g20
 	ld b, a
 	ld a, $0c
 	call Divide8
 	ld c, a
 
+;>@g21         wFloorLayout[i] = swap(wFloorLayout[i]) + variant
 jr_016_6162:
 	pop hl
 	ld a, [hl]
@@ -2532,136 +3427,176 @@ jr_016_6162:
 	add c
 	ld [hli], a
 	pop bc
+;=@g21
 	dec b
 	jr nz, jr_016_614a
 
+;> wFloorTries = 64                     # the stairs
 Jump_016_616c:
 	ld a, $40
 	ld [wFloorTries], a
 
+;> while True:
+;>     wFloorTries -= 1
 jr_016_6171:
 	ld a, [wFloorTries]
 	dec a
 	ld [wFloorTries], a
-	jp z, Jump_016_605b
+;>     if wFloorTries == 0:
+;>         return NewGateFloor()     # start again
+	jp z, NewGateFloor
 
+;>     PickStairsSpot()
 	call PickStairsSpot
+;>     wStairsScreen = wMapScreen
 	ld a, [wMapScreen]
 	ld [wStairsScreen], a
+;>@g22     stairs = (hTestX, hTestY)
 	ldh a, [hTestX]
 	ld [$c0a5], a
 	ldh a, [$ffa6]
 	ld [$c0a6], a
 	ldh a, [hTestY]
 	ld [$c0a7], a
+;=@g22
 	ldh a, [$ffa8]
 	ld [$c0a8], a
+;>     if CheckStairsSpace():
+;>         break
 	call CheckStairsSpace
 	jr z, jr_016_6171
 
+;>@g23 wStairsOffset = (stairs.y & 0xF0) * 4 + (stairs.x >> 3 & 0x1E)    # tilemap offset
 	ld a, [$c0a7]
 	ld [wGoalY], a
 	and $f0
 	ld l, a
 	ld a, [$c0a8]
 	ld [$c967], a
+;=@g23
 	sla l
 	rla
 	sla l
 	rla
 	ld h, a
 	ld a, [$c0a6]
+;=@g23
 	ld [$c965], a
 	ld d, a
 	ld a, [$c0a5]
 	ld [wGoalX], a
 	srl d
 	rra
+;=@g23
 	srl d
 	rra
 	srl d
 	rra
 	and $1e
 	ld e, a
+;=@g23
 	ld d, $00
 	add hl, de
 	ld a, l
 	ld [wStairsOffset], a
 	ld a, h
 	ld [$c963], a
+;>@g27 wGoalX = stairs.x + ScreenOrigins[wStairsScreen].x    # (bank 0, 4 bytes per screen)
 	ld a, [wStairsScreen]
 	add a
 	add a
 	ld hl, $2da7
 	add l
 	ld l, a
+;=@g27
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [wGoalX]
 	add [hl]
 	ld [wGoalX], a
+;=@g27
 	inc hl
 	ld a, [$c965]
 	adc [hl]
 	ld [$c965], a
 	inc hl
+;>@g29 wGoalY = stairs.y + ScreenOrigins[wStairsScreen].y
 	ld a, [wGoalY]
 	add [hl]
 	ld [wGoalY], a
 	inc hl
 	ld a, [$c967]
 	adc [hl]
+;=@g29
 	ld [$c967], a
 	inc hl
+;> wFloorTries = 64                     # the floor's special character
 	ld a, $40
 	ld [wFloorTries], a
 
+;> while True:
+;>     wFloorTries -= 1
 jr_016_620a:
 	ld a, [wFloorTries]
 	dec a
 	ld [wFloorTries], a
-	jp z, Jump_016_605b
+;>     if wFloorTries == 0:
+;>         return NewGateFloor()     # start again
+	jp z, NewGateFloor
 
+;>     PickNpcSpot()
 	call PickNpcSpot
+;>     if wMapScreen != wStairsScreen:
+;>         break
 	ld a, [wStairsScreen]
 	ld b, a
 	ld a, [wMapScreen]
 	cp b
 	jr z, jr_016_620a
 
+;> wFloorNpcScreen = wMapScreen
 	ld a, [wMapScreen]
 	ld [wFloorNpcScreen], a
+;>@g30 wFloorNpcX = ScreenOrigins[wMapScreen].x + hTestX
 	add a
 	add a
 	ld hl, $2da7
 	add l
 	ld l, a
 	ld a, $00
+;=@g30
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld [wFloorNpcX], a
 	ld a, [hli]
 	ld [$c928], a
+;>@npcx wFloorNpcY = ScreenOrigins[wMapScreen].y + hTestY
 	ld a, [hli]
 	ld [wFloorNpcY], a
 	ld a, [hli]
 	ld [$c92a], a
+;=@npcx
 	ld hl, wFloorNpcX
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
+;=@npcx
 	ld [hl], a
+;=@npcx
 	ld hl, wFloorNpcY
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
 	adc [hl]
+;=@npcx
 	ld [hl], a
+;> if wScriptBossIndex in (0, 1):
+;>@g33     wFloorEvent = 0
 	ld a, [wScriptBossIndex]
 	or a
 	jr z, jr_016_6262
@@ -2671,11 +3606,14 @@ jr_016_620a:
 
 jr_016_6262:
 	xor a
+;=@g33
 	ld [wFloorEvent], a
 
+;> wFloorNpcKind = wFloorEvent
 jr_016_6266:
 	ld a, [wFloorEvent]
 	ld [wFloorNpcKind], a
+;>@g34 if wFloorEvent in (4, 5, 6, 7):      # a story character: shown on half of the floors
 	cp $04
 	jr z, jr_016_627e
 
@@ -2685,11 +3623,14 @@ jr_016_6266:
 	cp $06
 	jr z, jr_016_627e
 
+;=@g34
 	cp $07
 	jr z, jr_016_627e
 
 	jr jr_016_628a
 
+;>     show = not Random() & 1
+;>     roll_kind = False
 jr_016_627e:
 	call Random
 	ld a, [wRandomHigh]
@@ -2698,31 +3639,43 @@ jr_016_627e:
 
 	jr jr_016_629f
 
+;> else:
+;>@g35     show = Random() < FloorNpcChance[wGateClass]
 jr_016_628a:
 	call Random
 	ld a, [wGateClass]
-	ld hl, $7886
+	ld hl, FloorNpcChance
 	add l
 	ld l, a
 	ld a, $00
+;=@g35
 	adc h
 	ld h, a
 	ld a, [wRandomHigh]
 	cp [hl]
+;>     roll_kind = show
 	jr c, jr_016_62b5
 
+;> if not show:                         # no character on this floor
+;>     wFloorNpcKind = 0
 jr_016_629f:
 	xor a
 	ld [wFloorNpcKind], a
+;>     wFloorNpcVariant = 0
 	ld [wFloorNpcVariant], a
+;>     wFloorEvent = 0
 	xor a
 	ld [wFloorEvent], a
+;>     wFloorSteps = 0
 	xor a
 	ld [wFloorSteps], a
+;>     wFloorNpcScreen = 0xFF
 	ld a, $ff
 	ld [wFloorNpcScreen], a
 	jr jr_016_62cf
 
+;> elif roll_kind:
+;>     wFloorNpcVariant = Random() % 5
 jr_016_62b5:
 	call Random
 	ld a, [wRandomHigh]
@@ -2730,25 +3683,35 @@ jr_016_62b5:
 	ld a, $05
 	call Divide8
 	ld [wFloorNpcVariant], a
+;>     wFloorNpcKind = Random() & 3
 	call Random
 	ld a, [wRandomHigh]
 	and $03
 	ld [wFloorNpcKind], a
 
+;> wFloorEvent = 0
 jr_016_62cf:
 	xor a
 	ld [wFloorEvent], a
+;> wFloorTries = 64                     # where Terry arrives
 	ld a, $40
 	ld [wFloorTries], a
 
+;> while True:
+;>     wFloorTries -= 1
 Jump_016_62d8:
 jr_016_62d8:
 	ld a, [wFloorTries]
 	dec a
 	ld [wFloorTries], a
-	jp z, Jump_016_605b
+;>     if wFloorTries == 0:
+;>         return NewGateFloor()     # start again
+	jp z, NewGateFloor
 
+;>     PickArrivalSpot()
 	call PickArrivalSpot
+;>     if wMapScreen == wStairsScreen:  # one more try for another screen
+;>         PickArrivalSpot()
 	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
@@ -2756,88 +3719,110 @@ jr_016_62d8:
 
 	call PickArrivalSpot
 
+;>     wArrivalScreen = wMapScreen
 jr_016_62f1:
 	ld a, [wMapScreen]
 	ld [wArrivalScreen], a
+;>     if not IsStairsSpot() and wMapScreen != wFloorNpcScreen:
+;>@arr         break
 	call IsStairsSpot
 	jp z, Jump_016_62d8
 
+;=@arr
 	ld a, [wFloorNpcScreen]
 	ld b, a
 	ld a, [wMapScreen]
 	cp b
 	jr z, jr_016_62d8
 
+;> arrival = (wMapScreen, hTestX, hTestY)    # in wNumberBackup and the 4 bytes after it
 	ld a, [wMapScreen]
 	ld [wNumberBackup], a
+;>@g36 wWarpX = ScreenOrigins[wMapScreen].x + hTestX
 	add a
 	add a
 	ld hl, $2da7
 	add l
 	ld l, a
 	ld a, $00
+;=@g36
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld [wWarpX], a
 	ld a, [hli]
 	ld [$c970], a
+;>@arrxy wWarpY = ScreenOrigins[wMapScreen].y + hTestY
 	ld a, [hli]
 	ld [wWarpY], a
 	ld a, [hli]
 	ld [$c972], a
+;=@arrxy
 	ldh a, [hTestX]
 	ld [$c0a1], a
 	ldh a, [$ffa6]
 	ld [$c0a2], a
 	ldh a, [hTestY]
 	ld [wLineUpOrder], a
+;=@arrxy
 	ldh a, [$ffa8]
 	ld [$c0a4], a
+;=@arrxy
 	ld hl, wWarpX
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
+;=@arrxy
 	ld [hl], a
+;=@arrxy
 	ld hl, wWarpY
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
 	adc [hl]
+;=@arrxy
 	ld [hl], a
+;> per_screen = [0] * 16                # objects on each screen (in wLineScroll)
 	ld hl, wLineScroll
 	ld bc, $0010
 	xor a
 	call FillMemory
+;>@g40 rule = FloorObjectTable + wGateClass * 16 + 9
 	ld a, [wGateClass]
-	ld hl, $732f
+	ld hl, FloorObjectTable + 9
 	add a
 	add a
 	add a
 	add a
+;=@g40
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@g41 count = rule[0] + wRandomHigh % (rule[1] + 1)
 	ld a, [hli]
 	push af
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, [hli]
 	inc a
+;=@g41
 	push hl
 	call Divide8
 	pop hl
 	ld b, a
 	pop af
 	add b
+;=@g41
 	ld b, a
+;> chance = rule[2]
 	ld c, [hl]
 	push bc
+;>@g43 screens = sum(1 for s in wFloorLayout if s < 0xF0)
 	ld hl, wFloorLayout
 	ld b, $10
 	ld c, $00
@@ -2846,6 +3831,7 @@ jr_016_6386:
 	ld a, [hli]
 	and $f0
 	cp $f0
+;=@g43
 	jr z, jr_016_638e
 
 	inc c
@@ -2854,6 +3840,8 @@ jr_016_638e:
 	dec b
 	jr nz, jr_016_6386
 
+;> if screens < 6:
+;>     count = count >> 1
 	ld a, c
 	pop bc
 	cp $06
@@ -2862,20 +3850,25 @@ jr_016_638e:
 	srl b
 	res 7, b
 
+;> dest = wFloorObjects
 jr_016_639b:
 	ld hl, wFloorObjects
+;> for i in range(count):
 	ld a, b
 	or a
 	jr z, jr_016_63ac
 
+;>     mem[dest] = 0xFF
 jr_016_63a2:
 	push bc
 	ld [hl], $ff
+;>     dest = PlaceFloorObject(dest, chance)
 	call PlaceFloorObject
 	pop bc
 	dec b
 	jr nz, jr_016_63a2
 
+;> mem[dest] = 0xFF                     # end of the list
 jr_016_63ac:
 	ld [hl], $ff
 	ret
@@ -3877,502 +4870,621 @@ IsObjectAt::
 	ret
 
 
+;@ def CheckObjectSpace() -> z
+;@ path: field/gatefloor/spots
+;@ Checks that an object at the spot saved in $C0AA-$C0AD does not cut off a way: object kinds
+;@ with $10 added test the 3 x 3 tiles around the spot (wSpotAround) and run the shared checks of
+;@ CheckStairsSpace. Returns nz when the spot is fine, z when it would block; kinds below $10
+;@ always fit.
+;@ test: skip calls routines in other banks
 CheckObjectSpace::
+;> if wFloorObjKind & 0xF0 == 0:
+;>     return nz
 	ld a, [wFloorObjKind]
 	and $f0
 	jp z, Jump_016_6d93
 
+;>@sp for i, (dx, dy) in enumerate([(-16, -16), (0, -16), (16, -16), (-16, 0), (0, 0), (16, 0), (-16, 16), (0, 16), (16, 16)]):
+;>@g89     hTestX = spot.x + dx
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	add $f0
+;=@g89
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g89
 	ld a, h
 	ldh [$ffa6], a
+;>@ty     hTestY = spot.y + dy
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
 	ld a, l
 	add $f0
+;=@ty
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestY], a
+;=@ty
 	ld a, h
 	ldh [$ffa8], a
+;>@g93     wSpotAround[i] = IsSpotFree()        # 0 free, 1 blocked
 	call IsSpotFree
 	ld a, b
 	ld [wSpotAround], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	add $f0
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b1], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	add $10
+;=@g93
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	add $f0
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b2], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	add $f0
+;=@g93
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b3], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b4], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	add $10
+;=@g93
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b5], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	add $f0
+;=@g93
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b6], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b7], a
+;=@sp
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
 	add $10
+;=@g93
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g93
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
+;=@g93
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@g93
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g93
 	ld [$c0b8], a
+;> return CheckSpotAround()              # the checks at the end of CheckStairsSpace
 	jp Jump_016_6c96
 
 
+;@ def CheckStairsSpace() -> z
+;@ path: field/gatefloor/spots
+;@ Checks that the stairs at the spot saved in $C0A5-$C0A8 do not cut off a way. The 3 x 3 tiles
+;@ around it are tested (wSpotAround: 0 1 2 / 3 4 5 / 6 7 8, 1 = blocked): a blocked side next
+;@ to blocked tiles on the opposite side, or a blocked corner next to a blocked tile it does not
+;@ touch through a free one, would split the floor. Returns nz when the spot is fine, z if not.
+;@ test: skip calls routines in other banks
 CheckStairsSpace::
+;>@sp for i, (dx, dy) in enumerate([(-16, -16), (0, -16), (16, -16), (-16, 0), (0, 0), (16, 0), (-16, 16), (0, 16), (16, 16)]):
+;>@g127     hTestX = stairs.x + dx
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	add $f0
+;=@g127
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g127
 	ld a, h
 	ldh [$ffa6], a
+;>@ty     hTestY = stairs.y + dy
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
 	ld a, l
 	add $f0
+;=@ty
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestY], a
+;=@ty
 	ld a, h
 	ldh [$ffa8], a
+;>@g131     wSpotAround[i] = IsSpotFree()        # 0 free, 1 blocked
 	call IsSpotFree
 	ld a, b
 	ld [wSpotAround], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	add $f0
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b1], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	add $10
+;=@g131
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	add $f0
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b2], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	add $f0
+;=@g131
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b3], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b4], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	add $10
+;=@g131
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b5], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	add $f0
+;=@g131
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b6], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b7], a
+;=@sp
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
 	add $10
+;=@g131
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
+;=@g131
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
 	ld h, a
+;=@g131
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@g131
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call IsSpotFree
 	ld a, b
+;=@g131
 	ld [$c0b8], a
 
+;> def CheckSpotAround():               # also used by CheckObjectSpace
+;>@fail     if s[3] and (s[2] or s[5] or s[8]): return z    # s = wSpotAround
 Jump_016_6c96:
 	ld a, [$c0b3]
 	or a
@@ -4382,6 +5494,7 @@ Jump_016_6c96:
 	or a
 	jp nz, Jump_016_6d97
 
+;=@fail
 	ld a, [$c0b5]
 	or a
 	jp nz, Jump_016_6d97
@@ -4390,6 +5503,7 @@ Jump_016_6c96:
 	or a
 	jp nz, Jump_016_6d97
 
+;>@g166     if s[7] and (s[0] or s[1] or s[2]): return z
 jr_016_6cb1:
 	ld a, [$c0b7]
 	or a
@@ -4399,6 +5513,7 @@ jr_016_6cb1:
 	or a
 	jp nz, Jump_016_6d97
 
+;=@g166
 	ld a, [$c0b1]
 	or a
 	jp nz, Jump_016_6d97
@@ -4407,6 +5522,7 @@ jr_016_6cb1:
 	or a
 	jp nz, Jump_016_6d97
 
+;>@g167     if s[1] and (s[6] or s[7] or s[8]): return z
 jr_016_6ccc:
 	ld a, [$c0b1]
 	or a
@@ -4416,6 +5532,7 @@ jr_016_6ccc:
 	or a
 	jp nz, Jump_016_6d97
 
+;=@g167
 	ld a, [$c0b7]
 	or a
 	jp nz, Jump_016_6d97
@@ -4424,6 +5541,7 @@ jr_016_6ccc:
 	or a
 	jp nz, Jump_016_6d97
 
+;>@g168     if s[5] and (s[0] or s[3] or s[6]): return z
 jr_016_6ce7:
 	ld a, [$c0b5]
 	or a
@@ -4433,6 +5551,7 @@ jr_016_6ce7:
 	or a
 	jp nz, Jump_016_6d97
 
+;=@g168
 	ld a, [$c0b3]
 	or a
 	jp nz, Jump_016_6d97
@@ -4441,6 +5560,7 @@ jr_016_6ce7:
 	or a
 	jp nz, Jump_016_6d97
 
+;>@g169     if s[0] and ((not s[1] and s[2]) or (not s[3] and s[6]) or s[8]): return z
 jr_016_6d02:
 	ld a, [wSpotAround]
 	or a
@@ -4450,6 +5570,7 @@ jr_016_6d02:
 	or a
 	jr nz, jr_016_6d15
 
+;=@g169
 	ld a, [$c0b2]
 	or a
 	jp nz, Jump_016_6d97
@@ -4459,6 +5580,7 @@ jr_016_6d15:
 	or a
 	jr nz, jr_016_6d21
 
+;=@g169
 	ld a, [$c0b6]
 	or a
 	jr nz, jr_016_6d97
@@ -4468,6 +5590,7 @@ jr_016_6d21:
 	or a
 	jr nz, jr_016_6d97
 
+;>@g171     if s[2] and ((not s[1] and s[0]) or (not s[5] and s[8]) or s[6]): return z
 jr_016_6d27:
 	ld a, [$c0b2]
 	or a
@@ -4477,6 +5600,7 @@ jr_016_6d27:
 	or a
 	jr nz, jr_016_6d39
 
+;=@g171
 	ld a, [wSpotAround]
 	or a
 	jr nz, jr_016_6d97
@@ -4486,6 +5610,7 @@ jr_016_6d39:
 	or a
 	jr nz, jr_016_6d45
 
+;=@g171
 	ld a, [$c0b8]
 	or a
 	jr nz, jr_016_6d97
@@ -4495,6 +5620,7 @@ jr_016_6d45:
 	or a
 	jr nz, jr_016_6d97
 
+;>@g173     if s[6] and ((not s[3] and s[0]) or (not s[7] and s[8]) or s[2]): return z
 jr_016_6d4b:
 	ld a, [$c0b6]
 	or a
@@ -4504,6 +5630,7 @@ jr_016_6d4b:
 	or a
 	jr nz, jr_016_6d5d
 
+;=@g173
 	ld a, [wSpotAround]
 	or a
 	jr nz, jr_016_6d97
@@ -4513,6 +5640,7 @@ jr_016_6d5d:
 	or a
 	jr nz, jr_016_6d69
 
+;=@g173
 	ld a, [$c0b8]
 	or a
 	jr nz, jr_016_6d97
@@ -4522,6 +5650,7 @@ jr_016_6d69:
 	or a
 	jr nz, jr_016_6d97
 
+;>@g175     if s[8] and ((not s[5] and s[2]) or (not s[7] and s[6]) or s[0]): return z
 jr_016_6d6f:
 	ld a, [$c0b8]
 	or a
@@ -4531,6 +5660,7 @@ jr_016_6d6f:
 	or a
 	jr nz, jr_016_6d81
 
+;=@g175
 	ld a, [$c0b2]
 	or a
 	jr nz, jr_016_6d97
@@ -4540,6 +5670,7 @@ jr_016_6d81:
 	or a
 	jr nz, jr_016_6d8d
 
+;=@g175
 	ld a, [$c0b6]
 	or a
 	jr nz, jr_016_6d97
@@ -4549,6 +5680,7 @@ jr_016_6d8d:
 	or a
 	jr nz, jr_016_6d97
 
+;>     return nz                            # every way stays open
 Jump_016_6d93:
 jr_016_6d93:
 	ld a, $01
@@ -4558,12 +5690,21 @@ jr_016_6d93:
 
 Jump_016_6d97:
 jr_016_6d97:
+;=@fail
 	xor a
 	ret
 
 
+;@ def IsSpotFree() -> b
+;@ path: field/gatefloor/spots
+;@ Tests the tile at hTestX, hTestY of the loaded screen: b = 0 when it is walkable floor
+;@ (collision kind $0C-$0E), else 1.
+;@ test: skip calls routines in other banks
 IsSpotFree::
+;> GetCollisionAt()
 	call GetCollisionAt
+;> if hTestTile >> 2 in (0x0C, 0x0D, 0x0E):
+;>@g177     return 0
 	ld b, $00
 	ldh a, [hTestTile]
 	srl a
@@ -4571,17 +5712,25 @@ IsSpotFree::
 	cp $0c
 	ret z
 
+;=@g177
 	cp $0d
 	ret z
 
 	cp $0e
 	ret z
 
+;> return 1
 	ld b, $01
 	ret
 
 
+;@ def RollFloorItems()
+;@ path: field/gatefloor/items
+;@ Rolls the eight items of the item room (special floor 0) into the 8 bytes from wArenaWins on.
+;@ test: skip calls Random
 RollFloorItems::
+;> for i in range(8):
+;>@g178     wArenaWins[i] = RollFloorItem()
 	ld hl, wArenaWins
 	ld b, $08
 
@@ -4590,6 +5739,7 @@ jr_016_6db5:
 	push hl
 	call RollFloorItem
 	pop hl
+;=@g178
 	pop bc
 	ld [hli], a
 	dec b
@@ -4598,69 +5748,99 @@ jr_016_6db5:
 	ret
 
 
+;@ def RollFloorItem() -> a
+;@ path: field/gatefloor/items
+;@ Rolls a random item for the gate world's class from its FloorItemTables list.
+;@ test: skip calls Random
 RollFloorItem::
+;>@g179 return PickByPercent(FloorItemTables + wGateClass * 48)
 	ld a, [wGateClass]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@g179
 	add hl, hl
 	ld e, l
 	ld d, h
 	add hl, hl
 	add hl, de
 	ld a, l
+;=@g179
 	add $36
 	ld l, a
 	ld a, h
 	adc $74
 	ld h, a
 	call PickByPercent
+;=@g179
 	ret
 
 
+;@ def RollSpecialItem()
+;@ path: field/gatefloor/items
+;@ Puts one random item of SpecialItemTable into one of the first four of the 8 bytes from
+;@ wArenaWins on.
+;@ test: skip calls Random
 RollSpecialItem::
+;>@g182 slot = Random() & 3
 	call Random
 	ld a, [wRandomHigh]
 	and $03
 	ld hl, wArenaWins
 	add l
 	ld l, a
+;=@g182
 	ld a, $00
 	adc h
 	ld h, a
-	ld de, $6e04
+;>@g183 wArenaWins[slot] = SpecialItemTable[Random() & 15]
+	ld de, SpecialItemTable
 	push de
 	push hl
 	call Random
 	ld a, [wRandomHigh]
 	and $0f
+;=@g183
 	pop hl
 	pop de
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@g183
 	ld d, a
 	ld a, [de]
 	ld [hl], a
 	ret
 
 
+;@ path: field/gatefloor/items
+;@ The 16 items RollSpecialItem picks from (item ids; $1A-$1C and $25 twice as likely).
 SpecialItemTable::
 	db $03, $04, $06, $0c, $15, $17, $18, $19, $1a, $1b, $1c, $25, $1a, $1b, $1c, $25
 
+;@ def ResetEncounterCounter()
+;@ path: battle/encounter
+;@ Sets a new random step counter for the next battle on a gate floor: a roll of 0-100 picks
+;@ the first EncounterCounterTable entry whose threshold is at least the roll.
+;@ test: skip calls Random
 ResetEncounterCounter::
+;>@g185 roll = Random() % 101
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, $65
+;=@g185
 	call Divide16
-	ld hl, $6e3d
+;> entry = EncounterCounterTable
+	ld hl, EncounterCounterTable
 
+;> while roll > entry.threshold:        # 4 bytes each
+;>@g186     entry += 4
 jr_016_6e27:
 	cp [hl]
 	jr z, jr_016_6e32
@@ -4670,9 +5850,11 @@ jr_016_6e27:
 	inc hl
 	inc hl
 	inc hl
+;=@g186
 	inc hl
 	jr jr_016_6e27
 
+;>@g187 wEncounterCounter = entry.counter
 jr_016_6e32:
 	inc hl
 	inc hl
@@ -4680,9 +5862,14 @@ jr_016_6e32:
 	ld [wEncounterCounter], a
 	ld a, [hli]
 	ld [$ca3a], a
+;=@g187
 	ret
 
 
+;@ path: battle/encounter
+;@ Step counters for the next battle: 4 bytes per entry (u16 threshold for a roll of 0-100,
+;@ u16 counter), thresholds 2, 4, ... 98, then $FF. The counter grows from 1100 by 100 per
+;@ entry up to 6000.
 EncounterCounterTable::
 	db $02, $00, $4c, $04, $04, $00, $b0, $04, $06, $00, $14, $05, $08, $00, $78, $05
 	db $0a, $00, $dc, $05, $0c, $00, $40, $06, $0e, $00, $a4, $06, $10, $00, $08, $07
@@ -4698,7 +5885,17 @@ EncounterCounterTable::
 	db $5a, $00, $7c, $15, $5c, $00, $e0, $15, $5e, $00, $44, $16, $60, $00, $a8, $16
 	db $62, $00, $0c, $17, $ff, $00, $70, $17
 
+;@ def CountEncounterSteps()
+;@ path: battle/encounter
+;@ Counts a step towards the next random battle. Nothing counts while a battle, a fade or a
+;@ scripted event is going on. Outside the gate floors a step costs 100 (80 in rooms $54-$56);
+;@ on a gate floor it costs the EncounterRateTable value of the floor map for the tile kind
+;@ stepped on (none for other tiles). The cost is scaled by the floor style
+;@ (EncounterStyleFactor / 64). When wEncounterCounter runs out, a battle starts.
+;@ test: skip calls routines in other banks
 CountEncounterSteps::
+;> if wFieldFlags & 0x64 or wFadeState or wWorldFlags & 2:
+;>@g188     return
 	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
@@ -4707,6 +5904,7 @@ CountEncounterSteps::
 	ret nz
 
 	bit 6, a
+;=@g188
 	ret nz
 
 	ld a, [wFadeState]
@@ -4715,12 +5913,15 @@ CountEncounterSteps::
 
 	ld a, [wWorldFlags]
 	bit 1, a
+;=@g188
 	ret nz
 
+;> if not wOnGateFloor:
 	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_016_6f39
 
+;>@g190     cost = 80 if wMapId in (0x54, 0x55, 0x56) else 100
 	ld bc, $0050
 	ld a, [wMapId]
 	cp $54
@@ -4729,26 +5930,33 @@ CountEncounterSteps::
 	cp $55
 	jr z, jr_016_6f62
 
+;=@g190
 	cp $56
 	jr z, jr_016_6f62
 
 	ld bc, $0064
 	jr jr_016_6f62
 
+;> else:
+;>@g191     rates = EncounterRateTable + wMapId * 8
 jr_016_6f39:
-	ld hl, $6fab
+	ld hl, EncounterRateTable
 	ld a, [wMapId]
 	add a
 	add a
 	add a
 	add l
+;=@g191
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>     kind = hTestTile >> 2                # the tile stepped on
 	ldh a, [hTestTile]
 	srl a
 	srl a
+;>     if kind not in (0x0C, 0x0D, 0x0E):
+;>@g192         return
 	cp $0c
 	jr z, jr_016_6f5f
 
@@ -4757,6 +5965,7 @@ jr_016_6f39:
 	cp $0d
 	jr z, jr_016_6f5f
 
+;=@g192
 	inc hl
 	inc hl
 	cp $0e
@@ -4765,52 +5974,65 @@ jr_016_6f39:
 	ret
 
 
+;>     cost = rates[kind - 0x0C]            # u16
 jr_016_6f5f:
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 
+;> SelectFloorTable()
 jr_016_6f62:
 	push bc
 	ld hl, far_SelectFloorTable
 	rst $10
-	ld hl, $702b
+;>@g193 cost = cost * EncounterStyleFactor[wFloorStyle] // 64
+	ld hl, EncounterStyleFactor
 	ld a, [wFloorStyle]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@g193
 	ld h, a
 	ld a, [hl]
 	pop bc
 	call Multiply24
 	ld a, $40
 	call Divide24
+;>@g194 left = wEncounterCounter - cost
 	ld e, l
 	ld d, h
 	ld a, [wEncounterCounter]
 	ld l, a
 	ld a, [$ca3a]
 	ld h, a
+;=@g194
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
 	sbc d
 	ld h, a
+;> if left < 0:                         # a battle
 	jr nc, jr_016_6fa2
 
+;>     RollEncounterGroup()
 	ld hl, far_RollEncounterGroup
 	rst $10
+;>     wFieldFlags |= 0x40
 	ld hl, wFieldFlags
 	set 6, [hl]
+;>     wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;>     wBattleKind = 0
 	ld a, $00
 	ld [wBattleKind], a
 	ret
 
 
+;> else:
+;>     wEncounterCounter = left
 jr_016_6fa2:
 	ld a, l
 	ld [wEncounterCounter], a
@@ -4819,6 +6041,10 @@ jr_016_6fa2:
 	ret
 
 
+;@ path: battle/encounter
+;@ Step costs on the 16 gate floor maps: 8 bytes per map, the u16 costs for tile kinds $0C,
+;@ $0D and $0E, then two unused bytes. Most floors cost 138 per step (a few 140 or 150); the
+;@ last maps 100, 180 or 250.
 EncounterRateTable::
 	db $8a, $00, $8a, $00, $8a, $00, $00, $00, $8a, $00, $8a, $00, $8a, $00, $00, $00
 	db $8a, $00, $96, $00, $8a, $00, $00, $00, $8a, $00, $8a, $00, $8c, $00, $00, $00
@@ -4828,17 +6054,27 @@ EncounterRateTable::
 	db $8a, $00, $8a, $00, $8a, $00, $00, $00, $64, $00, $b4, $00, $fa, $00, $00, $00
 	db $64, $00, $b4, $00, $b4, $00, $00, $00, $64, $00, $b4, $00, $fa, $00, $00, $00
 	db $64, $00, $b4, $00, $b4, $00, $00, $00, $96, $00, $b4, $00, $96, $00, $00, $00
+;@ path: battle/encounter
+;@ Step cost factor per floor style (wFloorStyle), in 64ths.
 EncounterStyleFactor::
 	db $10, $15, $20, $40, $50, $60, $70, $80
 
+;@ def GetFloorScreenMap() -> de
+;@ path: field/gatefloor/layout
+;@ Returns the map reference (Decompress entry in e, group in d) for screen wMapScreen of the
+;@ floor: wFloorLayout's byte (shape * 16 + variant) indexes ScreenMapRefs, or
+;@ PresetScreenMapRefs on a preset floor.
+;@ test: none
 GetFloorScreenMap::
-	ld de, $7896
+;> refs = PresetScreenMapRefs if wFloorKind == 2 else ScreenMapRefs
+	ld de, ScreenMapRefs
 	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_016_7040
 
-	ld de, $7a96
+	ld de, PresetScreenMapRefs
 
+;>@g195 return refs[wFloorLayout[wMapScreen]]    # 2 bytes each
 jr_016_7040:
 	ld a, [wMapScreen]
 	ld hl, wFloorLayout
@@ -4846,17 +6082,23 @@ jr_016_7040:
 	ld l, a
 	ld a, $00
 	adc h
+;=@g195
 	ld h, a
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	add hl, de
 	ld e, [hl]
+;=@g195
 	inc hl
 	ld d, [hl]
 	ret
 
 
+;@ path: field/gatefloor/layout
+;@ The 16 screen shapes of the gate floors, 4 bytes each: exits (8 up, 4 down, 2 left,
+;@ 1 right), the shape's own number, its weight class (PickScreenShape) and an unused byte;
+;@ $FF ends the list. Shape 0 opens on all four sides, shape 15 has no exits.
 ScreenShapeTable::
 	db $0f, $00, $04, $00, $07, $01, $03, $00, $0b, $02, $03, $00, $0d, $03, $03, $00
 	db $0e, $04, $03, $00, $03, $05, $02, $00, $05, $06, $02, $00, $06, $07, $02, $00
@@ -4864,10 +6106,17 @@ ScreenShapeTable::
 	db $04, $0c, $01, $00, $02, $0d, $01, $00, $01, $0e, $01, $00, $00, $0f, $00, $00
 	db $ff
 
+;@ path: field/gatefloor/layout
+;@ The order in which MakeGateFloor fills the 16 screens of the 4 x 4 grid: the middle four
+;@ first, then around them.
 FloorFillOrder::
 	db $05, $06, $0a, $09, $08, $04, $00, $01, $02, $03, $07, $0b, $0f, $0e, $0d
 	db $0c
 
+;@ path: field/gatefloor
+;@ The gate worlds, 8 bytes each (indexed by wGateWorld, the map of the gate): floor set
+;@ (FloorMapTables), special floor set (SpecialFloorChances), class (items, objects,
+;@ characters), number of floors, boss map, boss room arrival tile x and y, loot.
 GateWorldTable::
 	db $00, $00, $00, $05, $30, $07, $02, $01, $01, $01, $01, $05, $31, $01, $06
 	db $01, $01, $01, $02, $06, $32, $05, $01, $01, $02, $01, $02, $05, $33, $04, $06
@@ -4887,6 +6136,9 @@ GateWorldTable::
 	db $03, $0e, $0e, $0e, $1e, $4e, $08, $0c, $03, $0f, $0f, $0f, $63, $4f, $05, $06
 	db $03
 
+;@ path: field/gatefloor
+;@ The floor map choices, 16 bytes per floor set: cumulative percent chances (PickByPercent) of
+;@ the 16 gate floor maps.
 FloorMapTables::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $64, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $28, $00, $64, $00
@@ -4906,6 +6158,9 @@ FloorMapTables::
 	db $64, $05, $0a, $00, $14, $1e, $00, $28, $00, $32, $3c, $46, $00, $50, $00, $5a
 	db $64
 
+;@ path: field/gatefloor
+;@ The special floor choices, 8 bytes per special floor set: cumulative percent chances
+;@ (PickByPercent) of the eight special floors of SpecialFloorTable.
 SpecialFloorChances::
 	db $14, $00, $00, $46, $64, $00, $00, $00, $00, $00, $00, $32, $64, $00, $00
 	db $00, $28, $00, $00, $46, $64, $00, $00, $00, $00, $00, $00, $1e, $3c, $00, $64
@@ -4917,6 +6172,10 @@ SpecialFloorChances::
 	db $64, $05, $23, $32, $46, $4b, $5a, $5f, $64, $05, $19, $23, $2d, $37, $50, $5a
 	db $64
 
+;@ path: field/gatefloor/items
+;@ The objects of each class (wGateClass), 16 bytes: cumulative percent chances of the object
+;@ kinds 0-8, then the base count, the random extra count and the percent chance of the $10
+;@ variant (see MakeGateFloor), and unused bytes.
 FloorObjectTable::
 	db $64, $00, $00, $00, $00, $00, $00, $00, $00, $02, $02, $00, $00, $00, $00
 	db $00, $4b, $00, $00, $00, $00, $00, $00, $64, $00, $04, $02, $00, $00, $00, $00
@@ -4936,10 +6195,15 @@ FloorObjectTable::
 	db $00, $46, $00, $00, $00, $00, $00, $00, $5a, $64, $00, $02, $1e, $00, $00, $00
 	db $00
 
+;@ path: field/gatefloor/items
+;@ For each object kind: 1 when it holds an item (a chest), otherwise the value stored instead.
 ObjectIsChestTable::
 	db $01, $01, $01, $01, $01, $01, $01, $00, $ff, $01, $01, $01, $01, $01, $01
 	db $01
 
+;@ path: field/gatefloor/items
+;@ The items found in chests, 48 bytes per class: cumulative percent chances (PickByPercent)
+;@ over the item ids 0-47.
 FloorItemTables::
 	db $00, $5d, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $62, $63
@@ -4991,6 +6255,9 @@ FloorItemTables::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $5d, $5f, $00, $64, $00, $00, $00, $00
 	db $00
 
+;@ path: field/gatefloor/layout
+;@ The 21 preset floor layouts, 16 bytes each: the wFloorLayout bytes (shape * 16 + variant,
+;@ $F0 = no screen) of a 4 x 4 grid.
 PresetLayouts::
 	db $60, $10, $10, $70, $30, $00, $00, $40, $30, $00, $00, $40, $80, $20, $20
 	db $90, $60, $70, $60, $70, $30, $40, $30, $40, $30, $40, $30, $40, $80, $22, $23
@@ -5015,10 +6282,15 @@ PresetLayouts::
 	db $94, $64, $71, $62, $74, $b0, $a1, $a1, $b0, $62, $94, $84, $71, $81, $51, $52
 	db $91
 
+;@ path: field/gatefloor
+;@ Chance (of 256) per class that a floor has a special character.
 FloorNpcChance::
 	db $00, $0d, $0d, $0d, $0d, $0d, $1a, $1a, $1a, $1a, $1a, $26, $26, $26, $26
 	db $26
 
+;@ path: field/gatefloor/layout
+;@ Map references of the random floor screens: 2 bytes (Decompress entry, group) for each
+;@ wFloorLayout byte, 16 variants per shape (12 used).
 ScreenMapRefs::
 	db $10, $28, $11, $28, $12, $28, $13, $28, $14, $28, $15, $28, $00, $2b, $01
 	db $2b, $02, $2b, $03, $2b, $04, $2b, $05, $2b, $14, $2c, $10, $28, $10, $28, $10
@@ -5054,6 +6326,9 @@ ScreenMapRefs::
 	db $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e
 	db $27
 
+;@ path: field/gatefloor/layout
+;@ Map references of the preset floor screens (same layout as ScreenMapRefs), followed by unused
+;@ zero bytes up to the end of the bank.
 PresetScreenMapRefs::
 	db $23, $2c, $24, $2c, $25, $2c, $26, $2c, $27, $2c, $28, $2c, $29, $2c, $2a
 	db $2c, $2b, $2c, $2c, $2c, $2d, $2c, $2e, $2c, $2f, $2c, $30, $2c, $23, $2c, $23
