@@ -5519,10 +5519,18 @@ SkillHealAllApply::
 	ret
 
 
+;@ def OptionMenu()
+;@ path: menu/options
+;@ The fourth field menu option: message speed, line-up, tactics and saving;
+;@ wFieldMenuStep is the step.
+;@ test: skip jumps through a table
 OptionMenu::
+;> OptionMenuSteps[wFieldMenuStep]()
 	ld a, [wFieldMenuStep]
 	rst $00
 
+;@ path: menu/options
+;@ Steps of the option menu (OptionMenu).
 OptionMenuSteps::
 	dw OptionMenuDraw
 	dw OptionMenuInput
@@ -5537,524 +5545,741 @@ OptionMenuSteps::
 	dw TacticsStart
 	dw TacticsInput
 
+;@ def OptionMenuDraw()
+;@ path: menu/options
+;@ Option step 0: reloads the font (graphics $2E/$0D to $9000) and draws the main
+;@ menu, gold and the window of the four options.
+;@ test: skip draws into VRAM
 OptionMenuDraw::
+;> DecompressVRAM(0x2E, 0x0D, 0x9000)
 	ld de, $2e0d
 	ld hl, $9000
 	call DecompressVRAM
+;> MenuClearBuffer()
 	call MenuClearBuffer
-	ld de, $704d
+;> DrawWindow(MainMenuWindow)
+	ld de, MainMenuWindow
 	call DrawWindow
-	ld de, $7090
+;> DrawWindow(GoldWindow)
+	ld de, GoldWindow
 	call DrawWindow
+;> hNumber[0:3] = wGold[0:3]
 	ld a, [wGold]
 	ldh [hNumber], a
-	ld a, [$ca4c]
-	ldh [$ffd6], a
-	ld a, [$ca4d]
-	ldh [$ffd7], a
+	ld a, [wGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber5(BufferAddress(0x002E))
 	ld hl, $002e
 	call BufferAddress
 	call PrintNumber5
-	ld de, $7a61
+;> DrawWindow(OptionWindow)
+	ld de, OptionWindow
 	call DrawWindow
+;> MenuResetBlink()
 	call MenuResetBlink
-	ld de, $5d43
+;> MenuDrawCursorAt(wMenuChoice2, OptionCursorPos)
+	ld de, OptionCursorPos
 	ld a, [wMenuChoice2]
 	call MenuDrawCursorAt
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def OptionMenuInput()
+;@ path: menu/options
+;@ Option step 1: B leaves to the main menu; A opens message speed (step 2),
+;@ line-up (step 4), tactics (step 10, from the first monster) or save (step 6).
+;@ test: skip draws into VRAM
 OptionMenuInput::
-	ld de, $5d43
+;> MoveMenuCursor(wMenuChoice2, 4, OptionCursorPos)
+	ld de, OptionCursorPos
 	ld hl, wMenuChoice2
 	ld b, $04
 	call MoveMenuCursor
+;> if wJoyPressed & 0x02:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_5d16
+	jr z, .notB
 
+;>     MenuClearBuffer()
 	call MenuClearBuffer
+;>     wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
-	jr jr_007_5d42
+	jr .done
 
-jr_007_5d16:
+.notB
+;> elif wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_007_5d42
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice2 == 0x80:
+;>         wFieldMenuStep = 2           # message speed
 	ld b, $02
 	ld a, [wMenuChoice2]
 	cp $80
-	jr z, jr_007_5d3e
+	jr z, .step
 
+;>     elif wMenuChoice2 == 0x81:
+;>         wFieldMenuStep = 4           # line-up
 	ld b, $04
 	cp $81
-	jr z, jr_007_5d3e
+	jr z, .step
 
+;>     elif wMenuChoice2 == 0x83:
+;>         wFieldMenuStep = 6           # save
 	ld b, $06
 	cp $83
-	jr z, jr_007_5d3e
+	jr z, .step
 
+;>     else:
+;>         wLinkPartnerChoice = 0       # tactics: start with the first monster
 	xor a
 	ld [wLinkPartnerChoice], a
+;>@c1         wFieldMenuStep = 0x0A
 	ld b, $0a
 
-jr_007_5d3e:
+.step
+;=@c1
 	ld a, b
 	ld [wFieldMenuStep], a
 
-Jump_007_5d42:
-jr_007_5d42:
+.done
 	ret
 
 
+;@ path: menu/options
+;@ Cursor offsets of the four options (message speed, line-up, tactics, save);
+;@ $FFFF ends the list.
 OptionCursorPos::
-	db $66, $00, $a6, $00, $e6, $00, $26, $01, $ff, $ff
+	dw $0066, $00a6, $00e6, $0126
+	dw $ffff
 
+;@ def MessageSpeedShow()
+;@ path: menu/options
+;@ Option step 2: the message speed window (eight speeds in a row), the cursor on
+;@ the current speed.
+;@ test: skip draws into VRAM
 MessageSpeedShow::
-	ld de, $7ae7
+;> DrawWindow(MessageSpeedWindow)
+	ld de, MessageSpeedWindow
 	call DrawWindow
+;> MenuResetBlink()
 	call MenuResetBlink
-	ld de, $5dab
-	ld a, [wMessageSpeed]
+;> wConfirmChoice = mem[0xC8EE]       # the message speed
+	ld de, MessageSpeedCursorPos
+	ld a, [$c8ee]
 	ld [wConfirmChoice], a
+;> MenuDrawCursorAt(wConfirmChoice, MessageSpeedCursorPos)
 	ld a, [wConfirmChoice]
 	call MenuDrawCursorAt
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def MessageSpeedInput()
+;@ path: menu/options
+;@ Option step 3: Left/Right picks the speed, B goes back without change, A sets
+;@ it (0 slowest ... 7 instant) and returns to the main menu.
+;@ test: skip draws into VRAM
 MessageSpeedInput::
-	ld de, $5dab
+;> MoveMenuCursorSideways(wConfirmChoice, 8, MessageSpeedCursorPos)
+	ld de, MessageSpeedCursorPos
 	ld hl, wConfirmChoice
 	ld b, $08
 	call MoveMenuCursorSideways
+;> if wJoyPressed & 0x02:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_5d8d
+	jr z, .notB
 
+;>@c17     wFieldMenuStep -= 3
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
-	jr jr_007_5daa
+;=@c17
+	jr .done
 
-jr_007_5d8d:
+.notB
+;> elif wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_007_5daa
+	jp z, .done
 
+;>     mem[0xC8EE] = wConfirmChoice & 0x7F
 	ld a, [wConfirmChoice]
 	and $7f
-	ld [wMessageSpeed], a
+	ld [$c8ee], a
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     MenuClearBuffer()
 	call MenuClearBuffer
+;>     wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
 
-Jump_007_5daa:
-jr_007_5daa:
+.done
 	ret
 
 
+;@ path: menu/options
+;@ Cursor offsets of the eight message speeds (row 14, every second column);
+;@ $FFFF ends the list.
 MessageSpeedCursorPos::
-	db $c3, $01, $c5, $01, $c7, $01, $c9, $01, $cb, $01, $cd, $01, $cf, $01, $d1, $01
-	db $ff, $ff
+	dw $01c3, $01c5, $01c7, $01c9, $01cb, $01cd, $01cf, $01d1
+	dw $ffff
 
+;@ def LineUpShow()
+;@ path: menu/options
+;@ Option step 4, the line-up: the standing party monsters (fainted ones stay at
+;@ the back) are listed on the left (wNumberBackup holds their party places, $FF
+;@ empty); the new order is built on the right (wLineUpOrder).
+;@ test: skip draws into VRAM
 LineUpShow::
+;> MenuLoadPartyNames()
 	call MenuLoadPartyNames
+;>@L n = 0
+;>@L for i in range(wPartyCount):
 	ld b, $00
+;>@i     if not GetPartyMonsterByte(i, wMonStatus) & 0x80:
 	ld a, $00
 	push bc
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	pop bc
+;=@i
 	bit 7, a
-	jr nz, jr_007_5dd1
+	jr nz, .fainted0
 
+;>@n         n += 1
 	inc b
 
-jr_007_5dd1:
+.fainted0
+;=@L
 	ld a, [wPartyCount]
 	cp $01
-	jr z, jr_007_5dfd
+	jr z, .counted
 
+;=@i
 	ld a, $01
 	push bc
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	pop bc
+;=@i
 	bit 7, a
-	jr nz, jr_007_5de7
+	jr nz, .fainted1
 
+;=@n
 	inc b
 
-jr_007_5de7:
+.fainted1
+;=@L
 	ld a, [wPartyCount]
 	cp $02
-	jr z, jr_007_5dfd
+	jr z, .counted
 
+;=@i
 	ld a, $02
 	push bc
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	pop bc
+;=@i
 	bit 7, a
-	jr nz, jr_007_5dfd
+	jr nz, .counted
 
+;=@n
 	inc b
 
-jr_007_5dfd:
+.counted
+;> wMenuCount = n
 	ld a, b
 	ld [wMenuCount], a
+;> wNumberBackup[0] = 0
 	ld hl, wNumberBackup
 	ld a, $00
 	ld [hli], a
+;>@c2 wNumberBackup[1] = 1 if n >= 2 else 0xFF
 	ld b, $ff
 	ld a, [wMenuCount]
 	cp $02
-	jr c, jr_007_5e12
+	jr c, .one
 
 	ld b, $01
 
-jr_007_5e12:
+.one
+;=@c2
 	ld [hl], b
 	inc hl
+;>@c3 wNumberBackup[2] = 2 if n >= 3 else 0xFF
 	ld b, $ff
 	ld a, [wMenuCount]
 	cp $03
-	jr c, jr_007_5e1f
+	jr c, .two
 
 	ld b, $02
 
-jr_007_5e1f:
+.two
+;=@c3
 	ld [hl], b
 	inc hl
+;> wLineUpOrder[0:3] = [0xFF, 0xFF, 0xFF]
 	ld a, $ff
 	ld [hli], a
 	ld a, $ff
 	ld [hli], a
 	ld a, $ff
 	ld [hli], a
+;> wLineUpPlaced = 0
 	xor a
 	ld [wLineUpPlaced], a
-	ld de, $7b48
+;> DrawWindow(LineUpWindow)
+	ld de, LineUpWindow
 	call DrawWindow
-	ld de, $7b89
+;> DrawWindow(LineUpOrderWindow)
+	ld de, LineUpOrderWindow
 	call DrawWindow
+;> DrawLineUp()
 	call DrawLineUp
+;> MenuResetBlink()
 	call MenuResetBlink
-	ld de, $6045
+;> MenuDrawCursorAt(wConfirmChoice2, LineUpCursorPos)
+	ld de, LineUpCursorPos
 	ld a, [wConfirmChoice2]
 	call MenuDrawCursorAt
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def DrawLineUp()
+;@ path: menu/options
+;@ Closes the gap left in the list of monsters still to place, then draws both
+;@ columns: each entry a number tile and the monster's four name tiles.
+;@ test: skip writes the tilemap buffer
 DrawLineUp::
+;> if wNumberBackup[0] == 0xFF:        # close the gap
 	ld a, [wNumberBackup]
 	cp $ff
-	jr z, jr_007_5e61
+	jr z, .gap0
 
-	ld a, [$c0a1]
+;>@g0     wNumberBackup[0] = wNumberBackup[1]
+;>@g1     wNumberBackup[1:3] = [wNumberBackup[2], 0xFF]
+;> elif wNumberBackup[1] == 0xFF:
+	ld a, [wNumberBackup + 1]
 	cp $ff
-	jr z, jr_007_5e67
+	jr z, .gap1
 
-	jr jr_007_5e72
+	jr .draw
 
-jr_007_5e61:
-	ld a, [$c0a1]
+;>@g1     wNumberBackup[1:3] = [wNumberBackup[2], 0xFF]
+.gap0
+;=@g0
+	ld a, [wNumberBackup + 1]
 	ld [wNumberBackup], a
 
-jr_007_5e67:
-	ld a, [$c0a2]
-	ld [$c0a1], a
+.gap1
+;=@g1
+	ld a, [wNumberBackup + 2]
+	ld [wNumberBackup + 1], a
 	ld a, $ff
-	ld [$c0a2], a
-
-jr_007_5e72:
+	ld [wNumberBackup + 2], a
+.draw
+;> for i in range(3):                  # left: still to place, numbered by party place
+;>@c4     DrawLineUpEntry(wNumberBackup[i], 0xF1 + wNumberBackup[i], wTilemapBuffer + 0x185 + 0x40 * i)
 	ld hl, $c685
 	ld a, [wNumberBackup]
 	add $f1
 	ld b, a
 	ld a, [wNumberBackup]
 	call DrawLineUpEntry
+;=@c4
 	ld hl, $c6c5
-	ld a, [$c0a1]
+	ld a, [wNumberBackup + 1]
 	add $f1
 	ld b, a
-	ld a, [$c0a1]
+	ld a, [wNumberBackup + 1]
 	call DrawLineUpEntry
+;=@c4
 	ld hl, $c705
-	ld a, [$c0a2]
+	ld a, [wNumberBackup + 2]
 	add $f1
 	ld b, a
-	ld a, [$c0a2]
+	ld a, [wNumberBackup + 2]
 	call DrawLineUpEntry
+;> for i in range(3):                  # right: the new order, numbered 1-3
+;>@c5     DrawLineUpEntry(wLineUpOrder[i], 0xF1 + i, wTilemapBuffer + 0x18D + 0x40 * i)
 	ld hl, $c68d
 	ld b, $f1
 	ld a, [wLineUpOrder]
 	call DrawLineUpEntry
+;=@c5
 	ld hl, $c6cd
 	ld b, $f2
-	ld a, [$c0a4]
+	ld a, [wLineUpOrder + 1]
 	call DrawLineUpEntry
+;=@c5
 	ld hl, $c70d
 	ld b, $f3
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	call DrawLineUpEntry
 	ret
 
 
+;@ def DrawLineUpEntry(place: a, number: b, dest: hl)
+;@ path: menu/options
+;@ One line-up entry at `dest` in the tilemap buffer: tile `number`, a gap, then the
+;@ four name tiles of party place `place` ($20 + 4 * place on); all blank for $FF.
 DrawLineUpEntry::
+;> if place != 0xFF:
 	cp $ff
-	jr z, jr_007_5ed4
+	jr z, .blank
 
+;>     mem[dest] = number
 	ld [hl], b
 	inc hl
 	inc hl
+;>@c6     mem[dest + 2:dest + 6] = [0x20 + 4 * place + i for i in range(4)]
 	add a
 	add a
 	add $20
 	ld [hli], a
 	inc a
 	ld [hli], a
+;=@c6
 	inc a
 	ld [hli], a
 	inc a
 	ld [hl], a
+;>     return
 	ret
 
 
-jr_007_5ed4:
+.blank
+;> mem[dest] = 0xE0
+;>@c7 mem[dest + 2:dest + 6] = [0xE0] * 4
 	ld a, $e0
 	ld [hli], a
 	inc hl
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@c7
 	ld [hl], a
 	ret
 
 
+;@ def LineUpInput()
+;@ path: menu/options
+;@ Option step 5: Up/Down in the list of monsters still to place; B takes back the
+;@ last placed monster (or, with none placed, leaves: LineUpBack); otherwise
+;@ LineUpConfirm handles A.
+;@ test: skip draws into VRAM
 LineUpInput::
+;> if wLineUpPlaced != wMenuCount:
 	ld a, [wMenuCount]
 	ld c, a
 	ld a, [wLineUpPlaced]
 	cp c
-	jr z, jr_007_5ef7
+	jr z, .moved
 
-	ld de, $6045
+;>@c8     MoveMenuCursor(wConfirmChoice2, wMenuCount - wLineUpPlaced, LineUpCursorPos)
+	ld de, LineUpCursorPos
 	ld hl, wConfirmChoice2
 	ld a, [wLineUpPlaced]
 	ld b, a
 	ld a, c
 	sub b
+;=@c8
 	ld b, a
 	call MoveMenuCursor
 
-jr_007_5ef7:
+.moved
+;> wConfirmChoice2 &= 0x7F
 	ld a, [wConfirmChoice2]
 	and $7f
 	ld [wConfirmChoice2], a
+;> if not wJoyPressed & 0x02:
+;>     return LineUpConfirm()
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, LineUpConfirm
 
+;> if wLineUpPlaced == 0:
+;>     return LineUpBack()
 	ld a, [wLineUpPlaced]
 	cp $00
 	jr z, LineUpBack
 
+;>@c9 place = wLineUpOrder[wLineUpPlaced - 1]    # take back the last one
 	dec a
 	ld hl, wLineUpOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c9
 	ld h, a
 	ld a, [hl]
+;> wLineUpOrder[wLineUpPlaced - 1] = 0xFF
 	ld [hl], $ff
-	ld [$c0a2], a
+;> wNumberBackup[2] = place
+	ld [wNumberBackup + 2], a
+;>@s for i in range(3):                 # bubble sort, $FF last
+;>     SortStep(wNumberBackup)
+	ld hl, wNumberBackup
+	call SortStep
+;>     SortStep(wNumberBackup + 1)
+	call SortStep
+;=@s
 	ld hl, wNumberBackup
 	call SortStep
 	call SortStep
 	ld hl, wNumberBackup
 	call SortStep
+;=@s
 	call SortStep
-	ld hl, wNumberBackup
-	call SortStep
-	call SortStep
+;> DrawLineUp()
 	call DrawLineUp
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wLineUpPlaced -= 1
 	ld hl, wLineUpPlaced
 	dec [hl]
 	jp LineUpDone
 
 
+;@ def SortStep(pair: hl) -> hl
+;@ path: menu/options
+;@ Swaps the bytes [`pair`] and [`pair` + 1] unless the first is smaller; returns
+;@ `pair` + 1.
+;@ test: skip works on any address
 SortStep::
+;> if mem[pair] >= mem[pair + 1]:
 	ld a, [hli]
 	ld b, [hl]
 	cp b
 	ret c
 
+;>     mem[pair:pair + 2] = [mem[pair + 1], mem[pair]]
 	ld [hld], a
 	ld [hl], b
 	inc hl
+;> return pair + 1
 	ret
 
 
+;@ def LineUpBack()
+;@ path: menu/options
+;@ B with no monster placed yet: back to the option window (step 0).
 LineUpBack::
+;>@c10 wFieldMenuStep -= 5
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
+;=@c10
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
+;=@c10
 	jp LineUpDone
 
 
+;@ def LineUpConfirm()
+;@ path: menu/options
+;@ A in the line-up: places the monster under the cursor next in the new order;
+;@ once all are placed, writes the new order into wParty, refreshes the party
+;@ sprites (and the followers' sprites in the town, map 6) and closes the menu.
+;@ test: skip draws into VRAM
 LineUpConfirm::
+;> if not wJoyPressed & 0x01:
+;>     return
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, LineUpDone
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if wLineUpPlaced != wMenuCount:
 	ld a, [wMenuCount]
 	ld c, a
 	ld a, [wLineUpPlaced]
 	cp c
-	jr z, jr_007_5fc9
+	jr z, .allPlaced
 
+;>     wLineUpOrder[wLineUpPlaced] = wNumberBackup[wConfirmChoice2]
+;>@c11     wNumberBackup[wConfirmChoice2] = 0xFF
 	ld hl, wLineUpOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@c11
 	ld a, [wConfirmChoice2]
 	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@c11
 	ld d, a
 	ld a, [de]
 	ld [hl], a
 	ld a, $ff
 	ld [de], a
+;>     if wLineUpPlaced == wMenuCount - 1:     # the last one: clear the left column
 	ld a, [wMenuCount]
 	ld c, a
 	dec c
 	ld a, [wLineUpPlaced]
 	cp c
-	jr nz, jr_007_5fa8
+	jr nz, .more
 
-	ld de, $7b48
+;>         DrawWindow(LineUpWindow)
+	ld de, LineUpWindow
 	call DrawWindow
-	jr jr_007_5fbc
+	jr .redraw
 
-jr_007_5fa8:
+.more
+;>@c12     elif wConfirmChoice2 >= wMenuCount - 1 - wLineUpPlaced:     # cursor below the shorter list
 	ld b, a
 	ld a, c
 	sub b
 	ld b, a
 	ld a, [wConfirmChoice2]
 	cp b
-	jr c, jr_007_5fbc
+;=@c12
+	jr c, .redraw
 
+;>         wConfirmChoice2 -= 1
 	dec a
 	ld [wConfirmChoice2], a
-	ld de, $6045
+;>         MenuDrawCursorMarks(wConfirmChoice2, LineUpCursorPos)
+	ld de, LineUpCursorPos
 	call MenuDrawCursorMarks
 
-jr_007_5fbc:
+.redraw
+;>     DrawLineUp()
 	call DrawLineUp
+;>     MenuShowBuffer()
 	call MenuShowBuffer
+;>     wLineUpPlaced += 1
 	ld hl, wLineUpPlaced
 	inc [hl]
+;>     return
 	jp LineUpDone
 
 
-jr_007_5fc9:
+.allPlaced
+;> for i in range(3):
+;>@c13     wNumberBackup[i] = LineUpGetSlot(wLineUpOrder[i])     # party place -> record slot
 	ld a, [wLineUpOrder]
 	call LineUpGetSlot
 	ld [wNumberBackup], a
-	ld a, [$c0a4]
+;=@c13
+	ld a, [wLineUpOrder + 1]
 	call LineUpGetSlot
-	ld [$c0a1], a
-	ld a, [$c0a5]
+	ld [wNumberBackup + 1], a
+;=@c13
+	ld a, [wLineUpOrder + 2]
 	call LineUpGetSlot
-	ld [$c0a2], a
+	ld [wNumberBackup + 2], a
+;> wParty[0] = wNumberBackup[0]
 	ld a, [wNumberBackup]
 	ld [wParty], a
+;> if wMenuCount != 1:
 	ld a, [wMenuCount]
 	cp $01
-	jr z, jr_007_6004
+	jr z, .written
 
-	ld a, [$c0a1]
-	ld [$ca8f], a
+;>     wParty[1] = wNumberBackup[1]
+	ld a, [wNumberBackup + 1]
+	ld [wParty + 1], a
+;>     if wMenuCount != 2:
 	ld a, [wMenuCount]
 	cp $02
-	jr z, jr_007_6004
+	jr z, .written
 
-	ld a, [$c0a2]
-	ld [$ca90], a
+;>         wParty[2] = wNumberBackup[2]
+	ld a, [wNumberBackup + 2]
+	ld [wParty + 2], a
 
-jr_007_6004:
+.written
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;>@c14 if not wOnGateFloor and wMapId == 6 and mem[0xC925] == 0:     # in the town the followers walk on screen
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_007_6039
+	jr nz, .bar
 
 	ld a, [wMapId]
 	cp $06
-	jr nz, jr_007_6039
+	jr nz, .bar
 
-	ld a, [wMapScreen]
+;=@c14
+	ld a, [$c925]
 	or a
-	jr nz, jr_007_6039
+	jr nz, .bar
 
+;>     for i in range(3):
+;>@c15         mem[wActors + 0x31 + 0x20 * i] = wPartyGfx[i]    # the follower actors' sprite graphics
 	ld a, [wPartyGfx]
 	cp $ff
-	jr z, jr_007_6022
+	jr z, .gfx0
 
-jr_007_6022:
-	ld [$d803], a
-	ld a, [$ca92]
+.gfx0
+;=@c15
+	ld [wActors + $31], a
+	ld a, [wPartyGfx + 1]
 	cp $ff
-	jr z, jr_007_602c
+	jr z, .gfx1
 
-jr_007_602c:
-	ld [$d823], a
-	ld a, [$ca93]
+.gfx1
+;=@c15
+	ld [wActors + $51], a
+	ld a, [wPartyGfx + 2]
 	cp $ff
-	jr z, jr_007_6036
+	jr z, .gfx2
 
-jr_007_6036:
-	ld [$d843], a
+.gfx2
+;=@c15
+	ld [wActors + $71], a
 
-jr_007_6039:
+.bar
+;> BuildStatusBar()
 	call BuildStatusBar
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
 
@@ -6062,18 +6287,28 @@ LineUpDone:
 	ret
 
 
+;@ path: menu/options
+;@ Cursor offsets of the line-up's left column; $FFFF ends the list.
 LineUpCursorPos::
-	db $86, $01, $c6, $01, $06, $02, $ff, $ff
+	dw $0186, $01c6, $0206
+	dw $ffff
 
+;@ def LineUpGetSlot(place: a) -> a
+;@ path: menu/options
+;@ Returns wParty[`place`], the record slot of a party place; $FF stays $FF.
 LineUpGetSlot::
+;> if place == 0xFF:
+;>     return 0xFF
 	cp $ff
 	ret z
 
+;>@c16 return wParty[place]
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c16
 	ld h, a
 	ld a, [hl]
 	ret

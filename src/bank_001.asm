@@ -3687,7 +3687,7 @@ ExitMapSouth::
 	ret
 
 
-;@ def IsWorldMap() -> zf
+;@ def IsWorldMap() -> zero
 ;@ path: field/map
 ;@ Z set when the current map is one of the world maps where walking has effects on the
 ;@ party ($53-$59, $61-$64).

@@ -180,14 +180,16 @@ Boot::
 	jp Start
 
 
+;@ asset: logo
+;@ The Nintendo logo. The boot ROM scrolls it down the screen and only starts the cartridge
+;@ if these 48 bytes match its own copy.
 ;@ path: system/header
-;@ Cartridge header: the Nintendo logo the boot ROM checks.
-;@ asset: tiles bpp=1 length=$30
 HeaderLogo::
 	db $ce, $ed, $66, $66, $cc, $0d, $00, $0b, $03, $73, $00, $83, $00, $0c, $00, $0d
 	db $00, $08, $11, $1f, $88, $89, $00, $0e, $dc, $cc, $6e, $e6, $dd, $dd, $d9, $99
 	db $bb, $bb, $67, $63, $6e, $0e, $ec, $cc, $dd, $dc, $99, $9f, $bb, $b9, $33, $3e
 
+;@ asset: header range=$0100-$014F
 ;@ path: system/header
 ;@ Cartridge header: game title "DRAGON WMON".
 HeaderTitle::

@@ -1645,10 +1645,18 @@ PrintMenuText9::
 	ret
 
 
+;@ def ShopMenu()
+;@ path: item/shop
+;@ The item shop (script menus 0 and 12), one frame: runs step wMenuStep.
+;@ test: skip jumps through a table
 ShopMenu::
+;> return ShopSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: item/shop
+;@ Steps of the item shop: set up, draw the Buy / Sell / Quit menu, its input, the chosen option,
+;@ close.
 ShopSteps::
 	dw ShopInit
 	dw ShopOpenMenu
@@ -1656,149 +1664,228 @@ ShopSteps::
 	dw ShopRunOption
 	dw ShopClose
 
+;@ def ShopInit()
+;@ path: item/shop
+;@ Lines the background up with the tile grid, works out where the screen's top left corner is in
+;@ the BG map (wWindowBgMap), takes the field picture into wTilemapBuffer and loads the shop's
+;@ window graphics (bank $2E entry $0E) to tiles $8800.
+;@ test: skip decompresses graphics
 ShopInit::
+;> SnapToTile9(hScrollX)
 	ld hl, hScrollX
 	call SnapToTile9
+;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
+;> fill(wLinkChoice, 0, 8)              # the menu cursors
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@m map = 0x9800 + (hScrollY // 8) * 32 + hScrollX // 8
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@m
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@m
 	adc $98
 	ld h, a
+;>@s wWindowBgMap = (map & 0x3FF) | 0x9800
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@s
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DecompressVRAM(0x2E, 0x0E, 0x8800)
 	ld de, $2e0e
 	ld hl, $8800
 	call DecompressVRAM
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ShopOpenMenu()
+;@ path: item/shop
+;@ Draws the shop's main menu over the field.
+;@ test: skip writes VRAM
 ShopOpenMenu::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawShopMainMenu()
 	call DrawShopMainMenu
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def DrawShopMainMenu()
+;@ path: item/shop
+;@ Draws the Buy / Sell / Quit window, the gold window with the purse, and the message window
+;@ (layout $2E07 in bank 0) into wTilemapBuffer, with the cursor at wLinkChoice.
+;@ test: skip uses the home number routines
 DrawShopMainMenu::
-	ld de, $6f3c
+;> DrawWindowLayout9(ShopMainMenuLayout)
+	ld de, ShopMainMenuLayout
 	call DrawWindowLayout9
-	ld de, $6f1f
+;> DrawWindowLayout9(GoldWindowLayout)
+	ld de, GoldWindowLayout
 	call DrawWindowLayout9
+;> DrawWindowLayout9(0x2E07)            # message window at the bottom (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
 	ldh [hNumber], a
-	ld a, [$ca4c]
-	ldh [$ffd6], a
-	ld a, [$ca4d]
-	ldh [$ffd7], a
+	ld a, [wGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber5(TilemapBufferAddr9(0x2E))      # row 1, column 14
 	ld hl, $002e
 	call TilemapBufferAddr9
 	call PrintNumber5
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $46df
+;> DrawCursorAt9(wLinkChoice, ShopMainMenuCursor)
+	ld de, ShopMainMenuCursor
 	ld a, [wLinkChoice]
 	call DrawCursorAt9
 	ret
 
 
+;@ def ShopMainMenuInput()
+;@ path: item/shop
+;@ Buy / Sell / Quit: B or Start leaves the shop, A picks the option (wLinkChoice gets bit 7).
+;@ test: skip draws to VRAM
 ShopMainMenuInput::
-	ld de, $46df
+;> UpdateMenuCursor9(wLinkChoice, 3, ShopMainMenuCursor)
+	ld de, ShopMainMenuCursor
 	ld hl, wLinkChoice
 	ld b, $03
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x0A:               # B or Start
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_009_46ad
+	jr z, .checkA
 
+;>     wMenuStep += 2                  # close
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_009_46de
+	jr .done
 
-jr_009_46ad:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_009_46de
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wLinkChoice |= 0x80
 	ld hl, wLinkChoice
 	set 7, [hl]
+;>     fill(wMenuChoice2, 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;>     fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-	jr jr_009_46de
+	jr .done
 
-jr_009_46de:
+.done
 	ret
 
 
+;@ path: item/shop
+;@ Cursor table of the shop's main menu: window offsets (row * 32 + column) of Buy, Sell, Quit;
+;@ $FFFF ends it.
 ShopMainMenuCursor::
-	db $21, $00, $61, $00, $a1, $00, $ff, $ff
+	dw $0021, $0061, $00a1, $ffff
 
+;@ def ShopRunOption()
+;@ path: item/shop
+;@ Runs the chosen shop option.
+;@ test: skip jumps through a table
 ShopRunOption::
+;> return ShopOptionTable[wLinkChoice & 0x7F]()     # (bit 7 is ignored by the jump)
 	ld a, [wLinkChoice]
 	rst $00
 
+;@ path: item/shop
+;@ The shop options: buy, sell, quit.
 ShopOptionTable::
 	dw ShopBuyOption
 	dw ShopSellOption
 	dw ShopClose
 
+;@ def ShopClose()
+;@ path: item/shop
+;@ Leaves the shop: the field picture comes back with an empty message window, and the field runs
+;@ again.
+;@ test: skip writes VRAM
 ShopClose::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawWindowLayout9(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wFieldFlags &= ~0x10
 	ld hl, wFieldFlags
 	res 4, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def ShopBuyOption()
+;@ path: item/shop/buy
+;@ Buying, one frame: runs step wMenuSubStep.
+;@ test: skip jumps through a table
 ShopBuyOption::
+;> return ShopBuySteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: item/shop/buy
+;@ Steps of buying: pick the item from the shop's list, the quantity, confirm, pay.
 ShopBuySteps::
 	dw ShopBuyStart
 	dw ShopBuyShowList
@@ -1812,216 +1899,329 @@ ShopBuySteps::
 	dw ShopBuyDoIt
 	dw ShopBuyDone
 
+;@ def ShopBuyStart()
+;@ def ShopBuyStart()
+;@ path: item/shop/buy
+;@ Asks what the player wants and copies the shop's goods into wSceneObjects: map $50 has its
+;@ own list, the town shops pick theirs by the screen of the map they are on (wMapScreen 0, 2, 4,
+;@ 5; any other screen gets the screen-5 list).
 ShopBuyStart::
+;> PrintMenuText9(3)                    # "What would you like?"
 	ld hl, $0003
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;> if wMapId == 0x50:
+;>     stock = ShopStockMap50
 	ld a, [wMapId]
-	ld hl, $478c
+	ld hl, ShopStockMap50
 	cp $50
-	jr z, jr_009_4754
+	jr z, .copy
 
+;> elif wMapScreen == 0:
+;>     stock = ShopStock0
 	ld a, [wMapScreen]
-	ld hl, $476b
+	ld hl, ShopStock0
 	cp $00
-	jr z, jr_009_4754
+	jr z, .copy
 
-	ld hl, $4774
+;> elif wMapScreen == 2:
+;>     stock = ShopStock2
+	ld hl, ShopStock2
 	cp $02
-	jr z, jr_009_4754
+	jr z, .copy
 
-	ld hl, $477d
+;> elif wMapScreen == 4:
+;>     stock = ShopStock4
+	ld hl, ShopStock4
 	cp $04
-	jr z, jr_009_4754
+	jr z, .copy
 
-	ld hl, $4784
+;> else:
+;>     stock = ShopStock5
+	ld hl, ShopStock5
 	cp $05
-	jr z, jr_009_4754
+	jr z, .copy
 
-jr_009_4754:
+.copy
+;> fill(wSceneObjects, 0, 20)
 	push hl
 	ld hl, wSceneObjects
 	ld bc, $0014
 	xor a
 	call FillMemory
 	pop hl
+;> dest = wSceneObjects
 	ld de, wSceneObjects
 
-jr_009_4763:
+.loop
+;> while True:                         # copy up to and with the $FF end
+;>     item = mem[stock]; stock += 1
 	ld a, [hli]
+;>     mem[dest] = item; dest += 1
 	ld [de], a
 	inc de
+;>     if item == 0xFF:
+;>         return
 	cp $ff
 	ret z
 
-	jr jr_009_4763
+	jr .loop
 
+;@ path: item/shop/buy
+;@ Goods of the shop on screen 0 of its map: item numbers, $FF ends the list.
 ShopStock0::
 	db $01, $02, $07, $28, $13, $14, $1d, $26, $ff
 
+;@ path: item/shop/buy
+;@ Goods of the shop on screen 2.
 ShopStock2::
 	db $05, $04, $03, $0c, $2a, $2b, $15
 	db $1a, $ff
 
+;@ path: item/shop/buy
+;@ Goods of the shop on screen 4.
 ShopStock4::
 	db $1f, $20, $21, $22, $23, $24, $ff
 
+;@ path: item/shop/buy
+;@ Goods of the shop on screen 5 (and any other screen).
 ShopStock5::
 	db $17, $29, $19, $1b, $18, $1c, $25
 	db $ff
 
+;@ path: item/shop/buy
+;@ Goods of the shop on map $50.
 ShopStockMap50::
 	db $01, $02, $07, $08, $0b, $09, $0a, $0c, $ff
 
+;@ def ShopBuyShowList()
+;@ path: item/shop/buy
+;@ Once the question is printed: counts the goods, renders the names of the first page and draws the
+;@ list with the prices.
+;@ test: skip draws to VRAM
 ShopBuyShowList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> CountShopList()
 	call CountShopList
+;> LoadItemNameTiles()
 	call LoadItemNameTiles
+;> DrawShopBuyWindow()
 	call DrawShopBuyWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawShopBuyWindow()
+;@ path: item/shop/buy
+;@ Draws the shop's main menu, the list of goods with their prices, the page mark and the cursor.
+;@ test: skip writes VRAM
 DrawShopBuyWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawShopMainMenu()
 	call DrawShopMainMenu
-	ld de, $6f7d
+;> DrawWindowLayout9(ShopListLayout)
+	ld de, ShopListLayout
 	call DrawWindowLayout9
+;> DrawBuyPrices()
 	call DrawBuyPrices
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $48ec
+;> DrawListFrame9(wListCursor, ShopBuyListCursor, 4, wListLength)
+	ld de, ShopBuyListCursor
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def LoadItemNameTiles()
+;@ path: item/shop
+;@ Renders the names of the 4 items of page wListPage of the list in wSceneObjects into tiles
+;@ $8800 on (9 tiles each; ShopListLayout shows them).
+;@ test: skip far call
 LoadItemNameTiles::
+;>@i item = wSceneObjects + wListPage * 4
 	ld de, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	add e
 	ld e, a
+;=@i
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x8800
 	ld hl, $8800
+;> for _ in range(4):
+;>     item, tiles = LoadItemNameSlot(item, tiles)
 	call LoadItemNameSlot
 	call LoadItemNameSlot
 	call LoadItemNameSlot
 
+;@ def LoadItemNameSlot(item: de, tiles: hl) -> (de, hl)
+;@ path: item/shop
+;@ Renders the name of item mem[item] (text group 8; $FF = entry 0, empty) into 9 tiles at
+;@ `tiles`; returns the next item and the next 9 tiles.
+;@ test: skip far call
 LoadItemNameSlot::
+;>@t wTextIndex = 0 if mem[item] == 0xFF else mem[item]
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr nz, jr_009_47f0
+	jr nz, .text
 
 	ld a, $00
 
-jr_009_47f0:
+.text
+;=@t
 	ld [wTextIndex], a
+;> wTextGroup = 8                      # item names
 	ld a, $08
 	ld [wTextGroup], a
+;> DrawTextTiles9(tiles, 1, 9)
 	ld de, $0901
 	call DrawTextTiles9
+;>@r return item + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def DrawBuyPrices()
+;@ path: item/shop/buy
+;@ Writes the price (and the gold mark $DD) of the 4 items on page wListPage into wTilemapBuffer,
+;@ from row 5, column 13 down, every second row.
+;@ test: skip uses far calls
 DrawBuyPrices::
+;>@i item = wSceneObjects + wListPage * 4
 	ld de, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	add e
 	ld e, a
+;=@i
 	ld a, $00
 	adc d
 	ld d, a
+;> pos = 0x00AD
 	ld hl, $00ad
+;> for _ in range(4):
+;>     item, pos = DrawBuyPriceSlot(item, pos)
 	call DrawBuyPriceSlot
 	call DrawBuyPriceSlot
 	call DrawBuyPriceSlot
 
+;@ def DrawBuyPriceSlot(item: de, pos: hl) -> (de, hl)
+;@ path: item/shop/buy
+;@ Writes the buy price of item mem[item] (bytes 1-2 of its ItemData record) as 5 digits and the
+;@ gold mark at window offset `pos`, or 6 blanks for an empty entry; returns the next item and the
+;@ position two rows down.
+;@ test: skip uses far calls
 DrawBuyPriceSlot::
+;>@x if mem[item] in (0x00, 0xFF):
 	push de
 	push hl
 	ld a, [de]
 	cp $00
-	jr z, jr_009_482f
+	jr z, .empty
 
+;=@x
 	cp $ff
-	jr nz, jr_009_483c
+	jr nz, .price
 
-jr_009_482f:
+.empty
+;>@e     fill(TilemapBufferAddr9(pos), 0xE0, 6)
 	call TilemapBufferAddr9
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@e
 	ld [hli], a
 	ld [hli], a
-	jr jr_009_4869
+	jr .next
 
-jr_009_483c:
+.price
+;> else:
+;>     wItemId = mem[item]
 	push hl
 	ld a, [de]
 	ld [wItemId], a
+;>     GetItemData()
 	ld hl, far_GetItemData
 	rst $10
+;>     mem[hNumber + 2] = 0
+;>@n     mem16[hNumber] = mem16[wItemData + 1]    # the price
 	pop hl
 	push hl
 	call TilemapBufferAddr9
-	ld a, [$da63]
+	ld a, [wItemData + 1]
 	ldh [hNumber], a
-	ld a, [$da64]
-	ldh [$ffd6], a
+	ld a, [wItemData + 2]
+;=@n
+	ldh [hNumber + 1], a
 	ld a, $00
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;>     PrintNumber5(TilemapBufferAddr9(pos))
 	call PrintNumber5
+;>@g     mem[TilemapBufferAddr9(pos + 5)] = 0xDD # gold mark
 	pop hl
 	ld a, l
 	add $05
 	ld l, a
 	ld a, h
 	adc $00
+;=@g
 	ld h, a
 	call TilemapBufferAddr9
 	ld [hl], $dd
 
-jr_009_4869:
+.next
+;>@r return item + 1, pos + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def CountShopList()
+;@ path: item/shop
+;@ wListLength = number of items in the list in wSceneObjects.
 CountShopList::
+;> wListLength = CountItems20(wSceneObjects)
 	ld hl, wSceneObjects
 	call CountItems20
 	ld a, c
@@ -2029,11 +2229,16 @@ CountShopList::
 	ret
 
 
+;@ def CountItems20(items: hl) -> c
+;@ path: item/bag
+;@ Counts the items of a list of up to 20 (the bag's size) before the first 0 or $FF.
 CountItems20::
+;> n = 0
 	ld b, $14
 	ld c, $00
 
-jr_009_4884:
+.loop
+;> while n < 20 and mem[items + n] not in (0x00, 0xFF):
 	ld a, [hli]
 	cp $00
 	ret z
@@ -2041,358 +2246,511 @@ jr_009_4884:
 	cp $ff
 	ret z
 
+;>     n += 1
 	inc c
 	dec b
-	jr nz, jr_009_4884
+	jr nz, .loop
 
+;> return n
 	ret
 
 
+;@ def ShopBuyListInput()
+;@ path: item/shop/buy
+;@ The list of goods: Left / Right page, Up / Down pick (a new page renders its names and prices),
+;@ B goes back to Buy / Sell / Quit, A takes the item and starts the quantity at 1.
+;@ test: skip draws to VRAM
 ShopBuyListInput::
-	ld de, $48ec
+;>@op old_page = wListPage
+	ld de, ShopBuyListCursor
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@op
 	ld a, [hld]
 	push af
+;> old_row = wListCursor
 	ld a, [hl]
 	push af
+;> UpdatePagedList9(wListCursor, ShopBuyListCursor, 4, wListLength)
 	call UpdatePagedList9
+;>@cmp pass                             # (the row is compared, but nothing depends on it)
 	pop af
 	ld hl, wListCursor
 	and $7f
 	ld b, a
 	ld a, [hl]
 	and $7f
+;=@cmp
 	cp b
-	jr z, jr_009_48b1
+	jr z, .samePage
 
-jr_009_48b1:
+.samePage
+;> if wListPage != old_page:
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_009_48c1
+	jr z, .buttons
 
+;>     LoadItemNameTiles()
 	call LoadItemNameTiles
+;>     DrawBuyPrices()
 	call DrawBuyPrices
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 
-jr_009_48c1:
+.buttons
+;> if wJoyPressed & 0x02:              # B: back to the main menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_48d5
+	jr z, .checkA
 
+;>     PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_009_48eb
+	jr .done
 
-jr_009_48d5:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_48eb
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     wConfirmChoice2 = 1             # the quantity
 	ld a, $01
 	ld [wConfirmChoice2], a
 
-Jump_009_48eb:
-jr_009_48eb:
+.done
 	ret
 
 
+;@ path: item/shop/buy
+;@ Cursor table of the list of goods: the page-number position, then the 4 rows (window offsets);
+;@ $FFFF ends it.
 ShopBuyListCursor::
-	db $92, $01, $a2, $00, $e2, $00, $22, $01, $62, $01, $ff, $ff
+	dw $0192, $00a2, $00e2, $0122, $0162, $ffff
 
+;@ def ShopBuyAskQuantity()
+;@ path: item/shop/buy
+;@ Asks how many; the number entry starts on the ones digit.
+;@ test: skip prints text
 ShopBuyAskQuantity::
+;> PrintMenuText9(5)                    # "How many?"
 	ld hl, $0005
 	call PrintMenuText9
+;> wConfirmChoice = 1                   # digit cursor on the ones
 	ld a, $01
 	ld [wConfirmChoice], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopBuyShowQuantity()
+;@ path: item/shop/buy
+;@ Once the question is printed, shows the quantity window.
+;@ test: skip draws to VRAM
 ShopBuyShowQuantity::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawBuyQuantityWindow()
 	call DrawBuyQuantityWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawBuyQuantityWindow()
+;@ path: item/shop/buy
+;@ Draws the list of goods with the chosen row and the small quantity window (two digits, the
+;@ quantity is wConfirmChoice2, the digit cursor wConfirmChoice).
+;@ test: skip writes VRAM
 DrawBuyQuantityWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawShopMainMenu()
 	call DrawShopMainMenu
-	ld de, $6f7d
+;> DrawWindowLayout9(ShopListLayout)
+	ld de, ShopListLayout
 	call DrawWindowLayout9
+;> DrawBuyPrices()
 	call DrawBuyPrices
-	ld de, $48ec
+;> DrawListFrame9(wListCursor, ShopBuyListCursor, 4, wListLength)
+	ld de, ShopBuyListCursor
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame9
-	ld de, $7033
+;> DrawWindowLayout9(BuyQuantityLayout)
+	ld de, BuyQuantityLayout
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $498d
+;> DrawNumberEntry(wConfirmChoice, wConfirmChoice, ShopBuyDigitCursor)
+	ld de, ShopBuyDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $02
 	ld a, [hl]
 	call DrawNumberEntry
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def ShopBuyQuantityInput()
+;@ path: item/shop/buy
+;@ The quantity (1-20): B goes back to the list, A goes on.
+;@ test: skip draws to VRAM
 ShopBuyQuantityInput::
-	ld de, $498d
+;> UpdateNumberEntry(wConfirmChoice, ShopBuyDigitCursor, 2, 20)
+	ld de, ShopBuyDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $02
 	ld c, $14
 	call UpdateNumberEntry
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_497b
+	jr z, .checkA
 
+;>     DrawShopBuyWindow()
 	call DrawShopBuyWindow
+;>     PrintMenuText9(4)
 	ld hl, $0004
 	call PrintMenuText9
+;>@b     wMenuSubStep -= 4               # back to the list input
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@b
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_009_498c
+	jr .done
 
-jr_009_497b:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_498c
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_498c:
-jr_009_498c:
+.done
 	ret
 
 
+;@ path: item/shop/buy
+;@ Positions of the two quantity digits (window offsets), $FFFF ends them.
 ShopBuyDigitCursor::
-	db $61, $01, $62, $01, $ff, $ff
+	dw $0161, $0162, $ffff
 
+;@ def ShopBuyAskConfirm()
+;@ path: item/shop/buy
+;@ Works out the price (quantity x the item's price, 24-bit, kept in wListCursor2..$C8E6) and asks
+;@ "<quantity> <item> will be <price> gold. OK?" (the three parts in wTextArg0-2).
+;@ test: skip uses far calls
 ShopBuyAskConfirm::
+;>@it wItemId = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld hl, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@it
 	and $7f
 	add b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@it
 	ld h, a
 	ld a, [hl]
 	ld [wItemId], a
+;> CopySystemText(0x0800 | wItemId, wTextArg0)    # its name
 	ld l, a
 	ld h, $08
 	ld de, wTextArg0
 	call CopySystemText
+;> ByteToDecimal(wConfirmChoice2, wTextArg1)
 	ld a, [wConfirmChoice2]
 	ld hl, wTextArg1
 	call ByteToDecimal
+;> GetItemData()
 	ld hl, far_GetItemData
 	rst $10
-	ld a, [$da63]
+;> price = wConfirmChoice2 * mem16[wItemData + 1]
+	ld a, [wItemData + 1]
 	ld c, a
-	ld a, [$da64]
+	ld a, [wItemData + 2]
 	ld b, a
 	ld a, [wConfirmChoice2]
 	call Multiply24
+;> mem16[hNumber] = price & 0xFFFF; hNumber[2] = price >> 16
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	ld a, e
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;> wListCursor2 = lo(price); wListPage2 = hi(price); mem[0xC8E6] = price >> 16
 	ld a, l
 	ld [wListCursor2], a
 	ld a, h
 	ld [wListPage2], a
 	ld a, e
 	ld [$c8e6], a
+;> Number24ToDecimal(wTextArg2)
 	ld hl, wTextArg2
 	call Number24ToDecimal
+;> PrintMenuText9(6)
 	ld hl, $0006
 	call PrintMenuText9
+;> wMenuChoice3 = 0                     # yes
 	xor a
 	ld [wMenuChoice3], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopBuyShowYesNo()
+;@ path: item/shop/buy
+;@ Once the question is printed, shows the yes / no window.
+;@ test: skip writes VRAM
 ShopBuyShowYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	ld de, $6efa
+;> DrawWindowLayout9(ShopYesNoLayout)
+	ld de, ShopYesNoLayout
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $4a64
+;> DrawCursorAt9(wMenuChoice3, ShopBuyYesNoCursor)
+	ld de, ShopBuyYesNoCursor
 	ld a, [wMenuChoice3]
 	call DrawCursorAt9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopBuyYesNoInput()
+;@ path: item/shop/buy
+;@ Yes buys; No or B goes back to the quantity.
+;@ test: skip draws to VRAM
 ShopBuyYesNoInput::
-	ld de, $4a64
+;> UpdateMenuCursor9(wMenuChoice3, 2, ShopBuyYesNoCursor)
+	ld de, ShopBuyYesNoCursor
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_4a4b
+	jr z, .checkA
 
-jr_009_4a30:
+.no
+;>     DrawBuyQuantityWindow()
 	call DrawBuyQuantityWindow
+;>     PrintMenuText9(5)
 	ld hl, $0005
 	call PrintMenuText9
+;>@no     wMenuSubStep -= 4               # back to the quantity input
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@no
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_009_4a63
+	jr .done
 
-jr_009_4a4b:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_4a63
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:        # No: as B above
+;>         DrawBuyQuantityWindow(); PrintMenuText9(5); wMenuSubStep -= 4
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_009_4a30
+	jr z, .no
 
+;>     else:
+;>         wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_4a63:
-jr_009_4a63:
+.done
 	ret
 
 
+;@ path: item/shop/buy
+;@ Positions of Yes and No in the yes / no window; $FFFF ends them.
 ShopBuyYesNoCursor::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def ShopBuyDoIt()
+;@ path: item/shop/buy
+;@ Buys: not enough gold (message 7) or no room in the bag for all of them (message 8, the bag
+;@ holds 20), else the gold is paid and the items go at the end of the bag (message 9).
+;@ test: skip uses far calls
 ShopBuyDoIt::
+;> CompactBag()
 	ld hl, far_CompactBag
 	rst $10
+;>@g price = wListCursor2 | wListPage2 << 8 | mem[0xC8E6] << 16
+;> if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < price:
 	ld hl, wListCursor2
 	ld a, [wGold]
 	sub [hl]
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	sbc [hl]
+;=@g
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	sbc [hl]
+;>     msg = 7                         # not enough gold
 	ld hl, $0007
-	jr c, jr_009_4ac2
+	jr c, .print
 
+;> elif CountItems20(wBagItems) + wConfirmChoice2 >= 21:
 	ld hl, wBagItems
 	call CountItems20
 	ld a, [wConfirmChoice2]
 	add c
 	cp $15
+;>     msg = 8                         # the bag is full
 	ld hl, $0008
-	jr nc, jr_009_4ac2
+	jr nc, .print
 
+;> else:
+;>@sg     SpendGold(price)
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
 	ld h, a
 	ld a, [$c8e6]
 	ld e, a
+;=@sg
 	call SpendGold
+;>@sl     slot = wBagItems + CountItems20(wBagItems)
 	ld hl, wBagItems
 	call CountItems20
 	ld a, c
 	ld hl, wBagItems
 	add l
 	ld l, a
+;=@sl
 	ld a, $00
 	adc h
 	ld h, a
+;>     fill(slot, wItemId, wConfirmChoice2)
 	ld a, [wConfirmChoice2]
 	ld b, a
 	ld a, [wItemId]
 
-jr_009_4abb:
+.add
 	ld [hli], a
 	dec b
-	jr nz, jr_009_4abb
+	jr nz, .add
 
+;>     msg = 9                         # thank you
 	ld hl, $0009
 
-jr_009_4ac2:
+.print
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopBuyDone()
+;@ path: item/shop/buy
+;@ After the message: clears the menu variables and starts buying over (step 0 asks again).
 ShopBuyDone::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> fill(wMenuChoice2, 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;> fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> wMenuSubStep = 0
 	ld a, $00
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def ShopSellOption()
+;@ path: item/shop/sell
+;@ Selling, one frame: runs step wMenuSubStep.
+;@ test: skip jumps through a table
 ShopSellOption::
+;> return ShopSellSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: item/shop/sell
+;@ Steps of selling: pick one of the item kinds in the bag, the quantity, confirm, get paid; the
+;@ last two steps say there is nothing to sell.
 ShopSellSteps::
 	dw ShopSellStart
 	dw ShopSellShowList
@@ -2408,639 +2766,898 @@ ShopSellSteps::
 	dw ShopSellNothing
 	dw ShopSellNothingClose
 
+;@ def ShopSellStart()
+;@ path: item/shop/sell
+;@ Builds the list of sellable items; with none, goes to "nothing to sell", else asks what to sell.
+;@ test: skip uses far calls
 ShopSellStart::
+;> BuildSellList()
 	call BuildSellList
+;> if CountItems20(wSceneObjects) == 0:
 	ld hl, wSceneObjects
 	call CountItems20
 	ld a, c
 	or a
-	jr nz, jr_009_4b1c
+	jr nz, .ask
 
+;>     wMenuSubStep = 11               # ShopSellNothing
+;>     return
 	ld a, $0b
 	ld [wMenuSubStep], a
 	ret
 
-
-jr_009_4b1c:
+.ask
+;> PrintMenuText9(10)                   # "What will you sell?"
 	ld hl, $000a
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopSellShowList()
+;@ path: item/shop/sell
+;@ Once the question is printed: renders the item names of the first page and draws the list with
+;@ the selling prices.
+;@ test: skip draws to VRAM
 ShopSellShowList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> BuildSellList()
 	call BuildSellList
+;> CountShopList()
 	call CountShopList
+;> LoadItemNameTiles()
 	call LoadItemNameTiles
+;> DrawShopSellWindow()
 	call DrawShopSellWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawShopSellWindow()
+;@ path: item/shop/sell
+;@ Draws the shop's main menu, the list of items to sell with their prices, page mark and cursor.
+;@ test: skip writes VRAM
 DrawShopSellWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawShopMainMenu()
 	call DrawShopMainMenu
-	ld de, $6f7d
+;> DrawWindowLayout9(ShopListLayout)
+	ld de, ShopListLayout
 	call DrawWindowLayout9
+;> DrawSellPrices()
 	call DrawSellPrices
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $4cdd
+;> DrawListFrame9(wListCursor, ShopSellListCursor, 4, wListLength)
+	ld de, ShopSellListCursor
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def DrawSellPrices()
+;@ path: item/shop/sell
+;@ Writes the selling price (GetSellPrice) and the gold mark of the 4 items on page wListPage.
+;@ test: skip uses far calls
 DrawSellPrices::
+;>@i item = wSceneObjects + wListPage * 4
 	ld de, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	add e
 	ld e, a
+;=@i
 	ld a, $00
 	adc d
 	ld d, a
+;> pos = 0x00AD
 	ld hl, $00ad
+;> for _ in range(4):
+;>     item, pos = DrawSellPriceSlot(item, pos)
 	call DrawSellPriceSlot
 	call DrawSellPriceSlot
 	call DrawSellPriceSlot
 
+;@ def DrawSellPriceSlot(item: de, pos: hl) -> (de, hl)
+;@ path: item/shop/sell
+;@ Like DrawBuyPriceSlot, with the price the shop pays (GetSellPrice).
+;@ test: skip uses far calls
 DrawSellPriceSlot::
+;>@x if mem[item] in (0x00, 0xFF):
 	push de
 	push hl
 	ld a, [de]
 	cp $00
-	jr z, jr_009_4b87
+	jr z, .empty
 
+;=@x
 	cp $ff
-	jr nz, jr_009_4b94
+	jr nz, .price
 
-jr_009_4b87:
+.empty
+;>@e     fill(TilemapBufferAddr9(pos), 0xE0, 6)
 	call TilemapBufferAddr9
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@e
 	ld [hli], a
 	ld [hli], a
-	jr jr_009_4bbc
+	jr .next
 
-jr_009_4b94:
+.price
+;> else:
+;>     wItemId = mem[item]
 	push hl
 	push hl
 	ld a, [de]
 	ld [wItemId], a
+;>@n     mem16[hNumber] = GetSellPrice(); hNumber[2] = 0
 	call GetSellPrice
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	ld a, $00
-	ldh [$ffd7], a
+;=@n
+	ldh [hNumber + 2], a
+;>     PrintNumber5(TilemapBufferAddr9(pos))
 	pop hl
 	call TilemapBufferAddr9
 	call PrintNumber5
+;>@g     mem[TilemapBufferAddr9(pos + 5)] = 0xDD # gold mark
 	pop hl
 	ld a, l
 	add $05
 	ld l, a
 	ld a, h
 	adc $00
+;=@g
 	ld h, a
 	call TilemapBufferAddr9
 	ld [hl], $dd
 
-jr_009_4bbc:
+.next
+;>@r return item + 1, pos + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def GetSellPrice() -> hl
+;@ path: item/shop/sell
+;@ What the shop pays for item wItemId: the full price at the shop of map $50; for items $18-$1C,
+;@ $25 and $27 a tenth of their price; for all others three quarters (price - price / 4).
+;@ test: skip far call
 GetSellPrice::
+;> GetItemData()
 	ld hl, far_GetItemData
 	rst $10
-	ld a, [$da63]
+;> price = mem16[wItemData + 1]
+	ld a, [wItemData + 1]
 	ld l, a
-	ld a, [$da64]
+	ld a, [wItemData + 2]
 	ld h, a
+;> if wMapId == 0x50:
+;>     return price
 	ld a, [wMapId]
 	cp $50
 	ret z
 
+;>@ten if wItemId in (0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x25, 0x27):
 	ld a, [wItemId]
 	cp $18
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
 	cp $19
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
+;=@ten
 	cp $1a
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
 	cp $1b
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
 	cp $1c
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
+;=@ten
 	cp $25
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
 	cp $27
-	jr z, jr_009_4bfb
+	jr z, .tenth
 
-	jr jr_009_4c09
+	jr .quarter
 
-jr_009_4bfb:
-	ld a, [$da63]
+.tenth
+;>@t     return Divide16(price, 10)[0]
+	ld a, [wItemData + 1]
 	ld l, a
-	ld a, [$da64]
+	ld a, [wItemData + 2]
 	ld h, a
 	ld a, $0a
 	call Divide16
+;=@t
 	ret
 
-
-jr_009_4c09:
-	ld a, [$da63]
+.quarter
+;>@q return price - (price >> 2)
+	ld a, [wItemData + 1]
 	ld l, a
-	ld a, [$da64]
+	ld a, [wItemData + 2]
 	ld h, a
 	srl h
 	rr l
+;=@q
 	srl h
 	rr l
-	ld a, [$da63]
+	ld a, [wItemData + 1]
 	sub l
 	ld l, a
-	ld a, [$da64]
+	ld a, [wItemData + 2]
+;=@q
 	sbc h
 	ld h, a
 	ret
 
 
+;@ def BuildSellList()
+;@ path: item/shop/sell
+;@ Packs the bag, counts how many of each item kind it holds (in wBreedParent1, used as a count per
+;@ item number) leaving out the items that cannot be sold (ItemData byte 11 bit 0), and writes the
+;@ item numbers found ($01-$2F, in order) into wSceneObjects.
+;@ test: skip uses far calls
 BuildSellList::
+;> CompactBag()
 	ld hl, far_CompactBag
 	rst $10
+;> fill(wBreedParent1, 0, 0x30)         # count per item number
 	ld hl, wBreedParent1
 	ld bc, $0030
 	xor a
 	call FillMemory
+;> fill(wSceneObjects, 0, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	xor a
 	call FillMemory
+;> for slot in range(20):
 	ld de, wBagItems
 	ld b, $14
 
-jr_009_4c41:
+.count
+;>     item = wBagItems[slot]
+;>     if item in (0x00, 0xFF):
 	ld a, [de]
 	or a
-	jr z, jr_009_4c6b
+	jr z, .list
 
 	cp $ff
-	jr z, jr_009_4c6b
+	jr z, .list
 
+;>         break
+;>     wItemId = item
 	ld [wItemId], a
+;>@ct     count = wBreedParent1 + item
 	ld hl, wBreedParent1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@gd     GetItemData()
 	push hl
 	push de
 	push bc
 	ld hl, far_GetItemData
 	rst $10
+;=@gd
 	pop bc
 	pop de
 	pop hl
 	inc de
-	ld a, [$da6d]
+;>     if not wItemData[11] & 0x01:    # can be sold
+;>         mem[count] += 1
+	ld a, [wItemData + 11]
 	bit 0, a
-	jr nz, jr_009_4c68
+	jr nz, .nextSlot
 
 	inc [hl]
 
-jr_009_4c68:
+.nextSlot
 	dec b
-	jr nz, jr_009_4c41
+	jr nz, .count
 
-jr_009_4c6b:
-	ld hl, $d666
+.list
+;> dest = wSceneObjects
+	ld hl, wBreedParent1 + 1
 	ld de, wSceneObjects
+;>@lp for item in range(1, 0x30):
 	ld b, $2f
 	ld c, $01
 
-jr_009_4c75:
+.find
+;>     if wBreedParent1[item]:
 	ld a, [hli]
 	or a
-	jr z, jr_009_4c7c
+	jr z, .notOwned
 
+;>         mem[dest] = item; dest += 1
 	ld a, c
 	ld [de], a
 	inc de
 
-jr_009_4c7c:
+.notOwned
+;=@lp
 	inc c
 	dec b
-	jr nz, jr_009_4c75
+	jr nz, .find
 
 	ret
 
 
+;@ def ShopSellListInput()
+;@ path: item/shop/sell
+;@ The list of items to sell: as ShopBuyListInput (B back to the main menu, A takes the item and
+;@ starts the quantity at 1).
+;@ test: skip draws to VRAM
 ShopSellListInput::
-	ld de, $4cdd
+;>@op old_page = wListPage
+	ld de, ShopSellListCursor
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@op
 	ld a, [hld]
 	push af
+;> old_row = wListCursor
 	ld a, [hl]
 	push af
+;> UpdatePagedList9(wListCursor, ShopSellListCursor, 4, wListLength)
 	call UpdatePagedList9
+;>@cmp pass                             # (the row is compared, but nothing depends on it)
 	pop af
 	ld hl, wListCursor
 	and $7f
 	ld b, a
 	ld a, [hl]
 	and $7f
+;=@cmp
 	cp b
-	jr z, jr_009_4ca2
+	jr z, .samePage
 
-jr_009_4ca2:
+.samePage
+;> if wListPage != old_page:
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_009_4cb2
+	jr z, .buttons
 
+;>     LoadItemNameTiles()
 	call LoadItemNameTiles
+;>     DrawSellPrices()
 	call DrawSellPrices
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 
-jr_009_4cb2:
+.buttons
+;> if wJoyPressed & 0x02:              # B: back to the main menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_4cc6
+	jr z, .checkA
 
+;>     PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_009_4cdc
+	jr .done
 
-jr_009_4cc6:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_4cdc
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     wConfirmChoice2 = 1             # the quantity
 	ld a, $01
 	ld [wConfirmChoice2], a
 
-Jump_009_4cdc:
-jr_009_4cdc:
+.done
 	ret
 
 
+;@ path: item/shop/sell
+;@ Cursor table of the list of items to sell (as ShopBuyListCursor).
 ShopSellListCursor::
-	db $92, $01, $a2, $00, $e2, $00, $22, $01, $62, $01, $ff, $ff
+	dw $0192, $00a2, $00e2, $0122, $0162, $ffff
 
+;@ def ShopSellAskQuantity()
+;@ path: item/shop/sell
+;@ Asks how many to sell; the number entry starts on the ones digit.
+;@ test: skip prints text
 ShopSellAskQuantity::
+;> PrintMenuText9(12)
 	ld hl, $000c
 	call PrintMenuText9
+;> wConfirmChoice = 1
 	ld a, $01
 	ld [wConfirmChoice], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopSellShowQuantity()
+;@ path: item/shop/sell
+;@ Once the question is printed, shows the quantity window.
+;@ test: skip draws to VRAM
 ShopSellShowQuantity::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawSellQuantityWindow()
 	call DrawSellQuantityWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawSellQuantityWindow()
+;@ path: item/shop/sell
+;@ Draws the list with the chosen row and the quantity window: the quantity to sell (two digits)
+;@ next to the number of that item in the bag.
+;@ test: skip writes VRAM
 DrawSellQuantityWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawShopMainMenu()
 	call DrawShopMainMenu
-	ld de, $6f7d
+;> DrawWindowLayout9(ShopListLayout)
+	ld de, ShopListLayout
 	call DrawWindowLayout9
+;> DrawSellPrices()
 	call DrawSellPrices
-	ld de, $4cdd
+;> DrawListFrame9(wListCursor, ShopSellListCursor, 4, wListLength)
+	ld de, ShopSellListCursor
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame9
-	ld de, $7044
+;> DrawWindowLayout9(SellQuantityLayout)
+	ld de, SellQuantityLayout
 	call DrawWindowLayout9
+;>@it wItemId = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld hl, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@it
 	and $7f
 	add b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@it
 	ld h, a
 	ld a, [hl]
 	ld [wItemId], a
+;>@ow PrintNumber2(wBreedParent1[wItemId], TilemapBufferAddr9(0x0164))   # how many are carried
 	ld hl, wBreedParent1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@ow
 	ld c, [hl]
 	ld b, $00
 	ld hl, $0164
 	call TilemapBufferAddr9
 	call PrintNumber2
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $4db5
+;> DrawNumberEntry(wConfirmChoice, wConfirmChoice, ShopSellDigitCursor)
+	ld de, ShopSellDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $02
 	ld a, [hl]
 	call DrawNumberEntry
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def ShopSellQuantityInput()
+;@ path: item/shop/sell
+;@ The quantity, at most the number carried: B starts selling over, A goes on.
+;@ test: skip draws to VRAM
 ShopSellQuantityInput::
-	ld de, $4db5
+;>@u UpdateNumberEntry(wConfirmChoice, ShopSellDigitCursor, 2, wBreedParent1[wItemId])
+	ld de, ShopSellDigitCursor
 	ld hl, wBreedParent1
 	ld a, [wItemId]
 	add l
 	ld l, a
 	ld a, $00
+;=@u
 	adc h
 	ld h, a
 	ld c, [hl]
 	ld b, $02
 	ld hl, wConfirmChoice
 	call UpdateNumberEntry
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_4da3
+	jr z, .checkA
 
+;>     DrawShopSellWindow()
 	call DrawShopSellWindow
+;>@b     wMenuSubStep -= 5               # back to ShopSellStart
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@b
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_009_4db4
+	jr .done
 
-jr_009_4da3:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_4db4
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_4db4:
-jr_009_4db4:
+.done
 	ret
 
 
+;@ path: item/shop/sell
+;@ Positions of the two quantity digits in the sell quantity window.
 ShopSellDigitCursor::
-	db $61, $01, $62, $01, $ff, $ff
+	dw $0161, $0162, $ffff
 
+;@ def ShopSellAskConfirm()
+;@ path: item/shop/sell
+;@ Works out what the shop pays (quantity x GetSellPrice, kept in wListCursor2..$C8E6) and asks
+;@ "<quantity> <item> for <price> gold?".
+;@ test: skip uses far calls
 ShopSellAskConfirm::
+;> CopySystemText(0x0800 | wItemId, wTextArg0)
 	ld a, [wItemId]
 	ld l, a
 	ld h, $08
 	ld de, wTextArg0
 	call CopySystemText
+;> ByteToDecimal(wConfirmChoice2, wTextArg1)
 	ld a, [wConfirmChoice2]
 	ld hl, wTextArg1
 	call ByteToDecimal
+;> price = wConfirmChoice2 * GetSellPrice()
 	call GetSellPrice
 	ld c, l
 	ld b, h
 	ld a, [wConfirmChoice2]
 	call Multiply24
+;> mem16[hNumber] = price & 0xFFFF; hNumber[2] = price >> 16
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	ld a, e
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;> wListCursor2 = lo(price); wListPage2 = hi(price); mem[0xC8E6] = price >> 16
 	ld a, l
 	ld [wListCursor2], a
 	ld a, h
 	ld [wListPage2], a
 	ld a, e
 	ld [$c8e6], a
+;> Number24ToDecimal(wTextArg2)
 	ld hl, wTextArg2
 	call Number24ToDecimal
+;> PrintMenuText9(13)
 	ld hl, $000d
 	call PrintMenuText9
+;> wMenuChoice3 = 0
 	xor a
 	ld [wMenuChoice3], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopSellShowYesNo()
+;@ path: item/shop/sell
+;@ Once the question is printed, shows the yes / no window.
+;@ test: skip writes VRAM
 ShopSellShowYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	ld de, $6efa
+;> DrawWindowLayout9(ShopYesNoLayout)
+	ld de, ShopYesNoLayout
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $4e6d
+;> DrawCursorAt9(wMenuChoice3, ShopSellYesNoCursor)
+	ld de, ShopSellYesNoCursor
 	ld a, [wMenuChoice3]
 	call DrawCursorAt9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopSellYesNoInput()
+;@ path: item/shop/sell
+;@ Yes sells; No or B goes back to the quantity.
+;@ test: skip draws to VRAM
 ShopSellYesNoInput::
-	ld de, $4e6d
+;> UpdateMenuCursor9(wMenuChoice3, 2, ShopSellYesNoCursor)
+	ld de, ShopSellYesNoCursor
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_4e54
+	jr z, .checkA
 
-jr_009_4e3b:
+.no
+;>     DrawSellQuantityWindow()
 	call DrawSellQuantityWindow
+;>@no     wMenuSubStep -= 5               # back to ShopSellAskQuantity's next step
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@no
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_009_4e6c
+	jr .done
 
-jr_009_4e54:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_4e6c
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:        # No: as B
+;>         DrawSellQuantityWindow(); wMenuSubStep -= 5
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_009_4e3b
+	jr z, .no
 
+;>     else:
+;>         wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_4e6c:
-jr_009_4e6c:
+.done
 	ret
 
 
+;@ path: item/shop/sell
+;@ Positions of Yes and No.
 ShopSellYesNoCursor::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def ShopSellDoIt()
+;@ path: item/shop/sell
+;@ Sells: if the purse would reach 100,000 gold the shop refuses (message 14), else the gold is paid
+;@ and the items leave the bag (message 15).
+;@ test: skip uses far calls
 ShopSellDoIt::
+;>@s total = wGold[0] | wGold[1] << 8 | wGold[2] << 16
+;>@s total += wListCursor2 | wListPage2 << 8 | mem[0xC8E6] << 16
 	ld hl, wListCursor2
 	ld a, [wGold]
 	add [hl]
 	ld e, a
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
+;=@s
 	adc [hl]
 	ld d, a
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	adc [hl]
 	ld c, a
+;> if total >= 100000:
 	ld a, e
 	sub $a0
 	ld a, d
 	sbc $86
 	ld a, c
 	sbc $01
+;>     msg = 14                        # the purse is full
 	ld hl, $000e
-	jr nc, jr_009_4eb4
+	jr nc, .print
 
+;> else:
+;>@ag     AddGold(wListCursor2 | wListPage2 << 8 | mem[0xC8E6] << 16)
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
 	ld h, a
 	ld a, [$c8e6]
 	ld e, a
+;=@ag
 	call AddGold
+;>     for _ in range(wConfirmChoice2):
 	ld a, [wConfirmChoice2]
 	ld b, a
 
-jr_009_4ea8:
+.remove
+;>         RemoveItemFromBag()         # removes one wItemId
 	push bc
 	ld hl, far_RemoveItemFromBag
 	rst $10
 	pop bc
 	dec b
-	jr nz, jr_009_4ea8
+	jr nz, .remove
 
+;>     msg = 15
 	ld hl, $000f
 
-jr_009_4eb4:
+.print
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopSellDone()
+;@ path: item/shop/sell
+;@ After the message: clears the menu variables and starts selling over.
 ShopSellDone::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> fill(wMenuChoice2, 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;> fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> wMenuSubStep = 0
 	ld a, $00
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def ShopSellNothing()
+;@ path: item/shop/sell
+;@ "You have nothing to sell" (message 11).
+;@ test: skip prints text
 ShopSellNothing::
+;> PrintMenuText9(11)
 	ld hl, $000b
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ShopSellNothingClose()
+;@ path: item/shop/sell
+;@ After that message, back to Buy / Sell / Quit.
+;@ test: skip prints text
 ShopSellNothingClose::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def VaultMenu()
+;@ path: item/vault
+;@ The vault (script menu 2), where items and gold are left and taken back; one frame.
+;@ test: skip jumps through a table
 VaultMenu::
+;> return VaultSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: item/vault
+;@ Steps of the vault: set up, Deposit / Withdraw / Quit, Items / Gold / Quit, the chosen action,
+;@ close.
 VaultSteps::
 	dw VaultInit
 	dw VaultOpenMenu
@@ -3050,348 +3667,627 @@ VaultSteps::
 	dw VaultRunOption
 	dw VaultClose
 
+;@ def VaultInit()
+;@ path: item/vault
+;@ As ShopInit, with the vault's window graphics (bank $2E entry $0F).
+;@ test: skip decompresses graphics
 VaultInit::
+;> SnapToTile9(hScrollX)
 	ld hl, hScrollX
 	call SnapToTile9
+;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
+;> fill(wLinkChoice, 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@m map = 0x9800 + (hScrollY // 8) * 32 + hScrollX // 8
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@m
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@m
 	adc $98
 	ld h, a
+;>@s wWindowBgMap = (map & 0x3FF) | 0x9800
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@s
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DecompressVRAM(0x2E, 0x0F, 0x8800)
 	ld de, $2e0f
 	ld hl, $8800
 	call DecompressVRAM
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def VaultOpenMenu()
+;@ path: item/vault
+;@ Once the greeting is printed, draws Deposit / Withdraw / Quit.
+;@ test: skip writes VRAM
 VaultOpenMenu::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultMainMenu()
 	call DrawVaultMainMenu
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def DrawVaultMainMenu()
+;@ path: item/vault
+;@ Renders the menu words (system text $020B) into tiles $8A40 and draws the vault's menu window,
+;@ the gold window with the purse and the message window, cursor at wLinkChoice.
+;@ test: skip far call
 DrawVaultMainMenu::
+;> wTextGroup = 2
+;> wTextIndex = 0x0B
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $0b
 	ld [wTextIndex], a
+;> DrawTextTiles9(0x8A40, 1, 12)
 	ld hl, $8a40
 	ld de, $0c01
 	call DrawTextTiles9
-	ld de, $7838
+;> DrawWindowLayout9(VaultMainMenuLayout)
+	ld de, VaultMainMenuLayout
 	call DrawWindowLayout9
-	ld de, $6f1f
+;> DrawWindowLayout9(GoldWindowLayout)
+	ld de, GoldWindowLayout
 	call DrawWindowLayout9
+;> DrawWindowLayout9(0x2E07)            # message window (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
 	ldh [hNumber], a
-	ld a, [$ca4c]
-	ldh [$ffd6], a
-	ld a, [$ca4d]
-	ldh [$ffd7], a
+	ld a, [wGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber5(TilemapBufferAddr9(0x2E))
 	ld hl, $002e
 	call TilemapBufferAddr9
 	call PrintNumber5
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $501b
+;> DrawCursorAt9(wLinkChoice, VaultMainMenuCursor)
+	ld de, VaultMainMenuCursor
 	ld a, [wLinkChoice]
 	call DrawCursorAt9
 	ret
 
 
+;@ def VaultMainMenuInput()
+;@ path: item/vault
+;@ Deposit / Withdraw / Quit: B, Start or Quit close the vault; Deposit or Withdraw ask what
+;@ (message 3 or 14).
+;@ test: skip draws to VRAM
 VaultMainMenuInput::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld de, $501b
+;> UpdateMenuCursor9(wLinkChoice, 3, VaultMainMenuCursor)
+	ld de, VaultMainMenuCursor
 	ld hl, wLinkChoice
 	ld b, $03
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x0A:               # B or Start
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_009_4fdc
+	jr z, .checkA
 
+;>@c     wMenuStep += 4                  # VaultClose
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wMenuStep
 	inc [hl]
+;=@c
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_009_501a
+	jr .done
 
-jr_009_4fdc:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_009_501a
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wLinkChoice == 0x82:         # Quit
+;>         return VaultClose()
 	ld a, [wLinkChoice]
 	cp $82
 	jp z, VaultClose
 
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wLinkChoice |= 0x80
 	ld hl, wLinkChoice
 	set 7, [hl]
+;>     fill(wMenuChoice2, 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;>@pm     PrintMenuText9(3 if (wLinkChoice & 0x7F) == 0 else 14)
 	ld hl, $0003
 	ld a, [wLinkChoice]
 	and $7f
-	jr z, jr_009_5015
+	jr z, .print
 
 	ld hl, $000e
 
-jr_009_5015:
+.print
+;=@pm
 	call PrintMenuText9
-	jr jr_009_501a
+	jr .done
 
-jr_009_501a:
+.done
 	ret
 
 
+;@ path: item/vault
+;@ Positions of Deposit, Withdraw, Quit; $FFFF ends them.
 VaultMainMenuCursor::
-	db $21, $00, $61, $00, $a1, $00, $ff, $ff
+	dw $0021, $0061, $00a1, $ffff
 
+;@ def VaultOpenWhatMenu()
+;@ path: item/vault
+;@ Once the question is printed, draws Items / Gold / Quit and renders its words (system text
+;@ $020C) into the tiles.
+;@ test: skip far call
 VaultOpenWhatMenu::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wTextGroup = 2
+;> wTextIndex = 0x0C
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $0c
 	ld [wTextIndex], a
+;> DrawTextTiles9(0x8A40, 1, 12)
 	ld hl, $8a40
 	ld de, $0c01
 	call DrawTextTiles9
 	ret
 
 
+;@ def DrawVaultWhatMenu()
+;@ path: item/vault
+;@ Draws the Items / Gold / Quit window (the same layout, other words in its tiles), the gold
+;@ window and the message window; cursor at wMenuChoice2.
+;@ test: skip uses the home number routines
 DrawVaultWhatMenu::
-	ld de, $7838
+;> DrawWindowLayout9(VaultMainMenuLayout)
+	ld de, VaultMainMenuLayout
 	call DrawWindowLayout9
-	ld de, $6f1f
+;> DrawWindowLayout9(GoldWindowLayout)
+	ld de, GoldWindowLayout
 	call DrawWindowLayout9
+;> DrawWindowLayout9(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
 	ldh [hNumber], a
-	ld a, [$ca4c]
-	ldh [$ffd6], a
-	ld a, [$ca4d]
-	ldh [$ffd7], a
+	ld a, [wGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber5(TilemapBufferAddr9(0x2E))
 	ld hl, $002e
 	call TilemapBufferAddr9
 	call PrintNumber5
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $50b0
+;> DrawCursorAt9(wMenuChoice2, VaultWhatMenuInput.cursorTable)
+	ld de, VaultWhatMenuInput.cursorTable
 	ld a, [wMenuChoice2]
 	call DrawCursorAt9
 	ret
 
 
+;@ def VaultWhatMenuInput()
+;@ path: item/vault
+;@ Items / Gold / Quit: B or Start go back to Deposit / Withdraw / Quit, A picks (Quit closes the
+;@ vault through VaultDepositTable / VaultWithdrawTable). Its cursor table sits in the middle of
+;@ the code (.cursorTable).
+;@ test: skip draws to VRAM
 VaultWhatMenuInput::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld de, $50b0
+;> UpdateMenuCursor9(wMenuChoice2, 3, VaultWhatMenuInput.cursorTable)
+	ld de, .cursorTable
 	ld hl, wMenuChoice2
 	ld b, $03
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x0A:               # B or Start
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_009_50b8
+	jr z, .checkA
 
+;>     RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;>     DrawVaultMainMenu()
 	call DrawVaultMainMenu
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;>     PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;>     wMenuStep -= 2
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
-	jr jr_009_50e7
+	jr .done
 
-	db $21, $00, $61, $00, $a1, $00, $ff, $ff
+.cursorTable                             ; Items, Gold, Quit
+	dw $0021, $0061, $00a1, $ffff
 
-jr_009_50b8:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_009_50e7
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wMenuChoice2 |= 0x80
 	ld hl, wMenuChoice2
 	set 7, [hl]
+;>     fill(wConfirmChoice, 0, 6)
 	ld hl, wConfirmChoice
 	ld bc, $0006
 	ld a, $00
 	call FillMemory
+;>     fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
 
-jr_009_50e7:
+.done
 	ret
 
 
+;@ def VaultRunOption()
+;@ path: item/vault
+;@ Runs Deposit or Withdraw.
+;@ test: skip jumps through a table
 VaultRunOption::
+;> return VaultDirectionTable[wLinkChoice & 0x7F]()
 	ld a, [wLinkChoice]
 	rst $00
 
+;@ path: item/vault
+;@ Deposit, Withdraw.
 VaultDirectionTable::
 	dw VaultDepositOption
 	dw VaultWithdrawOption
 
+;@ def VaultDepositOption()
+;@ path: item/vault
+;@ Deposit: items, gold or quit.
+;@ test: skip jumps through a table
 VaultDepositOption::
+;> return VaultDepositTable[wMenuChoice2 & 0x7F]()
 	ld a, [wMenuChoice2]
 	rst $00
 
+;@ path: item/vault
+;@ Deposit an item, deposit gold, quit.
 VaultDepositTable::
 	dw VaultStoreItem
 	dw VaultDepositGold
 	dw VaultClose
 
+;@ def VaultWithdrawOption()
+;@ path: item/vault
+;@ Withdraw: items, gold or quit.
+;@ test: skip jumps through a table
 VaultWithdrawOption::
+;> return VaultWithdrawTable[wMenuChoice2 & 0x7F]()
 	ld a, [wMenuChoice2]
 	rst $00
 
+;@ path: item/vault
+;@ Take an item back, withdraw gold, quit.
 VaultWithdrawTable::
 	dw VaultTakeItem
 	dw VaultWithdrawGold
 	dw VaultClose
 
+;@ def VaultClose()
+;@ path: item/vault
+;@ Leaves the vault: the field picture comes back and the field runs again.
+;@ test: skip writes VRAM
 VaultClose::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawWindowLayout9(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wFieldFlags &= ~0x10
 	ld hl, wFieldFlags
 	res 4, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def VaultStoreItem()
+;@ path: item/vault/items
+;@ Leaving items in the vault, one frame: runs step wMenuSubStep.
+;@ test: skip jumps through a table
 VaultStoreItem::
+;> return VaultStoreItemSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: item/vault/items
+;@ Steps of leaving items: check there is something to leave and room for it, pick the item kind
+;@ from the bag, the quantity, store them, start over / finish.
 VaultStoreItemSteps::
 	dw VaultStoreItemStart
-	dw $5161
-	dw $5200
-	dw $527e
-	dw $528e
-	dw $52fd
-	dw $534f
-	dw $537d
-	dw $539e
+	dw VaultStoreItemShowList
+	dw VaultStoreListInput
+	dw VaultStoreAskQuantity
+	dw VaultStoreShowQuantity
+	dw VaultStoreQuantityInput
+	dw VaultStoreDoIt
+	dw VaultStoreDone
+	dw VaultStoreFinish
 
+;@ def VaultStoreItemStart()
+;@ path: item/vault/items
+;@ An empty bag (message 5) or a full vault (40 items, message 6) ends it; else asks which item
+;@ (message 4).
+;@ test: skip prints text
 VaultStoreItemStart::
+;> if CountItems40(wBagItems) == 0:
+;>     msg = 5                         # nothing to leave
 	ld hl, wBagItems
 	call CountItems40
 	ld a, c
 	or a
 	ld hl, $0005
-	jr z, jr_009_5158
+	jr z, .refuse
 
+;>@f elif CountItemsN(wStoredItems, 40) >= 40:
+;>     msg = 6                         # the vault is full
 	ld hl, wStoredItems
 	ld b, $28
 	call CountItemsN
 	ld a, c
 	cp $28
 	ld hl, $0006
-	jr nc, jr_009_5158
+;=@f
+	jr nc, .refuse
 
+;> else:
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     PrintMenuText9(4)
+;>     return
 	ld hl, $0004
 	call PrintMenuText9
 	ret
 
-
-jr_009_5158:
+.refuse
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep = 8                     # VaultStoreFinish
 	ld a, $08
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def VaultStoreItemShowList()
+;@ path: item/vault/items
+;@ Once the question is printed: lists the item kinds in the bag and draws the list.
+;@ test: skip draws to VRAM
 VaultStoreItemShowList::
-	db $fa, $25, $c8, $b7, $c0, $cd, $99, $51, $cd, $e5, $51, $cd, $cd, $47, $cd, $77
-	db $51, $21, $06, $c9, $34, $c9
+;> if wTextState:
+;>     return
+	ld a, [wTextState]
+	or a
+	ret nz
 
+;> BuildBagItemList()
+	call BuildBagItemList
+;> CountVaultList()
+	call CountVaultList
+;> LoadItemNameTiles()
+	call LoadItemNameTiles
+;> DrawVaultStoreWindow()
+	call DrawVaultStoreWindow
+;> wMenuSubStep += 1
+	ld hl, wMenuSubStep
+	inc [hl]
+	ret
+
+;@ def DrawVaultStoreWindow()
+;@ path: item/vault/items
+;@ Draws the Items / Gold / Quit menu and the item list window with page mark and cursor.
+;@ test: skip writes VRAM
 DrawVaultStoreWindow::
-	db $cd, $04, $42, $cd, $49, $50, $11, $53, $71, $cd
-	db $c9, $40, $cd, $2a, $44, $11, $72, $52, $06, $04, $fa, $e9, $c8, $4f, $21, $e2
-	db $c8, $cd, $ff, $44, $cd, $fa, $40, $c9
+;> RestoreTilemapBuffer9()
+	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
+	call DrawVaultWhatMenu
+;> DrawWindowLayout9(VaultItemListLayout)
+	ld de, VaultItemListLayout
+	call DrawWindowLayout9
+;> ResetCursorBlink9()
+	call ResetCursorBlink9
+;> DrawListFrame9(wListCursor, VaultStoreListCursor, 4, wListLength)
+	ld de, VaultStoreListCursor
+	ld b, $04
+	ld a, [wListLength]
+	ld c, a
+	ld hl, wListCursor
+	call DrawListFrame9
+;> CopyTilemapBufferToVram9()
+	call CopyTilemapBufferToVram9
+	ret
 
+;@ def BuildBagItemList()
+;@ path: item/vault/items
+;@ Like BuildSellList, without the "cannot be sold" check: packs the bag, counts each item kind in
+;@ wBreedParent1 (one count per item number) and lists the kinds carried ($01-$2F, in order) in
+;@ wSceneObjects.
+;@ test: skip far call
 BuildBagItemList::
-	db $21, $05, $03, $d7, $21, $65, $d6, $01
-	db $30, $00, $af, $cd, $c7, $12, $21, $d8, $c0, $01, $28, $00, $af, $cd, $c7, $12
-	db $11, $51, $ca, $06, $14, $1a, $b7, $28, $15, $fe, $ff, $28, $11, $ea, $5e, $da
-	db $21, $65, $d6, $85, $6f, $3e, $00, $8c, $67, $13, $34, $05, $20, $e7, $21, $66
-	db $d6, $11, $d8, $c0, $06, $2f, $0e, $01, $2a, $b7, $28, $03, $79, $12, $13, $0c
-	db $05, $20, $f5, $c9
+;> CompactBag()
+	ld hl, far_CompactBag
+	rst $10
+;> fill(wBreedParent1, 0, 0x30)
+	ld hl, wBreedParent1
+	ld bc, $0030
+	xor a
+	call FillMemory
+;> fill(wSceneObjects, 0, 40)
+	ld hl, wSceneObjects
+	ld bc, $0028
+	xor a
+	call FillMemory
+;> for slot in range(20):
+	ld de, wBagItems
+	ld b, $14
 
+.count
+;>     item = wBagItems[slot]
+;>     if item in (0x00, 0xFF):
+	ld a, [de]
+	or a
+	jr z, .list
+
+	cp $ff
+	jr z, .list
+
+;>         break
+;>     wItemId = item
+	ld [wItemId], a
+;>@c     wBreedParent1[item] += 1
+	ld hl, wBreedParent1
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+;=@c
+	inc de
+	inc [hl]
+	dec b
+	jr nz, .count
+
+.list
+;> dest = wSceneObjects
+	ld hl, wBreedParent1 + 1
+	ld de, wSceneObjects
+;>@lp for item in range(1, 0x30):
+	ld b, $2f
+	ld c, $01
+
+.find
+;>     if wBreedParent1[item]:
+	ld a, [hli]
+	or a
+	jr z, .notCarried
+
+;>         mem[dest] = item; dest += 1
+	ld a, c
+	ld [de], a
+	inc de
+
+.notCarried
+;=@lp
+	inc c
+	dec b
+	jr nz, .find
+
+	ret
+
+;@ def CountVaultList()
+;@ path: item/vault/items
+;@ wListLength = number of entries in the list in wSceneObjects (up to 40).
 CountVaultList::
+;> wListLength = CountItems40(wSceneObjects)
 	ld hl, wSceneObjects
 	call CountItems40
 	ld a, c
@@ -3399,13 +4295,22 @@ CountVaultList::
 	ret
 
 
+;@ def CountItems40(items: hl) -> c
+;@ path: item/bag
+;@ Counts the entries of a list of up to 40 (the vault's size) before the first 0 or $FF.
 CountItems40::
+;> return CountItemsN(items, 40)
 	ld b, $28
 
+;@ def CountItemsN(items: hl, size: b) -> c
+;@ path: item/bag
+;@ Counts the entries of a list of up to `size` before the first 0 or $FF.
 CountItemsN::
+;> n = 0
 	ld c, $00
 
-jr_009_51f4:
+.loop
+;> while n < size and mem[items + n] not in (0x00, 0xFF):
 	ld a, [hli]
 	cp $00
 	ret z
@@ -3413,73 +4318,374 @@ jr_009_51f4:
 	cp $ff
 	ret z
 
+;>     n += 1
 	inc c
 	dec b
-	jr nz, jr_009_51f4
+	jr nz, .loop
 
+;> return n
 	ret
 
 
+;@ def VaultStoreListInput()
+;@ path: item/vault/items
+;@ The list of item kinds in the bag: Left / Right page (only the names change), Up / Down pick,
+;@ B goes back to Items / Gold / Quit, A takes the item and starts the quantity at 1.
+;@ test: skip draws to VRAM
 VaultStoreListInput::
-	db $11, $72, $52, $21, $e2, $c8, $fa, $e9, $c8, $4f, $06, $04, $23, $3a, $f5, $7e
-	db $f5, $cd, $56, $42, $f1, $21, $e2, $c8, $e6, $7f, $47, $7e, $e6, $7f, $b8, $28
-	db $00, $f1, $21, $e3, $c8, $be, $28, $03, $cd, $cd, $47, $fa, $46, $c8, $cb, $4f
-	db $28, $29, $3e, $02, $ea, $22, $c8, $3e, $0c, $ea, $23, $c8, $21, $40, $8a, $11
-	db $01, $0c, $cd, $2f, $41, $cd, $04, $42, $cd, $49, $50, $cd, $fa, $40, $21, $03
-	db $00, $cd, $e5, $45, $3e, $04, $ea, $05, $c9, $18, $16, $fa, $46, $c8, $cb, $47
-	db $ca, $71, $52, $3e, $59, $cd, $2c, $1b, $21, $06, $c9, $34, $3e, $01, $ea, $de
-	db $c8, $c9
+;>@op old_page = wListPage
+	ld de, VaultStoreListCursor
+	ld hl, wListCursor
+	ld a, [wListLength]
+	ld c, a
+	ld b, $04
+	inc hl
+;=@op
+	ld a, [hld]
+	push af
+;> old_row = wListCursor
+	ld a, [hl]
+	push af
+;> UpdatePagedList9(wListCursor, VaultStoreListCursor, 4, wListLength)
+	call UpdatePagedList9
+;>@cmp pass                             # (the row is compared, but nothing depends on it)
+	pop af
+	ld hl, wListCursor
+	and $7f
+	ld b, a
+	ld a, [hl]
+	and $7f
+;=@cmp
+	cp b
+	jr z, .samePage
 
+.samePage
+;> if wListPage != old_page:
+;>     LoadItemNameTiles()
+	pop af
+	ld hl, wListPage
+	cp [hl]
+	jr z, .buttons
+
+	call LoadItemNameTiles
+
+.buttons
+;> if wJoyPressed & 0x02:              # B: back to Items / Gold / Quit
+	ld a, [wJoyPressed]
+	bit 1, a
+	jr z, .checkA
+
+;>     wTextGroup = 2
+;>     wTextIndex = 0x0C
+	ld a, $02
+	ld [wTextGroup], a
+	ld a, $0c
+	ld [wTextIndex], a
+;>     DrawTextTiles9(0x8A40, 1, 12)
+	ld hl, $8a40
+	ld de, $0c01
+	call DrawTextTiles9
+;>     RestoreTilemapBuffer9()
+	call RestoreTilemapBuffer9
+;>     DrawVaultWhatMenu()
+	call DrawVaultWhatMenu
+;>     CopyTilemapBufferToVram9()
+	call CopyTilemapBufferToVram9
+;>     PrintMenuText9(3)
+	ld hl, $0003
+	call PrintMenuText9
+;>     wMenuStep = 4
+	ld a, $04
+	ld [wMenuStep], a
+	jr .done
+
+.checkA
+;> elif wJoyPressed & 0x01:            # A
+	ld a, [wJoyPressed]
+	bit 0, a
+	jp z, .done
+
+;>     QueueSound(0x59)
+	ld a, $59
+	call QueueSound
+;>     wMenuSubStep += 1
+	ld hl, wMenuSubStep
+	inc [hl]
+;>     wMenuChoice3 = 1                # the quantity
+	ld a, $01
+	ld [wMenuChoice3], a
+
+.done
+	ret
+
+;@ path: item/vault/items
+;@ Cursor table of the vault's item lists: page-number position, then the 4 rows; $FFFF ends it.
 VaultStoreListCursor::
-	db $72, $01, $89, $00, $c9, $00, $09, $01, $49, $01, $ff, $ff
+	dw $0172, $0089, $00c9, $0109, $0149, $ffff
 
+;@ def VaultStoreAskQuantity()
+;@ path: item/vault/items
+;@ Asks how many (message 7); the digit cursor starts on the ones.
+;@ test: skip prints text
 VaultStoreAskQuantity::
-	db $21, $07
-	db $00, $cd, $e5, $45, $3e, $01, $ea, $dd, $c8, $21, $06, $c9, $34, $c9
+;> PrintMenuText9(7)
+	ld hl, $0007
+	call PrintMenuText9
+;> wConfirmChoice2 = 1                  # digit cursor
+	ld a, $01
+	ld [wConfirmChoice2], a
+;> wMenuSubStep += 1
+	ld hl, wMenuSubStep
+	inc [hl]
+	ret
 
+;@ def VaultStoreShowQuantity()
+;@ path: item/vault/items
+;@ Once the question is printed, shows the quantity window.
+;@ test: skip draws to VRAM
 VaultStoreShowQuantity::
-	db $fa, $25
-	db $c8, $b7, $c0, $cd, $9b, $52, $21, $06, $c9, $34, $c9
+;> if wTextState:
+;>     return
+	ld a, [wTextState]
+	or a
+	ret nz
 
+;> DrawVaultStoreQuantity()
+	call DrawVaultStoreQuantity
+;> wMenuSubStep += 1
+	ld hl, wMenuSubStep
+	inc [hl]
+	ret
+
+;@ def DrawVaultStoreQuantity()
+;@ path: item/vault/items
+;@ Draws the item list with the chosen row and the quantity window (the quantity wMenuChoice3
+;@ next to the number carried).
+;@ test: skip writes VRAM
 DrawVaultStoreQuantity::
-	db $cd, $04, $42, $cd, $49
-	db $50, $11, $53, $71, $cd, $c9, $40, $11, $72, $52, $06, $04, $fa, $e9, $c8, $4f
-	db $21, $e2, $c8, $cd, $ff, $44, $11, $44, $70, $cd, $c9, $40, $21, $d8, $c0, $fa
-	db $e3, $c8, $87, $87, $47, $fa, $e2, $c8, $e6, $7f, $80, $85, $6f, $3e, $00, $8c
-	db $67, $7e, $ea, $5e, $da, $21, $65, $d6, $85, $6f, $3e, $00, $8c, $67, $4e, $06
-	db $00, $21, $64, $01, $cd, $6d, $40, $cd, $82, $20, $cd, $2a, $44, $11, $49, $53
-	db $21, $dd, $c8, $06, $02, $7e, $cd, $6d, $45, $cd, $fa, $40, $c9
+;> RestoreTilemapBuffer9()
+	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
+	call DrawVaultWhatMenu
+;> DrawWindowLayout9(VaultItemListLayout)
+	ld de, VaultItemListLayout
+	call DrawWindowLayout9
+;> DrawListFrame9(wListCursor, VaultStoreListCursor, 4, wListLength)
+	ld de, VaultStoreListCursor
+	ld b, $04
+	ld a, [wListLength]
+	ld c, a
+	ld hl, wListCursor
+	call DrawListFrame9
+;> DrawWindowLayout9(SellQuantityLayout)
+	ld de, SellQuantityLayout
+	call DrawWindowLayout9
+;>@it wItemId = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
+	ld hl, wSceneObjects
+	ld a, [wListPage]
+	add a
+	add a
+	ld b, a
+	ld a, [wListCursor]
+;=@it
+	and $7f
+	add b
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+;=@it
+	ld h, a
+	ld a, [hl]
+	ld [wItemId], a
+;>@ow PrintNumber2(wBreedParent1[wItemId], TilemapBufferAddr9(0x0164))
+	ld hl, wBreedParent1
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+;=@ow
+	ld c, [hl]
+	ld b, $00
+	ld hl, $0164
+	call TilemapBufferAddr9
+	call PrintNumber2
+;> ResetCursorBlink9()
+	call ResetCursorBlink9
+;> DrawNumberEntry(wConfirmChoice2, wConfirmChoice2, VaultStoreDigitCursor)
+	ld de, VaultStoreDigitCursor
+	ld hl, wConfirmChoice2
+	ld b, $02
+	ld a, [hl]
+	call DrawNumberEntry
+;> CopyTilemapBufferToVram9()
+	call CopyTilemapBufferToVram9
+	ret
 
+;@ def VaultStoreQuantityInput()
+;@ path: item/vault/items
+;@ The quantity, at most the number carried: B goes back to the list, A goes on.
+;@ test: skip draws to VRAM
 VaultStoreQuantityInput::
-	db $11, $49, $53
-	db $21, $65, $d6, $fa, $5e, $da, $85, $6f, $3e, $00, $8c, $67, $4e, $06, $02, $21
-	db $dd, $c8, $cd, $4a, $43, $fa, $46, $c8, $cb, $4f, $28, $1b, $cd, $77, $51, $21
-	db $04, $00, $cd, $e5, $45, $21, $06, $c9, $35, $21, $06, $c9, $35, $21, $06, $c9
-	db $35, $21, $06, $c9, $35, $18, $11, $fa, $46, $c8, $cb, $47, $ca, $48, $53, $3e
-	db $59, $cd, $2c, $1b, $21, $06, $c9, $34, $c9
+;>@u UpdateNumberEntry(wConfirmChoice2, VaultStoreDigitCursor, 2, wBreedParent1[wItemId])
+	ld de, VaultStoreDigitCursor
+	ld hl, wBreedParent1
+	ld a, [wItemId]
+	add l
+	ld l, a
+	ld a, $00
+;=@u
+	adc h
+	ld h, a
+	ld c, [hl]
+	ld b, $02
+	ld hl, wConfirmChoice2
+	call UpdateNumberEntry
+;> if wJoyPressed & 0x02:              # B
+	ld a, [wJoyPressed]
+	bit 1, a
+	jr z, .checkA
 
+;>     DrawVaultStoreWindow()
+	call DrawVaultStoreWindow
+;>     PrintMenuText9(4)
+	ld hl, $0004
+	call PrintMenuText9
+;>@b     wMenuSubStep -= 4               # back to the list input
+	ld hl, wMenuSubStep
+	dec [hl]
+	ld hl, wMenuSubStep
+	dec [hl]
+	ld hl, wMenuSubStep
+	dec [hl]
+;=@b
+	ld hl, wMenuSubStep
+	dec [hl]
+	jr .done
+
+.checkA
+;> elif wJoyPressed & 0x01:            # A
+	ld a, [wJoyPressed]
+	bit 0, a
+	jp z, .done
+
+;>     QueueSound(0x59)
+	ld a, $59
+	call QueueSound
+;>     wMenuSubStep += 1
+	ld hl, wMenuSubStep
+	inc [hl]
+
+.done
+	ret
+
+;@ path: item/vault/items
+;@ Positions of the two quantity digits.
 VaultStoreDigitCursor::
-	db $61, $01, $62, $01, $ff, $ff
+	dw $0161, $0162, $ffff
 
+;@ def VaultStoreDoIt()
+;@ path: item/vault/items
+;@ Stores the items: if they would not all fit in the vault's 40 places, message 8; else each one
+;@ leaves the bag and goes into the vault (message 9).
+;@ test: skip far call
 VaultStoreDoIt::
-	db $21
-	db $65, $ca, $06, $28, $cd, $f2, $51, $fa, $de, $c8, $81, $fe, $29, $21, $08, $00
-	db $30, $13, $fa, $de, $c8, $47, $c5, $21, $07, $03, $d7, $cd, $1a, $5b, $c1, $05
-	db $20, $f4, $21, $09, $00, $cd, $e5, $45, $21, $06, $c9, $34, $c9
+;>@f if CountItemsN(wStoredItems, 40) + wMenuChoice3 >= 41:
+;>     msg = 8                         # no room
+	ld hl, wStoredItems
+	ld b, $28
+	call CountItemsN
+	ld a, [wMenuChoice3]
+	add c
+	cp $29
+;=@f
+	ld hl, $0008
+	jr nc, .print
 
+;> else:
+;>     for _ in range(wMenuChoice3):
+	ld a, [wMenuChoice3]
+	ld b, a
+
+.loop
+;>         RemoveItemFromBag()
+	push bc
+	ld hl, far_RemoveItemFromBag
+	rst $10
+;>         StoreItem()
+	call StoreItem
+	pop bc
+	dec b
+	jr nz, .loop
+
+;>     msg = 9
+	ld hl, $0009
+
+.print
+;> PrintMenuText9(msg)
+	call PrintMenuText9
+;> wMenuSubStep += 1
+	ld hl, wMenuSubStep
+	inc [hl]
+	ret
+
+;@ def VaultStoreDone()
+;@ path: item/vault/items
+;@ After the message: clears the menu variables and starts over (step 0 checks and asks again).
 VaultStoreDone::
-	db $fa, $25, $c8
-	db $b7, $c0, $21, $dc, $c8, $01, $06, $00, $3e, $00, $cd, $c7, $12, $21, $e2, $c8
-	db $01, $08, $00, $3e, $00, $cd, $c7, $12, $3e, $00, $ea, $06, $c9, $c9
+;> if wTextState:
+;>     return
+	ld a, [wTextState]
+	or a
+	ret nz
 
+;> fill(wConfirmChoice, 0, 6)
+	ld hl, wConfirmChoice
+	ld bc, $0006
+	ld a, $00
+	call FillMemory
+;> fill(wListCursor, 0, 8)
+	ld hl, wListCursor
+	ld bc, $0008
+	ld a, $00
+	call FillMemory
+;> wMenuSubStep = 0
+	ld a, $00
+	ld [wMenuSubStep], a
+	ret
+
+;@ def VaultStoreFinish()
+;@ path: item/vault/items
+;@ After a refusal: back to Deposit / Withdraw / Quit.
+;@ test: skip prints text
 VaultStoreFinish::
-	db $fa, $25
-	db $c8, $b7, $c0, $21, $01, $00, $cd, $e5, $45, $3e, $01, $ea, $05, $c9, $c9
+;> if wTextState:
+;>     return
+	ld a, [wTextState]
+	or a
+	ret nz
 
+;> PrintMenuText9(1)
+	ld hl, $0001
+	call PrintMenuText9
+;> wMenuStep = 1
+	ld a, $01
+	ld [wMenuStep], a
+	ret
+
+;@ def VaultDepositGold()
+;@ path: item/vault/gold
+;@ Depositing gold, one frame: runs step wMenuSubStep. The amount being entered is a 24-bit number
+;@ in wLinkRefused, wLinkPartnerChoice, wListLastRows ($C8DF-$C8E1, shared menu scratch).
+;@ test: skip jumps through a table
 VaultDepositGold::
+;> return VaultDepositGoldSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: item/vault/gold
+;@ Steps of depositing gold: ask, show the amount entry, enter it, pay in, finish.
 VaultDepositGoldSteps::
 	dw VaultDepositGoldStart
 	dw VaultDepositGoldShow
@@ -3487,193 +4693,288 @@ VaultDepositGoldSteps::
 	dw VaultDepositGoldDoIt
 	dw VaultDepositGoldDone
 
+;@ def VaultDepositGoldStart()
+;@ path: item/vault/gold
+;@ Asks how much (message 10); the amount starts at 0 with the cursor on the hundreds digit.
+;@ test: skip prints text
 VaultDepositGoldStart::
+;> PrintMenuText9(10)
 	ld hl, $000a
 	call PrintMenuText9
+;> wConfirmChoice = 2                   # digit cursor: the hundreds
 	ld a, $02
 	ld [wConfirmChoice], a
+;> amount = 0
 	ld a, $00
 	ld [wLinkRefused], a
 	ld a, $00
 	ld [wLinkPartnerChoice], a
 	ld a, $00
 	ld [wListLastRows], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def VaultDepositGoldShow()
+;@ path: item/vault/gold
+;@ Once the question is printed, shows the amount entry.
+;@ test: skip draws to VRAM
 VaultDepositGoldShow::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawDepositGoldWindow()
 	call DrawDepositGoldWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawDepositGoldWindow()
+;@ path: item/vault/gold
+;@ Draws Items / Gold / Quit, the window with the gold kept in the vault (6 digits, its label is
+;@ system text $0255 rendered into tiles $8A00) and the 5-digit amount entry.
+;@ test: skip writes VRAM
 DrawDepositGoldWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
+;> wTextGroup = 2
+;> wTextIndex = 0x55
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $55
 	ld [wTextIndex], a
+;> DrawTextTiles9(0x8A00, 1, 4)
 	ld hl, $8a00
 	ld de, $0401
 	call DrawTextTiles9
-	ld de, $71ca
+;> DrawWindowLayout9(BankedGoldLayout)
+	ld de, BankedGoldLayout
 	call DrawWindowLayout9
-	ld de, $71e7
+;> DrawWindowLayout9(GoldEntryLayout)
+	ld de, GoldEntryLayout
 	call DrawWindowLayout9
+;> copy(hNumber, wBankedGold, 3)
 	ld a, [wBankedGold]
 	ldh [hNumber], a
-	ld a, [$ca4f]
-	ldh [$ffd6], a
-	ld a, [$ca50]
-	ldh [$ffd7], a
+	ld a, [wBankedGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wBankedGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber6(TilemapBufferAddr9(0x016D))
 	ld hl, $016d
 	call TilemapBufferAddr9
 	call PrintNumber6
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $548f
+;> DrawGoldEntry(wConfirmChoice, DepositGoldDigitCursor)
+	ld de, DepositGoldDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $02
 	ld a, [hl]
 	call DrawGoldEntry
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def VaultDepositGoldInput()
+;@ path: item/vault/gold
+;@ The amount entry (the top three of its five digits can be changed, so deposits go in hundreds):
+;@ B goes back to Items / Gold / Quit, A with a nonzero amount goes on (amount: the 24-bit number in
+;@ $C8DF-$C8E1).
+;@ test: skip draws to VRAM
 VaultDepositGoldInput::
-	ld de, $548f
+;> UpdateGoldEntry(wConfirmChoice, DepositGoldDigitCursor, 3)
+	ld de, DepositGoldDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $03
 	call UpdateGoldEntry
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_5474
+	jr z, .checkA
 
+;>     wTextGroup = 2
+;>     wTextIndex = 0x0C
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $0c
 	ld [wTextIndex], a
+;>     DrawTextTiles9(0x8A40, 1, 12)
 	ld hl, $8a40
 	ld de, $0c01
 	call DrawTextTiles9
+;>     RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;>     DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;>     PrintMenuText9(3)
 	ld hl, $0003
 	call PrintMenuText9
+;>     wMenuStep = 4
 	ld a, $04
 	ld [wMenuStep], a
-	jr jr_009_548e
+	jr .done
 
-jr_009_5474:
+.checkA
+;>@a elif wJoyPressed & 0x01 and amount != 0:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_548e
+	jp z, .done
 
 	ld hl, wLinkRefused
 	ld a, [hli]
 	or [hl]
+;=@a
 	inc hl
 	or [hl]
-	jr z, jr_009_548e
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_548e:
-jr_009_548e:
+.done
 	ret
 
 
+;@ path: item/vault/gold
+;@ Positions of the five digits of the gold amount entry; $FFFF ends them.
 DepositGoldDigitCursor::
-	db $8e, $00, $8f, $00, $90, $00, $91, $00, $92, $00, $ff, $ff
+	dw $008e, $008f, $0090, $0091, $0092, $ffff
 
+;@ def VaultDepositGoldDoIt()
+;@ path: item/vault/gold
+;@ Pays the amount in: not that much gold carried (message 11), or the vault would reach 1,000,000
+;@ (message 12); else it moves from the purse to the vault (message 13). amount: the 24-bit number
+;@ in $C8DF-$C8E1.
+;@ test: skip uses the home gold routines
 VaultDepositGoldDoIt::
+;>@g if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < amount:
 	ld hl, wLinkRefused
 	ld a, [wGold]
 	sub [hl]
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	sbc [hl]
+;=@g
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	sbc [hl]
+;>     msg = 11
 	ld hl, $000b
-	jr c, jr_009_54f7
+	jr c, .print
 
+;>@v elif (wBankedGold[0] | wBankedGold[1] << 8 | wBankedGold[2] << 16) + amount >= 1000000:
 	ld hl, wLinkRefused
 	ld a, [wBankedGold]
 	add [hl]
 	ld e, a
 	inc hl
-	ld a, [$ca4f]
+	ld a, [wBankedGold + 1]
+;=@v
 	adc [hl]
 	ld d, a
 	inc hl
-	ld a, [$ca50]
+	ld a, [wBankedGold + 2]
 	adc [hl]
 	ld c, a
+;=@v
 	ld a, e
 	sub $40
 	ld a, d
 	sbc $42
 	ld a, c
 	sbc $0f
+;>     msg = 12
 	ld hl, $000c
-	jr nc, jr_009_54f7
+	jr nc, .print
 
+;> else:
+;>@sp     SpendGold(amount)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
 	ld h, a
 	ld a, [wListLastRows]
 	ld e, a
+;=@sp
 	call SpendGold
+;>@ab     AddBankGold(amount)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
 	ld h, a
 	ld a, [wListLastRows]
 	ld e, a
+;=@ab
 	call AddBankGold
+;>     DrawDepositGoldWindow()
 	call DrawDepositGoldWindow
+;>     msg = 13
 	ld hl, $000d
 
-jr_009_54f7:
+.print
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def VaultDepositGoldDone()
+;@ path: item/vault/gold
+;@ After the message: back to Deposit / Withdraw / Quit.
+;@ test: skip writes VRAM
 VaultDepositGoldDone::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultMainMenu()
 	call DrawVaultMainMenu
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def VaultTakeItem()
+;@ path: item/vault/items
+;@ Taking items back from the vault, one frame: runs step wMenuSubStep.
+;@ test: skip jumps through a table
 VaultTakeItem::
+;> return VaultTakeItemSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: item/vault/items
+;@ Steps of taking items back: check, pick the item kind, the quantity, take them, start over /
+;@ finish.
 VaultTakeItemSteps::
 	dw VaultTakeItemStart
 	dw VaultTakeItemShowList
@@ -3685,373 +4986,542 @@ VaultTakeItemSteps::
 	dw VaultTakeDone
 	dw VaultTakeFinish
 
+;@ def VaultTakeItemStart()
+;@ path: item/vault/items
+;@ An empty vault (message 17) or a full bag (20 items, message 18) ends it; else asks which item
+;@ (message 16).
+;@ test: skip prints text
 VaultTakeItemStart::
+;>@f if CountItemsN(wStoredItems, 40) == 0:
+;>     msg = 17
 	ld hl, wStoredItems
 	ld b, $28
 	call CountItemsN
 	ld a, c
 	or a
 	ld hl, $0011
-	jr z, jr_009_5557
+;=@f
+	jr z, .refuse
 
+;>@g elif CountItems40(wBagItems) >= 20:
+;>     msg = 18
 	ld hl, wBagItems
 	call CountItems40
 	ld a, c
 	cp $14
 	ld hl, $0012
-	jr nc, jr_009_5557
+;=@g
+	jr nc, .refuse
 
+;> else:
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     PrintMenuText9(16)
+;>     return
 	ld hl, $0010
 	call PrintMenuText9
 	ret
 
-
-jr_009_5557:
+.refuse
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep = 8                     # VaultTakeFinish
 	ld a, $08
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def VaultTakeItemShowList()
+;@ path: item/vault/items
+;@ Once the question is printed: lists the item kinds in the vault and draws the list.
+;@ test: skip draws to VRAM
 VaultTakeItemShowList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> BuildStoredItemList()
 	call BuildStoredItemList
+;> CountVaultList()
 	call CountVaultList
+;> LoadItemNameTiles()
 	call LoadItemNameTiles
+;> DrawVaultTakeWindow()
 	call DrawVaultTakeWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawVaultTakeWindow()
+;@ path: item/vault/items
+;@ Draws Items / Gold / Quit and the list of item kinds in the vault.
+;@ test: skip writes VRAM
 DrawVaultTakeWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
-	ld de, $7153
+;> DrawWindowLayout9(VaultItemListLayout)
+	ld de, VaultItemListLayout
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $5652
+;> DrawListFrame9(wListCursor, VaultTakeListCursor, 4, wListLength)
+	ld de, VaultTakeListCursor
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def BuildStoredItemList()
+;@ path: item/vault/items
+;@ Packs the vault, counts each item kind in it (wBreedParent1, one count per item number) and lists
+;@ the kinds kept ($01-$2F, in order) in wSceneObjects.
+;@ test: skip calls CompactStoredItems
 BuildStoredItemList::
+;> CompactStoredItems()
 	call CompactStoredItems
+;> fill(wBreedParent1, 0, 0x30)
 	ld hl, wBreedParent1
 	ld bc, $0030
 	xor a
 	call FillMemory
+;> fill(wSceneObjects, 0, 40)
 	ld hl, wSceneObjects
 	ld bc, $0028
 	xor a
 	call FillMemory
+;> for slot in range(40):
 	ld de, wStoredItems
 	ld b, $28
 
-jr_009_55b4:
+.count
+;>     item = wStoredItems[slot]
+;>     if item in (0x00, 0xFF):
 	ld a, [de]
 	or a
-	jr z, jr_009_55ca
+	jr z, .list
 
 	cp $ff
-	jr z, jr_009_55ca
+	jr z, .list
 
+;>         break
+;>@c     wBreedParent1[item] += 1
 	inc de
 	ld hl, wBreedParent1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c
 	ld h, a
 	inc [hl]
 	dec b
-	jr nz, jr_009_55b4
+	jr nz, .count
 
-jr_009_55ca:
-	ld hl, $d666
+.list
+;> dest = wSceneObjects
+	ld hl, wBreedParent1 + 1
 	ld de, wSceneObjects
+;>@lp for item in range(1, 0x30):
 	ld b, $2f
 	ld c, $01
 
-jr_009_55d4:
+.find
+;>     if wBreedParent1[item]:
 	ld a, [hli]
 	or a
-	jr z, jr_009_55db
+	jr z, .notKept
 
+;>         mem[dest] = item; dest += 1
 	ld a, c
 	ld [de], a
 	inc de
 
-jr_009_55db:
+.notKept
+;=@lp
 	inc c
 	dec b
-	jr nz, jr_009_55d4
+	jr nz, .find
 
 	ret
 
 
+;@ def VaultTakeListInput()
+;@ path: item/vault/items
+;@ The list of item kinds in the vault: as VaultStoreListInput (B back to Items / Gold / Quit with
+;@ message 14).
+;@ test: skip draws to VRAM
 VaultTakeListInput::
-	ld de, $5652
+;>@op old_page = wListPage
+	ld de, VaultTakeListCursor
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@op
 	ld a, [hld]
 	push af
+;> old_row = wListCursor
 	ld a, [hl]
 	push af
+;> UpdatePagedList9(wListCursor, VaultTakeListCursor, 4, wListLength)
 	call UpdatePagedList9
+;>@cmp pass                             # (the row is compared, but nothing depends on it)
 	pop af
 	ld hl, wListCursor
 	and $7f
 	ld b, a
 	ld a, [hl]
 	and $7f
+;=@cmp
 	cp b
-	jr z, jr_009_5601
+	jr z, .samePage
 
-jr_009_5601:
+.samePage
+;> if wListPage != old_page:
+;>     LoadItemNameTiles()
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_009_560b
+	jr z, .buttons
 
 	call LoadItemNameTiles
 
-jr_009_560b:
+.buttons
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_563b
+	jr z, .checkA
 
+;>     wTextGroup = 2
+;>     wTextIndex = 0x0C
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $0c
 	ld [wTextIndex], a
+;>     DrawTextTiles9(0x8A40, 1, 12)
 	ld hl, $8a40
 	ld de, $0c01
 	call DrawTextTiles9
+;>     RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;>     DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;>     PrintMenuText9(14)
 	ld hl, $000e
 	call PrintMenuText9
+;>     wMenuStep = 4
 	ld a, $04
 	ld [wMenuStep], a
-	jr jr_009_5651
+	jr .done
 
-jr_009_563b:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_5651
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     wMenuChoice3 = 1                # the quantity
 	ld a, $01
 	ld [wMenuChoice3], a
 
-Jump_009_5651:
-jr_009_5651:
+.done
 	ret
 
 
+;@ path: item/vault/items
+;@ Cursor table of the list of item kinds in the vault (as VaultStoreListCursor).
 VaultTakeListCursor::
-	db $72, $01, $89, $00, $c9, $00, $09, $01, $49, $01, $ff, $ff
+	dw $0172, $0089, $00c9, $0109, $0149, $ffff
 
+;@ def VaultTakeAskQuantity()
+;@ path: item/vault/items
+;@ Asks how many (message 19); the digit cursor starts on the ones.
+;@ test: skip prints text
 VaultTakeAskQuantity::
+;> PrintMenuText9(19)
 	ld hl, $0013
 	call PrintMenuText9
+;> wConfirmChoice2 = 1
 	ld a, $01
 	ld [wConfirmChoice2], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def VaultTakeShowQuantity()
+;@ path: item/vault/items
+;@ Once the question is printed, shows the quantity window.
+;@ test: skip draws to VRAM
 VaultTakeShowQuantity::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawVaultTakeQuantity()
 	call DrawVaultTakeQuantity
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawVaultTakeQuantity()
+;@ path: item/vault/items
+;@ Draws the vault's item list with the chosen row and the quantity window (the quantity
+;@ wMenuChoice3 next to the number kept).
+;@ test: skip writes VRAM
 DrawVaultTakeQuantity::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
-	ld de, $7153
+;> DrawWindowLayout9(VaultItemListLayout)
+	ld de, VaultItemListLayout
 	call DrawWindowLayout9
-	ld de, $5652
+;> DrawListFrame9(wListCursor, VaultTakeListCursor, 4, wListLength)
+	ld de, VaultTakeListCursor
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame9
-	ld de, $7044
+;> DrawWindowLayout9(SellQuantityLayout)
+	ld de, SellQuantityLayout
 	call DrawWindowLayout9
+;>@it wItemId = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld hl, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@it
 	and $7f
 	add b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@it
 	ld h, a
 	ld a, [hl]
 	ld [wItemId], a
+;>@ow PrintNumber2(wBreedParent1[wItemId], TilemapBufferAddr9(0x0164))
 	ld hl, wBreedParent1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@ow
 	ld c, [hl]
 	ld b, $00
 	ld hl, $0164
 	call TilemapBufferAddr9
 	call PrintNumber2
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $5729
+;> DrawNumberEntry(wConfirmChoice2, wConfirmChoice2, VaultTakeDigitCursor)
+	ld de, VaultTakeDigitCursor
 	ld hl, wConfirmChoice2
 	ld b, $02
 	ld a, [hl]
 	call DrawNumberEntry
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def VaultTakeQuantityInput()
+;@ path: item/vault/items
+;@ The quantity, at most the number kept: B goes back to the list, A goes on.
+;@ test: skip draws to VRAM
 VaultTakeQuantityInput::
-	ld de, $5729
+;>@u UpdateNumberEntry(wConfirmChoice2, VaultTakeDigitCursor, 2, wBreedParent1[wItemId])
+	ld de, VaultTakeDigitCursor
 	ld hl, wBreedParent1
 	ld a, [wItemId]
 	add l
 	ld l, a
 	ld a, $00
+;=@u
 	adc h
 	ld h, a
 	ld c, [hl]
 	ld b, $02
 	ld hl, wConfirmChoice2
 	call UpdateNumberEntry
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_5717
+	jr z, .checkA
 
+;>     DrawVaultTakeWindow()
 	call DrawVaultTakeWindow
+;>     PrintMenuText9(16)
 	ld hl, $0010
 	call PrintMenuText9
+;>@b     wMenuSubStep -= 4               # back to the list input
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@b
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_009_5728
+	jr .done
 
-jr_009_5717:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_5728
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_5728:
-jr_009_5728:
+.done
 	ret
 
 
+;@ path: item/vault/items
+;@ Positions of the two quantity digits.
 VaultTakeDigitCursor::
-	db $61, $01, $62, $01, $ff, $ff
+	dw $0161, $0162, $ffff
 
+;@ def VaultTakeDoIt()
+;@ path: item/vault/items
+;@ Takes the items: if they would not all fit in the bag (20), message 20; else each one leaves
+;@ the vault and goes into the bag (message 21).
+;@ test: skip far call
 VaultTakeDoIt::
+;>@f if CountItems40(wBagItems) + wMenuChoice3 >= 21:
+;>     msg = 20
 	ld hl, wBagItems
 	call CountItems40
 	ld a, [wMenuChoice3]
 	add c
 	cp $15
 	ld hl, $0014
-	jr nc, jr_009_5753
+;=@f
+	jr nc, .print
 
+;> else:
+;>     for _ in range(wMenuChoice3):
 	ld a, [wMenuChoice3]
 	ld b, a
 
-jr_009_5744:
+.loop
+;>         TakeStoredItem()
 	push bc
 	call TakeStoredItem
+;>         AddItemToBag()
 	ld hl, far_AddItemToBag
 	rst $10
 	pop bc
 	dec b
-	jr nz, jr_009_5744
+	jr nz, .loop
 
+;>     msg = 21
 	ld hl, $0015
 
-jr_009_5753:
+.print
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def VaultTakeDone()
+;@ path: item/vault/items
+;@ After the message: clears the menu variables and starts over.
 VaultTakeDone::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> fill(wConfirmChoice, 0, 6)
 	ld hl, wConfirmChoice
 	ld bc, $0006
 	ld a, $00
 	call FillMemory
+;> fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> wMenuSubStep = 0
 	ld a, $00
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def VaultTakeFinish()
+;@ path: item/vault/items
+;@ After a refusal: back to Deposit / Withdraw / Quit.
+;@ test: skip prints text
 VaultTakeFinish::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def VaultWithdrawGold()
+;@ path: item/vault/gold
+;@ Withdrawing gold, one frame: runs step wMenuSubStep (amount in $C8DF-$C8E1 as for deposits).
+;@ test: skip jumps through a table
 VaultWithdrawGold::
+;> return VaultWithdrawGoldSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: item/vault/gold
+;@ Steps of withdrawing gold: ask, show the amount entry, enter it, pay out, finish.
 VaultWithdrawGoldSteps::
 	dw VaultWithdrawGoldStart
 	dw VaultWithdrawGoldShow
@@ -4059,487 +5529,665 @@ VaultWithdrawGoldSteps::
 	dw VaultWithdrawGoldDoIt
 	dw VaultWithdrawGoldDone
 
+;@ def VaultWithdrawGoldStart()
+;@ path: item/vault/gold
+;@ With no gold in the vault: message 15 and finish. Else asks how much (message 22), amount 0,
+;@ cursor on the hundreds.
+;@ test: skip prints text
 VaultWithdrawGoldStart::
+;> if wBankedGold[0] | wBankedGold[1] | wBankedGold[2] == 0:
 	ld hl, wBankedGold
 	ld a, [hli]
 	or [hl]
 	inc hl
 	or [hl]
-	jr nz, jr_009_57b0
+	jr nz, .ask
 
+;>     PrintMenuText9(15)
 	ld hl, $000f
 	call PrintMenuText9
+;>     wMenuSubStep = 4                # VaultWithdrawGoldDone
+;>     return
 	ld a, $04
 	ld [wMenuSubStep], a
 	ret
 
-
-jr_009_57b0:
+.ask
+;> PrintMenuText9(22)
 	ld hl, $0016
 	call PrintMenuText9
+;> wConfirmChoice = 2
 	ld a, $02
 	ld [wConfirmChoice], a
+;> amount = 0
 	ld a, $00
 	ld [wLinkRefused], a
 	ld a, $00
 	ld [wLinkPartnerChoice], a
 	ld a, $00
 	ld [wListLastRows], a
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def VaultWithdrawGoldShow()
+;@ path: item/vault/gold
+;@ Once the question is printed, shows the amount entry.
+;@ test: skip draws to VRAM
 VaultWithdrawGoldShow::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawWithdrawGoldWindow()
 	call DrawWithdrawGoldWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawWithdrawGoldWindow()
+;@ path: item/vault/gold
+;@ Same windows as DrawDepositGoldWindow.
+;@ test: skip writes VRAM
 DrawWithdrawGoldWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
+;> wTextGroup = 2
+;> wTextIndex = 0x55
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $55
 	ld [wTextIndex], a
+;> DrawTextTiles9(0x8A00, 1, 4)
 	ld hl, $8a00
 	ld de, $0401
 	call DrawTextTiles9
-	ld de, $71ca
+;> DrawWindowLayout9(BankedGoldLayout)
+	ld de, BankedGoldLayout
 	call DrawWindowLayout9
-	ld de, $71e7
+;> DrawWindowLayout9(GoldEntryLayout)
+	ld de, GoldEntryLayout
 	call DrawWindowLayout9
+;> copy(hNumber, wBankedGold, 3)
 	ld a, [wBankedGold]
 	ldh [hNumber], a
-	ld a, [$ca4f]
-	ldh [$ffd6], a
-	ld a, [$ca50]
-	ldh [$ffd7], a
+	ld a, [wBankedGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wBankedGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber6(TilemapBufferAddr9(0x016D))
 	ld hl, $016d
 	call TilemapBufferAddr9
 	call PrintNumber6
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $5882
+;> DrawGoldEntry(wConfirmChoice, WithdrawGoldDigitCursor)
+	ld de, WithdrawGoldDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $02
 	ld a, [hl]
 	call DrawGoldEntry
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def VaultWithdrawGoldInput()
+;@ path: item/vault/gold
+;@ The amount entry: B goes back to Items / Gold / Quit (message 14), A with a nonzero amount goes
+;@ on.
+;@ test: skip draws to VRAM
 VaultWithdrawGoldInput::
-	ld de, $5882
+;> UpdateGoldEntry(wConfirmChoice, WithdrawGoldDigitCursor, 3)
+	ld de, WithdrawGoldDigitCursor
 	ld hl, wConfirmChoice
 	ld b, $03
 	call UpdateGoldEntry
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_5867
+	jr z, .checkA
 
+;>     wTextGroup = 2
+;>     wTextIndex = 0x0C
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $0c
 	ld [wTextIndex], a
+;>     DrawTextTiles9(0x8A40, 1, 12)
 	ld hl, $8a40
 	ld de, $0c01
 	call DrawTextTiles9
+;>     RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;>     DrawVaultWhatMenu()
 	call DrawVaultWhatMenu
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;>     PrintMenuText9(14)
 	ld hl, $000e
 	call PrintMenuText9
+;>     wMenuStep = 4
 	ld a, $04
 	ld [wMenuStep], a
-	jr jr_009_5881
+	jr .done
 
-jr_009_5867:
+.checkA
+;>@a elif wJoyPressed & 0x01 and amount != 0:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_5881
+	jp z, .done
 
 	ld hl, wLinkRefused
 	ld a, [hli]
 	or [hl]
+;=@a
 	inc hl
 	or [hl]
-	jr z, jr_009_5881
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_5881:
-jr_009_5881:
+.done
 	ret
 
 
+;@ path: item/vault/gold
+;@ Positions of the five digits of the gold amount entry.
 WithdrawGoldDigitCursor::
-	db $8e, $00, $8f, $00, $90, $00, $91, $00, $92, $00, $ff, $ff
+	dw $008e, $008f, $0090, $0091, $0092, $ffff
 
+;@ def VaultWithdrawGoldDoIt()
+;@ path: item/vault/gold
+;@ Pays the amount out: not that much in the vault (message 23), or the purse would reach 100,000
+;@ (message 24); else it moves from the vault to the purse (message 25).
+;@ test: skip uses the home gold routines
 VaultWithdrawGoldDoIt::
+;>@v if wBankedGold[0] | wBankedGold[1] << 8 | wBankedGold[2] << 16 < amount:
 	ld hl, wLinkRefused
 	ld a, [wBankedGold]
 	sub [hl]
 	inc hl
-	ld a, [$ca4f]
+	ld a, [wBankedGold + 1]
 	sbc [hl]
+;=@v
 	inc hl
-	ld a, [$ca50]
+	ld a, [wBankedGold + 2]
 	sbc [hl]
+;>     msg = 23
 	ld hl, $0017
-	jr c, jr_009_58ea
+	jr c, .print
 
+;>@g elif (wGold[0] | wGold[1] << 8 | wGold[2] << 16) + amount >= 100000:
 	ld hl, wLinkRefused
 	ld a, [wGold]
 	add [hl]
 	ld e, a
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
+;=@g
 	adc [hl]
 	ld d, a
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	adc [hl]
 	ld c, a
+;=@g
 	ld a, e
 	sub $a0
 	ld a, d
 	sbc $86
 	ld a, c
 	sbc $01
+;>     msg = 24
 	ld hl, $0018
-	jr nc, jr_009_58ea
+	jr nc, .print
 
+;> else:
+;>@tb     TakeBankGold(amount)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
 	ld h, a
 	ld a, [wListLastRows]
 	ld e, a
+;=@tb
 	call TakeBankGold
+;>@ag     AddGold(amount)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
 	ld h, a
 	ld a, [wListLastRows]
 	ld e, a
+;=@ag
 	call AddGold
+;>     DrawWithdrawGoldWindow()
 	call DrawWithdrawGoldWindow
+;>     msg = 25
 	ld hl, $0019
 
-jr_009_58ea:
+.print
+;> PrintMenuText9(msg)
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def VaultWithdrawGoldDone()
+;@ path: item/vault/gold
+;@ After the message: back to Deposit / Withdraw / Quit.
+;@ test: skip writes VRAM
 VaultWithdrawGoldDone::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawVaultMainMenu()
 	call DrawVaultMainMenu
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def UpdateGoldEntry(digit: hl, positions: de, digits: b)
+;@ path: menu/number
+;@ One frame of the five-digit gold amount entry (the amount is the 24-bit number in $C8DF-$C8E1):
+;@ Down / Up lower / raise the digit mem[digit] (wrapping 0-9), Left / Right move among the first
+;@ `digits` digits, A (read from wJoyRepeat) sets bit 7. Then the digits are drawn.
+;@ test: skip draws to VRAM
 UpdateGoldEntry::
+;> mem[digit] &= 0x7F
 	res 7, [hl]
 	push de
+;> if wJoyRepeat & 0x80:               # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_009_5920
+	jr z, .up
 
+;>     wCursorBlink = 0x10
+;>     GoldEntryDigitDown(digit)
 	ld a, $10
 	ld [wCursorBlink], a
 	call GoldEntryDigitDown
-	jr jr_009_5954
+	jr .moved
 
-jr_009_5920:
+.up
+;> elif wJoyRepeat & 0x40:             # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_009_5931
+	jr z, .left
 
+;>     wCursorBlink = 0x10
+;>     GoldEntryDigitUp(digit)
 	ld a, $10
 	ld [wCursorBlink], a
 	call GoldEntryDigitUp
-	jr jr_009_5954
+	jr .moved
 
-jr_009_5931:
+.left
+;> elif wJoyRepeat & 0x20:             # Left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_009_5941
+	jr z, .right
 
+;>     d = u8(mem[digit] - 1)
 	ld a, [hl]
 	dec a
+;>     if d >= digits:
+;>         d = digits - 1
 	cp b
-	jr c, jr_009_594f
+	jr c, .store
 
 	dec b
 	ld a, b
-	jr jr_009_594f
+	jr .store
 
-jr_009_5941:
+.right
+;> elif wJoyRepeat & 0x10:             # Right
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_009_5956
+	jr z, .checkA
 
+;>     d = mem[digit] + 1
+;>     if d >= digits:
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_009_594f
+	jr c, .store
 
+;>         d = 0
 	ld a, $00
 
-jr_009_594f:
+.store
+;> if wJoyRepeat & 0x30:
+;>     mem[digit] = d
 	ld [hl], a
+;>     wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
 
-jr_009_5954:
+.moved
+;> pass
 	push hl
 	pop hl
 
-jr_009_5956:
+.checkA
+;> if wJoyRepeat & 0x01:               # A
+;>     mem[digit] |= 0x80
 	ld a, [wJoyRepeat]
 	bit 0, a
-	jr z, jr_009_595f
+	jr z, .draw
 
 	set 7, [hl]
 
-jr_009_595f:
+.draw
+;> DrawGoldEntry(mem[digit], positions)
 	pop de
 	ld a, [hl]
 	call DrawGoldEntry
 	ret
 
 
+;@ def GoldEntryDigitDown(digit: hl)
+;@ path: menu/number
+;@ Lowers digit mem[digit] (0 = ten thousands ... 4 = ones) of the amount, 0 wrapping to 9.
+;@ test: skip uses the home number routines
 GoldEntryDigitDown::
+;>@pn PrintNumber5Zeros(amount, wNumberBackup)    # its five digits
 	push de
 	ld a, [hl]
 	push hl
 	ld a, [wLinkRefused]
 	ldh [hNumber], a
 	ld a, [wLinkPartnerChoice]
-	ldh [$ffd6], a
+;=@pn
+	ldh [hNumber + 1], a
 	ld a, [wListLastRows]
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
 	ld hl, wNumberBackup
 	call PrintNumber5Zeros
 	pop hl
+;>@dg d = wNumberBackup[mem[digit]] & 0x0F
 	ld a, [hl]
 	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@dg
 	ld d, a
 	ld a, [de]
 	and $0f
+;> wNumberBackup[mem[digit]] = 9 if d == 0 else d - 1
 	dec a
 	ld [de], a
 	cp $ff
-	jr nz, jr_009_5994
+	jr nz, .value
 
 	ld a, $09
 	ld [de], a
 
-jr_009_5994:
+.value
+;> GoldEntryDigitsToValue()
 	call GoldEntryDigitsToValue
 	pop de
 	ret
 
 
+;@ def GoldEntryDigitsToValue()
+;@ path: menu/number
+;@ Puts the five digits in wNumberBackup together into the amount ($C8DF-$C8E1).
+;@ test: skip uses the home multiply routine
 GoldEntryDigitsToValue::
+;>@a amount = (wNumberBackup[0] & 0x0F) * 10000
 	push hl
 	ld bc, $2710
 	ld a, [wNumberBackup]
 	and $0f
 	call Multiply24
 	ld a, l
+;=@a
 	ld [wLinkRefused], a
 	ld a, h
 	ld [wLinkPartnerChoice], a
 	ld a, e
 	ld [wListLastRows], a
+;>@b amount += (wNumberBackup[1] & 0x0F) * 1000
 	ld bc, $03e8
-	ld a, [$c0a1]
+	ld a, [wNumberBackup + 1]
 	and $0f
 	call Multiply24
 	ld a, [wLinkRefused]
 	add l
+;=@b
 	ld [wLinkRefused], a
 	ld a, [wLinkPartnerChoice]
 	adc h
 	ld [wLinkPartnerChoice], a
 	ld a, [wListLastRows]
 	adc e
+;=@b
 	ld [wListLastRows], a
+;>@c amount += (wNumberBackup[2] & 0x0F) * 100
 	ld bc, $0064
-	ld a, [$c0a2]
+	ld a, [wNumberBackup + 2]
 	and $0f
 	call Multiply24
 	ld a, [wLinkRefused]
 	add l
+;=@c
 	ld [wLinkRefused], a
 	ld a, [wLinkPartnerChoice]
 	adc h
 	ld [wLinkPartnerChoice], a
 	ld a, [wListLastRows]
 	adc e
+;=@c
 	ld [wListLastRows], a
+;>@d amount += (wNumberBackup[3] & 0x0F) * 10
 	ld bc, $000a
-	ld a, [wLineUpOrder]
+	ld a, [wNumberBackup + 3]
 	and $0f
 	call Multiply24
 	ld a, [wLinkRefused]
 	add l
+;=@d
 	ld [wLinkRefused], a
 	ld a, [wLinkPartnerChoice]
 	adc h
 	ld [wLinkPartnerChoice], a
 	ld a, [wListLastRows]
 	adc e
+;=@d
 	ld [wListLastRows], a
-	ld a, [$c0a4]
+;>@e amount += wNumberBackup[4] & 0x0F
+	ld a, [wNumberBackup + 4]
 	and $0f
 	ld l, a
 	ld a, [wLinkRefused]
 	add l
 	ld [wLinkRefused], a
+;=@e
 	ld a, [wLinkPartnerChoice]
 	adc $00
 	ld [wLinkPartnerChoice], a
 	ld a, [wListLastRows]
 	adc $00
 	ld [wListLastRows], a
+;=@e
 	pop hl
 	ret
 
 
+;@ def GoldEntryDigitUp(digit: hl)
+;@ path: menu/number
+;@ Raises digit mem[digit] of the amount, 9 wrapping to 0.
+;@ test: skip uses the home number routines
 GoldEntryDigitUp::
+;>@pn PrintNumber5Zeros(amount, wNumberBackup)
 	push de
 	ld a, [hl]
 	push hl
 	ld a, [wLinkRefused]
 	ldh [hNumber], a
 	ld a, [wLinkPartnerChoice]
-	ldh [$ffd6], a
+;=@pn
+	ldh [hNumber + 1], a
 	ld a, [wListLastRows]
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
 	ld hl, wNumberBackup
 	call PrintNumber5Zeros
 	pop hl
-	ld de, $c0a1
+;>@dg d = wNumberBackup[mem[digit]] & 0x0F
+	ld de, wNumberBackup + 1
 	ld a, [hl]
 	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
+;=@dg
 	adc d
 	ld d, a
 	ld a, [de]
 	and $0f
+;> wNumberBackup[mem[digit]] = 0 if d == 9 else d + 1
 	inc a
 	ld [de], a
 	cp $0a
-	jr nz, jr_009_5a62
+	jr nz, .value
 
 	ld a, $00
 	ld [de], a
 
-jr_009_5a62:
+.value
+;> GoldEntryDigitsToValue()
 	call GoldEntryDigitsToValue
 	pop de
 	ret
 
 
+;@ def DrawGoldEntry(cursor: a, positions: de)
+;@ path: menu/number
+;@ Draws the five digits of the amount at the window offsets in `positions`; the digit the cursor
+;@ is on blinks with the cursor tile $E6. Unless chosen (bit 7), it only redraws every 16 frames.
+;@ test: skip writes VRAM
 DrawGoldEntry::
+;>@pn PrintNumber5Zeros(amount, wNumberBackup)
 	ld c, a
 	push de
 	push bc
 	ld a, [wLinkRefused]
 	ldh [hNumber], a
 	ld a, [wLinkPartnerChoice]
-	ldh [$ffd6], a
+;=@pn
+	ldh [hNumber + 1], a
 	ld a, [wListLastRows]
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
 	ld hl, wNumberBackup
 	call PrintNumber5Zeros
 	pop bc
+;=@pn
 	pop de
+;> if not cursor & 0x80:
 	bit 7, c
-	jr nz, jr_009_5a95
+	jr nz, .draw
 
+;>     t = wCursorBlink & 0x0F
+;>     wCursorBlink += 1
 	ld a, [wCursorBlink]
 	and $0f
 	push af
 	ld a, [wCursorBlink]
 	inc a
 	ld [wCursorBlink], a
+;>     if t:
+;>         return
 	pop af
 	ld a, c
 	ret nz
 
-jr_009_5a95:
+.draw
+;> i = 0
 	ld c, a
 	ld b, $00
 
-jr_009_5a98:
+.loop
+;>@wh while (pos := mem16[positions + 2 * i]) != 0xFFFF:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@wh
 	and l
 	cp $ff
 	ret z
 
+;>@w     addr = WindowBgAddrWrapped9(pos)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@w
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
+;>@c     if (cursor & 0x7F) == i and not (wCursorBlink & 0x10):
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_009_5ac2
+	jr nz, .check
 
+;=@c
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_009_5ac2
+	jr nz, .check
 
+;>         tile = 0xE6
 	ld a, $e6
 
-jr_009_5ac2:
+.check
+;>     else:
+;>@d         tile = wNumberBackup[i]
 	cp $e0
-	jr nz, jr_009_5ad3
+	jr nz, .put
 
 	push hl
 	ld a, b
 	ld hl, wNumberBackup
 	add l
+;=@d
 	ld l, a
 	ld a, $00
 	adc h
@@ -4547,68 +6195,85 @@ jr_009_5ac2:
 	ld a, [hl]
 	pop hl
 
-jr_009_5ad3:
+.put
+;>     WriteVRAM(tile, addr)
 	call WriteVRAM
+;>@b     wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
+;>     i += 1
 	inc b
-	jr jr_009_5a98
+	jr .loop
 
+;@ def CompactStoredItems()
+;@ path: item/vault/items
+;@ Packs the vault's 40 places: the items move to the front in their order, the rest becomes
+;@ $FF (wBreedParent1 is the scratch copy).
 CompactStoredItems::
+;>@c copy(wBreedParent1, wStoredItems, 40)
 	ld hl, wBreedParent1
 	ld de, wStoredItems
 	ld b, $28
 
-jr_009_5af2:
+.copy
+;=@c
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_009_5af2
+	jr nz, .copy
 
+;> fill(wStoredItems, 0xFF, 40)
 	ld hl, wStoredItems
 	ld bc, $0028
 	ld a, $ff
 	call FillMemory
+;> dest = wStoredItems
 	ld hl, wBreedParent1
 	ld de, wStoredItems
+;> for i in range(40):
 	ld b, $28
 
-jr_009_5b0b:
+.pack
+;>     if wBreedParent1[i] not in (0xFF, 0x00):
 	ld a, [hli]
 	cp $ff
-	jr z, jr_009_5b16
+	jr z, .next
 
 	cp $00
-	jr z, jr_009_5b16
+	jr z, .next
 
+;>         mem[dest] = wBreedParent1[i]; dest += 1
 	ld [de], a
 	inc de
 
-jr_009_5b16:
+.next
 	dec b
-	jr nz, jr_009_5b0b
+	jr nz, .pack
 
 	ret
 
 
+;@ def StoreItem()
+;@ path: item/vault/items
+;@ Puts item wItemId into the first free place of the vault; with no free place wItemId becomes
+;@ $FF. Nothing happens for item 0 or $FF.
 StoreItem::
-	db $fa, $5e, $da, $fe, $00, $c8, $fe, $ff, $c8, $21, $65, $ca, $06, $28, $7e, $fe
-	db $00, $28, $0e, $fe, $ff, $28, $0a, $23, $05, $20, $f3, $3e, $ff, $ea, $5e, $da
-	db $c9, $fa, $5e, $da, $77, $c9
-
-TakeStoredItem::
+;> if wItemId in (0x00, 0xFF):
+;>     return
 	ld a, [wItemId]
 	cp $00
 	ret z
@@ -4616,33 +6281,89 @@ TakeStoredItem::
 	cp $ff
 	ret z
 
+;>@lp for i in range(40):
 	ld hl, wStoredItems
 	ld b, $28
 
-jr_009_5b4e:
-	ld a, [wItemId]
-	cp [hl]
-	jr z, jr_009_5b5e
+.find
+;>     if wStoredItems[i] in (0x00, 0xFF):
+;>@pt         wStoredItems[i] = wItemId; return
+	ld a, [hl]
+	cp $00
+	jr z, .put
 
+	cp $ff
+	jr z, .put
+
+;=@lp
 	inc hl
 	dec b
-	jr nz, jr_009_5b4e
+	jr nz, .find
 
+;> wItemId = 0xFF                       # the vault is full
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
+.put
+;=@pt
+	ld a, [wItemId]
+	ld [hl], a
+	ret
 
-jr_009_5b5e:
+;@ def TakeStoredItem()
+;@ path: item/vault/items
+;@ Takes one item wItemId out of the vault (the places are packed again); if there is none,
+;@ wItemId becomes $FF. Nothing happens for item 0 or $FF.
+;@ test: skip calls CompactStoredItems
+TakeStoredItem::
+;> if wItemId in (0x00, 0xFF):
+;>     return
+	ld a, [wItemId]
+	cp $00
+	ret z
+
+	cp $ff
+	ret z
+
+;> for i in range(40):
+	ld hl, wStoredItems
+	ld b, $28
+
+.find
+;>     if wStoredItems[i] == wItemId:
+;>@tk         wStoredItems[i] = 0xFF; CompactStoredItems(); return
+	ld a, [wItemId]
+	cp [hl]
+	jr z, .take
+
+	inc hl
+	dec b
+	jr nz, .find
+
+;> wItemId = 0xFF                       # not found
+	ld a, $ff
+	ld [wItemId], a
+	ret
+
+.take
+;=@tk
 	ld [hl], $ff
 	call CompactStoredItems
 	ret
 
 
+;@ def ArenaEntryMenu()
+;@ path: arena/entry
+;@ The Starry Night tournament reception (script menu 4), one frame: runs step wMenuStep.
+;@ test: skip jumps through a table
 ArenaEntryMenu::
+;> return ArenaEntrySteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: arena/entry
+;@ Steps of the tournament entry: set up, a frame's pause, start, the class menu, close.
 ArenaEntrySteps::
 	dw ArenaEntryInit
 	dw ArenaEntryWait
@@ -4650,68 +6371,98 @@ ArenaEntrySteps::
 	dw ArenaEntryRunOption
 	dw ArenaEntryClose
 
+;@ def ArenaEntryInit()
+;@ path: arena/entry
+;@ As ShopInit, with the reception's window graphics (bank $2E entry $11).
+;@ test: skip decompresses graphics
 ArenaEntryInit::
+;> SnapToTile9(hScrollX)
 	ld hl, hScrollX
 	call SnapToTile9
+;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
+;> fill(wLinkChoice, 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@m map = 0x9800 + (hScrollY // 8) * 32 + hScrollX // 8
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@m
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@m
 	adc $98
 	ld h, a
+;>@s wWindowBgMap = (map & 0x3FF) | 0x9800
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@s
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DecompressVRAM(0x2E, 0x11, 0x8800)
 	ld de, $2e11
 	ld hl, $8800
 	call DecompressVRAM
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ArenaEntryWait()
+;@ path: arena/entry
+;@ Does nothing for a frame.
 ArenaEntryWait::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ArenaEntryOpen()
+;@ path: arena/entry
+;@ Clears the menu variables and puts the cursor on the next class to win: classes won so far =
+;@ wScriptBossIndex (G, F, E, D on page 0, C, B, A, S on page 1).
 ArenaEntryOpen::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> fill(wLinkChoice, 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> wListCursor = wScriptBossIndex & 3
 	ld a, [wScriptBossIndex]
 	and $03
 	ld [wListCursor], a
+;> if wScriptBossIndex >= 4:
+;>     wListPage = 1
 	ld a, [wScriptBossIndex]
 	cp $04
 	ret c
@@ -4721,26 +6472,48 @@ ArenaEntryOpen::
 	ret
 
 
+;@ def ArenaEntryRunOption()
+;@ path: arena/entry
+;@ The class menu.
+;@ test: skip jumps through a table
 ArenaEntryRunOption::
+;> return ArenaClassMenu()
 	jp ArenaClassMenu
 
 
+;@ def ArenaEntryClose()
+;@ path: arena/entry
+;@ Leaves the reception: the field picture comes back and the field runs again.
+;@ test: skip writes VRAM
 ArenaEntryClose::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawWindowLayout9(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wFieldFlags &= ~0x10
 	ld hl, wFieldFlags
 	res 4, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def ArenaClassMenu()
+;@ path: arena/entry
+;@ The class menu, one frame: runs step wMenuSubStep.
+;@ test: skip jumps through a table
 ArenaClassMenu::
+;> return ArenaClassSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: arena/entry
+;@ Steps of the class menu: mark the classes, show them with their fees, pick one, check the fee,
+;@ confirm, enter; or refuse.
 ArenaClassSteps::
 	dw ArenaClassStart
 	dw ArenaClassShowList
@@ -4752,154 +6525,234 @@ ArenaClassSteps::
 	dw ArenaEntryFinish
 	dw ArenaEntryRefused
 
+;@ def ArenaClassStart()
+;@ path: arena/entry
+;@ Marks the classes already won.
 ArenaClassStart::
+;> MarkClearedClasses()
 	call MarkClearedClasses
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def MarkClearedClasses()
+;@ path: arena/entry
+;@ wSceneObjects[0..7]: the mark shown next to each class, $AC for the wScriptBossIndex classes
+;@ won so far, $90 for the others.
 MarkClearedClasses::
+;> fill(wSceneObjects, 0x90, 8)
 	ld hl, wSceneObjects
 	ld bc, $0008
 	ld a, $90
 	call FillMemory
+;> if wScriptBossIndex == 0:
+;>     return
 	ld a, [wScriptBossIndex]
 	or a
 	ret z
 
+;>@mk fill(wSceneObjects, 0xAC, wScriptBossIndex)
 	ld b, a
 	ld hl, wSceneObjects
 
-jr_009_5c3c:
+.mark
+;=@mk
 	ld [hl], $ac
 	inc hl
 	dec b
-	jr nz, jr_009_5c3c
+	jr nz, .mark
 
 	ret
 
 
+;@ def ArenaClassShowList()
+;@ path: arena/entry
+;@ Once the greeting is printed, renders the page's letters and marks and draws the class window.
+;@ test: skip draws to VRAM
 ArenaClassShowList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> LoadClassLetterTiles()
 	call LoadClassLetterTiles
+;> DrawArenaClassWindow()
 	call DrawArenaClassWindow
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawArenaClassWindow()
+;@ path: arena/entry
+;@ Draws the message window, the class window with the 4 classes of the page and their entry fees,
+;@ the gold window with the purse, and the cursor.
+;@ test: skip writes VRAM
 DrawArenaClassWindow::
+;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
+;> DrawWindowLayout9(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout9
-	ld de, $74a0
+;> DrawWindowLayout9(ArenaClassLayout)
+	ld de, ArenaClassLayout
 	call DrawWindowLayout9
-	ld de, $6f1f
+;> DrawWindowLayout9(GoldWindowLayout)
+	ld de, GoldWindowLayout
 	call DrawWindowLayout9
+;> DrawEntryFees()
 	call DrawEntryFees
+;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
 	ldh [hNumber], a
-	ld a, [$ca4c]
-	ldh [$ffd6], a
-	ld a, [$ca4d]
-	ldh [$ffd7], a
+	ld a, [wGold + 1]
+	ldh [hNumber + 1], a
+	ld a, [wGold + 2]
+	ldh [hNumber + 2], a
+;> PrintNumber5(TilemapBufferAddr9(0x2E))
 	ld hl, $002e
 	call TilemapBufferAddr9
 	call PrintNumber5
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $5da2
+;> DrawListFrame9(wListCursor, ArenaClassCursor, 4, 4)
+	ld de, ArenaClassCursor
 	ld b, $04
 	ld c, $04
 	ld hl, wListCursor
 	call DrawListFrame9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def LoadClassLetterTiles()
+;@ path: arena/entry
+;@ Renders the class letters of page wListPage (ArenaClassLetters) into tiles $8800-$8830 and their
+;@ marks (wSceneObjects) into tiles $8840-$8870.
+;@ test: skip far call
 LoadClassLetterTiles::
-	ld de, $5d1b
+;>@l c = ArenaClassLetters + wListPage * 4
+	ld de, ArenaClassLetters
 	ld a, [wListPage]
 	add a
 	add a
 	add e
 	ld e, a
+;=@l
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x8800
 	ld hl, $8800
+;> for _ in range(4):
+;>     c, tiles = LoadCharSlot(c, tiles)
 	call LoadCharSlot
 	call LoadCharSlot
 	call LoadCharSlot
 	call LoadCharSlot
+;>@k c = wSceneObjects + wListPage * 4
 	ld de, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	add e
 	ld e, a
+;=@k
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x8840
 	ld hl, $8840
+;> for _ in range(4):
+;>     c, tiles = LoadCharSlot(c, tiles)
 	call LoadCharSlot
 	call LoadCharSlot
 	call LoadCharSlot
 
+;@ def LoadCharSlot(char: de, tiles: hl) -> (de, hl)
+;@ path: arena/entry
+;@ Renders the character mem[char] into the tile at `tiles`; returns the next character and tile.
+;@ test: skip far call
 LoadCharSlot::
+;> DrawCharTile9(mem[char], tiles)
 	push de
 	push hl
 	ld a, [de]
 	call DrawCharTile9
+;>@r return char + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def DrawEntryFees()
+;@ path: arena/entry
+;@ Writes the entry fees of the 4 classes of page wListPage into wTilemapBuffer (5 digits each,
+;@ from row 5, column 11 down, every second row).
+;@ test: skip uses the home number routines
 DrawEntryFees::
-	ld de, $5d23
+;>@f fee = ArenaEntryFees + wListPage * 8
+	ld de, ArenaEntryFees
 	ld a, [wListPage]
 	add a
 	add a
 	add a
 	add e
+;=@f
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> pos = 0x00AB
 	ld hl, $00ab
+;> for _ in range(4):
+;>     fee, pos = DrawEntryFeeSlot(fee, pos)
 	call DrawEntryFeeSlot
 	call DrawEntryFeeSlot
 	call DrawEntryFeeSlot
 
+;@ def DrawEntryFeeSlot(fee: de, pos: hl) -> (de, hl)
+;@ path: arena/entry
+;@ Writes the 16-bit fee at `fee` as 5 digits at window offset `pos`; returns the next fee and the
+;@ position two rows down.
+;@ test: skip uses the home number routines
 DrawEntryFeeSlot::
+;>@n mem16[hNumber] = mem16[fee]; hNumber[2] = 0
 	push de
 	push hl
 	ld a, [de]
 	ldh [hNumber], a
 	inc de
 	ld a, [de]
-	ldh [$ffd6], a
+;=@n
+	ldh [hNumber + 1], a
 	ld a, $00
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;> PrintNumber5(TilemapBufferAddr9(pos))
 	call TilemapBufferAddr9
 	call PrintNumber5
+;>@r return fee + 2, pos + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
@@ -4907,646 +6760,919 @@ DrawEntryFeeSlot::
 	ret
 
 
+;@ path: arena/entry
+;@ The letters of the eight tournament classes in the order of the menu: G, F, E, D, C, B, A, S.
 ArenaClassLetters::
 	db $2a, $29, $28, $27, $26, $25, $24, $36
 
+;@ path: arena/entry
+;@ Entry fee of each class, 16-bit: G 0, F 10, E 50, D 100, C 500, B 1000, A 5000, S 10000 gold.
 ArenaEntryFees::
-	db $00, $00, $0a, $00, $32, $00, $64, $00
-	db $f4, $01, $e8, $03, $88, $13, $10, $27
+	dw 0, 10, 50, 100, 500, 1000, 5000, 10000
 
+;@ def ArenaClassListInput()
+;@ path: arena/entry
+;@ The class menu: Up / Down within the page; A on a class not marked as won goes on (a won class
+;@ gets message 6); B gives up the entry (wArenaRound = $FF) and closes.
+;@ test: skip draws to VRAM
 ArenaClassListInput::
-	ld de, $5da4
+;> old_page = wListPage
+	ld de, ArenaClassCursor + 2
 	ld hl, wListCursor
 	ld b, $04
 	inc hl
 	ld a, [hld]
 	push af
+;> UpdateMenuCursor9(wListCursor, 4, ArenaClassCursor + 2)
 	call UpdateMenuCursor9
+;> if wListPage != old_page:           # (the page does not change here)
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_009_5d51
+	jr z, .buttons
 
+;>     LoadClassLetterTiles()
 	call LoadClassLetterTiles
+;>     DrawEntryFees()
 	call DrawEntryFees
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 
-jr_009_5d51:
+.buttons
+;> if wJoyPressed & 0x01:              # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_5d90
+	jp z, .checkB
 
+;>@k     mark = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld hl, wSceneObjects
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@k
 	and $7f
 	add b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@k
 	ld h, a
 	ld a, [hl]
+;>     if mark != 0x90:                # already won
 	cp $90
-	jp z, Jump_009_5d81
+	jp z, .enter
 
+;>         PrintMenuText9(6)
 	ld hl, $0006
 	call PrintMenuText9
+;>         wMenuSubStep = 8            # ArenaEntryRefused
 	ld a, $08
 	ld [wMenuSubStep], a
-	jr jr_009_5da1
+	jr .done
 
-Jump_009_5d81:
+.enter
+;>     else:
+;>         QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>         wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>         wMenuChoice3 = 0
 	xor a
 	ld [wMenuChoice3], a
-	jr jr_009_5da1
+	jr .done
 
-Jump_009_5d90:
+.checkB
+;> elif wJoyPressed & 0x02:            # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jp z, Jump_009_5da1
+	jp z, .done
 
+;>     wArenaRound = 0xFF              # no entry
 	ld a, $ff
 	ld [wArenaRound], a
+;>     wMenuStep += 1                  # ArenaEntryClose
 	ld hl, wMenuStep
 	inc [hl]
 
-Jump_009_5da1:
-jr_009_5da1:
+.done
 	ret
 
 
+;@ path: arena/entry
+;@ Cursor table of the class window: the page-number position, then the 4 rows; $FFFF ends it.
 ArenaClassCursor::
-	db $8c, $01, $a2, $00, $e2, $00, $22, $01, $62, $01, $ff, $ff
+	dw $018c, $00a2, $00e2, $0122, $0162, $ffff
 
+;@ def ArenaCheckFee()
+;@ path: arena/entry
+;@ Not enough gold for the chosen class's fee: message 5 and refuse. Else asks "Enter class <letter>?"
+;@ (message 4, the letter in wTextArg0).
+;@ test: skip prints text
 ArenaCheckFee::
-	ld hl, $5d23
+;>@i cls = wListPage * 4 + (wListCursor & 0x7F)
+;>@i fee = mem16[ArenaEntryFees + 2 * cls]
+	ld hl, ArenaEntryFees
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@i
 	and $7f
 	add b
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@i
 	adc h
 	ld h, a
+;>@g if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < fee:
 	ld a, [wGold]
 	sub [hl]
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
+;=@g
 	sbc [hl]
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	sbc $00
-	jr nc, jr_009_5de1
+	jr nc, .ask
 
+;>     PrintMenuText9(5)
 	ld hl, $0005
 	call PrintMenuText9
+;>     wMenuSubStep = 8                # ArenaEntryRefused
+;>     return
 	ld a, $08
 	ld [wMenuSubStep], a
 	ret
 
-
-jr_009_5de1:
-	ld de, $5d1b
+.ask
+;>@l wTextArg0[0] = ArenaClassLetters[cls]
+	ld de, ArenaClassLetters
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@l
 	and $7f
 	add b
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@l
 	ld d, a
 	ld a, [de]
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;> PrintMenuText9(4)
 	ld hl, $0004
 	call PrintMenuText9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ArenaShowYesNo()
+;@ path: arena/entry
+;@ Once the question is printed, shows the yes / no window.
+;@ test: skip writes VRAM
 ArenaShowYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	ld de, $6ed5
+;> DrawWindowLayout9(ArenaYesNoLayout)
+	ld de, ArenaYesNoLayout
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $5ea1
+;> DrawCursorAt9(wMenuChoice3, ArenaYesNoCursor)
+	ld de, ArenaYesNoCursor
 	ld a, [wMenuChoice3]
 	call DrawCursorAt9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ArenaYesNoInput()
+;@ path: arena/entry
+;@ Yes pays the fee and enters the class (wArenaClass = class number 0-7); No or B goes back to the
+;@ class menu.
+;@ test: skip draws to VRAM
 ArenaYesNoInput::
-	ld de, $5ea1
+;> UpdateMenuCursor9(wMenuChoice3, 2, ArenaYesNoCursor)
+	ld de, ArenaYesNoCursor
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x02:              # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_5e5b
+	jr z, .checkA
 
-jr_009_5e40:
+.no
+;>     DrawArenaClassWindow()
 	call DrawArenaClassWindow
+;>     PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;>@no     wMenuSubStep -= 4               # back to the class menu
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
 	ld hl, wMenuSubStep
 	dec [hl]
+;=@no
 	ld hl, wMenuSubStep
 	dec [hl]
-	jr jr_009_5ea0
+	jr .done
 
-jr_009_5e5b:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_5ea0
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:        # No: as B
+;>         DrawArenaClassWindow(); PrintMenuText9(1); wMenuSubStep -= 4
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_009_5e40
+	jr z, .no
 
-	ld hl, $5d23
+;>     else:
+;>@f         cls = wListPage * 4 + (wListCursor & 0x7F)
+	ld hl, ArenaEntryFees
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
+;=@f
 	and $7f
 	add b
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;>@sp         SpendGold(mem16[ArenaEntryFees + 2 * cls])
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld e, $00
+;=@sp
 	call SpendGold
+;>@c         wArenaClass = cls
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@c
 	add b
 	ld [wArenaClass], a
+;>         wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 
-Jump_009_5ea0:
-jr_009_5ea0:
+.done
 	ret
 
 
+;@ path: arena/entry
+;@ Positions of Yes and No.
 ArenaYesNoCursor::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def ArenaEntryNext()
+;@ path: arena/entry
+;@ Goes on to the next step.
 ArenaEntryNext::
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def ArenaEntryFinish()
+;@ path: arena/entry
+;@ After the message, closes the reception (the class is entered).
 ArenaEntryFinish::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wMenuStep += 1                       # ArenaEntryClose
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def ArenaEntryRefused()
+;@ path: arena/entry
+;@ After a refusal, back to the class menu.
+;@ test: skip writes VRAM
 ArenaEntryRefused::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawArenaClassWindow()
 	call DrawArenaClassWindow
+;> PrintMenuText9(1)
 	ld hl, $0001
 	call PrintMenuText9
+;> wMenuSubStep = 1                     # ArenaClassShowList
 	ld a, $01
 	ld [wMenuSubStep], a
 	ret
 
 
+;@ def GalleryMenu()
+;@ path: menu/gallery
+;@ Script menu 13, a full-screen list of 16 monster pictures (8 per page, two pages): an entry
+;@ appears once its event flag is set (GalleryEntryFlags), its monster's name once a second flag
+;@ is set (GalleryNameFlags). One frame: runs step wMenuStep.
+;@ test: skip jumps through a table
 GalleryMenu::
+;> return GallerySteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: menu/gallery
+;@ Steps of the picture list: clear the screen, draw it, page through, close.
 GallerySteps::
 	dw GalleryInit
 	dw GalleryOpen
 	dw GalleryInput
 	dw GalleryClose
 
+;@ def GalleryInit()
+;@ path: menu/gallery
+;@ Lines the screen up with the tiles and blanks it; marks a menu as covering the field.
+;@ test: skip writes VRAM
 GalleryInit::
+;> SnapToTile9(hScrollX)
 	ld hl, hScrollX
 	call SnapToTile9
+;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
+;> fill(wLinkChoice, 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@m map = 0x9800 + (hScrollY // 8) * 32 + hScrollX // 8
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@m
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@m
 	adc $98
 	ld h, a
+;>@s wWindowBgMap = (map & 0x3FF) | 0x9800
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@s
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> ClearTilemapBuffer9()
 	call ClearTilemapBuffer9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
+;> wPageToggle = 0
 	xor a
 	ld [wPageToggle], a
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def GalleryOpen()
+;@ path: menu/gallery
+;@ Builds the list and draws the first page.
+;@ test: skip writes VRAM
 GalleryOpen::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> ClearTilemapBuffer9()
 	call ClearTilemapBuffer9
+;> BuildGalleryList()
 	call BuildGalleryList
+;> LoadGalleryPage()
 	call LoadGalleryPage
+;> DrawGalleryFrame()
 	call DrawGalleryFrame
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def DrawGalleryFrame()
+;@ path: menu/gallery
+;@ Draws the full-screen frame (GalleryFrameLayout) and, with more than 8 entries, the arrow $E7 for
+;@ the second page at row 16, column 18.
 DrawGalleryFrame::
-	ld de, $6cde
+;> DrawWindowLayout9(GalleryFrameLayout)
+	ld de, GalleryFrameLayout
 	call DrawWindowLayout9
+;> if wListLength >= 9:
 	ld a, [wListLength]
 	cp $09
 	ret c
 
+;>     mem[TilemapBufferAddr9(0x0212)] = 0xE7
 	ld hl, $0212
 	call TilemapBufferAddr9
 	ld [hl], $e7
 	ret
 
 
+;@ def LoadGalleryPage()
+;@ path: menu/gallery
+;@ Loads the 8 pictures of page wMenuChoice2 into tiles $9380 on (9 tiles each) and renders their
+;@ names into tiles $8880 on (9 tiles each).
+;@ test: skip decompresses graphics
 LoadGalleryPage::
+;>@e entry = wSceneObjects + wMenuChoice2 * 8
 	ld de, wSceneObjects
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	add a
 	add e
+;=@e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9380
 	ld hl, $9380
+;>@p for _ in range(8):
+;>@p     entry, tiles = LoadGalleryPicture(entry, tiles)
 	call LoadGalleryPicture
 	call LoadGalleryPicture
 	call LoadGalleryPicture
 	call LoadGalleryPicture
 	call LoadGalleryPicture
 	call LoadGalleryPicture
+;=@p
 	call LoadGalleryPicture
 	call LoadGalleryPicture
+;>@f entry = wSceneObjects + wMenuChoice2 * 8
 	ld de, wSceneObjects
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	add a
 	add e
+;=@f
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x8880
 	ld hl, $8880
+;>@n for _ in range(8):
+;>@n     entry, tiles = LoadGalleryName(entry, tiles)
 	call LoadGalleryName
 	call LoadGalleryName
 	call LoadGalleryName
 	call LoadGalleryName
 	call LoadGalleryName
 	call LoadGalleryName
+;=@n
 	call LoadGalleryName
 	call LoadGalleryName
 	ret
 
 
+;@ def LoadGalleryPicture(entry: de, tiles: hl) -> (de, hl)
+;@ path: menu/gallery
+;@ Loads the picture of list entry mem[entry] (GalleryPictures) into the 9 tiles at `tiles`; an
+;@ empty entry ($FF) gets system text $026F rendered there instead.
+;@ test: skip decompresses graphics
 LoadGalleryPicture::
+;> if mem[entry] == 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr nz, jr_009_5fc5
+	jr nz, .picture
 
+;>     wTextIndex = 0x6F
+;>     wTextGroup = 2
 	ld a, $6f
 	ld [wTextIndex], a
 	ld a, $02
 	ld [wTextGroup], a
+;>     DrawTextTiles9(tiles, 1, 9)
 	ld de, $0901
 	call DrawTextTiles9
+;>@r     return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
-
-jr_009_5fc5:
+.picture
+;>@g DecompressVRAM(GalleryPictures[mem[entry]], tiles)
 	push hl
-	ld hl, $5fe4
+	ld hl, GalleryPictures
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@g
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld e, a
 	ld a, [hl]
 	ld d, a
+;=@g
 	pop hl
 	call DecompressVRAM
+;>@q return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@q
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ path: menu/gallery
+;@ Graphics of the 16 pictures (bank << 8 | entry for DecompressVRAM): bank $56 entries $0F-$1E.
 GalleryPictures::
-	db $0f, $56, $10, $56, $11, $56, $12, $56, $13, $56, $14, $56, $15, $56, $16, $56
-	db $17, $56, $18, $56, $19, $56, $1a, $56, $1b, $56, $1c, $56, $1d, $56, $1e, $56
+	dw $560f, $5610, $5611, $5612, $5613, $5614, $5615, $5616
+	dw $5617, $5618, $5619, $561a, $561b, $561c, $561d, $561e
 
+;@ def LoadGalleryName(entry: de, tiles: hl) -> (de, hl)
+;@ path: menu/gallery
+;@ Renders the monster name of list entry mem[entry] into the 9 tiles at `tiles`: the species name
+;@ (text group 5, GalleryNames) once event flag GalleryNameFlags[entry] is set, else text $05E0.
+;@ test: skip far call
 LoadGalleryName::
+;> e = mem[entry]
 	push de
 	push hl
 	ld a, [de]
+;> if e == 0xFF:
+;>     wTextIndex = 0xE0
 	cp $ff
 	ld a, $e0
-	jr z, jr_009_6033
+	jr z, .draw
 
+;>@f elif not TestEventFlag(GalleryNameFlags[e]):
 	ld a, [de]
 	push de
-	ld de, $607e
+	ld de, GalleryNameFlags
 	add e
 	ld e, a
 	ld a, $00
+;=@f
 	adc d
 	ld d, a
 	push bc
 	ld a, [de]
 	ld c, a
 	ld b, $00
+;=@f
 	push hl
 	call TestEventFlag
 	pop hl
 	pop bc
 	pop de
+;>     wTextIndex = 0xE0
 	ld a, $e0
-	jr z, jr_009_6033
+	jr z, .draw
 
+;> else:
+;>@n     wTextIndex = GalleryNames[e]
 	ld a, [de]
-	ld de, $608e
+	ld de, GalleryNames
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@n
 	ld d, a
 	ld a, [de]
 
-jr_009_6033:
+.draw
+;=@n
 	ld [wTextIndex], a
+;> wTextGroup = 5                       # monster names
 	ld a, $05
 	ld [wTextGroup], a
+;> DrawTextTiles9(tiles, 1, 9)
 	ld de, $0901
 	call DrawTextTiles9
+;>@r return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def BuildGalleryList()
+;@ path: menu/gallery
+;@ wSceneObjects[0..15] = the numbers (0-15) of the entries whose GalleryEntryFlags event flag is
+;@ set, in order, then $FF; wListLength = how many.
+;@ test: skip reads the event flags through a home routine
 BuildGalleryList::
+;> fill(wSceneObjects, 0xFF, 16); count = 0      # (FillMemory leaves c at 0)
 	ld hl, wSceneObjects
 	ld bc, $0010
 	ld a, $ff
 	call FillMemory
+;> dest = wSceneObjects
 	ld hl, wSceneObjects
-	ld de, $609e
+	ld de, GalleryEntryFlags
+;>@lp for i in range(16):
 	ld b, $00
 
-jr_009_6060:
+.loop
+;>@t     if TestEventFlag(GalleryEntryFlags[i]):
 	push bc
 	push de
 	push hl
 	ld a, [de]
 	ld c, a
 	ld b, $00
+;=@t
 	call TestEventFlag
 	pop hl
 	pop de
 	pop bc
-	jr z, jr_009_6072
+	jr z, .next
 
+;>         mem[dest] = i; dest += 1; count += 1
 	ld [hl], b
 	inc hl
 	inc c
 
-jr_009_6072:
+.next
+;=@lp
 	inc de
 	inc b
 	ld a, b
 	cp $10
-	jr nz, jr_009_6060
+	jr nz, .loop
 
+;> wListLength = count
 	ld a, c
 	ld [wListLength], a
 	ret
 
 
+;@ path: menu/gallery
+;@ For each of the 16 entries: the event flag that shows its monster's name.
 GalleryNameFlags::
 	db $10, $11, $12, $13, $14, $16, $17, $19, $1d, $1c, $1a, $1f, $20, $22, $23, $25
+;@ path: menu/gallery
+;@ For each of the 16 entries: its monster's name, an entry of text group 5 (species names).
 GalleryNames::
 	db $09, $1c, $c4, $44, $66, $0a, $45, $c5, $2a, $58, $2b, $99, $ad, $43, $94, $9a
+;@ path: menu/gallery
+;@ For each of the 16 entries: the event flag that puts it on the list (two entries per flag).
 GalleryEntryFlags::
 	db $00, $30, $30, $31, $31, $32, $32, $33, $33, $34, $34, $35, $35, $36, $36, $37
 
+;@ def GalleryInput()
+;@ path: menu/gallery
+;@ Left / Right turn the page (two pages with more than 8 entries; no cursor); A, B or Start
+;@ close the list.
+;@ test: skip draws to VRAM
 GalleryInput::
-	ld de, $60f2
+;>@pg pages = 2 if wListLength >= 9 else 1
+	ld de, GalleryPageCursor
 	ld hl, wLinkChoice
 	ld c, $01
 	ld a, [wListLength]
 	cp $09
-	jr c, jr_009_60bf
+	jr c, .update
 
+;=@pg
 	ld c, $02
 
-jr_009_60bf:
+.update
+;> old_page = wMenuChoice2
 	ld b, $01
 	ld a, [wMenuChoice2]
 	push af
+;> UpdatePagedList9(wLinkChoice, GalleryPageCursor, 1, pages)    # one "row" per page
 	call UpdatePagedList9
+;> if wMenuChoice2 != old_page:
+;>     LoadGalleryPage()
 	pop af
 	ld hl, wMenuChoice2
 	cp [hl]
-	jr z, jr_009_60d2
+	jr z, .buttons
 
 	call LoadGalleryPage
 
-jr_009_60d2:
+.buttons
+;> if wJoyPressed & 0x0A:               # B or Start
+;>     wMenuStep += 1
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_009_60df
+	jr z, .checkA
 
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_009_60f1
+	jr .done
 
-jr_009_60df:
+.checkA
+;> elif wJoyPressed & 0x01:            # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_009_60f1
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_009_60f1
+	jr .done
 
-jr_009_60f1:
+.done
 	ret
 
 
+;@ path: menu/gallery
+;@ Cursor table of the picture list: only the page-number position (row 16, column 18); no rows.
 GalleryPageCursor::
-	db $12, $02, $ff, $ff, $ff, $ff, $ff, $ff
+	dw $0212, $ffff, $ffff, $ffff
 
+;@ def GalleryClose()
+;@ path: menu/gallery
+;@ Blanks the screen, rebuilds the field's map, status bar and sprites, and lets the field run.
+;@ test: skip far calls
 GalleryClose::
+;> ClearTilemapBuffer9()
 	call ClearTilemapBuffer9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> ReloadMapTileset()
 	ld hl, far_ReloadMapTileset
 	rst $10
+;> DrawMapScreen()
 	ld hl, far_DrawMapScreen
 	rst $10
+;> BuildStatusBar()
 	call BuildStatusBar
+;> DrawStatusBar()
 	call DrawStatusBar
+;> Call_06_4D5A()
 	ld hl, far_LoadFieldActorGfx
 	rst $10
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
+;> wFieldFlags &= ~0x10
 	ld hl, wFieldFlags
 	res 4, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def NameEntryMenu()
+;@ path: menu/names
+;@ The name entry (script menu 15, also far entry 1 of this bank), used to name Terry or a monster:
+;@ wChosenMonName points at the name (up to 8 letters), wChosenMonPic is 0 for Terry or the
+;@ monster's species + $10, wChosenMonSpecies / wChosenMonGender describe the monster. One frame:
+;@ while the screen is up (steps 2-8) the picture of who is being named is drawn as a sprite (two
+;@ frames, switching every 16 frames), then step wMenuStep runs.
+;@ test: skip far calls and a jump table
 NameEntryMenu::
+;> if 2 <= wMenuStep < 9:
 	ld a, [wMenuStep]
 	cp $09
-	jr nc, jr_009_6155
+	jr nc, .step
 
 	cp $02
-	jr c, jr_009_6155
+	jr c, .step
 
+;>     hSpriteX = 0x0019
 	ld hl, hSpriteX
 	ld a, $19
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteY = 0x0021
 	ld a, $21
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>     hSpriteSet = wChosenMonPic
 	ld a, [wChosenMonPic]
 	ld [hli], a
+;>@fr     hSpriteFrame = 1 if wFrameCounter & 0x10 else 0
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_009_6149
+	jr z, .frame
 
 	ld b, $01
 
-jr_009_6149:
+.frame
+;=@fr
 	ld a, b
 	ld [hli], a
+;>     hSpriteTileBase = 0x50          # the picture loaded at $8500
+;>     hSpriteAttr = 0
 	ld a, $50
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;>     DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 
-jr_009_6155:
+.step
+;> return NameEntrySteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: menu/names
+;@ Steps of the name entry: wait for the fade, set up, draw, type, check the name (rejected: a
+;@ message and back), ask to confirm, yes / no, finish.
 NameEntrySteps::
 	dw NameEntryWaitFade
 	dw NameEntryInit
@@ -5560,125 +7686,190 @@ NameEntrySteps::
 	dw NameEntryNext
 	dw NameEntryFinish
 
+;@ def NameEntryNext()
+;@ path: menu/names
+;@ Goes on to the next step.
 NameEntryNext::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def NameEntryWaitFade()
+;@ path: menu/names
+;@ Step 0: with no fade running, the set-up follows next frame; during a fade it runs at once.
+;@ test: skip runs on into NameEntryInit
 NameEntryWaitFade::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> if wFadeState == 0:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret z
 
+;> return NameEntryInit()
+
+;@ def NameEntryInit()
+;@ path: menu/names
+;@ Sets the name entry up: the name so far (or the species' default name) into wNameInput, the
+;@ message box at row 14, a blank screen, the keyboard graphics (bank $2E entries $1E, $1F, $20 to
+;@ $9000, $8800, $8A00), the picture of who is named (NamePictures) to $8500 and its palettes.
+;@ test: skip decompresses graphics
 NameEntryInit::
+;> SnapToTile9(hScrollX)
 	ld hl, hScrollX
 	call SnapToTile9
+;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
+;> fill(wNameInput, 0x9F, 16)           # empty letters (and wNameLetterRows)
 	ld hl, wNameInput
 	ld bc, $0010
 	ld a, $9f
 	call FillMemory
+;> LoadCurrentName()
 	call LoadCurrentName
+;> fill(wLinkChoice, 0, 8)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@m map = 0x9800 + (hScrollY // 8) * 32 + hScrollX // 8
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@m
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@m
 	adc $98
 	ld h, a
+;>@s wWindowBgMap = (map & 0x3FF) | 0x9800
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@s
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;>@tb wTextBoxMap = NextBgColumn9(WindowBgAddr9(0x01C0))   # row 14, column 1
 	ld hl, $01c0
 	call WindowBgAddr9
 	call NextBgColumn9
 	ld a, l
 	ld [wTextBoxMap], a
 	ld a, h
-	ld [$c83f], a
+;=@tb
+	ld [wTextBoxMap + 1], a
+;> ClearTilemapBuffer9()
 	call ClearTilemapBuffer9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> DecompressVRAM(0x2E, 0x1E, 0x9000)
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call DecompressVRAM
+;>@p pic = mem16[NamePictures + 2 * wChosenMonPic]
 	ld a, [wChosenMonPic]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $10
+	add LOW(NamePictures)
+;=@p
 	ld l, a
 	ld a, h
-	adc $6b
+	adc HIGH(NamePictures)
 	ld h, a
 	ld e, [hl]
 	inc hl
+;=@p
 	ld d, [hl]
+;> DecompressVRAM(hi(pic), lo(pic), 0x8500)
 	ld hl, $8500
 	call DecompressVRAM
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
+;> DrawNameBuffer()
 	call DrawNameBuffer
+;> LoadFieldObjPalettes()
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def LoadCurrentName()
+;@ path: menu/names
+;@ Copies the current name at wChosenMonName (up to 8 letters, ending at 0, $F0 or $9F) into
+;@ wNameInput. A monster with no name yet gets its species' default name (text group 7).
+;@ test: skip far call
 LoadCurrentName::
+;>@c CopyNameToBuffer(mem16[wChosenMonName], wNameInput, 8)
 	ld b, $08
 	ld a, [wChosenMonName]
 	ld l, a
-	ld a, [$c8f3]
+	ld a, [wChosenMonName + 1]
 	ld h, a
 	ld de, wNameInput
+;=@c
 	call CopyNameToBuffer
+;> if wChosenMonPic == 0:                # Terry
+;>     return
 	ld a, [wChosenMonPic]
 	cp $00
 	ret z
 
+;> if wNameInput[0] != 0x9F:
+;>     return
 	ld a, [wNameInput]
 	cp $9f
 	ret nz
 
+;> CopySystemText(0x0700 | wChosenMonSpecies, wTextArg0)     # the default name
 	ld a, [wChosenMonSpecies]
 	ld l, a
 	ld h, $07
 	ld de, wTextArg0
 	call CopySystemText
+;> return CopyNameToBuffer(wTextArg0, wNameInput, b)
 	ld hl, wTextArg0
 	ld de, wNameInput
 
+;@ def CopyNameToBuffer(src: hl, dest: de, count: b)
+;@ path: menu/names
+;@ Copies up to `count` letters from `src` to `dest`, stopping at 0, $F0 or $9F.
 CopyNameToBuffer::
+;> for _ in range(count):
+;>     c = mem[src]; src += 1
 	ld a, [hli]
+;>     if c in (0x00, 0xF0, 0x9F):
+;>         return
 	cp $00
 	ret z
 
@@ -5688,6 +7879,7 @@ CopyNameToBuffer::
 	cp $9f
 	ret z
 
+;>     mem[dest] = c; dest += 1
 	ld [de], a
 	inc de
 	dec b
@@ -5696,881 +7888,1152 @@ CopyNameToBuffer::
 	ret
 
 
+;@ def DrawNameBuffer()
+;@ path: menu/names
+;@ Renders the name typed so far into the tiles at $9000 and draws the letter cursor under it.
+;@ test: skip far call
 DrawNameBuffer::
+;> DrawNameTiles9(wNameInput, 0x9000)
 	ld de, wNameInput
 	ld hl, $9000
 	call DrawNameTiles9
+;> DrawNameCursor()
 	call DrawNameCursor
 	ret
 
 
+;@ def NameEntryOpen()
+;@ path: menu/names
+;@ Draws the name entry screen.
+;@ test: skip writes VRAM
 NameEntryOpen::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> ClearTilemapBuffer9()
 	call ClearTilemapBuffer9
+;> DrawNameEntryScreen()
 	call DrawNameEntryScreen
+;> DrawNameCursor()
 	call DrawNameCursor
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
 	ret
 
 
+;@ def DrawNameEntryScreen()
+;@ path: menu/names
+;@ For a monster, renders its sex mark ($A7 / $A8) into tile $8AF0 and puts that tile ($AF) at row
+;@ 3, column 4. Then draws the name box and one of the two keyboards (KeyboardLayout1 when
+;@ wConfirmChoice is set, else KeyboardLayout0) and the keyboard cursor.
+;@ test: skip far call
 DrawNameEntryScreen::
+;> if wChosenMonPic != 0:
 	ld a, [wChosenMonPic]
 	or a
-	jr z, jr_009_62e0
+	jr z, .layout
 
+;>     wTextArg0[0] = 0xA7 + (wChosenMonGender & 1)
 	ld a, [wChosenMonGender]
 	and $01
 	add $a7
 	ld [wTextArg0], a
+;>     wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>     saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;>     saved_size = (wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;>     wTextTiles = 0x8AF0
 	ld hl, $8af0
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;>     wTextBoxLines = 1
+;>     wTextBoxLineLength = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>     wTextGroup = 2
+;>     wTextIndex = 0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;>     PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>     wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;>     wTextBoxLines = saved_size[0]
+;>     wTextBoxLineLength = saved_size[1]
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>     mem[TilemapBufferAddr9(0x0064)] = 0xAF
 	ld hl, $0064
 	call TilemapBufferAddr9
 	ld [hl], $af
 
-jr_009_62e0:
-	ld de, $7ca5
+.layout
+;> DrawWindowLayout9(NameBoxLayout)
+	ld de, NameBoxLayout
 	call DrawWindowLayout9
-	ld de, $7ccb
+;>@k DrawWindowLayout9(KeyboardLayout1 if wConfirmChoice else KeyboardLayout0)
+	ld de, KeyboardLayout1
 	ld a, [wConfirmChoice]
 	or a
-	jr nz, jr_009_62f2
+	jr nz, .keyboard
 
-	ld de, $7dc9
+	ld de, KeyboardLayout0
 
-jr_009_62f2:
+.keyboard
+;=@k
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
+;> DrawKeyboardCursor()
 	call DrawKeyboardCursor
 	ret
 
 
+;@ def NameEntryInput()
+;@ path: menu/names
+;@ One frame of typing a name. The keyboard is 5 rows (wMenuChoice2) of 17 columns (wLinkChoice),
+;@ key = row * 17 + column; some keys are gaps the cursor jumps over (row 4 columns 7-12, rows 3-4
+;@ columns 14-16). Key $40 is Back, $51 End. B or Back erases (the first B on Terry's default name
+;@ erases all of it), A types the letter shown on the key, Start puts the cursor on End. A name
+;@ holds 4 letters; the voicing marks $8D / $8E go on the last letter and do not count, but only
+;@ after letters of certain 5-key groups (key // 5, kept per letter in wNameLetterRows).
+;@ test: skip draws to VRAM
 NameEntryInput::
+;> if wJoyRepeat & 0x20:                # Left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_009_6332
+	jr z, .right
 
+;>     if wMenuChoice2 >= 3:           # rows 3-4 end at column 13
 	ld a, [wMenuChoice2]
 	cp $03
-	jr c, jr_009_631e
+	jr c, .leftUpper
 
+;>         wLinkChoice = u8(wLinkChoice - 1)
+;>@la         if wLinkChoice >= 17: wLinkChoice = 13
 	ld a, [wLinkChoice]
 	dec a
 	ld [wLinkChoice], a
 	cp $11
-	jp c, Jump_009_63f5
+	jp c, .moved
 
+;=@la
 	ld a, $0d
 	ld [wLinkChoice], a
-	jp Jump_009_63f5
+	jp .moved
 
-
-jr_009_631e:
+.leftUpper
+;>     else:
+;>         wLinkChoice = u8(wLinkChoice - 1)
+;>@lb         if wLinkChoice >= 17: wLinkChoice = 16
 	ld a, [wLinkChoice]
 	dec a
 	ld [wLinkChoice], a
 	cp $11
-	jp c, Jump_009_63f5
+	jp c, .moved
 
+;=@lb
 	ld a, $10
 	ld [wLinkChoice], a
-	jp Jump_009_63f5
+	jp .moved
 
-
-jr_009_6332:
+.right
+;> elif wJoyRepeat & 0x10:              # Right
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_009_634d
+	jr z, .up
 
+;>     wLinkChoice += 1
+;>@rr     if wLinkChoice >= 17: wLinkChoice = 0
 	ld a, [wLinkChoice]
 	inc a
 	ld [wLinkChoice], a
 	cp $11
-	jp c, Jump_009_63f5
+	jp c, .moved
 
+;=@rr
 	ld a, $00
 	ld [wLinkChoice], a
-	jp Jump_009_63f5
+	jp .moved
 
-
-jr_009_634d:
+.up
+;> elif wJoyRepeat & 0x40:              # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_009_639d
+	jr z, .down
 
+;>     if wLinkChoice < 6:
+;>@ul         wMenuChoice2 = 4 if wMenuChoice2 == 0 else wMenuChoice2 - 1
 	ld a, [wLinkChoice]
 	cp $06
-	jr c, jr_009_638b
+	jr c, .upLeft
 
+;>     elif wLinkChoice >= 13:         # the Back / End column
+;>@ur         wMenuChoice2 = u8(wMenuChoice2 - 1)
+;>@us         if wMenuChoice2 >= 5: wMenuChoice2 = 4; wLinkChoice = 13
 	cp $0d
-	jp nc, Jump_009_6374
+	jp nc, .upRight
 
+;>     else:
+;>@um         wMenuChoice2 = 3 if wMenuChoice2 == 0 else wMenuChoice2 - 1    # rows 0-3
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
 	cp $05
-	jp c, Jump_009_63f5
+	jp c, .moved
 
+;=@um
 	ld a, $03
 	ld [wMenuChoice2], a
-	jp Jump_009_63f5
+	jp .moved
 
-
-Jump_009_6374:
+.upRight
+;=@ur
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
 	cp $05
-	jr c, jr_009_63f5
+	jr c, .moved
 
+;=@us
 	ld a, $04
 	ld [wMenuChoice2], a
 	ld a, $0d
 	ld [wLinkChoice], a
-	jr jr_009_63f5
+	jr .moved
 
-jr_009_638b:
+.upLeft
+;=@ul
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
 	cp $05
-	jr c, jr_009_63f5
+	jr c, .moved
 
+;=@ul
 	ld a, $04
 	ld [wMenuChoice2], a
-	jr jr_009_63f5
+	jr .moved
 
-jr_009_639d:
+.down
+;> elif wJoyRepeat & 0x80:              # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jp z, Jump_009_6460
+	jp z, .input
 
+;>@d1     if wLinkChoice < 6 or (wLinkChoice >= 13 and wMenuChoice2 < 2):
+;>@dl         wMenuChoice2 = (wMenuChoice2 + 1) % 5
 	ld a, [wLinkChoice]
 	cp $06
-	jr c, jr_009_63e3
+	jr c, .downLeft
 
 	cp $0d
-	jr nc, jr_009_63c2
+	jr nc, .downRight
 
+;>     elif wLinkChoice < 13:
+;>@dm         wMenuChoice2 = (wMenuChoice2 + 1) % 4     # rows 0-3
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
 	cp $04
-	jr c, jr_009_63f5
+	jr c, .moved
 
+;=@dm
 	ld a, $00
 	ld [wMenuChoice2], a
-	jr jr_009_63f5
+	jr .moved
 
-jr_009_63c2:
+.downRight
+;>     else:
+;>@dr         wLinkChoice = 13; wMenuChoice2 = (wMenuChoice2 + 1) % 5
+;=@d1
 	ld a, [wMenuChoice2]
 	cp $02
-	jr c, jr_009_63e3
+	jr c, .downLeft
 
+;=@dr
 	ld a, [wLinkChoice]
 	ld a, $0d
 	ld [wLinkChoice], a
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
+;=@dr
 	cp $05
-	jr c, jr_009_63f5
+	jr c, .moved
 
 	ld a, $00
 	ld [wMenuChoice2], a
-	jr jr_009_63f5
+	jr .moved
 
-jr_009_63e3:
+.downLeft
+;=@dl
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
 	cp $05
-	jr c, jr_009_63f5
+	jr c, .moved
 
+;=@dl
 	ld a, $00
 	ld [wMenuChoice2], a
-	jr jr_009_63f5
+	jr .moved
 
-Jump_009_63f5:
-jr_009_63f5:
+.moved
+;> if wJoyRepeat & 0xF0:                # the cursor moved: skip the gaps
+;>     wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
+;>     key = wMenuChoice2 * 17 + wLinkChoice
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
 	ld a, [wLinkChoice]
 	add l
+;>     if key == 0x4A:                 # row 4, column 6
 	cp $4a
-	jr nz, jr_009_641c
+	jr nz, .not4A
 
+;>@g1         wLinkChoice = 13 if wJoyRepeat & 0x10 else 6
 	ld a, $06
 	ld [wLinkChoice], a
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_009_6460
+	jr z, .input
 
+;=@g1
 	ld a, $0d
 	ld [wLinkChoice], a
-	jr jr_009_6460
+	jr .input
 
-jr_009_641c:
+.not4A
+;>     elif key == 0x50:               # row 4, column 12
 	cp $50
-	jr nz, jr_009_6433
+	jr nz, .not50
 
+;>@g2         wLinkChoice = 5 if wJoyRepeat & 0x20 else 13
 	ld a, $0d
 	ld [wLinkChoice], a
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_009_6460
+	jr z, .input
 
+;=@g2
 	ld a, $05
 	ld [wLinkChoice], a
-	jr jr_009_6460
+	jr .input
 
-jr_009_6433:
+.not50
+;>@g3     elif key in (0x41, 0x42, 0x43, 0x52, 0x53, 0x54):   # rows 3-4, columns 14-16
+;>@g4         wLinkChoice = 0 if wJoyRepeat & 0x10 else 10
 	cp $41
-	jr z, jr_009_644d
+	jr z, .gap
 
 	cp $42
-	jr z, jr_009_644d
+	jr z, .gap
 
 	cp $43
-	jr z, jr_009_644d
+	jr z, .gap
 
+;=@g3
 	cp $52
-	jr z, jr_009_644d
+	jr z, .gap
 
 	cp $53
-	jr z, jr_009_644d
+	jr z, .gap
 
 	cp $54
-	jr z, jr_009_644d
+	jr z, .gap
 
-	jr jr_009_6460
+;=@g3
+	jr .input
 
-jr_009_644d:
+.gap
+;=@g4
 	ld a, $0a
 	ld [wLinkChoice], a
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_009_6460
+	jr z, .input
 
+;=@g4
 	ld a, $00
 	ld [wLinkChoice], a
-	jr jr_009_6460
+	jr .input
 
-Jump_009_6460:
-jr_009_6460:
+.input
+;> DrawKeyboardCursor()
 	call DrawKeyboardCursor
+;> if wJoyPressed & 0x02:               # B: erase
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_64a9
+	jr z, .checkA
 
-Jump_009_646a:
+.erase
+;>     if wNameInput[0] == 0x9F:       # nothing to erase
+;>         return
 	ld de, wNameInput
 	ld a, [de]
 	cp $9f
-	jp z, Jump_009_6606
+	jp z, .done
 
-jr_009_6473:
+.findEnd
+;>     last = next(a for a in range(wNameInput + 1, wNameInput + 16) if mem[a] == 0x9F) - 1
 	inc de
 	ld a, [de]
 	cp $9f
-	jr nz, jr_009_6473
+	jr nz, .findEnd
 
 	dec de
+;>     if wNameCleared == 0 and wChosenMonPic == 0:      # Terry's default name goes at once
 	ld a, [wNameCleared]
 	cp $00
-	jp nz, Jump_009_64a0
+	jp nz, .eraseOne
 
 	ld a, [wChosenMonPic]
 	cp $00
-	jp nz, Jump_009_64a0
+	jp nz, .eraseOne
 
+;>         wNameCleared = 1
 	ld a, $01
 	ld [wNameCleared], a
+;>         fill(wNameInput, 0x9F, 4)
 	ld a, $9f
 	ld [wNameInput], a
-	ld [$c0c9], a
-	ld [$c0ca], a
-	ld [$c0cb], a
-	jp Jump_009_64a3
+	ld [wNameInput + 1], a
+	ld [wNameInput + 2], a
+	ld [wNameInput + 3], a
+	jp .redraw
 
-
-Jump_009_64a0:
+.eraseOne
+;>     else:
+;>         mem[last] = 0x9F
 	ld a, $9f
 	ld [de], a
 
-Jump_009_64a3:
+.redraw
+;>     DrawNameBuffer()
+;>     return
 	call DrawNameBuffer
-	jp Jump_009_6606
+	jp .done
 
-
-jr_009_64a9:
+.checkA
+;> elif wJoyPressed & 0x01:             # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_65f3
+	jp z, .checkStart
 
+;>     key = wMenuChoice2 * 17 + wLinkChoice
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
 	ld a, [wLinkChoice]
 	add l
+;>     if key == 0x51:                 # End: the name is done
+;>         wMenuStep += 1; return
 	cp $51
-	jr nz, jr_009_64c8
+	jr nz, .notEnd
 
 	ld hl, wMenuStep
 	inc [hl]
-	jp Jump_009_6606
+	jp .done
 
-
-jr_009_64c8:
+.notEnd
+;>     if key == 0x40:                 # Back: erase as with B
+;>         return NameEntryInput_erase()
 	cp $40
-	jp z, Jump_009_646a
+	jp z, .erase
 
+;>@rm     key = {0x1E: 0x0D, 0x1F: 0x0E, 0x20: 0x0F, 0x21: 0x10, 0x2F: 0x1E, 0x30: 0x1F,
+;>@rm            0x0D: 0x20, 0x0E: 0x21, 0x0F: 0x2F, 0x10: 0x30}.get(key, key)  # (each also stored to ROM space, no effect)
 	cp $1e
-	jr nz, jr_009_64d6
+	jr nz, .key1F
 
 	ld a, $0d
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_64d6:
+.key1F
+;=@rm
 	cp $1f
-	jr nz, jr_009_64df
+	jr nz, .key20
 
 	ld a, $0e
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_64df:
+.key20
+;=@rm
 	cp $20
-	jr nz, jr_009_64e8
+	jr nz, .key21
 
 	ld a, $0f
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_64e8:
+.key21
+;=@rm
 	cp $21
-	jr nz, jr_009_64f1
+	jr nz, .key2F
 
 	ld a, $10
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_64f1:
+.key2F
+;=@rm
 	cp $2f
-	jr nz, jr_009_64fa
+	jr nz, .key30
 
 	ld a, $1e
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_64fa:
+.key30
+;=@rm
 	cp $30
-	jr nz, jr_009_6503
+	jr nz, .key0D
 
 	ld a, $1f
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_6503:
+.key0D
+;=@rm
 	cp $0d
-	jr nz, jr_009_650c
+	jr nz, .key0E
 
 	ld a, $20
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_650c:
+.key0E
+;=@rm
 	cp $0e
-	jr nz, jr_009_6515
+	jr nz, .key0F
 
 	ld a, $21
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_6515:
+.key0F
+;=@rm
 	cp $0f
-	jr nz, jr_009_651e
+	jr nz, .key10
 
 	ld a, $2f
 	ld [hl], a
-	jr jr_009_6525
+	jr .keyChar
 
-jr_009_651e:
+.key10
+;=@rm
 	cp $10
-	jr nz, jr_009_6525
+	jr nz, .keyChar
 
 	ld a, $30
 	ld [hl], a
 
-jr_009_6525:
-	ld hl, $6607
+.keyChar
+;>@ch     ch_addr = wTilemapBuffer + mem16[KeyboardKeyPositions + 2 * key] - 32     # the letter above the key
+	ld hl, KeyboardKeyPositions
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@ch
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, l
 	add $e0
+;=@ch
 	ld l, a
 	ld a, h
 	adc $c4
 	ld h, a
+;>     ch = mem[ch_addr]
+;>     n = CountNameLetters()
 	push hl
 	call CountNameLetters
 	pop hl
+;>     if n == 4:                      # the name is full: only a mark can still go on
 	ld a, c
 	cp $04
-	jr nz, jr_009_655a
+	jr nz, .notFull
 
+;>         wLinkChoice = 13
+;>         wMenuChoice2 = 4            # cursor to End
 	ld a, $0d
 	ld [wLinkChoice], a
 	ld a, $04
 	ld [wMenuChoice2], a
+;>         if ch not in (0x8D, 0x8E):
+;>             return
 	ld a, [hl]
 	cp $8d
-	jr z, jr_009_6568
+	jr z, .add
 
 	cp $8e
-	jr z, jr_009_6568
+	jr z, .add
 
-	jp Jump_009_6606
+	jp .done
 
-
-jr_009_655a:
+.notFull
+;>@nf     elif n == 0 and ch in (0x8D, 0x8E):   # a mark cannot come first
+;>         return
 	or a
-	jr nz, jr_009_6568
+	jr nz, .add
 
 	ld a, [hl]
 	cp $8d
-	jp z, Jump_009_6606
+	jp z, .done
 
 	cp $8e
-	jp z, Jump_009_6606
+;=@nf
+	jp z, .done
 
-jr_009_6568:
+.add
+;>@e     end = next(a for a in range(wNameInput, wNameInput + 16) if mem[a] == 0x9F)
 	ld de, wNameInput
 
-jr_009_656b:
+.findEnd2
+;=@e
 	ld a, [de]
 	inc de
 	cp $9f
-	jr nz, jr_009_656b
+	jr nz, .findEnd2
 
 	dec de
+;>     if ch in (0x8D, 0x8E):          # a voicing mark
 	ld a, [hl]
 	cp $8d
-	jr z, jr_009_657b
+	jr z, .mark
 
 	cp $8e
-	jr nz, jr_009_65b2
+	jr nz, .put
 
-jr_009_657b:
+.mark
+;>@mk         if mem[end - 1] in (0x8D, 0x8E):    # the letter has a mark already
+;>             return
 	dec de
 	ld a, [de]
 	inc de
 	cp $8d
-	jp z, Jump_009_6606
+	jp z, .done
 
 	cp $8e
-	jr z, jr_009_6606
+;=@mk
+	jr z, .done
 
+;>@gr         group = wNameLetterRows[n]  # 5-key group of the last letter
 	push hl
 	ld a, c
 	ld hl, wNameLetterRows
 	add l
 	ld l, a
 	ld a, $00
+;=@gr
 	adc h
 	ld h, a
 	ld b, [hl]
 	pop hl
+;>         if group != 1:
 	ld a, b
 	cp $01
-	jr z, jr_009_65b2
+	jr z, .put
 
+;>             if ch == 0x8E:          # this mark only goes on group-1 letters
+;>                 return
 	ld a, [hl]
 	cp $8e
-	jr z, jr_009_6606
+	jr z, .done
 
+;>@ot             if group not in (3, 6, 9) and mem[end - 1] != 0x5A:
+;>                 return
 	ld a, b
 	cp $03
-	jr z, jr_009_65b2
+	jr z, .put
 
 	cp $06
-	jr z, jr_009_65b2
+	jr z, .put
 
 	cp $09
-	jr z, jr_009_65b2
+;=@ot
+	jr z, .put
 
 	dec de
 	ld a, [de]
 	inc de
 	cp $5a
-	jr nz, jr_009_6606
+	jr nz, .done
 
-jr_009_65b2:
+.put
+;>     mem[end] = ch
 	ld a, [hl]
 	ld [de], a
+;>     DrawNameBuffer()
 	call DrawNameBuffer
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>@rw     wNameLetterRows[CountNameLetters()] = key // 5     # (key before the swap above)
 	call CountNameLetters
 	ld a, c
 	ld hl, wNameLetterRows
 	add l
 	ld l, a
 	ld a, $00
+;=@rw
 	adc h
 	ld h, a
 	push hl
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
+;=@rw
 	ld a, [wLinkChoice]
 	add l
 	ld b, a
 	ld a, $05
 	call Divide8
 	ld a, b
+;=@rw
 	pop hl
 	ld [hl], a
+;>     if CountNameLetters() == 4:
 	call CountNameLetters
 	ld a, c
 	cp $04
-	jr nz, jr_009_6606
+	jr nz, .done
 
+;>         wLinkChoice = 13
+;>         wMenuChoice2 = 4
 	ld a, $0d
 	ld [wLinkChoice], a
 	ld a, $04
 	ld [wMenuChoice2], a
-	jr jr_009_6606
+	jr .done
 
-Jump_009_65f3:
+.checkStart
+;> elif wJoyPressed & 0x08:             # Start: cursor to End
 	ld a, [wJoyPressed]
 	bit 3, a
-	jr z, jr_009_6606
+	jr z, .done
 
+;>     wLinkChoice = 13
+;>     wMenuChoice2 = 4
 	ld a, $0d
 	ld [wLinkChoice], a
 	ld a, $04
 	ld [wMenuChoice2], a
-	jr jr_009_6606
+	jr .done
 
-Jump_009_6606:
-jr_009_6606:
+.done
 	ret
 
 
+;@ path: menu/names
+;@ Cursor position (window offset) of each of the 85 keys, row by row (5 rows of 17); the letter
+;@ of a key is the tile one row above it. $FFFF ends the table.
 KeyboardKeyPositions::
-	db $e1, $00, $e2, $00, $e3, $00, $e4, $00, $e5, $00, $e6, $00, $e7, $00, $e8, $00
-	db $e9, $00, $ea, $00, $eb, $00, $ec, $00, $ed, $00, $ef, $00, $f0, $00, $f1, $00
-	db $f2, $00, $21, $01, $22, $01, $23, $01, $24, $01, $25, $01, $26, $01, $27, $01
-	db $28, $01, $29, $01, $2a, $01, $2b, $01, $2c, $01, $2d, $01, $2f, $01, $30, $01
-	db $31, $01, $32, $01, $61, $01, $62, $01, $63, $01, $64, $01, $65, $01, $66, $01
-	db $67, $01, $68, $01, $69, $01, $6a, $01, $6b, $01, $6c, $01, $6d, $01, $6f, $01
-	db $70, $01, $71, $01, $72, $01, $a1, $01, $a2, $01, $a3, $01, $a4, $01, $a5, $01
-	db $a6, $01, $a7, $01, $a8, $01, $a9, $01, $aa, $01, $ab, $01, $ac, $01, $ad, $01
-	db $af, $01, $b0, $01, $b1, $01, $b2, $01, $e1, $01, $e2, $01, $e3, $01, $e4, $01
-	db $e5, $01, $e6, $01, $e7, $01, $e8, $01, $e9, $01, $ea, $01, $eb, $01, $ec, $01
-	db $ed, $01, $ef, $01, $f0, $01, $f1, $01, $f2, $01, $ff, $ff
+	dw $00e1, $00e2, $00e3, $00e4, $00e5, $00e6, $00e7, $00e8, $00e9, $00ea, $00eb, $00ec, $00ed, $00ef, $00f0, $00f1, $00f2
+	dw $0121, $0122, $0123, $0124, $0125, $0126, $0127, $0128, $0129, $012a, $012b, $012c, $012d, $012f, $0130, $0131, $0132
+	dw $0161, $0162, $0163, $0164, $0165, $0166, $0167, $0168, $0169, $016a, $016b, $016c, $016d, $016f, $0170, $0171, $0172
+	dw $01a1, $01a2, $01a3, $01a4, $01a5, $01a6, $01a7, $01a8, $01a9, $01aa, $01ab, $01ac, $01ad, $01af, $01b0, $01b1, $01b2
+	dw $01e1, $01e2, $01e3, $01e4, $01e5, $01e6, $01e7, $01e8, $01e9, $01ea, $01eb, $01ec, $01ed, $01ef, $01f0, $01f1, $01f2
+	dw $ffff
 
+;@ def NameEntryCheckName()
+;@ path: menu/names
+;@ End was chosen: an empty name gets a default one (PickDefaultName); a forbidden name prints
+;@ system text $020A and goes back to typing, any other goes on to the confirmation.
+;@ test: skip prints text
 NameEntryCheckName::
+;> wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
+;> DrawKeyboardCursor()
 	call DrawKeyboardCursor
+;> if wNameInput[0] == 0x9F:            # nothing typed
 	ld a, [wNameInput]
 	cp $9f
-	jr nz, jr_009_66ca
+	jr nz, .check
 
+;>     PickDefaultName()
 	call PickDefaultName
+;>     PadNameBuffer()
 	call PadNameBuffer
+;>     DrawNameBuffer()
 	call DrawNameBuffer
 
-jr_009_66ca:
+.check
+;> if not CheckForbiddenName():
 	call CheckForbiddenName
-	jr c, jr_009_66d9
+	jr c, .forbidden
 
+;>     wMenuStep += 2                  # NameEntryAskConfirm
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_009_66ec
+	jr .done
 
-jr_009_66d9:
+.forbidden
+;> else:
+;>     PrintSystemText(0x020A)
 	ld hl, $020a
 	call PrintSystemText
+;>     DrawWindowLayout9(0x2E07)       # message window (bank 0)
 	ld de, $2e07
 	call DrawWindowLayout9
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;>     wMenuStep += 1                  # NameEntryRejected
 	ld hl, wMenuStep
 	inc [hl]
 
-jr_009_66ec:
+.done
 	ret
 
 
+;@ def NameEntryRejected()
+;@ path: menu/names
+;@ After the "can't use that name" message: back to typing.
+;@ test: skip far call
 NameEntryRejected::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawNameBuffer()
 	call DrawNameBuffer
+;>@b wMenuStep -= 3                      # NameEntryInput
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
+;=@b
 	ret
 
 
+;@ def NameEntryAskConfirm()
+;@ path: menu/names
+;@ Asks to confirm the name (in wTextArg0): for Terry system text $0209; for a monster (whose
+;@ species name and sex mark go into wTextArg1) $020F, or $0245 when another monster already has
+;@ that name.
+;@ test: skip prints text
 NameEntryAskConfirm::
+;> if wChosenMonPic != 0:
 	ld a, [wChosenMonPic]
 	cp $00
-	jr z, jr_009_6728
+	jr z, .name
 
+;>     CopySystemText(0x0500 | wChosenMonSpecies, wTextArg1)      # species name
 	ld a, [wChosenMonSpecies]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg1
 	call CopySystemText
+;>     p = wTextArg1
 	ld hl, wTextArg1
 
-jr_009_6718:
+.findEnd
+;>     while mem[p] != 0xF0: p += 1
 	ld a, [hli]
 	cp $f0
-	jr nz, jr_009_6718
+	jr nz, .findEnd
 
+;>     mem[p] = 0xA7 + (wChosenMonGender & 1)   # the sex mark
 	dec hl
 	ld a, [wChosenMonGender]
 	and $01
 	add $a7
 	ld [hli], a
+;>     mem[p + 1] = 0xF0
 	ld [hl], $f0
 
-jr_009_6728:
+.name
+;> p = wTextArg0
+;> for i in range(8):                   # the name, up to its first empty slot
 	ld hl, wTextArg0
 	ld de, wNameInput
 	ld b, $08
 
-jr_009_6730:
+.copy
+;>     if wNameInput[i] == 0x9F:
+;>         break
 	ld a, [de]
 	cp $9f
-	jr z, jr_009_673a
+	jr z, .end
 
+;>     mem[p] = wNameInput[i]; p += 1
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_009_6730
+	jr nz, .copy
 
-jr_009_673a:
+.end
+;> wNameCleared = 0
 	ld a, $00
 	ld [wNameCleared], a
+;> mem[p] = 0xF0
 	ld [hl], $f0
+;>@m msg = 0x0209 if wChosenMonPic == 0 else (0x0245 if CheckNameTaken() else 0x020F)
 	ld hl, $0209
 	ld a, [wChosenMonPic]
 	cp $00
-	jr z, jr_009_6756
+	jr z, .print
 
 	call CheckNameTaken
 	ld hl, $0245
-	jr c, jr_009_6756
+;=@m
+	jr c, .print
 
 	ld hl, $020f
 
-jr_009_6756:
+.print
+;> PrintSystemText(msg)
 	call PrintSystemText
+;> DrawWindowLayout9(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> wMenuChoice3 = 0
 	xor a
 	ld [wMenuChoice3], a
 	ret
 
 
+;@ def NameEntryShowYesNo()
+;@ path: menu/names
+;@ Once the question is printed, shows the yes / no window.
+;@ test: skip writes VRAM
 NameEntryShowYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	ld de, $6eb0
+;> DrawWindowLayout9(NameYesNoLayout)
+	ld de, NameYesNoLayout
 	call DrawWindowLayout9
+;> ResetCursorBlink9()
 	call ResetCursorBlink9
-	ld de, $67d7
+;> DrawCursorAt9(wMenuChoice3, NameYesNoCursor)
+	ld de, NameYesNoCursor
 	ld a, [wMenuChoice3]
 	call DrawCursorAt9
+;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def NameEntryYesNoInput()
+;@ path: menu/names
+;@ Yes keeps the name; No or B goes back to typing.
+;@ test: skip draws to VRAM
 NameEntryYesNoInput::
-	ld de, $67d7
+;> UpdateMenuCursor9(wMenuChoice3, 2, NameYesNoCursor)
+	ld de, NameYesNoCursor
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateMenuCursor9
+;> if wJoyPressed & 0x02:               # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_009_67be
+	jr z, .checkA
 
-jr_009_67a1:
+.no
+;>     DrawNameBuffer()
 	call DrawNameBuffer
+;>@no     wMenuStep -= 6                  # NameEntryOpen's next step: typing
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
+;=@no
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
 	ld hl, wMenuStep
 	dec [hl]
-	jr jr_009_67d6
+;=@no
+	jr .done
 
-jr_009_67be:
+.checkA
+;> elif wJoyPressed & 0x01:             # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_009_67d6
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:        # No: as B
+;>         DrawNameBuffer(); wMenuStep -= 6
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_009_67a1
+	jr z, .no
 
+;>     else:
+;>         wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 
-Jump_009_67d6:
-jr_009_67d6:
+.done
 	ret
 
 
+;@ path: menu/names
+;@ Positions of Yes and No in the name entry's yes / no window.
 NameYesNoCursor::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def NameEntryFinish()
+;@ path: menu/names
+;@ Writes the name to wChosenMonName (8 bytes, $F0 after the letters). Unless the menu was opened
+;@ with wScriptMenu = $FF (and wFieldFlags bit 7 clear), the field screen is rebuilt: map, status
+;@ bar and the field sprites (on a gate floor its own sprite graphics, bank $2E entries $15-$1C).
+;@ Then the field runs again (with wFieldFlags bit 7 set only that bit is cleared).
+;@ test: skip decompresses graphics
 NameEntryFinish::
+;>@f fill(mem16[wChosenMonName], 0xF0, 8)
 	ld a, [wChosenMonName]
 	ld l, a
-	ld a, [$c8f3]
+	ld a, [wChosenMonName + 1]
 	ld h, a
 	ld bc, $0008
 	ld a, $f0
+;=@f
 	call FillMemory
+;> dest = mem16[wChosenMonName]
 	ld a, [wChosenMonName]
 	ld l, a
-	ld a, [$c8f3]
+	ld a, [wChosenMonName + 1]
 	ld h, a
+;> for i in range(8):
 	ld de, wNameInput
 	ld b, $08
 
-jr_009_67fa:
+.copy
+;>     if wNameInput[i] == 0x9F:
+;>         break
 	ld a, [de]
 	cp $9f
-	jr z, jr_009_6804
+	jr z, .copied
 
+;>     mem[dest] = wNameInput[i]; dest += 1
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_009_67fa
+	jr nz, .copy
 
-jr_009_6804:
+.copied
+;> if wFieldFlags & 0x80 or wScriptMenu != 0xFF:
 	ld hl, wFieldFlags
 	bit 7, [hl]
-	jr nz, jr_009_6812
+	jr nz, .redraw
 
 	ld a, [wScriptMenu]
 	cp $ff
-	jr z, jr_009_687a
+	jr z, .close
 
-jr_009_6812:
+.redraw
+;>     ClearTilemapBuffer9()
 	call ClearTilemapBuffer9
+;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
+;>     ReloadMapTileset()
 	ld hl, far_ReloadMapTileset
 	rst $10
+;>     DrawMapScreen()
 	ld hl, far_DrawMapScreen
 	rst $10
+;>     BuildStatusBar()
 	call BuildStatusBar
+;>     DrawStatusBar()
 	call DrawStatusBar
+;>     if wOnGateFloor == 0:
+;>         LoadFieldActorGfx()
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_009_6832
+	jr nz, .gateFloor
 
 	ld hl, far_LoadFieldActorGfx
 	rst $10
-	jr jr_009_687a
+	jr .close
 
-jr_009_6832:
+.gateFloor
+;>@gf     else:
+;>@gf         for i in range(8):          # $8500-$86C0, $40 bytes apart
+;>@gf             DecompressVRAM(0x2E, 0x15 + i, 0x8500 + 0x40 * i)
 	ld de, $2e15
 	ld hl, $8500
 	call DecompressVRAM
 	ld de, $2e16
 	ld hl, $8540
 	call DecompressVRAM
+;=@gf
 	ld de, $2e17
 	ld hl, $8580
 	call DecompressVRAM
 	ld de, $2e18
 	ld hl, $85c0
 	call DecompressVRAM
+;=@gf
 	ld de, $2e19
 	ld hl, $8600
 	call DecompressVRAM
 	ld de, $2e1a
 	ld hl, $8640
 	call DecompressVRAM
+;=@gf
 	ld de, $2e1b
 	ld hl, $8680
 	call DecompressVRAM
@@ -6578,59 +9041,80 @@ jr_009_6832:
 	ld hl, $86c0
 	call DecompressVRAM
 
-jr_009_687a:
+.close
+;> if not wFieldFlags & 0x80:
+;>     wFieldFlags &= ~0x10
 	ld hl, wFieldFlags
 	bit 7, [hl]
-	jr nz, jr_009_6888
+	jr nz, .keepMenu
 
 	res 4, [hl]
+;>     wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
-
-jr_009_6888:
+.keepMenu
+;> else:
+;>     wFieldFlags &= ~0x80
 	ld hl, wFieldFlags
 	res 7, [hl]
 	ret
 
 
+;@ def PickDefaultName()
+;@ path: menu/names
+;@ An empty name: Terry gets $D3 $D4 $D5 $D6; a monster one of 8 names (text group 3) picked at
+;@ random from the 16 of its family (wMonStats byte 0), the second 8 for females.
+;@ test: skip far call
 PickDefaultName::
+;> if wChosenMonPic == 0:
 	ld a, [wChosenMonPic]
 	cp $00
-	jr nz, jr_009_68aa
+	jr nz, .monster
 
+;>     wNameInput[0] = 0xD3
+;>     wNameInput[1] = 0xD4
 	ld a, $d3
 	ld [wNameInput], a
 	ld a, $d4
-	ld [$c0c9], a
+	ld [wNameInput + 1], a
+;>     wNameInput[2] = 0xD5
+;>     wNameInput[3] = 0xD6
 	ld a, $d5
-	ld [$c0ca], a
+	ld [wNameInput + 2], a
 	ld a, $d6
-	ld [$c0cb], a
+	ld [wNameInput + 3], a
 	ret
 
-
-jr_009_68aa:
+.monster
+;> else:
+;>     Random()
 	call Random
+;>     wMonSpecies = wChosenMonPic - 0x10
 	ld a, [wChosenMonPic]
 	sub $10
 	ld [wMonSpecies], a
+;>     GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
+;>@n     n = (swap(wMonStats[0]) | (wRandomHigh & 7)) + (wChosenMonGender & 1) * 8
 	ld a, [wMonStats]
 	ld c, a
 	ld a, [wRandomHigh]
 	and $07
 	swap c
 	or c
+;=@n
 	ld c, a
 	ld a, [wChosenMonGender]
 	and $01
 	add a
 	add a
 	add a
+;=@n
 	add c
+;>     CopySystemText(0x0300 | n, wNameInput)
 	ld l, a
 	ld h, $03
 	ld de, wNameInput
@@ -6638,433 +9122,582 @@ jr_009_68aa:
 	ret
 
 
+;@ def PadNameBuffer()
+;@ path: menu/names
+;@ Replaces the $F0 end mark in wNameInput and everything after it (up to 16 bytes) with $9F.
 PadNameBuffer::
+;> for i in range(16):
 	ld hl, wNameInput
 	ld b, $10
 
-jr_009_68de:
+.find
+;>     if wNameInput[i] == 0xF0:
+;>         break
 	ld a, [hl]
 	cp $f0
-	jr z, jr_009_68e8
+	jr z, .pad
 
 	inc hl
 	dec b
-	jr nz, jr_009_68de
+	jr nz, .find
 
+;> else:
+;>     return                           # no end mark
 	ret
 
-
-jr_009_68e8:
+.pad
+;> fill(wNameInput + i, 0x9F, 16 - i)
 	ld a, $9f
 	ld [hli], a
 	dec b
-	jr nz, jr_009_68e8
+	jr nz, .pad
 
 	ret
 
 
+;@ def CheckForbiddenName() -> carry
+;@ path: menu/names
+;@ Carry for a name that may not be used: four times the same letter, or one of ForbiddenNames.
 CheckForbiddenName::
+;> n = wNameInput
 	ld hl, wNameInput
+;>@s if n[0] == n[1] == n[2] == n[3] and n[4] == 0x9F:
+;>     return True
 	ld a, [hli]
 	cp [hl]
-	jr nz, jr_009_6904
+	jr nz, .list
 
 	inc hl
 	cp [hl]
-	jr nz, jr_009_6904
+	jr nz, .list
 
+;=@s
 	inc hl
 	cp [hl]
-	jr nz, jr_009_6904
+	jr nz, .list
 
 	inc hl
 	ld a, [hl]
 	cp $9f
-	jr z, jr_009_6917
+;=@s
+	jr z, .forbidden
 
-jr_009_6904:
-	ld hl, $6985
+.list
+;> p = ForbiddenNames
+	ld hl, ForbiddenNames
 
-jr_009_6907:
+.next
+;> while True:
+;>@cmp     if all(wNameInput[i] == mem[p + i] for i in range(8)):
 	ld de, wNameInput
 	ld b, $08
 	push hl
 
-jr_009_690d:
+.compare
+;=@cmp
 	ld a, [de]
 	cp [hl]
 	inc hl
 	inc de
-	jr nz, jr_009_6919
+	jr nz, .differs
 
 	dec b
-	jr nz, jr_009_690d
+;=@cmp
+	jr nz, .compare
 
 	pop hl
 
-jr_009_6917:
+.forbidden
+;>         return True
 	scf
 	ret
 
-
-jr_009_6919:
+.differs
+;>@nx     p += 8
 	pop hl
 	ld a, l
 	add $08
 	ld l, a
 	ld a, h
 	adc $00
+;=@nx
 	ld h, a
+;>     if mem[p] == 0xFF:
+;>         return False
 	ld a, [hl]
 	cp $ff
-	jr nz, jr_009_6907
+	jr nz, .next
 
 	scf
 	ccf
 	ret
 
 
+;@ def CheckNameTaken() -> carry
+;@ path: menu/names
+;@ Carry when another of the 20 monster records already has the name in wNameInput (the record
+;@ being named, wChosenMonName, is skipped). Names match up to their first $9F, $F0 or 0.
+;@ The loop stops at the first empty record.
+;@ test: skip uses RAM addresses
 CheckNameTaken::
+;> for c in range(20):
 	ld c, $00
 
-jr_009_692c:
+.record
+;>     p = MonsterField(wMonsters, c)
 	ld a, c
 	push bc
 	ld hl, wMonsters
 	call MonsterField
 	pop bc
+;>     if mem[p] == 0:                  # empty record: no more monsters
+;>         return False
 	ld a, [hl]
 	or a
-	jr z, jr_009_6982
+	jr z, .free
 
+;>     p += 1                          # the name
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;>@s     if p == mem16[wChosenMonName]:   # the monster being named
+;>         continue
 	ld a, [wChosenMonName]
 	ld e, a
-	ld a, [$c8f3]
+	ld a, [wChosenMonName + 1]
 	ld d, a
 	ld a, e
 	sub l
+;=@s
 	ld e, a
 	ld a, d
 	sbc h
 	ld d, a
 	ld a, d
 	or e
-	jr z, jr_009_697c
+;=@s
+	jr z, .nextRecord
 
+;>     for i in range(8):
 	ld de, wNameInput
 	ld b, $08
 
-jr_009_6958:
+.letter
+;>         ch = wNameInput[i]
+;>@e         if ch in (0x9F, 0xF0, 0):      # end of the new name
+;>             break
 	ld a, [de]
 	cp $9f
-	jr z, jr_009_696f
+	jr z, .nameEnd
 
 	cp $f0
-	jr z, jr_009_696f
+	jr z, .nameEnd
 
+;=@e
 	cp $00
-	jr z, jr_009_696f
+	jr z, .nameEnd
 
+;>@d         if ch != mem[p + i]:
+;>             break
 	cp [hl]
 	inc hl
 	inc de
-	jr nz, jr_009_697c
+	jr nz, .nextRecord
 
+;=@d
 	dec b
-	jr nz, jr_009_6958
+	jr nz, .letter
 
-jr_009_696d:
+.taken
+;>     else:
+;>         return True                  # 8 letters equal
 	scf
 	ret
 
-
-jr_009_696f:
+.nameEnd
+;>@n     if ch in (0x9F, 0xF0, 0) and mem[p + i] in (0x9F, 0xF0, 0):   # both names end here
+;>         return True
 	ld a, [hl]
 	cp $9f
-	jr z, jr_009_696d
+	jr z, .taken
 
 	cp $f0
-	jr z, jr_009_696d
+	jr z, .taken
 
+;=@n
 	cp $00
-	jr z, jr_009_696d
+	jr z, .taken
 
-jr_009_697c:
+.nextRecord
 	inc c
 	ld a, c
 	cp $14
-	jr nz, jr_009_692c
+	jr nz, .record
 
-jr_009_6982:
+.free
+;> return False
 	scf
 	ccf
 	ret
 
 
+;@ path: menu/names
+;@ Names that may not be given (8 bytes each, padded with $9F; $FF ends the list).
 ForbiddenNames::
-	db $34, $55, $42, $8e, $9f, $9f, $9f, $9f, $34, $55, $42, $8e, $2d, $9f, $9f, $9f
-	db $34, $55, $34, $55, $9f, $9f, $9f, $9f, $28, $43, $55, $2d, $9f, $9f, $9f, $9f
-	db $43, $55, $2d, $9f, $9f, $9f, $9f, $9f, $28, $46, $2d, $9f, $9f, $9f, $9f, $9f
-	db $31, $36, $2b, $30, $9f, $9f, $9f, $9f, $68, $6d, $62, $67, $9f, $9f, $9f, $9f
-	db $26, $55, $2d, $9f, $9f, $9f, $9f, $9f, $2a, $55, $33, $43, $9f, $9f, $9f, $9f
-	db $62, $9f, $9f, $9f, $9f, $9f, $9f, $9f, $62, $62, $9f, $9f, $9f, $9f, $9f, $9f
-	db $62, $62, $62, $9f, $9f, $9f, $9f, $9f, $62, $62, $62, $62, $9f, $9f, $9f, $9f
+	db $34, $55, $42, $8e, $9f, $9f, $9f, $9f
+	db $34, $55, $42, $8e, $2d, $9f, $9f, $9f
+	db $34, $55, $34, $55, $9f, $9f, $9f, $9f
+	db $28, $43, $55, $2d, $9f, $9f, $9f, $9f
+	db $43, $55, $2d, $9f, $9f, $9f, $9f, $9f
+	db $28, $46, $2d, $9f, $9f, $9f, $9f, $9f
+	db $31, $36, $2b, $30, $9f, $9f, $9f, $9f
+	db $68, $6d, $62, $67, $9f, $9f, $9f, $9f
+	db $26, $55, $2d, $9f, $9f, $9f, $9f, $9f
+	db $2a, $55, $33, $43, $9f, $9f, $9f, $9f
+	db $62, $9f, $9f, $9f, $9f, $9f, $9f, $9f
+	db $62, $62, $9f, $9f, $9f, $9f, $9f, $9f
+	db $62, $62, $62, $9f, $9f, $9f, $9f, $9f
+	db $62, $62, $62, $62, $9f, $9f, $9f, $9f
 	db $ff
 
+;@ def DrawKeyboardCursor()
+;@ path: menu/names
+;@ Draws the keyboard cursor: tile $A0 under the key wMenuChoice2 * 17 + wLinkChoice (from
+;@ KeyboardKeyPositions), tile $E0 under all others. A moving cursor blinks (redrawn every 16 calls,
+;@ off while wCursorBlink bit 4 is set); one with bit 7 set (chosen) stays on. The wide keys are
+;@ covered whole: key $40 is four tiles wide, key $51 three, keys $41-$43 and $52-$54 draw nothing.
+;@ The screen offset is kept in hNumber / $FFD6 and the tile in $FFD7 for the two helpers below.
+;@ test: skip writes VRAM
 DrawKeyboardCursor::
+;> cur = wMenuChoice2 * 17 + wLinkChoice
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
 	ld a, [wLinkChoice]
 	add l
-	ld de, $6607
+;> keys = KeyboardKeyPositions
+	ld de, KeyboardKeyPositions
 	ld c, a
+;> if not cur & 0x80:
 	bit 7, a
-	jr nz, jr_009_6a1a
+	jr nz, .draw
 
+;>@b     t = wCursorBlink & 0x0F
+;>     wCursorBlink += 1
 	ld a, [wCursorBlink]
 	and $0f
 	push af
 	ld a, [wCursorBlink]
 	inc a
 	ld [wCursorBlink], a
+;=@b
 	pop af
+;>     if t:
+;>         return                       # only every 16th call
 	ld a, c
 	ret nz
 
-jr_009_6a1a:
+.draw
+;> b = 0
 	ld c, a
 	ld b, $00
 
-Jump_009_6a1d:
+.next
+;> while True:
+;>@k     pos = mem16[keys + 2 * b]
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;>     if pos == 0xFFFF:
+;>         return
 	and l
 	cp $ff
 	ret z
 
+;>@o     mem16[hNumber] = pos; WindowBgAddrWrapped9(pos)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
+;=@o
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
+;>     if (cur & 0x7F) != b: tile = 0xE0
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_009_6a4d
+	jr nz, .tile
 
+;>     elif cur & 0x80: tile = 0xA0
 	ld a, $a0
 	bit 7, c
-	jr nz, jr_009_6a4d
+	jr nz, .tile
 
+;>     else: tile = 0xE0 if wCursorBlink & 0x10 else 0xA0
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_009_6a4d
+	jr nz, .tile
 
 	ld a, $a0
 
-jr_009_6a4d:
+.tile
+;>     mem[0xFFD7] = tile
 	ldh [$ffd7], a
+;>@w     if b not in (0x41, 0x42, 0x43, 0x52, 0x53, 0x54):
 	ld a, b
 	cp $41
-	jr z, jr_009_6a7f
+	jr z, .skip
 
 	cp $42
-	jr z, jr_009_6a7f
+	jr z, .skip
 
+;=@w
 	cp $43
-	jr z, jr_009_6a7f
+	jr z, .skip
 
 	cp $52
-	jr z, jr_009_6a7f
+	jr z, .skip
 
 	cp $53
-	jr z, jr_009_6a7f
+	jr z, .skip
 
+;=@w
 	cp $54
-	jr z, jr_009_6a7f
+	jr z, .skip
 
+;>         PutKeyboardCursorTile()
 	call PutKeyboardCursorTile
+;>         extra = 3 if b == 0x40 else 2 if b == 0x51 else 0
 	ld a, b
 	cp $40
-	jr z, jr_009_6a76
+	jr z, .four
 
 	cp $51
-	jr z, jr_009_6a79
+	jr z, .three
 
-	jr jr_009_6a7f
+	jr .skip
 
-jr_009_6a76:
+.four
+;>         for i in range(extra):
+;>             KeyboardCursorNextTile()
 	call KeyboardCursorNextTile
 
-jr_009_6a79:
+.three
 	call KeyboardCursorNextTile
 	call KeyboardCursorNextTile
 
-jr_009_6a7f:
+.skip
+;>     b += 1
 	inc b
-	jp Jump_009_6a1d
+	jp .next
 
 
+;@ def KeyboardCursorNextTile()
+;@ path: menu/names
+;@ Moves the saved screen offset one tile right and draws the cursor tile there
+;@ (falls through to PutKeyboardCursorTile).
+;@ test: skip writes VRAM
 KeyboardCursorNextTile::
+;> mem[hNumber] += 1
 	push af
 	ld hl, hNumber
 	inc [hl]
+;>@a WindowBgAddrWrapped9(mem16[hNumber])
 	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
 	push de
 	push bc
+;=@a
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
 	pop af
+;> PutKeyboardCursorTile()             # falls through
 
+;@ def PutKeyboardCursorTile(hl)
+;@ path: menu/names
+;@ Writes the tile in $FFD7 to VRAM at hl and to the tilemap buffer at the offset in hNumber.
+;@ test: skip writes VRAM
 PutKeyboardCursorTile::
+;> WriteVRAM(hl, mem[0xFFD7])
 	ldh a, [$ffd7]
 	call WriteVRAM
+;>@b wTilemapBuffer[mem16[hNumber]] = mem[0xFFD7]
 	push af
 	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
 	ld a, l
-	add $00
+;=@b
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
 	ret
 
 
+;@ def CountNameLetters() -> c
+;@ path: menu/names
+;@ Counts the letters in the first 7 slots of wNameInput, not counting $8D, $8E and empty ($9F).
+;@ The byte after it is a lone, unused ret.
 CountNameLetters::
+;> c = 0
+;> for i in range(8):
 	ld hl, wNameInput
 	ld b, $08
 	ld c, $00
 
-jr_009_6ab4:
+.loop
+;>     ch = wNameInput[i]
+;>@e     if i == 7: return c                 # (the 8th slot is never looked at)
 	ld a, [hli]
 	dec b
 	ret z
 
 	inc de
+;>@s     if ch not in (0x8D, 0x8E, 0x9F):
+;>         c += 1
 	cp $8d
-	jr z, jr_009_6ab4
+	jr z, .loop
 
 	cp $8e
-	jr z, jr_009_6ab4
+	jr z, .loop
 
+;=@s
 	cp $9f
-	jr z, jr_009_6ab4
+	jr z, .loop
 
 	inc c
-	jr jr_009_6ab4
+	jr .loop
 
 	db $c9
 
+;@ def DrawNameCursor()
+;@ path: menu/names
+;@ Draws the name cursor: tile $A0 under the slot after the last letter (NameSlotPositions,
+;@ CountNameLetters), tile $E0 under the others.
+;@ test: skip writes VRAM
 DrawNameCursor::
+;> n = CountNameLetters()
 	call CountNameLetters
-	ld de, $6b06
+;> b = 0
+	ld de, NameSlotPositions
 	ld b, $00
 
-jr_009_6ad0:
+.next
+;> while True:
+;>@k     pos = mem16[NameSlotPositions + 2 * b]
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;>     if pos == 0xFFFF:
+;>         return
 	and l
 	cp $ff
 	ret z
 
+;>@o     mem16[hNumber] = pos; WindowBgAddrWrapped9(pos)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
+;=@o
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
+;>     tile = 0xA0 if b == n else 0xE0
 	ld a, c
 	cp b
 	ld a, $e0
-	jr nz, jr_009_6aef
+	jr nz, .put
 
 	ld a, $a0
 
-jr_009_6aef:
+.put
+;>     WriteVRAM(hl, tile)
 	call WriteVRAM
+;>@w     wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
 	ld a, l
-	add $00
+;=@w
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
 	pop af
+;=@w
 	ld [hl], a
+;>     b += 1
 	inc b
-	jr jr_009_6ad0
+	jr .next
 
+;@ path: menu/names
+;@ Screen offsets (row * 32 + column) of the name entry's 4 letter slots.
 NameSlotPositions::
-	db $68, $00, $69, $00, $6a, $00, $6b, $00, $ff, $ff
+	dw $0068, $0069, $006a, $006b, $ffff
 
+;@ path: menu/names
+;@ Picture shown in the name entry for each wChosenMonPic: graphics (bank, entry) as high, low
+;@ byte. 0 is Terry, 1-15 are all $3140, and from 16 on come the monsters (wChosenMonPic - $10 is
+;@ the species).
 NamePictures::
-	db $00, $2f, $40, $31, $40, $31
-	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
-	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $01, $2f, $02, $2f, $03, $2f
-	db $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f, $09, $2f, $0a, $2f, $0b, $2f
-	db $0c, $2f, $0d, $2f, $0e, $2f, $0f, $2f, $10, $2f, $00, $38, $01, $38, $02, $38
-	db $03, $38, $04, $38, $05, $38, $06, $38, $07, $38, $08, $38, $09, $38, $0a, $38
-	db $0b, $38, $0c, $38, $0d, $38, $0e, $38, $0f, $38, $10, $38, $11, $38, $12, $38
-	db $13, $38, $14, $38, $15, $38, $16, $38, $17, $38, $18, $38, $19, $38, $1a, $38
-	db $1b, $38, $1c, $38, $1d, $38, $1e, $38, $1f, $38, $20, $38, $21, $38, $22, $38
-	db $23, $38, $24, $38, $25, $38, $26, $38, $27, $38, $28, $38, $29, $38, $2a, $38
-	db $2b, $38, $2c, $38, $2d, $38, $2e, $38, $2f, $38, $30, $38, $31, $38, $32, $38
-	db $33, $38, $34, $38, $35, $38, $36, $38, $37, $38, $38, $38, $39, $38, $3a, $38
-	db $3b, $38, $3c, $38, $3d, $38, $3e, $38, $3f, $38, $40, $38, $41, $38, $42, $38
-	db $43, $38, $44, $38, $45, $38, $46, $38, $47, $38, $00, $39, $01, $39, $02, $39
-	db $03, $39, $04, $39, $05, $39, $06, $39, $07, $39, $08, $39, $09, $39, $0a, $39
-	db $0b, $39, $0c, $39, $0d, $39, $0e, $39, $0f, $39, $10, $39, $11, $39, $12, $39
-	db $13, $39, $14, $39, $15, $39, $16, $39, $17, $39, $18, $39, $19, $39, $1a, $39
-	db $1b, $39, $1c, $39, $1d, $39, $1e, $39, $1f, $39, $20, $39, $21, $39, $22, $39
-	db $23, $39, $24, $39, $25, $39, $26, $39, $27, $39, $28, $39, $29, $39, $2a, $39
-	db $2b, $39, $2c, $39, $2d, $39, $2e, $39, $2f, $39, $30, $39, $31, $39, $32, $39
-	db $33, $39, $34, $39, $35, $39, $36, $39, $37, $39, $38, $39, $39, $39, $3a, $39
-	db $3b, $39, $3c, $39, $3d, $39, $3e, $39, $3f, $39, $40, $39, $41, $39, $42, $39
-	db $43, $39, $44, $39, $45, $39, $46, $39, $47, $39, $00, $3a, $01, $3a, $02, $3a
-	db $03, $3a, $04, $3a, $05, $3a, $06, $3a, $07, $3a, $08, $3a, $09, $3a, $0a, $3a
-	db $0b, $3a, $0c, $3a, $0d, $3a, $0e, $3a, $0f, $3a, $10, $3a, $11, $3a, $12, $3a
-	db $13, $3a, $14, $3a, $15, $3a, $16, $3a, $17, $3a, $18, $3a, $19, $3a, $1a, $3a
-	db $1b, $3a, $1c, $3a, $1d, $3a, $1e, $3a, $1f, $3a, $20, $3a, $21, $3a, $22, $3a
-	db $23, $3a, $24, $3a, $25, $3a, $26, $3a, $27, $3a, $28, $3a, $29, $3a, $2a, $3a
-	db $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a, $30, $3a, $31, $3a, $32, $3a
-	db $33, $3a, $34, $3a, $35, $3a, $36, $3a
+	dw $2f00, $3140, $3140, $3140, $3140, $3140, $3140, $3140
+	dw $3140, $3140, $3140, $3140, $3140, $3140, $3140, $3140
+	dw $2f01, $2f02, $2f03, $2f04, $2f05, $2f06, $2f07, $2f08
+	dw $2f09, $2f0a, $2f0b, $2f0c, $2f0d, $2f0e, $2f0f, $2f10
+	dw $3800, $3801, $3802, $3803, $3804, $3805, $3806, $3807
+	dw $3808, $3809, $380a, $380b, $380c, $380d, $380e, $380f
+	dw $3810, $3811, $3812, $3813, $3814, $3815, $3816, $3817
+	dw $3818, $3819, $381a, $381b, $381c, $381d, $381e, $381f
+	dw $3820, $3821, $3822, $3823, $3824, $3825, $3826, $3827
+	dw $3828, $3829, $382a, $382b, $382c, $382d, $382e, $382f
+	dw $3830, $3831, $3832, $3833, $3834, $3835, $3836, $3837
+	dw $3838, $3839, $383a, $383b, $383c, $383d, $383e, $383f
+	dw $3840, $3841, $3842, $3843, $3844, $3845, $3846, $3847
+	dw $3900, $3901, $3902, $3903, $3904, $3905, $3906, $3907
+	dw $3908, $3909, $390a, $390b, $390c, $390d, $390e, $390f
+	dw $3910, $3911, $3912, $3913, $3914, $3915, $3916, $3917
+	dw $3918, $3919, $391a, $391b, $391c, $391d, $391e, $391f
+	dw $3920, $3921, $3922, $3923, $3924, $3925, $3926, $3927
+	dw $3928, $3929, $392a, $392b, $392c, $392d, $392e, $392f
+	dw $3930, $3931, $3932, $3933, $3934, $3935, $3936, $3937
+	dw $3938, $3939, $393a, $393b, $393c, $393d, $393e, $393f
+	dw $3940, $3941, $3942, $3943, $3944, $3945, $3946, $3947
+	dw $3a00, $3a01, $3a02, $3a03, $3a04, $3a05, $3a06, $3a07
+	dw $3a08, $3a09, $3a0a, $3a0b, $3a0c, $3a0d, $3a0e, $3a0f
+	dw $3a10, $3a11, $3a12, $3a13, $3a14, $3a15, $3a16, $3a17
+	dw $3a18, $3a19, $3a1a, $3a1b, $3a1c, $3a1d, $3a1e, $3a1f
+	dw $3a20, $3a21, $3a22, $3a23, $3a24, $3a25, $3a26, $3a27
+	dw $3a28, $3a29, $3a2a, $3a2b, $3a2c, $3a2d, $3a2e, $3a2f
+	dw $3a30, $3a31, $3a32, $3a33, $3a34, $3a35, $3a36
 
 ;@ path: menu/gallery
 ;@ The picture gallery's frame with the monster picture tiles ($38-$40, $88-$90, ...), 20 x 17 tiles at row 0, column 0. Window layouts: dw screen offset (row * 32 + column), then the tiles, $D8 starts the next row, $D9 ends.

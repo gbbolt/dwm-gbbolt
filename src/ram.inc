@@ -131,7 +131,7 @@ DEF hPlayerSpeedX EQU $FFA1 ;@ u16 Horizontal speed (signed, 1/256 pixel per fra
 DEF hPlayerSpeedY EQU $FFA3 ;@ u16 Vertical speed (signed, 1/256 pixel per frame)
 DEF hTestX EQU $FFA5 ;@ u16 Map X to test for collision (GetCollisionAt)
 DEF hTestY EQU $FFA7 ;@ u16 Map Y to test for collision
-DEF hTestResult EQU $FFA9 ;@ u8 Collision result: $FF walkable (or off the map), $0F solid
+DEF hTestResult EQU $FFA9 ;@ u8 Collision result: $FF blocked (or off the map), $0F passable
 DEF hTestTile EQU $FFAA ;@ u8 Map tile found at the tested spot
 DEF hCameraPrevX EQU $FFB9 ;@ u16 Camera X of the previous frame
 DEF hCameraPrevY EQU $FFBD ;@ u16 Camera Y of the previous frame
@@ -155,7 +155,7 @@ DEF wGameStarted EQU $C8EA ;@ u8 Non-zero once the new-game state has been set u
 DEF wFieldFlags EQU $C8EB ;@ u8 bit0 field event pending, bit2 screen scrolling, bit1/3/4/5/6/7 other field states that stop the player
 DEF wScrollDir EQU $C91D ;@ u8 Direction of the screen scroll: 0 left, 1 right, 2 up, 3 down
 DEF wEventStep EQU $C915 ;@ u16 Step counter of the pending field event
-DEF wEventRoutine EQU $C917 ;@ u16 Field event to run (bank << 8 | far-table entry)
+DEF wEventRoutine EQU $C917 ;@ u16 Text id of the field event to show
 DEF wScriptMap EQU $D8D3 ;@ u8 Map whose script is run
 DEF wScriptId EQU $D8D4 ;@ u8 Script number within the map
 DEF wScriptRunning EQU $D8D7 ;@ u8 Non-zero while a map script controls the field
@@ -237,7 +237,7 @@ DEF wMonIntelligence EQU $CB1F ;@ u16 Party monster record field: intelligence
 DEF wMonName EQU $CAC2 ;@ u8[4] Party monster record field: name
 DEF wTextArgs EQU $C1B0 ;@ u8[16] Strings and numbers that a message inserts
 DEF wWorldFlags EQU $C93E ;@ u8 Flags for the current world visit (bit 1 set by an item)
-DEF wFloorsSeen EQU $C950 ;@ u8[16] One byte per floor of the current world
+DEF wFloorsSeen EQU $C950 ;@ u8[16] Seen flags per screen of the current floor map
 DEF wGoalX EQU $C964 ;@ u16 X position of the floor's goal (the way on)
 DEF wGoalY EQU $C966 ;@ u16 Y position of the floor's goal
 DEF wShootingStarStage EQU $D9CB ;@ u8 Stage of the shooting-star event (0 before, 1 after the first shower, 2 after the second)
@@ -246,7 +246,7 @@ DEF wSGBPalSet EQU $C817 ;@ u8 Super Game Boy palette set of the field (4 palett
 DEF wSGBAttrSet EQU $C818 ;@ u8 Super Game Boy attribute file of the field
 DEF wSGBPalIds EQU $C85B ;@ u8[8] The 4 SGB palette numbers (u16 each) the fade works with
 DEF wFieldStackPtr EQU $DA7B ;@ u16 Stack pointer saved when the field mode starts
-DEF wLoadedGfxSet EQU $C81B ;@ u8 Graphics set now in VRAM (font and field tiles, see GetMapSGBBorder; $FF none)
+DEF wLoadedGfxSet EQU $C81B ;@ u8 Super Game Boy border set now loaded ($FF none; see GetMapSGBBorder)
 DEF wWarpOnGateFloor EQU $C96E ;@ u8 wOnGateFloor of the pending warp destination
 DEF hOAMDMA EQU $FF80 ;@ code[10] OAM DMA routine (copied here from OAMDMARoutine at start-up)
 DEF wHiddenSprites EQU $C8ED ;@ u8 Field sprites not drawn: bit 0 Terry, bits 1-3 the three party followers

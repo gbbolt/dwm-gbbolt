@@ -2743,10 +2743,18 @@ FarmSwapStatusReturn::
 	ret
 
 
+;@ def FarmWithdrawOption()
+;@ path: menu/farm/withdraw
+;@ Farm option "take a monster out": runs the current step (wMenuSubStep).
+;@ test: skip jumps through a table to routines that call other banks
 FarmWithdrawOption::
+;> return FarmWithdrawSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: menu/farm/withdraw
+;@ Steps of taking a monster out of the farm: 0-9 choose a farm monster and take it;
+;@ 10-30 with a full party: exchange a party monster for a farm monster.
 FarmWithdrawSteps::
 	dw FarmWithdrawStart
 	dw FarmWithdrawShowList
@@ -2780,559 +2788,769 @@ FarmWithdrawSteps::
 	dw FarmExchangeViewPartyStatus
 	dw FarmExchangePartyStatusReturn
 
+;@ def FarmWithdrawStart()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 0: with no monster at the farm prints message 12 and ends; with a full
+;@ party (3) offers an exchange (message 13); else lists the farm monsters (message 11).
+;@ test: skip draws letter tiles
 FarmWithdrawStart::
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> if CountFarmMonsters() == 0:
 	call CountFarmMonsters
 	or a
-	jr nz, jr_012_4c92
-
+	jr nz, .haveMonsters
+;>     PrintMenuText(12)
 	ld hl, $000c
 	call PrintMenuText
+;>     wMenuSubStep = 7
 	ld a, $07
 	ld [wMenuSubStep], a
 	ret
-
-
-jr_012_4c92:
+.haveMonsters
+;> elif wPartyCount == 3:
 	ld a, [wPartyCount]
 	cp $03
-	jr nz, jr_012_4ca9
-
+	jr nz, .room
+;>     PrintMenuText(13)                                # the party is full
 	ld hl, $000d
 	call PrintMenuText
+;>     wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
+;>     wMenuSubStep = 10
 	ld a, $0a
 	ld [wMenuSubStep], a
 	ret
-
-
-jr_012_4ca9:
+.room
+;> else:
+;>     ListFarmMonsters()
 	call ListFarmMonsters
+;>     PrintMenuText(11)
 	ld hl, $000b
 	call PrintMenuText
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def CountFarmMonsters() -> a
+;@ path: monster/farm
+;@ Counts the monsters at the farm: records that are used, not in the party and not
+;@ eggs. The count also goes to wListLength.
 CountFarmMonsters::
+;> rec = wMonsters
 	ld de, wMonsters
+;> n = 0
 	ld b, $14
 	ld c, $00
-
-jr_012_4cbe:
+.loop
+;>@loop for _ in range(20):
+;>@egg     if mem[rec] not in (0, 2) and mem[rec + 0x63] == 0:     # at the farm, not an egg
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_012_4cd4
-
+	jr z, .next
 	cp $02
-	jr z, jr_012_4cd4
-
+	jr z, .next
+;=@egg
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_012_4cd4
-
+	jr nz, .next
+;>         n += 1
 	inc c
-
-jr_012_4cd4:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@loop
 	ld d, a
 	dec b
-	jr nz, jr_012_4cbe
-
+	jr nz, .loop
+;> wListLength = n
 	ld a, c
 	ld [wListLength], a
+;> return n
 	ret
 
 
+;@ def ListFarmMonsters()
+;@ path: monster/farm
+;@ Fills the list buffer wSceneObjects with the record numbers of the farm monsters (the
+;@ ones CountFarmMonsters counts); unused entries are $FF.
 ListFarmMonsters::
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> out = wSceneObjects
 	ld hl, wSceneObjects
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
-
-jr_012_4cfa:
+.loop
+;>@loop for slot in range(20):
+;>@egg2     if mem[rec] not in (0, 2) and mem[rec + 0x63] == 0:     # at the farm, not an egg
 	push de
 	ld a, [de]
 	or a
-	jr z, jr_012_4d11
-
+	jr z, .next
 	cp $02
-	jr z, jr_012_4d11
-
+	jr z, .next
+;=@egg2
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg2
 	ld a, [de]
 	or a
-	jr nz, jr_012_4d11
-
+	jr nz, .next
+;>         mem[out] = slot; out += 1
 	ld [hl], c
 	inc hl
-
-jr_012_4d11:
+.next
+;>     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@loop
 	ld d, a
 	inc c
 	dec b
-	jr nz, jr_012_4cfa
-
+	jr nz, .loop
 	ret
 
 
+;@ def FarmWithdrawShowList()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 1: once the message is printed, shows the farm list.
+;@ test: skip draws into VRAM
 FarmWithdrawShowList::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;> DrawFarmWithdrawList()
 	call DrawFarmWithdrawList
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawFarmWithdrawList()
+;@ path: menu/farm/withdraw
+;@ Draws the farm menu with the level window and the farm list (4 rows a page) and
+;@ copies it to the screen.
+;@ test: skip draws into VRAM
 DrawFarmWithdrawList::
+;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;> DrawFarmMainMenu()
 	call DrawFarmMainMenu
-	ld de, $759a
+;> DrawWindowLayout(LevelWindow)
+	ld de, LevelWindow
 	call DrawWindowLayout
+;> DrawSelectedFarmLevel()
 	call DrawSelectedFarmLevel
-	ld de, $71f4
+;> DrawWindowLayout(FarmListWindow)
+	ld de, FarmListWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $4e26
+;> DrawListFrame(wListCursor, FarmListCursorPos, 4, wListLength)
+	ld de, FarmListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
 	ret
 
 
+;@ def LoadFarmListNameTiles()
+;@ path: menu/farm
+;@ Renders the names of the 4 list entries of the current page into the letter tiles at
+;@ $8800, $8840, $8880 and $88C0.
+;@ test: skip draws letter tiles
 LoadFarmListNameTiles::
+;>@e entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@e
 	ld a, $00
 	adc d
 	ld d, a
+;> dest = 0x8800
 	ld hl, $8800
+;> for _ in range(4):
+;>@four     dest, entry = LoadListNameSlot(dest, entry)
 	call LoadListNameSlot
+;=@four
 	call LoadListNameSlot
 	call LoadListNameSlot
 
+;@ def LoadListNameSlot(dest: hl, entry: de) -> (hl, de)
+;@ path: menu/farm
+;@ Renders the name of monster record mem[entry] into 4 letter tiles at `dest` (blank
+;@ tiles for $FF) and returns the next tile address and list entry.
+;@ test: skip draws letter tiles
 LoadListNameSlot::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_012_4d97
-
+	jr z, .blank
+;>@name     DrawNameTiles(dest, MonsterField(mem[entry], wMonName))
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
 	push hl
+;=@name
 	call DrawNameTiles
+;>@ret     return dest + 0x40, entry + 1
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@ret
 	ld h, a
 	pop de
 	inc de
 	ret
-
-
-jr_012_4d97:
+.blank
+;> for _ in range(0x20):
 	ld b, $20
-
-jr_012_4d99:
+.loop
+;>     WriteVRAMInc(dest, 0xFF); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
+;>     WriteVRAMInc(dest, 0x00); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_012_4d99
-
+	jr nz, .loop
+;>@ret2 return dest + 0x40, entry + 1
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@ret2
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def FarmWithdrawListInput()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 2: moves the cursor over the farm list; B goes back to the farm menu,
+;@ A asks to confirm.
+;@ test: skip draws into VRAM
 FarmWithdrawListInput::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
-	ld de, $4e26
+;>@old old_row = wListCursor; old_page = wListPage
+	ld de, FarmListCursorPos
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@old
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> UpdatePagedList(wListCursor, 4, wListLength, FarmListCursorPos)
 	call UpdatePagedList
+;> if wListCursor != old_row:
 	pop af
 	ld hl, wListCursor
 	cp [hl]
-	jr z, jr_012_4dda
-
+	jr z, .samePos
+;>     ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;>     DrawSelectedFarmLevel()
 	call DrawSelectedFarmLevel
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
-
-jr_012_4dda:
+.samePos
+;> if wListPage != old_page:
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_012_4ded
-
+	jr z, .keys
+;>     LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;>     ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;>     DrawSelectedFarmLevel()
 	call DrawSelectedFarmLevel
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
-
-jr_012_4ded:
+.keys
+;> if wJoyPressed & 0x02:                             # B: back to the farm menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4e14
-
+	jr z, .notB
+;>     wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;>     wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;>     DrawTextTiles(0x8AA0, 0x0601)                    # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;>     PrintMenuText(1)
 	ld hl, $0001
 	call PrintMenuText
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_012_4e25
-
-jr_012_4e14:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_4e25
-
+	jp z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
-
-Jump_012_4e25:
-jr_012_4e25:
+.done
 	ret
 
 
+;@ path: menu/farm
+;@ Cursor table of the farm list window: the page number position, then the 4 rows
+;@ (u16 window offsets), $FFFF ends.
 FarmListCursorPos::
-	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff
+	dw $0152, $006e, $00ae, $00ee, $012e, $ffff
 
+;@ def FarmWithdrawAskConfirm()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 3: asks about the chosen farm monster (message 14).
+;@ test: skip prints a message
 FarmWithdrawAskConfirm::
+;> PrintMenuText(14)
 	ld hl, $000e
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmWithdrawShowChoice()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 4: once the question is printed, opens the two-choice window (status / take it).
+;@ test: skip draws into VRAM
 FarmWithdrawShowChoice::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawWithdrawChoice()
 	call DrawWithdrawChoice
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawWithdrawChoice()
+;@ path: menu/farm/withdraw
+;@ Draws the two-choice window of the withdrawal with the cursor on wConfirmChoice.
 DrawWithdrawChoice::
-	ld de, $7b42
+;> DrawWindowLayout(StatusOrOkWindow)
+	ld de, StatusOrOkWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $4eb6
+;> DrawCursorAt(wConfirmChoice, WithdrawChoiceCursorPos)
+	ld de, WithdrawChoiceCursorPos
 	ld a, [wConfirmChoice]
 	call DrawCursorAt
 	ret
 
 
+;@ def FarmWithdrawChoiceInput()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 5: B goes back to the list (step 2), the first choice opens the status
+;@ screen (step 8), the second takes the monster (step 6).
+;@ test: skip draws into VRAM
 FarmWithdrawChoiceInput::
-	ld de, $4eb6
+;> UpdateMenuCursor(wConfirmChoice, 2, WithdrawChoiceCursorPos)
+	ld de, WithdrawChoiceCursorPos
 	ld hl, wConfirmChoice
 	ld b, $02
 	call UpdateMenuCursor
+;> if wJoyPressed & 0x02:                             # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4e8e
-
+	jr z, .notB
+;>     Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;>     DrawFarmWithdrawList()
 	call DrawFarmWithdrawList
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;>     PrintMenuText(11)
 	ld hl, $000b
 	call PrintMenuText
+;>     wMenuSubStep = 2
 	ld a, $02
 	ld [wMenuSubStep], a
-	jr jr_012_4eb5
-
-jr_012_4e8e:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_4eb5
-
+	jp z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice != 0x81:                       # first choice: status screen
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_012_4eb1
-
+	jr z, .second
+;>         wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>         wMenuSubStep = 8
 	ld a, $08
 	ld [wMenuSubStep], a
-	jp Jump_012_4eb5
-
-
-jr_012_4eb1:
+	jp .done
+.second
+;>     else:
+;>         wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
-
-Jump_012_4eb5:
-jr_012_4eb5:
+.done
 	ret
 
 
+;@ path: menu/farm/withdraw
+;@ Cursor positions of the withdrawal's two-choice window: 2 u16 window offsets, $FFFF ends.
 WithdrawChoiceCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def FarmWithdrawDoIt()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 6: puts the chosen farm monster into the third party slot (CompactMonsters
+;@ then packs the party and marks the records) and prints message 15. With an empty party
+;@ record 0 becomes the only party monster instead, and event flag 7 is set.
+;@ test: skip calls bank 1
 FarmWithdrawDoIt::
+;> if wPartyCount == 0:
 	ld a, [wPartyCount]
 	or a
-	jr nz, jr_012_4eef
-
+	jr nz, .join
+;>     wParty[0] = 0                                    # record 0 becomes the party
 	xor a
 	ld [wParty], a
+;>     wMonsters[0] = 2                                 # in the party
 	ld a, $02
 	ld [wMonsters], a
+;>     wParty[1] = 0xFF
 	ld a, $ff
-	ld [$ca8f], a
+	ld [wParty + 1], a
+;>     wParty[2] = 0xFF
 	ld a, $ff
-	ld [$ca90], a
+	ld [wParty + 2], a
+;>     wPartyCount = 1
 	ld a, $01
 	ld [wPartyCount], a
+;>     RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;>     SetEventFlag(7)
 	ld bc, $0007
 	call SetEventFlag
+;>     PrintMenuText(15)
 	ld hl, $000f
 	call PrintMenuText
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
-
-
-jr_012_4eef:
+.join
+;> else:
+;>@t1     wParty[2] = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@t1
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t1
 	ld h, a
 	ld a, [hl]
-	ld [$ca90], a
+	ld [wParty + 2], a
+;>     CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;>     RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;>     PrintMenuText(15)
 	ld hl, $000f
 	call PrintMenuText
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmWithdrawDone()
+;@ path: menu/farm
+;@ Once the message is printed: back to the farm menu.
+;@ test: skip draws letter tiles
 FarmWithdrawDone::
+;> if wTextState: return                              # wait for the message
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> PrintMenuText(1)
 	ld hl, $0001
 	call PrintMenuText
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def FarmWithdrawViewStatus()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 8: opens the monster status screen on the farm list, at the chosen entry.
+;@ test: skip calls bank 7
 FarmWithdrawViewStatus::
+;> wViewList = wSceneObjects
 	ld hl, wSceneObjects
 	ld a, l
 	ld [wViewList], a
 	ld a, h
-	ld [$c931], a
+	ld [wViewList + 1], a
+;>@t1 wViewIndex = wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@t1
 	add b
 	ld a, a
 	ld [wViewIndex], a
+;> wViewCount = wListLength
 	ld a, [wListLength]
 	ld [wViewCount], a
+;> UpdateMonsterStatus()
 	ld hl, far_UpdateMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def FarmWithdrawStatusReturn()
+;@ path: menu/farm/withdraw
+;@ Withdraw, step 9: after the status screen, puts the cursor on the entry shown last,
+;@ reloads the menu graphics and redraws the list with the two-choice window (step 5).
+;@ test: skip draws into VRAM
 FarmWithdrawStatusReturn::
+;>@t1 wListCursor = (wListCursor & 0x80) | (wViewResult & 3)
 	ld a, [wListCursor]
 	and $80
 	ld b, a
 	ld a, [wViewResult]
 	and $03
 	or b
+;=@t1
 	ld [wListCursor], a
+;> wListPage = wViewResult >> 2
 	ld a, [wViewResult]
 	srl a
 	srl a
 	ld [wListPage], a
+;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x44
 	ld a, $44
 	ld [wTextIndex], a
+;> DrawTextTiles(0x9600, 0x0501)
 	ld hl, $9600
 	ld de, $0501
 	call DrawTextTiles
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> DrawFarmWithdrawList()
 	call DrawFarmWithdrawList
+;> DrawWithdrawChoice()
 	call DrawWithdrawChoice
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> PrintMenuText(14)
 	ld hl, $000e
 	call PrintMenuText
+;> wMenuSubStep = 5
 	ld a, $05
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def FarmPartyFullAsk()
+;@ path: menu/farm/withdraw
+;@ Withdraw with a full party, step 10: offers to exchange a party monster (message 16).
+;@ test: skip prints a message
 FarmPartyFullAsk::
+;> if wTextState: return                              # wait for the message
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> PrintMenuText(16)
 	ld hl, $0010
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmPartyFullShowYesNo()
+;@ path: menu/farm/withdraw
+;@ Step 11: once the question is printed, opens the yes/no window.
+;@ test: skip draws into VRAM
 FarmPartyFullShowYesNo::
+;> if wTextState: return                              # wait for the message
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawPartyFullYesNo()
 	call DrawPartyFullYesNo
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawPartyFullYesNo()
+;@ path: menu/farm/withdraw
+;@ Draws the yes/no window of the exchange offer with the cursor on wConfirmChoice2.
 DrawPartyFullYesNo::
-	ld de, $6f54
+;> DrawWindowLayout(FarmYesNoWindow)
+	ld de, FarmYesNoWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $5059
+;> DrawCursorAt(wConfirmChoice2, PartyFullYesNoCursorPos)
+	ld de, PartyFullYesNoCursorPos
 	ld a, [wConfirmChoice2]
 	call DrawCursorAt
 	ret

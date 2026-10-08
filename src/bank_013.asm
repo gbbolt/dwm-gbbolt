@@ -2219,7 +2219,7 @@ WipeCellAddress::
 	ret
 
 
-;@ def CheckJingleDone() -> zflag
+;@ def CheckJingleDone() -> zero
 ;@ path: battle/transition
 ;@ Checks whether the battle jingle is over (all four sound channels idle, $FF). Then it
 ;@ starts song 2 (the battle music) and returns with the Z flag set (True); otherwise NZ.

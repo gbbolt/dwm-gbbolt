@@ -893,7 +893,7 @@ FindStepTrigger::
 	ret
 
 
-;@ def IsActorAt(actor: hl) -> zf
+;@ def IsActorAt(actor: hl) -> zero
 ;@ path: field/objects
 ;@ Zero flag set when the actor (not hidden: bit 0 of +5) stands less than 16 pixels from
 ;@ position (hDivisorHigh/$FFDC, hFindY/$FFDE) in both X (+$18) and Y (+$1A).
@@ -1013,7 +1013,7 @@ PositionMiss:
 	ret
 
 
-;@ def IsTriggerAt(obj: hl) -> zf
+;@ def IsTriggerAt(obj: hl) -> zero
 ;@ path: field/objects
 ;@ Zero flag set when the object record's tile (+2 X, +3 Y, inside the 10 x 8 screen)
 ;@ is the tile of position (hDivisorHigh/$FFDC, hFindY/$FFDE).
