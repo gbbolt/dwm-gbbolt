@@ -2161,134 +2161,200 @@ VSReplaceListCursor::
 VSReplaceEggListCursor::
 	dw $010b, $0021, $0061, $00a1, $00e1, $ffff
 
+;@ def VSResultReplacePicked()
+;@ path: link/result
+;@ Step 20: goes on to the INFO / OK menu.
 VSResultReplacePicked::
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultShowInfoOk()
+;@ path: link/result
+;@ Step 21: once the text is done, draws the INFO / OK menu next to the list.
+;@ test: skip draws through helpers
 VSResultShowInfoOk::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawInfoOk()
 	call VSResultDrawInfoOk
+;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultDrawInfoOk()
+;@ path: link/result
+;@ Draws the list screen and on it the INFO / OK window (a narrower one for the egg list), with
+;@ the cursor wLinkRefused.
+;@ test: skip draws through helpers
 VSResultDrawInfoOk::
+;> VSResultDrawListWindows()
 	call VSResultDrawListWindows
-	ld de, $54f9
+;>@win DrawWindowLayout_18(VSEggInfoOkWindow if wLinkPartnerChoice & 1 else VSInfoOkWindow)
+	ld de, VSInfoOkWindow
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4b2c
+	jr z, .window
 
-	ld de, $5523
+	ld de, VSEggInfoOkWindow
 
-jr_018_4b2c:
+.window
+;=@win
 	call DrawWindowLayout_18
+;> MenuResetBlink_18()
 	call MenuResetBlink_18
-	ld de, $4bb8
+;>@marks marks = VSEggInfoOkCursor if wLinkPartnerChoice & 1 else VSInfoOkCursor
+	ld de, VSInfoOkCursor
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4b3f
+	jr z, .cursor
 
-	ld de, $4bbe
+	ld de, VSEggInfoOkCursor
 
-jr_018_4b3f:
+.cursor
+;> MenuDrawCursorAt_18(wLinkRefused, marks)
 	ld a, [wLinkRefused]
 	call MenuDrawCursorAt_18
 	ret
 
 
+;@ def VSResultInfoOkInput()
+;@ path: link/result
+;@ Step 22: INFO / OK menu of the picked monster. B goes back to the list (step 19), INFO shows
+;@ its status screen (step 23), OK replaces it (step 25).
+;@ test: skip draws through helpers
 VSResultInfoOkInput::
-	ld de, $4bb8
+;>@marks marks = VSEggInfoOkCursor if wLinkPartnerChoice & 1 else VSInfoOkCursor
+	ld de, VSInfoOkCursor
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4b53
+	jr z, .move
 
-	ld de, $4bbe
+	ld de, VSEggInfoOkCursor
 
-jr_018_4b53:
+.move
+;> MoveMenuCursor_18(wLinkRefused, 2, marks)
 	ld hl, wLinkRefused
 	ld b, $02
 	call MoveMenuCursor_18
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_018_4b80
+	jr z, .notB
 
+;>     ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;>     VSResultDrawCursorMonName()
 	call VSResultDrawCursorMonName
+;>     VSResultDrawListNames()
 	call VSResultDrawListNames
+;>     VSResultDrawListWindows()
 	call VSResultDrawListWindows
+;>     CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;>     wTitleStep -= 3                  # back to the list
 	ld hl, wTitleStep
 	dec [hl]
 	ld hl, wTitleStep
 	dec [hl]
 	ld hl, wTitleStep
 	dec [hl]
-	jp Jump_018_4bb7
+;>     return
+	jp .done
 
 
-jr_018_4b80:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_018_4bb7
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wLinkRefused != 0x81:         # INFO
 	ld a, [wLinkRefused]
 	cp $81
-	jr z, jr_018_4ba2
+	jr z, .ok
 
+;>         wFieldMenuState = 0; wFieldMenuStep = 0
 	xor a
 	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
+;>         wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_018_4bb7
+	jp .done
 
 
-jr_018_4ba2:
+;>     else:                            # OK
+;>         wTitleStep += 3
+.ok
 	ld hl, wTitleStep
 	inc [hl]
 	ld hl, wTitleStep
 	inc [hl]
 	ld hl, wTitleStep
 	inc [hl]
+;>         ReadSRAMByte(sPartyCount)    # (the result is not used)
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	or a
-	jr z, jr_018_4bb7
+	jr z, .done
 
-Jump_018_4bb7:
-jr_018_4bb7:
+.done
 	ret
 
 
+;@ path: link/result
+;@ Cursor table of the INFO / OK window of the monster list: screen offsets $002E and $006E,
+;@ $FFFF ends.
 VSInfoOkCursor::
-	db $2e, $00, $6e, $00, $ff, $ff
+	dw $002e, $006e, $ffff
 
+;@ path: link/result
+;@ Cursor table of the INFO / OK window of the egg list: screen offsets $002D and $006D, $FFFF
+;@ ends.
 VSEggInfoOkCursor::
-	db $2d, $00, $6d, $00, $ff, $ff
+	dw $002d, $006d, $ffff
 
+;@ path: unused
+;@ Code that nothing calls: reads a monster slot from battery RAM at hl; unless it is $FF, the
+;@ monster wCurPartyMember or a dead one (status bit 7 of its saved record), it adds 1 to b.
 UnusedCountSlot_18::
 	db $c5, $cd, $ee, $20
 	db $c1, $fe, $ff, $c8, $4f, $fa, $c0, $ca, $b9, $c8, $c5, $79, $21, $45, $a2, $cd
 	db $3b, $22, $cd, $ee, $20, $c1, $cb, $7f, $c0, $04, $c9
 
+;@ def VSResultShowStatus()
+;@ path: link/result
+;@ Step 23: runs the monster status screen for the picked monster (wCurPartyMember) until it
+;@ closes.
+;@ test: skip calls routines in other banks
 VSResultShowStatus::
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep:                     # closed
+;>     wTitleStep += 1
 	ld a, [wMenuSubStep]
 	or a
 	ret z
@@ -2298,263 +2364,389 @@ VSResultShowStatus::
 	ret
 
 
+;@ def VSResultStatusDone()
+;@ path: link/result
+;@ Step 24: after the status screen, reloads the tiles it replaced (banner letters, window
+;@ symbols, Terry's sprite, the menu words), repeats the question, redraws the list and goes
+;@ back to the INFO / OK menu (step 20).
+;@ test: skip calls routines in other banks
 VSResultStatusDone::
+;> DecompressVRAM(0x3F, 0x03, 0x8800)
 	ld de, $3f03
 	ld hl, $8800
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x00, 0x8D00)
 	ld de, $2e00
 	ld hl, $8d00
 	call DecompressVRAM
+;> DecompressVRAM(0x2F, 0x00, 0x8000)
 	ld de, $2f00
 	ld hl, $8000
 	call DecompressVRAM
+;> wTextGroup = 2; wTextIndex = 0x4A
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $4a
 	ld [wTextIndex], a
+;> DrawTextTiles_18(0x96C0, 1, 16)      # the menu words
 	ld hl, $96c0
 	ld de, $1001
 	call DrawTextTiles_18
+;>@text PrintSystemText(0x0253 if wLinkPartnerChoice & 1 else 0x024D)   # which egg / which monster
 	ld hl, $024d
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4c34
+	jr z, .print
 
 	ld hl, $0253
 
-jr_018_4c34:
+.print
+;=@text
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawCursorMonName()
 	call VSResultDrawCursorMonName
+;> VSResultDrawListNames()
 	call VSResultDrawListNames
+;> wTitleStep = 0x14
 	ld a, $14
 	ld [wTitleStep], a
 	ret
 
 
+;@ def VSResultReplaceMonster()
+;@ path: link/result
+;@ Step 25: the picked monster (or egg) is let go and the won monster takes its place: the
+;@ library gets its species, the records are tidied and saved. For a monster: "<monster> is
+;@ returned to the wild."
+;@ test: skip saves to battery RAM
 VSResultReplaceMonster::
+;>@p p = wSceneObjects + wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@p
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
+;=@p
 	ld a, $00
 	adc h
 	ld h, a
+;> if not wLinkPartnerChoice & 1:      # a monster: its name for the message
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr nz, jr_018_4c76
+	jr nz, .save
 
+;>@name     CopyName(MonsterField(mem[p], wMonName), wTextArg1)
 	push hl
 	ld a, [hl]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	ld hl, wTextArg1
 	call CopyName
 	pop hl
 
-jr_018_4c76:
+.save
+;> CopyFromSRAM_18(wPartyCount, sPartyCount, 7)
 	push hl
 	di
 	ld hl, wPartyCount
 	ld de, sPartyCount
 	ld bc, $0007
 	call CopyFromSRAM_18
+;> CopyFromSRAM_18(wLibraryFlags, sLibraryFlags, 0x20)
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
 	call CopyFromSRAM_18
 	ei
+;> SetFlag(mem[wBreedParent2 + 9], wLibraryFlags)    # the won monster's species
 	ld hl, wLibraryFlags
-	ld a, [$d703]
+	ld a, [wBreedParent2 + 9]
 	call SetFlag
+;> mem[MonsterField(mem[p], wMonsters)] = 0          # let the picked one go
 	pop hl
 	ld a, [hl]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, $d5d0
+;>@copy copy(wBreedParent2, wMonsters + 19 * 0x95, 0x95)   # the won monster into the last slot
+	ld hl, wMonsters + 19 * $95
 	ld de, wBreedParent2
 	ld b, $95
 
-jr_018_4cb0:
+.copy
+;=@copy
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_018_4cb0
+	jr nz, .copy
 
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> CopyToSRAM_18(wLibraryFlags, sLibraryFlags, 0x20)
 	di
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
 	call CopyToSRAM_18
+;> SaveMonsters()
 	call SaveMonsters
 	ei
+;> if not wLinkPartnerChoice & 1:
+;>     PrintSystemText(0x0254)          # "<monster> is returned to the wild."
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr nz, jr_018_4cd8
+	jr nz, .next
 
 	ld hl, $0254
 	call PrintSystemText
 
-jr_018_4cd8:
+.next
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultEnd()
+;@ path: link/result
+;@ Step 26: once the text is done, ends the link and goes back to the title menu (game mode 0,
+;@ step 1) with a fade-out.
+;@ test: skip touches the link state
 VSResultEnd::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wGameMode = 0; wGameModeStep = 1
 	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
+;> mem[wGameMode + 2] = 0; mem[wGameMode + 3] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 0; wLinkPhase = 0
 	ld a, $00
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wLinkFlags = 0
 	xor a
 	ld [wLinkFlags], a
+;> wSerialLock = 0; wLinkActive = 0
 	ld [wSerialLock], a
 	ld [wLinkActive], a
+;> wLinkReceivedLast = 0; wLinkSendByte = 0
 	xor a
 	ld [wLinkReceivedLast], a
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkCommand = 0
 	xor a
 	ld [wLinkCommand], a
+;> StartFade(0x04)                      # fade out
 	ld a, $04
 	call StartFade
 	ret
 
 
+;@ def VSResultAskKind()
+;@ path: link/result
+;@ Step 27: "Replace with which monster?" before the monster / egg choice.
+;@ test: skip calls routines in other banks
 VSResultAskKind::
+;> PrintSystemText(0x0251)
 	ld hl, $0251
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultShowKindMenu()
+;@ path: link/result
+;@ Step 28: once the text is done, draws the MON / EGG menu.
+;@ test: skip draws through helpers
 VSResultShowKindMenu::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawKindMenu()
 	call VSResultDrawKindMenu
+;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultDrawKindMenu()
+;@ path: link/result
+;@ Draws the yes/no screen and on it the MON / EGG window (VSKindWindow), with the cursor
+;@ wLinkPartnerChoice (0 monsters, 1 eggs).
+;@ test: skip draws through helpers
 VSResultDrawKindMenu::
+;> VSResultDrawReplaceYesNo()
 	call VSResultDrawReplaceYesNo
-	ld de, $5552
+;> DrawWindowLayout_18(VSKindWindow)
+	ld de, VSKindWindow
 	call DrawWindowLayout_18
+;> MenuResetBlink_18()
 	call MenuResetBlink_18
-	ld de, $4d90
+;> MenuDrawCursorAt_18(wLinkPartnerChoice, VSKindMenuCursor)
+	ld de, VSKindMenuCursor
 	ld a, [wLinkPartnerChoice]
 	call MenuDrawCursorAt_18
 	ret
 
 
+;@ def VSResultKindInput()
+;@ path: link/result
+;@ Step 29: MON / EGG choice (wLinkPartnerChoice). A opens the list of that kind (step 17); B
+;@ goes back to the yes/no question (step 14).
+;@ test: skip draws through helpers
 VSResultKindInput::
-	ld de, $4d90
+;> MoveMenuCursor_18(wLinkPartnerChoice, 2, VSKindMenuCursor)
+	ld de, VSKindMenuCursor
 	ld hl, wLinkPartnerChoice
 	ld b, $02
 	call MoveMenuCursor_18
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_018_4d76
+	jr z, .notB
 
+;>     PrintSystemText(0x024F)          # "Do you want to replace one of your monsters ...?"
 	ld hl, $024f
 	call PrintSystemText
+;>     ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;>     VSResultDrawReplaceYesNo()
 	call VSResultDrawReplaceYesNo
+;>     CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;>     wTitleStep = 0x0E
 	ld a, $0e
 	ld [wTitleStep], a
-	jr jr_018_4d8f
+	jr .done
 
-jr_018_4d76:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_018_4d8f
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wTitleStep = 0x11
 	ld a, $11
 	ld [wTitleStep], a
+;>     wListCursor = 0; wListPage = 0
 	xor a
 	ld [wListCursor], a
 	ld [wListPage], a
 
-Jump_018_4d8f:
-jr_018_4d8f:
+.done
 	ret
 
 
+;@ path: link/result
+;@ Cursor table of the MON / EGG window: screen offsets $002F and $006F, $FFFF ends.
 VSKindMenuCursor::
-	db $2f, $00, $6f, $00, $ff, $ff
+	dw $002f, $006f, $ffff
 
+;@ def VSResultNoEgg()
+;@ path: link/result
+;@ Step 30: after "No egg.", asks again and redraws the MON / EGG menu (step 29).
+;@ test: skip draws through helpers
 VSResultNoEgg::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PrintSystemText(0x0251)
 	ld hl, $0251
 	call PrintSystemText
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawKindMenu()
 	call VSResultDrawKindMenu
+;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;> wTitleStep = 0x1D
 	ld a, $1d
 	ld [wTitleStep], a
 	ret
 
 
+;@ def VSResultBackToList()
+;@ path: link/result
+;@ Step 31 (no step leads here): redraws the list and asks again, then runs the list (step 19).
+;@ test: skip draws through helpers
 VSResultBackToList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawCursorMonName()
 	call VSResultDrawCursorMonName
+;> VSResultDrawListNames()
 	call VSResultDrawListNames
+;> VSResultDrawListWindows()
 	call VSResultDrawListWindows
+;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;>@text PrintSystemText(0x0253 if wLinkPartnerChoice & 1 else 0x024D)
 	ld hl, $024d
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4dd1
+	jr z, .print
 
 	ld hl, $0253
 
-jr_018_4dd1:
+.print
+;=@text
 	call PrintSystemText
+;> wTitleStep = 0x13
 	ld a, $13
 	ld [wTitleStep], a
 	ret
@@ -2588,12 +2780,12 @@ VSResultDrawGiver::
 
 DrawTrainerSpriteFlipped::
 	ld c, $20
-	jr jr_018_4e02
+	jr DrawTrainerSpriteAttr
 
 DrawTrainerSprite::
 	ld c, $00
 
-jr_018_4e02:
+DrawTrainerSpriteAttr::
 	cp $e0
 	ret nc
 

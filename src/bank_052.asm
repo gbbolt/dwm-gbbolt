@@ -1514,31 +1514,54 @@ RetargetSkill::
 	ret
 
 
+;@ def SkillCallHelp()
+;@ path: battle/skills/effects/special
+;@ Effect of CallHelp and YellHelp (skills $52, $53). On the first call (wHitCount 1) the
+;@ call is heard half the time: "Allies appear from nowhere!" is printed, the user is marked
+;@ (bit 0 of status byte 6) and wHitCount becomes $0F - for an enemy outside link battles $10
+;@ (CallHelp) or $11 (YellHelp); otherwise "But the call is not heard!". Each later run is one
+;@ helper's hit on the action's target (CalcLevelDamageRes24), or ends the help
+;@ (EndCalledHelp) when that target is gone.
 SkillCallHelp::
+;>@first if wHitCount == 1:
 	ld a, [wHitCount]
 	cp $01
-	jr nz, jr_052_486b
+	jr nz, .helperHit
 
+;>     BattleRandom()
 	call BattleRandom
+;>@heard     if not wRandomHigh & 1:
 	ld a, [wRandomHigh]
 	and $01
-	jr z, jr_052_4859
+	jr z, .notHeard
 
+;>@nh1         wHitCount = 0xFF
+;>@nh2         wSkillAmount = 0
+;>@nh3         return SkillFails(0xC2)               # "But the call is not heard!"
+;>     wBattleStepArg0 = 3
 	ld a, $03
 	ld [wBattleStepArg0], a
+;>     wHitCount = 0x0F
 	ld a, $0f
 	ld [wHitCount], a
+;>     wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep2], a
+;>     wTextGroup = 0
 	ld [wTextGroup], a
+;>     wTextIndex = 0xA1                             # "Allies appear from nowhere!"
 	ld a, $a1
 	ld [wTextIndex], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     wBattlerStatus[8 * wSkillUser + 6] |= 0x01
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	set 0, [hl]
+;>     if wLinkActive or wSkillUser < 4:
+;>         return
 	ld a, [wLinkActive]
 	or a
 	ret nz
@@ -1547,580 +1570,879 @@ SkillCallHelp::
 	cp $04
 	ret c
 
+;>     wHitCount += 1                                # an enemy's helpers
 	ld hl, wHitCount
 	inc [hl]
+;>     if wSkillId == 0x52:
+;>         return
 	ld a, [wSkillId]
 	cp $52
 	ret z
 
+;>     wHitCount += 1
 	inc [hl]
+;>     return
 	ret
 
 
-jr_052_4859:
+.notHeard
+;=@nh1
 	ld a, $ff
 	ld [wHitCount], a
+;=@nh2
 	xor a
 	ld [wSkillAmount], a
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;=@nh3
 	ld a, $c2
 	call SkillFails
 	ret
 
 
-jr_052_486b:
+.helperHit
+;>@t wSkillTarget = mem[wBattlerAction + 1 + 2 * wSkillUser]
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
 	ld a, [hl]
 	ld [wSkillTarget], a
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return EndCalledHelp()
 	call CheckBattlerPresent
 	jp c, EndCalledHelp
 
+;> CalcLevelDamageRes24()
 	call CalcLevelDamageRes24
+;> SkillDealsDamageMsg(0xB682)                       # "X takes N damage pts!" / "Misses! ..."
 	ld hl, $b682
 	call SkillDealsDamageMsg
+;> return
 	ret
 
 
+;@ def SkillFocus()
+;@ path: battle/skills/effects/attacks
+;@ Effect of Focus (skill $54): the user calms itself and focuses (bit 7 of status byte 4);
+;@ no message here.
 SkillFocus::
+;> wBattlerStatus[8 * wSkillUser + 4] |= 0x80
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	set 7, [hl]
+;> SkillEndsQuietly()
 	call SkillEndsQuietly
+;> return
 	ret
 
 
+;@ def SkillSquallHit()
+;@ path: battle/skills/effects/attacks
+;@ Effect of SquallHit (skill $55): a normal attack doing 80 % of the damage.
 SkillSquallHit::
+;> SkillAttackDamage()
 	call SkillAttackDamage
+;>@p wSkillAmount = Percent80(wSkillAmount)
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call Percent80
+;=@p
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> SkillDealsDamageMsg(0xB682)
 	ld hl, $b682
 	call SkillDealsDamageMsg
+;> return
 	ret
 
 
+;@ def SkillRainSlash()
+;@ path: battle/skills/effects/attacks
+;@ Effect of RainSlash (skill $57), one hit per run (wHitCount 1-4): a normal attack doing
+;@ 80 % of the damage on the first hit, 60 % on the second, 40 % after that. When the target
+;@ is gone the slashes move on to the next position of its side (and the action remembers
+;@ it), without a hit this time. From the fifth run on: nothing.
 SkillRainSlash::
+;> if wHitCount >= 5:
+;>@q     return SkillEndsQuietly()
 	ld a, [wHitCount]
 	cp $05
-	jr nc, jr_052_4914
+	jr nc, .quiet
 
+;>@gone if CheckBattlerPresent(wSkillTarget):
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_48f5
+	jr c, .nextTarget
 
+;>@g1     if wSkillTarget != (wSkillTarget & 4) | 2:
+;>@g2         wSkillTarget += 1
+;>@g3         mem[wBattlerAction + 1 + 2 * wSkillUser] = wSkillTarget
+;>@g4     return SkillEndsQuietly()
+;> SkillAttackDamage()
 	call SkillAttackDamage
+;> dmg = wSkillAmount
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
+;>@h1 if wHitCount == 1:
 	ld a, [wHitCount]
 	cp $01
-	jr z, jr_052_48de
+	jr z, .first
 
+;>@h1a     dmg = Percent80(dmg)
+;>@h2 elif wHitCount == 2:
 	cp $02
-	jr z, jr_052_48e3
+	jr z, .second
 
+;>@h2a     dmg = Percent60(dmg)
+;> else:
+;>     dmg = Percent40(dmg)
 	call Percent40
-	jr jr_052_48e6
+	jr .store
 
-jr_052_48de:
+.first
+;=@h1a
 	call Percent80
-	jr jr_052_48e6
+	jr .store
 
-jr_052_48e3:
+.second
+;=@h2a
 	call Percent60
 
-jr_052_48e6:
+.store
+;> wSkillAmount = dmg
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> SkillDealsDamageMsg(0xB682)
 	ld hl, $b682
 	call SkillDealsDamageMsg
+;> return
 	ret
 
 
-jr_052_48f5:
+.nextTarget
+;=@g1
 	ld a, [wSkillTarget]
 	and $04
 	or $02
 	ld b, a
 	ld a, [wSkillTarget]
 	cp b
-	jr z, jr_052_4914
+;=@g1
+	jr z, .quiet
 
+;=@g2
 	inc a
 	ld [wSkillTarget], a
+;=@g3
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
 	ld a, [wSkillTarget]
 	ld [hl], a
 
-jr_052_4914:
+.quiet
+;=@q
+;=@g4
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillWindBeast()
+;@ path: battle/skills/effects/spells
+;@ Effect of WindBeast and Vacuum (skills $58, $59): damage from the user's level
+;@ (CalcLevelDamage, for Vacuum CalcLevelDamage2).
 SkillWindBeast::
+;> if wSkillId != 0x59:
+;>     CalcLevelDamage()
 	ld a, [wSkillId]
 	cp $59
-	jr z, jr_052_4924
+	jr z, .vacuum
 
 	call CalcLevelDamage
-	jr jr_052_4927
+	jr .done
 
-jr_052_4924:
+;> else:
+;>@v     CalcLevelDamage2()
+.vacuum
+;=@v
 	call CalcLevelDamage2
 
-jr_052_4927:
+.done
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillRockThrow()
+;@ path: battle/skills/effects/spells
+;@ Effect of RockThrow (skill $5B): skill-table damage cut by the target's resistance.
 SkillRockThrow::
+;> CalcSkillDamageRes24()
 	call CalcSkillDamageRes24
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillFireAir()
+;@ path: battle/skills/effects/spells
+;@ Effect of the fire breaths FireAir, BlazeAir, Scorching and WhiteFire (skills $5C-$5F):
+;@ skill-table damage cut by the target's resistance, halved behind a veil of light.
 SkillFireAir::
+;> CalcSkillDamageRes16()
 	call CalcSkillDamageRes16
+;> HalveDamageBehindVeil()
 	call HalveDamageBehindVeil
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillFrigidAir()
+;@ path: battle/skills/effects/spells
+;@ Effect of the ice breaths FrigidAir, IceAir, IceStorm and WhiteAir (skills $60-$63):
+;@ skill-table damage cut by the target's resistance, halved behind a veil of light.
 SkillFrigidAir::
+;> CalcSkillDamageRes17()
 	call CalcSkillDamageRes17
+;> HalveDamageBehindVeil()
 	call HalveDamageBehindVeil
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillBigBang()
+;@ path: battle/skills/effects/spells
+;@ Effect of BigBang (skill $65): skill-table damage cut by the target's resistance.
 SkillBigBang::
+;> CalcSkillDamageRes0()
 	call CalcSkillDamageRes0
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillMegaMagic()
+;@ path: battle/skills/effects/spells
+;@ Effect of MegaMagic (skill $66): damage from the user's MP and level (CalcMPLevelDamage).
 SkillMegaMagic::
+;> CalcMPLevelDamage()
 	call CalcMPLevelDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillPalsyAir()
+;@ path: battle/skills/effects/status
+;@ Effect of PalsyAir (skill $6B): paralyzes the target (bit 6 of status byte 0): "X is
+;@ paralyzed!"; resisted: "X dodges the air attack!". Already paralyzed: no message.
 SkillPalsyAir::
+;> st = 8 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;>@on if wBattlerStatus[st] & 0x40:
 	bit 6, [hl]
-	jr nz, jr_052_4977
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;> if not TryEffectRes19():
 	push hl
 	call TryEffectRes19
 	pop hl
-	jr c, jr_052_496e
+	jr c, .works
 
+;>     return SkillFailsSide(0xC3)                   # "X dodges the air attack!"
 	ld a, $c3
 	call SkillFailsSide
 	ret
 
 
-jr_052_496e:
+.works
+;> wBattlerStatus[st] |= 0x40
 	set 6, [hl]
+;> SkillWorksNoDamage(0xCFCF)                        # "X is paralyzed!"
 	ld hl, $cfcf
 	call SkillWorksNoDamage
+;> return
 	ret
 
 
-jr_052_4977:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillPoisonGas()
+;@ path: battle/skills/effects/status
+;@ Effect of PoisonGas and PoisonAir (skills $6C, $6D): poisons the target - PoisonGas sets
+;@ bit 0 of status byte 0 ("X is poisoned!"), PoisonAir bit 1 ("X is severely poisoned!"),
+;@ each clearing the other. Resisted: "X dodges the air attack!". Already poisoned (any
+;@ poison for PoisonGas, the severe one for PoisonAir): no message.
 SkillPoisonGas::
+;> st = 8 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;>@air if wSkillId != 0x6D:                         # PoisonGas
 	ld a, [wSkillId]
 	cp $6d
-	jr z, jr_052_4997
+	jr z, .air
 
+;>     wBattleArg0 = 0xCE                            # "X is poisoned!"
 	ld a, $ce
 	ld [wBattleArg0], a
+;>     if wBattlerStatus[st] & 0x03:
+;>@q1         return SkillEndsQuietly()
 	ld a, [hl]
 	and $03
-	jr nz, jr_052_49ce
+	jr nz, .quiet
 
-	jr jr_052_49a0
+	jr .roll
 
-jr_052_4997:
+;> else:
+;>@a1     wBattleArg0 = 0xD0                        # "X is severely poisoned!"
+.air
+;=@a1
 	ld a, $d0
 	ld [wBattleArg0], a
+;>@a2     if wBattlerStatus[st] & 0x02:
+;=@a2
 	bit 1, [hl]
-	jr nz, jr_052_49ce
+	jr nz, .quiet
 
-jr_052_49a0:
+;>@q2         return SkillEndsQuietly()
+.roll
+;> if not TryEffectRes18():
 	call TryEffectRes18
-	jr c, jr_052_49ab
+	jr c, .works
 
+;>     return SkillFailsSide(0xC3)                   # "X dodges the air attack!"
 	ld a, $c3
 	call SkillFailsSide
 	ret
 
 
-jr_052_49ab:
+.works
+;> if wSkillId != 0x6D:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, [wSkillId]
 	cp $6d
-	jr z, jr_052_49c1
+	jr z, .severe
 
+;>     wBattlerStatus[st] = (wBattlerStatus[st] | 0x01) & ~0x02
 	set 0, [hl]
 	res 1, [hl]
-	jr jr_052_49c5
+	jr .msg
 
-jr_052_49c1:
+;> else:
+;>@s     wBattlerStatus[st] = (wBattlerStatus[st] | 0x02) & ~0x01
+.severe
+;=@s
 	set 1, [hl]
 	res 0, [hl]
 
-jr_052_49c5:
+.msg
+;> SkillWorksNoDamage(wBattleArg0 * 0x101)
 	ld a, [wBattleArg0]
 	ld h, a
 	ld l, a
 	call SkillWorksNoDamage
+;> return
 	ret
 
 
-jr_052_49ce:
+.quiet
+;=@q1
+;=@q2
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillCurse()
+;@ path: battle/skills/effects/status
+;@ Effect of Curse (skill $6F): curses the target (bit 5 of status byte 0): "X is cursed!";
+;@ resisted: "Has no effect on X!". Already cursed: no message.
 SkillCurse::
+;>@on if wBattlerStatus[8 * wSkillTarget] & 0x20:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	bit 5, [hl]
-	jr nz, jr_052_49fc
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;> if not TryEffectRes20():
 	call TryEffectRes20
-	jr c, jr_052_49ea
+	jr c, .works
 
+;>     return SkillFailsSide(0xB8)                   # "Has no effect on X!"
 	ld a, $b8
 	call SkillFailsSide
 	ret
 
 
-jr_052_49ea:
+.works
+;> wBattlerStatus[8 * wSkillTarget] |= 0x20
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	set 5, [hl]
+;> SkillWorksNoDamage(0xD1D1)                        # "X is cursed!"
 	ld hl, $d1d1
 	call SkillWorksNoDamage
+;> return
 	ret
 
 
-jr_052_49fc:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillAhhh()
+;@ path: battle/skills/effects/status
+;@ Effect of Ahhh (skill $70): the target feels good (bit 5 of status byte 3): "X seems to be
+;@ feeling good!"; resisted: "Has no effect on X!". Already: no message.
 SkillAhhh::
+;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x20:
 	call TargetStatus3
 	bit 5, [hl]
-	jr nz, jr_052_4a18
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;>@res if not TryEffectRes21():
 	call TryEffectRes21
-	jr nc, jr_052_4a1c
+	jr nc, .resisted
 
+;>@res1     return SkillFailsSide(0xB8)              # "Has no effect on X!"
+;> wBattlerStatus[8 * wSkillTarget + 3] |= 0x20
 	call TargetStatus3
 	set 5, [hl]
+;> SkillWorks(0xA7A7)                                # "X seems to be feeling good!"
 	ld hl, $a7a7
 	call SkillWorks
+;> return
 	ret
 
 
-jr_052_4a18:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
-jr_052_4a1c:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFailsSide
 	ret
 
 
+;@ def SkillSandStorm()
+;@ path: battle/skills/effects/status
+;@ Effect of SandStorm and Radiant (skills $72, $73): blinds the target (bits 0-1 of status
+;@ byte 5) when the roll works: "X gets sand in its eyes!" / "X is blinded!" (message
+;@ wSkillId + $30); resisted: "Has no effect on X!". Already blinded: no message.
 SkillSandStorm::
+;>@on if wBattlerStatus[8 * wSkillTarget + 5] & 0x03:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
 	ld a, [hl]
 	and $03
-	jr nz, jr_052_4a53
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;>@res if not RollSurround():
 	call RollSurround
-	jr nc, jr_052_4a4d
+	jr nc, .resisted
 
+;>@res1     return SkillFailsSide(0xB8)              # "Has no effect on X!"
+;> wBattlerStatus[8 * wSkillTarget + 5] |= 0x03
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
 	set 1, [hl]
 	set 0, [hl]
+;> SkillWorks((wSkillId + 0x30) * 0x101)            # $A2 / $A3
 	ld a, [wSkillId]
 	add $30
 	ld h, a
 	ld l, a
 	call SkillWorks
+;> return
 	ret
 
 
-jr_052_4a4d:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFailsSide
 	ret
 
 
-jr_052_4a53:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillEerieLite()
+;@ path: battle/skills/effects/status
+;@ Effect of EerieLite (skill $74): leaves the target open to spells (bit 7 of status byte
+;@ 3) when the roll works: "X is now vulnerable to magic spells!"; resisted: "Has no effect
+;@ on X!"; already: "But nothing happens!".
 SkillEerieLite::
+;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x80:
 	call TargetStatus3
 	bit 7, [hl]
-	jr nz, jr_052_4a6f
+	jr nz, .already
 
+;>@on1     return SkillFailsNoAnim(0xBB)             # "But nothing happens!"
+;>@res if not RollInstantDeath():
 	call RollInstantDeath
-	jr nc, jr_052_4a75
+	jr nc, .resisted
 
+;>@res1     return SkillFailsSide(0xB8)              # "Has no effect on X!"
+;> wBattlerStatus[8 * wSkillTarget + 3] |= 0x80
 	call TargetStatus3
 	set 7, [hl]
+;> SkillWorks(0xA4A4)                                # "X is now vulnerable to magic spells!"
 	ld hl, $a4a4
 	call SkillWorks
+;> return
 	ret
 
 
-jr_052_4a6f:
+.already
+;=@on1
 	ld a, $bb
 	call SkillFailsNoAnim
 	ret
 
 
-jr_052_4a75:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFailsSide
 	ret
 
 
+;@ def SkillOddDance()
+;@ path: battle/skills/effects/status
+;@ Effect of OddDance (skill $75): when the target has MP and the roll works, it loses MP
+;@ (DrainTargetMP): "X lost N MP!". No MP: "But nothing happens!"; resisted: "Has no
+;@ effect on X!".
 SkillOddDance::
+;>@mp0 if mem16[wBattlerMP + 2 * wSkillTarget] == 0:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerMP
 	call IndexWords
 	ld a, [hli]
 	or [hl]
-	jr z, jr_052_4a9d
+	jr z, .noMP
 
+;>@mp1     return SkillFails(0xBB)                  # "But nothing happens!"
+;>@res if not RollRobMagic():
 	call RollRobMagic
-	jr nc, jr_052_4a97
+	jr nc, .resisted
 
+;>@res1     return SkillFails(0xB8)                  # "Has no effect on X!"
+;> DrainTargetMP()
 	call DrainTargetMP
+;> SkillWorks(0xA5A5)                                # "X lost N MP!"
 	ld hl, $a5a5
 	call SkillWorks
+;> return
 	ret
 
 
-jr_052_4a97:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFails
 	ret
 
 
-jr_052_4a9d:
+.noMP
+;=@mp1
 	ld a, $bb
 	call SkillFails
 	ret
 
 
+;@ def SkillSideStep()
+;@ path: battle/skills/effects/status
+;@ Effect of SideStep (skill $77): unless the user is already side-stepping, bits 2-3 of its
+;@ status byte 5 become 1 or 2 at random; no message here.
 SkillSideStep::
+;> BattleRandom()
 	call BattleRandom
+;> st = 8 * wSkillUser + 5
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
+;> if not wBattlerStatus[st] & 0x0C:
 	ld a, [hl]
 	and $0c
-	jr nz, jr_052_4ac1
+	jr nz, .done
 
+;>@s     wBattlerStatus[st] = wBattlerStatus[st] & 0xF3 | (4 + (wRandomHigh & 4))
 	ld a, [wRandomHigh]
 	and $04
 	add $04
 	ld b, a
 	ld a, [hl]
 	and $f3
+;=@s
 	or b
 	ld [hl], a
 
-jr_052_4ac1:
+.done
+;> SkillEndsQuietly()
 	call SkillEndsQuietly
+;> return
 	ret
 
 
+;@ def SkillLureDance()
+;@ path: battle/skills/effects/status
+;@ Effect of LureDance (skill $78): lures the target into dancing (bit 1 of status byte 3):
+;@ "X is lured into dancing!"; resisted: "X isn't lured in!". Already: no message.
 SkillLureDance::
+;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x02:
 	call TargetStatus3
 	bit 1, [hl]
-	jr nz, jr_052_4ae3
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;>@res if not TryEffectRes21():
 	call TryEffectRes21
-	jr nc, jr_052_4add
+	jr nc, .resisted
 
+;>@res1     return SkillFails(0xC8)                  # "X isn't lured in!"
+;> wBattlerStatus[8 * wSkillTarget + 3] |= 0x02
 	call TargetStatus3
 	set 1, [hl]
+;> SkillWorks(0xA6A6)                                # "X is lured into dancing!"
 	ld hl, $a6a6
 	call SkillWorks
+;> return
 	ret
 
 
-jr_052_4add:
+.resisted
+;=@res1
 	ld a, $c8
 	call SkillFails
 	ret
 
 
-jr_052_4ae3:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillLushLicks()
+;@ path: battle/skills/effects/status
+;@ Effect of LushLicks and SickLick (skills $79, $7A): licks the target (bit 3 of status byte
+;@ 3): "X gets goose bumps!". SickLick (rolled like Sap) also drops its defense to 1 ("... X's
+;@ defense drops to 1"). Resisted: "X isn't affected!"; already licked: no message.
 SkillLushLicks::
+;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x08:
 	call TargetStatus3
 	bit 3, [hl]
-	jr nz, jr_052_4b30
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;> if wSkillId != 0x7A:
+;>     works = TryEffectRes21()
 	ld a, [wSkillId]
 	cp $7a
-	jr z, jr_052_4afa
+	jr z, .sick
 
 	call TryEffectRes21
-	jr jr_052_4afd
+	jr .check
 
-jr_052_4afa:
+;> else:
+;>@s     works = RollDefenseDown()
+.sick
+;=@s
 	call RollDefenseDown
 
-jr_052_4afd:
-	jr nc, jr_052_4b2a
+.check
+;>@res if not works:
+;=@res
+	jr nc, .resisted
 
+;>@res1     return SkillFailsSide(0xCA)              # "X isn't affected!"
+;> wBattlerStatus[8 * wSkillTarget + 3] |= 0x08
 	call TargetStatus3
 	set 3, [hl]
+;> if wSkillId != 0x79:                              # SickLick
 	ld a, [wSkillId]
 	cp $79
-	jr z, jr_052_4b1f
+	jr z, .msg
 
+;>     mem16[wBattlerDefense + 2 * wSkillTarget] = 1
 	ld a, [wSkillTarget]
 	ld hl, wBattlerDefense
 	call IndexWords
 	ld a, $01
 	ld [hli], a
 	ld [hl], $00
+;>     MarkStatDown(wSkillTarget)
 	ld a, [wSkillTarget]
 	call MarkStatDown
 
-jr_052_4b1f:
+.msg
+;> SkillWorksNoDamage((wSkillId + 0x2F) * 0x101)    # $A8 / $A9
 	ld a, [wSkillId]
 	add $2f
 	ld h, a
 	ld l, a
 	call SkillWorksNoDamage
+;> return
 	ret
 
 
-jr_052_4b2a:
+.resisted
+;=@res1
 	ld a, $ca
 	call SkillFailsSide
 	ret
 
 
-jr_052_4b30:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
+;@ def SkillLegSweep()
+;@ path: battle/skills/effects/status
+;@ Effect of LegSweep and BigTrip (skills $7B, $7C): the target stumbles (bit 2 of status byte
+;@ 3): "X stumbles!". Resisted: "But it doesn't reach X!" for a target with bit 4 of its type
+;@ bits (a flier), else "But X dodges easily!". Already stumbling: no message.
 SkillLegSweep::
+;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x04:
 	call TargetStatus3
 	bit 2, [hl]
-	jr nz, jr_052_4b4c
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;>@res if not TryEffectRes21NotType4():
 	call TryEffectRes21NotType4
-	jr nc, jr_052_4b50
+	jr nc, .resisted
 
+;>@r1     if wBattlerTypeBits[wSkillTarget] & 0x10:
+;>@r2         return SkillFails(0xC1)               # "But it doesn't reach X!"
+;>@r3     return SkillFails(0xC9)                   # "But X dodges easily!"
+;> wBattlerStatus[8 * wSkillTarget + 3] |= 0x04
 	call TargetStatus3
 	set 2, [hl]
+;> SkillWorksNoDamage(0xABAB)                        # "X stumbles!"
 	ld hl, $abab
 	call SkillWorksNoDamage
+;> return
 	ret
 
 
-jr_052_4b4c:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
-jr_052_4b50:
+.resisted
+;=@r1
 	ld a, [wSkillTarget]
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@r1
 	ld h, a
 	bit 4, [hl]
+;=@r3
 	ld a, $c9
-	jr z, jr_052_4b64
+;=@r1
+	jr z, .msg
 
+;=@r2
 	ld a, $c1
 
-jr_052_4b64:
+.msg
+;=@r2
 	call SkillFails
 	ret
 
 
+;@ def SkillWarCry()
+;@ path: battle/skills/effects/status
+;@ Effect of WarCry (skill $7D): the target freezes in shock (bit 4 of status byte 3):
+;@ "X freezes in shock!"; resisted: "X isn't affected!". No target or already shocked: no
+;@ message.
 SkillWarCry::
+;> if CheckBattlerPresent(wSkillTarget):
+;>@q     return SkillEndsQuietly()
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_4b88
+	jr c, .quiet
 
+;> if wBattlerStatus[8 * wSkillTarget + 3] & 0x10:
+;>@q2     return SkillEndsQuietly()
 	call TargetStatus3
 	bit 4, [hl]
-	jr nz, jr_052_4b88
+	jr nz, .quiet
 
+;>@res if not TryEffectRes21():
 	call TryEffectRes21
-	jr nc, jr_052_4b8c
+	jr nc, .resisted
 
+;>@res1     return SkillFailsSide(0xCA)              # "X isn't affected!"
+;> wBattlerStatus[8 * wSkillTarget + 3] |= 0x10
 	call TargetStatus3
 	set 4, [hl]
+;> SkillWorksNoDamage(0xAAAA)                        # "X freezes in shock!"
 	ld hl, $aaaa
 	call SkillWorksNoDamage
+;> return
 	ret
 
 
-jr_052_4b88:
+.quiet
+;=@q
+;=@q2
 	call SkillEndsQuietly
 	ret
 
 
-jr_052_4b8c:
+.resisted
+;=@res1
 	ld a, $ca
 	call SkillFailsSide
 	ret
