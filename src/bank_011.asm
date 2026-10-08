@@ -4,90 +4,127 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $011", ROMX[$4000], BANK[$11]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_11::
 	db $11
 
+;@ path: system/banks
+;@ Entry points of bank $11 (field object sprites from $90 on), the same code as bank $10.
 FarTable_11::
 	dw DrawFieldSprite_11
 	dw DrawFieldSpriteOnScreen_11
 
+;@ def DrawFieldSprite_11()
+;@ path: field/sprites
+;@ The same as DrawFieldSprite_10, for the sprite sets of bank $11 (the object's sprite
+;@ number - $90).
+;@ test: skip writes OAM entries through pointer tables
 DrawFieldSprite_11::
+;> ApplySpriteSetPalette_11()
 	call ApplySpriteSetPalette_11
-	ld de, $407f
+;> DrawMetasprite(FieldSpriteSets_11)
+	ld de, FieldSpriteSets_11
 	call DrawMetasprite
 	ret
 
 
+;@ def DrawFieldSpriteOnScreen_11()
+;@ path: field/sprites
+;@ The same as DrawFieldSpriteOnScreen_10, for the sprite sets of bank $11.
+;@ test: skip writes OAM entries through pointer tables
 DrawFieldSpriteOnScreen_11::
+;> ApplySpriteSetPalette_11()
 	call ApplySpriteSetPalette_11
-	ld de, $407f
+;> sets = FieldSpriteSets_11
+	ld de, FieldSpriteSets_11
 	push af
 	push bc
 	push de
 	push hl
+;> if hOAMCount < 40:
 	ldh a, [hOAMCount]
 	cp $28
-	jr nc, jr_011_4069
+	jr nc, .done
 
+;>     entry = sets + 2 * hSpriteSet
 	ldh a, [hSpriteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;>     frames = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;>     entry = frames + 2 * hSpriteFrame
 	ldh a, [hSpriteFrame]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;>     frame = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;>     oam = wShadowOAM + 4 * hOAMCount
 	ldh a, [hOAMCount]
 	sla a
 	sla a
 	ld l, a
 	ld h, $c0
 
-jr_011_403c:
+.entry
+;>@loop     while True:
+;>         y = mem[frame]; frame += 1
 	ld a, [de]
 	inc de
+;>         if y == 0x80:                 # end of the frame
+;>             break
 	cp $80
-	jr z, jr_011_4069
+	jr z, .done
 
+;>         mem[oam] = (hSpriteY + y + 0x10) & 0xFF
 	ld b, a
 	ldh a, [hSpriteY]
 	add b
 	add $10
 	ld [hli], a
+;>         x = mem[frame]; frame += 1
 	ld a, [de]
 	inc de
 	ld b, a
+;>         mem[oam + 1] = (hSpriteX + x + 8) & 0xFF
 	ldh a, [hSpriteX]
 	add b
 	add $08
 	ld [hli], a
+;>         mem[oam + 2] = (hSpriteTileBase + mem[frame]) & 0xFF; frame += 1
 	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [de]
 	inc de
 	add b
 	ld [hli], a
+;>         mem[oam + 3] = hSpriteAttr ^ mem[frame]; frame += 1
 	ld a, [de]
 	inc de
 	ld b, a
 	ldh a, [hSpriteAttr]
 	xor b
 	ld [hli], a
+;>         oam += 4; hOAMCount += 1
 	ldh a, [hOAMCount]
 	inc a
 	ldh [hOAMCount], a
+;>         if hOAMCount >= 40:
+;>             break
 	cp $28
-	jr c, jr_011_403c
+;=@loop
+	jr c, .entry
 
-jr_011_4069:
+.done
+;> return
 	pop hl
 	pop de
 	pop bc
@@ -95,13 +132,18 @@ jr_011_4069:
 	ret
 
 
+;@ def ApplySpriteSetPalette_11()
+;@ path: field/sprites
+;@ The same as ApplySpriteSetPalette_10 (FieldSpritePalettes_11).
 ApplySpriteSetPalette_11::
+;> entry = FieldSpritePalettes_11 + hSpriteSet
 	ldh a, [hSpriteSet]
-	ld hl, $412d
+	ld hl, FieldSpritePalettes_11
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> hSpriteAttr |= mem[entry]
 	ld h, a
 	ldh a, [hSpriteAttr]
 	or [hl]
@@ -109,6 +151,9 @@ ApplySpriteSetPalette_11::
 	ret
 
 
+;@ path: field/sprites
+;@ The field object sprite sets of bank $11 (87 sets, object sprites $90-$E6): one pointer per
+;@ set to its list of frame pointers.
 FieldSpriteSets_11::
 	db $84, $41, $f6, $41, $68, $42, $da, $42, $4c, $43, $be, $43, $30, $44, $a2, $44
 	db $14, $45, $86, $45, $f8, $45, $6a, $46, $dc, $46, $4e, $47, $c0, $47, $32, $48
@@ -122,6 +167,8 @@ FieldSpriteSets_11::
 	db $84, $61, $f6, $61, $68, $62, $da, $62, $4c, $63, $be, $63, $30, $64, $a2, $64
 	db $14, $65, $86, $65, $f8, $65, $6a, $66, $dc, $66, $4e, $67, $c0, $67
 
+;@ path: field/sprites
+;@ Game Boy Color palette of each sprite set (ORed into the attributes), one byte per set.
 FieldSpritePalettes_11::
 	db $06, $00
 	db $06, $04, $02, $04, $02, $02, $02, $05, $06, $04, $02, $06, $00, $07, $05, $04
@@ -131,6 +178,9 @@ FieldSpritePalettes_11::
 	db $04, $07, $07, $05, $05, $03, $04, $04, $04, $02, $04, $06, $01, $03, $01, $00
 	db $01, $04, $00, $00, $00
 
+;@ path: field/sprites
+;@ The frame lists and frames of the sets: per set a list of frame pointers, per frame 4-byte
+;@ entries (y, x, tile, attributes) ended by $80.
 FieldSpriteFrames_11::
 	db $90, $41, $a1, $41, $b2, $41, $c3, $41, $d4, $41, $e5
 	db $41, $f0, $f8, $00, $10, $f0, $00, $01, $10, $f8, $f8, $02, $10, $f8, $00, $03

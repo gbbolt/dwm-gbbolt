@@ -20,12 +20,12 @@ FarTable_07::
 
 ;@ def FieldMenu()
 ;@ path: menu/field
-;@ The field menu (opened with Start while walking), run once a frame: wStatusViewVars
+;@ The field menu (opened with Start while walking), run once a frame: wFieldMenuState
 ;@ is its state - 0 open, 1 draw, 2 main menu input, 3 the chosen option, 4 close.
 ;@ test: skip jumps through a state table
 FieldMenu::
-;> FieldMenuStates[wStatusViewVars]()
-	ld a, [wStatusViewVars]
+;> FieldMenuStates[wFieldMenuState]()
+	ld a, [wFieldMenuState]
 	rst $00
 
 ;@ path: menu/field
@@ -43,8 +43,8 @@ FieldMenuStates::
 ;@ Field menu state 1: draws the main menu, the gold window and the party panel.
 ;@ test: skip draws into VRAM
 FieldMenuDraw::
-;> wStatusViewVars += 1
-	ld hl, wStatusViewVars
+;> wFieldMenuState += 1
+	ld hl, wFieldMenuState
 	inc [hl]
 ;> MenuClearBuffer()
 	call MenuClearBuffer
@@ -84,7 +84,7 @@ DrawMainMenuWindows::
 	call PrintNumber5
 ;> MenuResetBlink()
 	call MenuResetBlink
-;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
 	ld de, $44b4
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
@@ -938,10 +938,10 @@ FieldMenuInput::
 	and $06
 	jr z, .notB
 
-;>     wStatusViewVars += 2
-	ld hl, wStatusViewVars
+;>     wFieldMenuState += 2
+	ld hl, wFieldMenuState
 	inc [hl]
-	ld hl, wStatusViewVars
+	ld hl, wFieldMenuState
 	inc [hl]
 	jr .cursor
 
@@ -954,8 +954,8 @@ FieldMenuInput::
 ;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;>     wStatusViewVars += 1
-	ld hl, wStatusViewVars
+;>     wFieldMenuState += 1
+	ld hl, wFieldMenuState
 	inc [hl]
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
@@ -978,7 +978,7 @@ FieldMenuInput::
 	call MenuLoadPartyNames
 
 .cursor
-;> BlinkMenuCursor(wMenuChoice, MainMenuCursorPos)
+;> BlinkMenuCursor(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
 	ld de, $44b4
 	ld a, [wMenuChoice]
 	call BlinkMenuCursor
@@ -1342,9 +1342,9 @@ StatusPage1Input::
 
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
-;>     wStatusViewVars = 1
+;>     wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	jr .done
 
 .notB
@@ -2210,9 +2210,9 @@ StatusClose::
 	call MenuClearBuffer
 ;> MenuShowBuffer()
 	call MenuShowBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -2348,7 +2348,7 @@ ItemMenuDraw::
 	call PrintNumber5
 ;> MenuResetBlink()
 	call MenuResetBlink
-;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
 	ld de, $44b4
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
@@ -2571,9 +2571,9 @@ ItemListInput::
 
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
-;>     wStatusViewVars = 1
+;>     wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	jr .done
 
 .notB
@@ -2697,7 +2697,7 @@ ItemShowUseDiscard::
 ;> DrawWindow(MainMenuWindow)
 	ld de, MainMenuWindow
 	call DrawWindow
-;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
 	ld de, $44b4
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
@@ -3447,9 +3447,9 @@ ItemApply::
 
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -3885,9 +3885,9 @@ ItemCloseAfterText::
 
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -3937,7 +3937,7 @@ ItemMenuEmpty::
 ;> DrawWindow(ItemListWindow)
 	ld de, ItemListWindow
 	call DrawWindow
-;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
 	ld de, $44b4
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
@@ -3964,9 +3964,9 @@ ItemEmptyInput::
 	call QueueSound
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
-;>     wStatusViewVars = 1
+;>     wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 
 .done
 	ret
@@ -4149,9 +4149,9 @@ ItemDiscard::
 	rst $10
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -4294,9 +4294,9 @@ SkillMonInput::
 
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
-;>     wStatusViewVars = 1
+;>     wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	jr .done
 
 .notB
@@ -4556,17 +4556,18 @@ DrawSkillDescription::
 ;> wTextBoxLineLength = 0x12
 	ld a, d
 	ld [wTextBoxLineLength], a
-;> RenderSkillText()
+;> Call_56_490F()                      # renders the text into the tiles
 	ld hl, far_Call_56_490F
 	rst $10
-;>@c7 restore(saved)                  # wTextTiles, wTextBoxLines, wTextBoxLineLength as they were
+;> wTextTiles = saved[0]
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
-;=@c7
+;> wTextBoxLines = saved[1]
+;> wTextBoxLineLength = saved[2]
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
@@ -5525,9 +5526,9 @@ SkillCloseAfterText::
 
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -5561,9 +5562,9 @@ SkillCloseAfterText2::
 
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -5776,9 +5777,9 @@ SkillHealAllApply::
 	call PaySkillMP
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -5872,9 +5873,9 @@ OptionMenuInput::
 
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
-;>     wStatusViewVars = 1
+;>     wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	jr .done
 
 .notB
@@ -5995,9 +5996,9 @@ MessageSpeedInput::
 	call QueueSound
 ;>     MenuClearBuffer()
 	call MenuClearBuffer
-;>     wStatusViewVars = 1
+;>     wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 
 .done
 	ret
@@ -6215,6 +6216,7 @@ DrawLineUp::
 ;@ path: menu/options
 ;@ One line-up entry at `dest` in the tilemap buffer: tile `number`, a gap, then the
 ;@ four name tiles of party place `place` ($20 + 4 * place on); all blank for $FF.
+;@ test: skip writes through a pointer
 DrawLineUpEntry::
 ;> if place != 0xFF:
 	cp $ff
@@ -6542,9 +6544,9 @@ LineUpConfirm::
 	call BuildStatusBar
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 
 LineUpDone:
 	ret
@@ -7140,9 +7142,9 @@ OptionCloseAfterText::
 
 ;> MenuClearBuffer()
 	call MenuClearBuffer
-;> wStatusViewVars = 1
+;> wFieldMenuState = 1
 	ld a, $01
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ret
 
 
@@ -8201,9 +8203,9 @@ DrawPedigreeSprites::
 ;@ frames unless it has fainted.
 ;@ test: skip calls a routine in another bank
 DrawPartySprites::
-;> if wStatusViewVars != 2 or not wPartyCount:
+;> if wFieldMenuState != 2 or not wPartyCount:
 ;>     return
-	ld a, [wStatusViewVars]
+	ld a, [wFieldMenuState]
 	cp $02
 	ret nz
 
@@ -8982,7 +8984,7 @@ FieldMenuOpen::
 ;@ Lines the scroll up with the tiles, finds the BG map address of the screen's top
 ;@ left corner (wMenuBgMap), clears the buffer and the BG map, loads the font
 ;@ (graphics $2E/$0D to $9000), clears the CGB attributes and advances
-;@ wStatusViewVars.
+;@ wFieldMenuState.
 ;@ test: skip draws into VRAM
 SetUpMenuScreen::
 ;> AlignScrollToTile(hScrollX)
@@ -9032,8 +9034,8 @@ SetUpMenuScreen::
 ;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
-;> wStatusViewVars += 1
-	ld hl, wStatusViewVars
+;> wFieldMenuState += 1
+	ld hl, wFieldMenuState
 	inc [hl]
 	ret
 
@@ -9074,9 +9076,9 @@ FieldMenuClose::
 ;> wFieldFlags &= ~0x02
 	ld hl, wFieldFlags
 	res 1, [hl]
-;> wStatusViewVars = 0
+;> wFieldMenuState = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;> if not wOnGateFloor:
 ;>     return
 	ld a, [wOnGateFloor]

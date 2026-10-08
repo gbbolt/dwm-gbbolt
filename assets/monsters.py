@@ -151,6 +151,52 @@ def build_assets(ctx):
                         'names come from the game\'s own name list (system texts, group 5) and the skill names '
                         'from group 6. Species 217-220 have no record and no picture.'],
                 'users': ['CopyMonsterStats', 'MonsterStats', 'SysText_MonsterNames', 'SysText_SkillNames']})
+    out += breeding(ctx, rom, names, pics, pals)
+    return out
+
+
+def breeding(ctx, rom, names, pics, pals):
+    """The breeding chart from BreedPairTable and SpecialPairTable."""
+    r = ctx.rom
+
+    def who(v):
+        if v < SPECIES:
+            img, _ = pics[v]
+            return [{'image': image(img, pals[v], scale=1)}, names[v]]
+        if 0xF0 <= v < 0xF0 + len(FAMILIES):
+            return ['', 'any {}'.format(FAMILIES[v - 0xF0])]
+        if v == 0xFA:
+            return ['', 'any monster']
+        return ['', '${:02X}'.format(v)]
+
+    a = rom.lin('BreedPairTable')
+    rows, nopair = [], []
+    for s in range(SPECIES):
+        p, m = r[a + 2 * s], r[a + 2 * s + 1]
+        if (p, m) == (0, 0):
+            break
+        if (p, m) == (0xFF, 0xFF):
+            nopair.append(names[s])
+            continue
+        rows.append(who(s) + who(p) + who(m))
+    out = [{'name': 'breeding-chart', 'type': 'table', 'title': 'Breeding chart',
+            'columns': ['', 'Offspring', '', 'Pedigree', '', 'Mate'], 'rows': rows,
+            'doc': ['What two monsters breed: BreedPairTable has one entry per offspring species, the pedigree and '
+                    'the mate it needs. A parent can be a species or "any monster of a family"; the family of the '
+                    'pedigree decides the offspring when no exact pair fits (BreedResult looks for an exact pair '
+                    'first). {} species have no pair at all: {}.'.format(len(nopair), ', '.join(nopair))],
+            'users': ['BreedPairTable', 'MakeOffspring']}]
+    a = rom.lin('SpecialPairTable')
+    rows = []
+    while r[a] != 0xFF and len(rows) < 100:
+        p, m, plus, child, bonus = r[a:a + 5]
+        rows.append(who(child) + who(p) + who(m) + ['+{}'.format(plus), '+{}'.format(bonus)])
+        a += 5
+    out.append({'name': 'breeding-special', 'type': 'table', 'title': 'Special pairs',
+                'columns': ['', 'Offspring', '', 'Pedigree', '', 'Mate', 'Lowest plus', 'Plus bonus'], 'rows': rows,
+                'doc': ['Pairs that only work from a minimum plus value of the parents (SpecialPairTable, 5 bytes each: '
+                        'pedigree, mate, lowest plus, offspring, plus bonus).'],
+                'users': ['SpecialPairTable', 'MakeOffspring']})
     return out
 
 

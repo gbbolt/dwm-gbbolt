@@ -104,7 +104,7 @@ Call_57_408A::
 	push bc
 	ld a, [wBattleArg0]
 	and $03
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -1535,11 +1535,11 @@ jr_057_6ecc:
 	cp $04
 	jr nc, jr_057_6ed8
 
-	ld a, [$c1d5]
+	ld a, [wOrderFlag0]
 	jr jr_057_6edb
 
 jr_057_6ed8:
-	ld a, [$c1d6]
+	ld a, [wOrderFlag1]
 
 jr_057_6edb:
 	ld [wBattleTemp], a
@@ -1876,11 +1876,11 @@ Jump_57_7129::
 	cp $04
 	jr nc, jr_057_713b
 
-	ld a, [$c1d5]
+	ld a, [wOrderFlag0]
 	jr jr_057_7143
 
 jr_057_713b:
-	ld a, [$c1d6]
+	ld a, [wOrderFlag1]
 	jr jr_057_7143
 
 jr_057_7140:
@@ -2014,11 +2014,11 @@ jr_057_71f3:
 	bit 1, a
 	jr nz, jr_057_71ff
 
-	ld a, [$c1d5]
+	ld a, [wOrderFlag0]
 	jr jr_057_7202
 
 jr_057_71ff:
-	ld a, [$c1d6]
+	ld a, [wOrderFlag1]
 
 jr_057_7202:
 	cp $81
@@ -2439,7 +2439,7 @@ Jump_057_7441:
 	jr nz, jr_057_7487
 
 	xor a
-	ld [$dd26], a
+	ld [wAttackWeight], a
 	ld [$dd27], a
 	inc hl
 	ld a, [hl]
@@ -2476,7 +2476,7 @@ jr_057_7487:
 	ld h, a
 	xor a
 	ld [hl], a
-	ld [$dd26], a
+	ld [wAttackWeight], a
 	ld [$dd27], a
 
 Jump_057_749b:
@@ -2750,9 +2750,9 @@ jr_057_7632:
 
 jr_057_7650:
 	push de
-	ld hl, far_Call_58_67BA
+	ld hl, far_AIAttackWeight
 	rst $10
-	ld a, [$dd26]
+	ld a, [wAttackWeight]
 	pop de
 	cp d
 	jr nc, jr_057_7686
@@ -3186,7 +3186,7 @@ jr_057_786d:
 
 jr_057_788b:
 	xor a
-	ld [$dd26], a
+	ld [wAttackWeight], a
 	ld [$dd27], a
 	ld a, [$c1fc]
 	ld hl, $dce4
@@ -3211,11 +3211,11 @@ jr_057_78a2:
 	jr z, jr_057_788b
 
 	ld e, a
-	ld a, [$dd26]
+	ld a, [wAttackWeight]
 	sub e
 	jr c, jr_057_788b
 
-	ld [$dd26], a
+	ld [wAttackWeight], a
 	add [hl]
 	ld [hl], a
 

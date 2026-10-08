@@ -272,7 +272,7 @@ DEF wCollectedItems EQU $C903 ;@ u16 Items handed to the item collector so far (
 DEF wItemsHandedIn EQU $C907 ;@ u8 Items the collector took from the bag this time
 DEF wWindowBgMap EQU $C909 ;@ u16 BG map address of the screen's top left corner (where the menu windows are drawn)
 DEF wCursorBlink EQU $C90C ;@ u8 Menu cursor blink counter (the cursor is redrawn every 16 frames, bit 4 hides it)
-DEF wStatusViewVars EQU $C90D ;@ u8[2] Cleared before the monster status screen opens
+DEF wFieldMenuState EQU $C90D ;@ u8[2] State of the field menu: 0 open, 1 draw, 2 input, 3 option chosen, 4 close
 DEF wViewList EQU $C930 ;@ u16 List of monster slots the monster status screen pages through
 DEF wViewIndex EQU $C932 ;@ u8 Entry of wViewList the status screen starts at
 DEF wViewCount EQU $C933 ;@ u8 Number of entries in wViewList
@@ -621,3 +621,11 @@ DEF wBattleAnimIndex EQU $DD64 ;@ u8 Animation within the set of the battle anim
 DEF wSkillAnimPhase EQU $DD68 ;@ u8 Skill animation sprite phase: 0 flies in from the left, 1 or 2 starts at the place of the target (wItemMsgGroup holds that place)
 DEF wOpeningScene EQU $C88C ;@ u8 Opening scene: 0 logos, 1-3 shooting stars, 4 picture, 5 two stars, 6 title screen (the title menu returns here)
 DEF wOpeningLogo EQU $C88D ;@ u8 Logo screen of the opening (0-2)
+DEF wTargetScores EQU $DB58 ;@ u16 Battle AI scratch: u16 scores of the candidate targets, 2 bytes apart (some pickers start the list at wSkillAmount, two bytes earlier)
+DEF wAttackWeight EQU $DD26 ;@ u8 Weight of the plain Attack for the battle AI (AIAttackWeight): 20, +10 per step the user's attack has over the weakest enemy defense, +30 when its attack is doubled or charged, 1 when no enemy can be hit
+DEF wPersonalityNudge EQU $DB42 ;@ u8[8] Per battle position: flags noted when the chosen skill fits one of the monster's personality bytes (bits 0/1 personality 1 high/low, 2/3 byte +$67, 4/5 personality 2, 6/7 personality 3)
+DEF wTurnOrder EQU $DB79 ;@ u8[9] Battle positions in the order they act this turn, fastest first ($10 = Terry using an item, $FF end)
+DEF wTurnOrderPos EQU $DB82 ;@ u8 Position in wTurnOrder (0 while the order is built)
+DEF wReactionKind EQU $DD6C ;@ u8 Nonzero while the action being carried out is a reaction to another one (counterattack, reflected spell, a SuckAll catch...): its kind ($01, $04, $08, $20...)
+DEF wOrderFlag0 EQU $C1D5 ;@ u8 Order flag of the own side ($81 = the monster carries out a direct command); outside link mode set when an enemy's action was replaced by Attack
+DEF wOrderFlag1 EQU $C1D6 ;@ u8 Order flag of the partner's side in a link battle ($81 = a direct command)

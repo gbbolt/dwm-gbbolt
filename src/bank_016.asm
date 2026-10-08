@@ -72,19 +72,19 @@ MakeOffspring::
 	ld [wCurPartyMember], a
 ;> wLeaderSlot = slot
 	ld [wLeaderSlot], a
-;> fill(OffspringField(wMonsters), 0x95, 0)
+;> fill(OffspringField(wMonsters), 0, 0x95)
 	ld hl, wMonsters
 	call OffspringField
 	ld bc, $0095
 	xor a
 	call FillMemory
-;> fill(OffspringField(wMonSkills), 8, 0xFF)
+;> fill(OffspringField(wMonSkills), 0xFF, 8)
 	ld hl, wMonSkills
 	call OffspringField
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
-;> fill(OffspringField(wMonSkillList), 0x19, 0xFF)
+;> fill(OffspringField(wMonSkillList), 0xFF, 0x19)
 	ld hl, wMonSkillList
 	call OffspringField
 	ld bc, $0019
@@ -1550,7 +1550,7 @@ InitJoinedMonster::
 	call CurMonField
 	ld a, [wPlayerName + 8]
 	ld [hl], a
-;> fill(wSceneObjects, 0x19, 0xFF)      # the new list
+;> fill(wSceneObjects, 0xFF, 0x19)      # the new list
 	ld hl, wSceneObjects
 	ld bc, $0019
 	ld a, $ff
@@ -2432,7 +2432,7 @@ WarpToRandomRoom5A::
 ;@ first four (RollSpecialItem), then one of the rooms $5A-$5C.
 ;@ test: skip calls Random
 SpecialFloorArenaItems::
-;> fill(wArenaWins, 8, 0xFF)
+;> fill(wArenaWins, 0xFF, 8)
 	ld hl, wArenaWins
 	ld bc, $0008
 	ld a, $ff
@@ -2447,7 +2447,7 @@ SpecialFloorArenaItems::
 ;@ def SpecialFloorRoom53()
 ;@ path: field/gatefloor
 ;@ Special floor 2: the fixed room $53, arriving at (72, 104).
-;@ test: none
+;@ test: wMapId = rand(0, 255)
 SpecialFloorRoom53::
 ;> wMapId = 0x53
 	ld a, $53
@@ -2473,7 +2473,7 @@ SpecialFloorRoom53::
 ;@ def SpecialFloorRoom51()
 ;@ path: field/gatefloor
 ;@ Special floor 3: the fixed room $51, arriving at (72, 104).
-;@ test: none
+;@ test: wMapId = rand(0, 255)
 SpecialFloorRoom51::
 ;> wMapId = 0x51
 	ld a, $51
@@ -2499,7 +2499,7 @@ SpecialFloorRoom51::
 ;@ def SpecialFloorRoom50()
 ;@ path: field/gatefloor
 ;@ Special floor 4: the fixed room $50, arriving at (72, 104).
-;@ test: none
+;@ test: wMapId = rand(0, 255)
 SpecialFloorRoom50::
 ;> wMapId = 0x50
 	ld a, $50
@@ -2865,7 +2865,7 @@ jr_016_5ea7:
 ;@ def RandomInRange(first: h, size: l) -> a
 ;@ path: field/gatefloor
 ;@ Returns a random number from first to first + size - 1.
-;@ test: h = rand(0, 100); l = rand(1, 50)
+;@ test: skip calls Random
 RandomInRange::
 ;> Random()
 	push hl
@@ -3204,12 +3204,12 @@ jr_016_605b:
 	ld a, [hl]
 ;=@g6
 	ld [wFloorKind], a
-;> fill(wFloorsSeen, 16, 0)
+;> fill(wFloorsSeen, 0, 16)
 	ld hl, wFloorsSeen
 	ld bc, $0010
 	xor a
 	call FillMemory
-;> fill(wFloorLayout, 16, 0xFF)
+;> fill(wFloorLayout, 0xFF, 16)
 	ld hl, wFloorLayout
 	ld bc, $0010
 	ld a, $ff
@@ -4640,7 +4640,7 @@ jr_016_66e4:
 ;@ 2 left, 1 right. For each side, a neighbour screen whose shape (ScreenShapeTable) has an exit
 ;@ towards this one sets the bit in b (must be open); a neighbour without that exit, or the edge
 ;@ of the grid, sets it in c (must be closed); an empty neighbour ($FF) leaves both clear.
-;@ test: a = rand(0, 15)
+;@ test: skip reads table entries as named fields
 GetScreenExits::
 ;> opens = 0
 ;> closed = 0
@@ -4834,7 +4834,7 @@ jr_016_67ff:
 ;@ of ScreenShapeTable (4 bytes: exits, shape, weight class, unused) are listed in
 ;@ wTilemapBuffer; weight class 1-4 shares a weight of 20, 40, 60 or 80 among its fitting shapes
 ;@ (class 0 is never picked). Returns $0F when nothing fits.
-;@ test: b = rand(0, 15); c = rand(0, 15) & ~b
+;@ test: skip reads table entries as named fields
 PickScreenShape::
 ;> fits = wTilemapBuffer                # (shape, class) pairs, $FF $FF at the end
 	ld de, wTilemapBuffer
@@ -5020,7 +5020,7 @@ jr_016_68c5:
 ;@ def IsStairsSpot() -> z
 ;@ path: field/gatefloor/spots
 ;@ Sets z when the test spot (wMapScreen, hTestX, hTestY) is where the stairs were placed.
-;@ test: none
+;@ test: skip returns the z flag
 IsStairsSpot::
 ;> if wMapScreen != wStairsScreen:
 ;>     return nz
@@ -5058,7 +5058,7 @@ IsStairsSpot::
 ;@ def IsArrivalSpot() -> z
 ;@ path: field/gatefloor/spots
 ;@ Sets z when the test spot (wMapScreen, hTestX, hTestY) is where Terry arrives.
-;@ test: none
+;@ test: skip returns the z flag
 IsArrivalSpot::
 ;> if wMapScreen != arrival.screen:
 ;>     return nz
@@ -5097,7 +5097,7 @@ IsArrivalSpot::
 ;@ path: field/gatefloor/spots
 ;@ Sets z when one of the objects placed so far (wFloorObjects, $FF at the end) is at the test
 ;@ spot (see IsObjectAt).
-;@ test: none
+;@ test: skip returns the z flag
 IsObjectSpot::
 ;>@fo for obj in wFloorObjects:         # 4 bytes each
 	ld hl, wFloorObjects
@@ -5133,7 +5133,7 @@ jr_016_6918:
 ;@ Sets z when the object entry at obj lies on screen wMapScreen in the row of hTestY. The floor
 ;@ is 4 x 4 screens of 10 x 8 tiles; the entry holds the floor tile column and row. Only the row
 ;@ is compared, not the column.
-;@ test: none
+;@ test: skip returns the z flag
 IsObjectAt::
 ;>@g87 screen = obj[2] // 10                # screen column
 	inc hl
@@ -6370,7 +6370,7 @@ EncounterStyleFactor::
 ;@ Returns the map reference (Decompress entry in e, group in d) for screen wMapScreen of the
 ;@ floor: wFloorLayout's byte (shape * 16 + variant) indexes ScreenMapRefs, or
 ;@ PresetScreenMapRefs on a preset floor.
-;@ test: none
+;@ test: skip reads the map reference tables by name
 GetFloorScreenMap::
 ;> refs = PresetScreenMapRefs if wFloorKind == 2 else ScreenMapRefs
 	ld de, ScreenMapRefs

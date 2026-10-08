@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $014", ROMX[$4000], BANK[$14]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_14::
 	db $14
 
+;@ path: system/banks
+;@ Entry points of bank $14: making a new monster (templates, CreateMonster), using items
+;@ outside battle, and RemapMonId.
 FarTable_14::
 	dw LoadMonTemplate
 	dw LoadMonTemplate2
@@ -16,699 +21,894 @@ FarTable_14::
 	dw UseFieldItem
 	dw RemapMonId
 
+;@ def LoadMonTemplate()
+;@ path: monster/create
+;@ Copies the 25-byte template of monster wNewMonId (MonTemplates) to wNewMonNameText.
 LoadMonTemplate::
+;> LoadMonTemplateTo(wNewMonNameText)
 	ld de, wNewMonNameText
 	call LoadMonTemplateTo
 	ret
 
 
+;@ def LoadMonTemplate2()
+;@ path: monster/create
+;@ The same as LoadMonTemplate (a second far entry).
 LoadMonTemplate2::
+;> LoadMonTemplateTo(wNewMonNameText)
 	ld de, wNewMonNameText
 	call LoadMonTemplateTo
 	ret
 
 
+;@ def CreateMonsterUnlisted()
+;@ path: monster/create
+;@ CreateMonster without the library entry: builds monster wNewMonId in record slot
+;@ wNewMonSlot but leaves wLibraryFlags alone.
+;@ test: skip fills a party record through helpers
 CreateMonsterUnlisted::
+;> rec = MonsterField(wNewMonSlot, wMonsters)
+;> FillMemory(rec, 0x95, 0)                    # as in CreateMonster
 	ld hl, wMonsters
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld bc, $0095
 	xor a
 	call FillMemory
+;> p = MonsterField(wNewMonSlot, wMonParent1)
+;> mem[p] = mem[p + 1] = 0xFF
 	ld hl, wMonParent1
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, $ff
 	ld [hli], a
 	ld [hli], a
+;> FillMemory(MonsterField(wNewMonSlot, wMonSkills), 8, 0xFF)
 	ld hl, wMonSkills
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
+;> FillMemory(MonsterField(wNewMonSlot, wMonSkillList), 25, 0xFF)
 	ld hl, wMonSkillList
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld bc, $0019
 	ld a, $ff
 	call FillMemory
+;> CopyToNewMon(wMonParent1Name, UnknownName, 8)
 	ld hl, wMonParent1Name
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> CopyToNewMon(wMonParent1Master, UnknownName, 8)
 	ld hl, wMonParent1Master
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> CopyToNewMon(wMonParent2Name, UnknownName, 8)
 	ld hl, wMonParent2Name
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> CopyToNewMon(wMonParent2Master, UnknownName, 8)
 	ld hl, wMonParent2Master
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> mem[MonsterField(wNewMonSlot, wMonsters)] = 1
 	ld hl, wMonsters
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld [hl], $01
+;> CopyToNewMon(wMonMaster, wPlayerName, 8)
 	ld hl, wMonMaster
 	ld de, wPlayerName
 	ld b, $08
 	call CopyToNewMon
+;> mem[MonsterField(wNewMonSlot, 0xCAD5)] = mem[0xCA4A]
 	ld hl, $cad5
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, [$ca4a]
 	ld [hl], a
+;> LoadMonTemplateTo(wNewMonNameText)
 	ld de, wNewMonNameText
 	call LoadMonTemplateTo
+;> return CreateMonsterFromTemplate()                 # the rest of CreateMonster
 	jp CreateMonsterFromTemplate
 
 
+;@ def CreateMonster()
+;@ path: monster/create
+;@ Builds monster wNewMonId in record slot wNewMonSlot from its template in MonTemplates (25
+;@ bytes, copied to wNewMonNameText): +0 species, +4 level, +5 max HP, +7 max MP, +9 attack,
+;@ +11 defense, +13 agility, +15 intelligence (16-bit each), +17-+20 the four byte stats of
+;@ the record from $64, +21 the 4 skills it knows. The record is cleared, the parents set to
+;@ none ("???"), Terry made its master, the species marked in the library (unless the slot is
+;@ $15). HP, MP, attack, defense, intelligence and the byte stats are lowered at random to
+;@ 80-100 % (agility is not); HP and MP start full. The wildness is 5 * level - 10 *
+;@ wScriptBossIndex (0-255), the level limit the species' limit -2..+2, the sex fixed by
+;@ MonGenderTable or rolled with FemaleChance. Then the experience is set for the level, and
+;@ some monster numbers get a fixed name (FixedMonNames), some of those from $100 on also a
+;@ fixed master; number $15E is created as an egg.
+;@ test: skip fills a party record through helpers
 CreateMonster::
+;> rec = MonsterField(wNewMonSlot, wMonsters)
+;> FillMemory(rec, 0x95, 0)                    # clear the whole record
 	ld hl, wMonsters
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld bc, $0095
 	xor a
 	call FillMemory
+;> p = MonsterField(wNewMonSlot, wMonParent1)
+;> mem[p] = mem[p + 1] = 0xFF                  # no parents
 	ld hl, wMonParent1
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, $ff
 	ld [hli], a
 	ld [hli], a
+;> FillMemory(MonsterField(wNewMonSlot, wMonSkills), 8, 0xFF)          # no skills yet
 	ld hl, wMonSkills
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
+;> FillMemory(MonsterField(wNewMonSlot, wMonSkillList), 25, 0xFF)
 	ld hl, wMonSkillList
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld bc, $0019
 	ld a, $ff
 	call FillMemory
+;> CopyToNewMon(wMonParent1Name, UnknownName, 8)       # "???" for the parents and their masters
 	ld hl, wMonParent1Name
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> CopyToNewMon(wMonParent1Master, UnknownName, 8)
 	ld hl, wMonParent1Master
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> CopyToNewMon(wMonParent2Name, UnknownName, 8)
 	ld hl, wMonParent2Name
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> CopyToNewMon(wMonParent2Master, UnknownName, 8)
 	ld hl, wMonParent2Master
-	ld de, $477a
+	ld de, UnknownName
 	ld b, $08
 	call CopyToNewMon
+;> mem[MonsterField(wNewMonSlot, wMonsters)] = 1       # the record is in use
 	ld hl, wMonsters
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld [hl], $01
+;> CopyToNewMon(wMonMaster, wPlayerName, 8)            # Terry is its master
 	ld hl, wMonMaster
 	ld de, wPlayerName
 	ld b, $08
 	call CopyToNewMon
+;> mem[MonsterField(wNewMonSlot, 0xCAD5)] = mem[0xCA4A]
 	ld hl, $cad5
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, [$ca4a]
 	ld [hl], a
+;> LoadMonTemplateTo(wNewMonNameText)                  # the template of wNewMonId
 	ld de, wNewMonNameText
 	call LoadMonTemplateTo
+;> if wNewMonSlot != 0x15:
+;>     SetFlag(wLibraryFlags, wNewMonNameText[0])      # the library knows the species now
 	ld a, [wNewMonSlot]
 	cp $15
-	jr z, jr_014_4158
+	jr z, CreateMonsterFromTemplate
 
 	ld a, [wNewMonNameText]
 	ld hl, wLibraryFlags
 	call SetFlag
 
 CreateMonsterFromTemplate:
-jr_014_4158:
+;> SetNewMonByte(wMonRecSpecies, wNewMonNameText)      # (CreateMonsterUnlisted goes on here)
 	ld hl, wMonRecSpecies
 	ld de, wNewMonNameText
 	call SetNewMonByte
+;> CopyToNewMon4(wMonSkills, wNewMonNameText + 21)
 	ld hl, wMonSkills
-	ld de, wTemplateSkills
+	ld de, wNewMonNameText + 21
 	call CopyToNewMon4
+;> SetNewMonByte(wMonLevel, wNewMonNameText + 4)
 	ld hl, wMonLevel
-	ld de, wTemplateLevel
+	ld de, wNewMonNameText + 4
 	call SetNewMonByte
+;> CopyToNewMonWord(wMonMaxHP, wNewMonNameText + 5)
 	ld hl, wMonMaxHP
-	ld de, wTemplateHP
+	ld de, wNewMonNameText + 5
 	call CopyToNewMonWord
+;> RandomizeNewMonWord(wMonMaxHP)
 	ld hl, wMonMaxHP
 	call RandomizeNewMonWord
+;> hp = mem16[MonsterField(wNewMonSlot, wMonMaxHP)]
 	ld hl, wMonMaxHP
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
+;>@a1 mem16[MonsterField(wNewMonSlot, wMonHP)] = hp
 	push bc
 	ld hl, wMonHP
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop bc
 	ld [hl], c
+;=@a1
 	inc hl
 	ld [hl], b
+;> CopyToNewMonWord(wMonMaxMP, wNewMonNameText + 7)
 	ld hl, wMonMaxMP
-	ld de, wTemplateMP
+	ld de, wNewMonNameText + 7
 	call CopyToNewMonWord
+;> RandomizeNewMonWord(wMonMaxMP)
 	ld hl, wMonMaxMP
 	call RandomizeNewMonWord
+;> mp = mem16[MonsterField(wNewMonSlot, wMonMaxMP)]
 	ld hl, wMonMaxMP
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
+;>@a2 mem16[MonsterField(wNewMonSlot, wMonMP)] = mp
 	push bc
 	ld hl, wMonMP
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop bc
 	ld [hl], c
+;=@a2
 	inc hl
 	ld [hl], b
+;> CopyToNewMonWord(wMonAttack, wNewMonNameText + 9)
 	ld hl, wMonAttack
-	ld de, wTemplateAttack
+	ld de, wNewMonNameText + 9
 	call CopyToNewMonWord
+;> RandomizeNewMonWord(wMonAttack)
 	ld hl, wMonAttack
 	call RandomizeNewMonWord
+;> CopyToNewMonWord(wMonDefense, wNewMonNameText + 11)
 	ld hl, wMonDefense
-	ld de, wTemplateDefense
+	ld de, wNewMonNameText + 11
 	call CopyToNewMonWord
+;> RandomizeNewMonWord(wMonDefense)
 	ld hl, wMonDefense
 	call RandomizeNewMonWord
+;> CopyToNewMonWord(wMonAgility, wNewMonNameText + 13)
 	ld hl, wMonAgility
-	ld de, wTemplateAgility
+	ld de, wNewMonNameText + 13
 	call CopyToNewMonWord
+;> CopyToNewMonWord(wMonIntelligence, wNewMonNameText + 15)
 	ld hl, wMonIntelligence
-	ld de, wTemplateIntelligence
+	ld de, wNewMonNameText + 15
 	call CopyToNewMonWord
+;> RandomizeNewMonWord(wMonIntelligence)
 	ld hl, wMonIntelligence
 	call RandomizeNewMonWord
+;> SetNewMonByte(wMonStat64, wNewMonNameText + 17)
 	ld hl, wMonStat64
-	ld de, wTemplatePersonality1
+	ld de, wNewMonNameText + 17
 	call SetNewMonByte
+;> RandomizeNewMonByte(wMonStat64)
 	ld hl, wMonStat64
 	call RandomizeNewMonByte
+;> SetNewMonByte(wMonStat65, wNewMonNameText + 18)
 	ld hl, wMonStat65
-	ld de, wTemplatePersonality2
+	ld de, wNewMonNameText + 18
 	call SetNewMonByte
+;> RandomizeNewMonByte(wMonStat65)
 	ld hl, wMonStat65
 	call RandomizeNewMonByte
+;> SetNewMonByte(wMonStat66, wNewMonNameText + 20)
 	ld hl, wMonStat66
-	ld de, wTemplatePersonality3
+	ld de, wNewMonNameText + 20
 	call SetNewMonByte
+;> RandomizeNewMonByte(wMonStat66)
 	ld hl, wMonStat66
 	call RandomizeNewMonByte
+;> SetNewMonByte(wMonStat67, wNewMonNameText + 19)
 	ld hl, wMonStat67
-	ld de, wTemplateStat67
+	ld de, wNewMonNameText + 19
 	call SetNewMonByte
+;> RandomizeNewMonByte(wMonStat67)
 	ld hl, wMonStat67
 	call RandomizeNewMonByte
+;> level5 = 5 * mem[MonsterField(wNewMonSlot, wMonLevel)]
 	ld hl, wMonLevel
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, [hl]
 	ld bc, $0005
 	call Multiply24
+;>@a3 wild = level5 - 10 * wScriptBossIndex
 	push hl
 	ld a, [wScriptBossIndex]
 	ld bc, $000a
 	call Multiply24
 	pop bc
 	ld a, c
+;=@a3
 	sub l
 	ld c, a
 	ld a, b
 	sbc h
 	ld b, a
-	jr nc, jr_014_425d
+;> if wild < 0:
+;>     wild = 0
+	jr nc, .wildPositive
 
 	ld bc, $0000
 
-jr_014_425d:
+.wildPositive
+;> if wild > 255:
+;>     wild = 255
 	ld a, b
 	or a
-	jr z, jr_014_4264
+	jr z, .setWild
 
 	ld bc, $00ff
 
-jr_014_4264:
+.setWild
+;> mem[MonsterField(wNewMonSlot, wMonWildness)] = wild
 	push bc
 	ld hl, wMonWildness
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop bc
 	ld [hl], c
+;> wMonSpecies = wNewMonNameText[0]
 	ld a, [wNewMonNameText]
 	ld [wMonSpecies], a
+;> GetMonsterStats()                                    # the species record into wMonStats
 	ld hl, far_GetMonsterStats
 	rst $10
+;> SetNewMonByte(wMonFamily, wMonStats)
 	ld hl, wMonFamily
 	ld de, wMonStats
 	call SetNewMonByte
+;> Random()
 	call Random
+;>@a4 limit = wMonStats[1] + wRandomHigh % 5 - 2           # the species' level limit -2..+2
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $05
 	call Divide8
 	sub $02
 	ld b, a
-	ld a, [$da34]
+;=@a4
+	ld a, [wMonStats + 1]
 	add b
+;> mem[MonsterField(wNewMonSlot, wMonMaxLevel)] = limit
 	push af
 	ld hl, wMonMaxLevel
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop af
 	ld [hl], a
-	ld hl, wMonResist
+;> CopyToNewMon(0xCB29, wMonResistances, 27)            # the species' resistances
+	ld hl, $cb29
 	ld de, wMonResistances
 	ld b, $1b
 	call CopyToNewMon
+;> CopyToNewMon(wMonSkillList, wMonStats + 6, 3)        # the species' 3 skills
 	ld hl, wMonSkillList
-	ld de, $da39
+	ld de, wMonStats + 6
 	ld b, $03
 	call CopyToNewMon
+;> DropSupersededSkills()
 	call DropSupersededSkills
+;> sex = MonsterField(wNewMonSlot, wMonGender)
 	ld hl, wMonGender
 	ld a, [wNewMonSlot]
 	call MonsterField
+;>@a5 mem[sex] = MonGenderTable[wNewMonId]
 	ld a, [wNewMonId]
 	ld e, a
-	ld a, [$da13]
+	ld a, [wNewMonId + 1]
 	ld d, a
 	ld a, e
-	add $1d
+	add LOW(MonGenderTable)
+;=@a5
 	ld e, a
 	ld a, d
-	adc $4a
+	adc HIGH(MonGenderTable)
 	ld d, a
 	ld a, [de]
 	ld [hl], a
+;> if mem[sex] == 0xFF:                                  # not fixed: roll it
 	cp $ff
-	jr nz, jr_014_42fe
+	jr nz, .sexDone
 
+;>     mem[sex] = 0
 	ld [hl], $00
+;>     Random()
 	call Random
-	ld hl, $459e
-	ld a, [wMonSexChance]
+;>@a6     if wRandomHigh < FemaleChance[wMonStats[3]]:
+	ld hl, FemaleChance
+	ld a, [wMonStats + 3]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@a6
 	ld h, a
 	ld a, [wRandomHigh]
 	cp [hl]
-	jr z, jr_014_42fe
+	jr z, .sexDone
 
-	jr nc, jr_014_42fe
+	jr nc, .sexDone
 
+;>         mem[MonsterField(wNewMonSlot, wMonGender)] = 1
 	ld hl, wMonGender
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld [hl], $01
 
-jr_014_42fe:
+.sexDone
+;> wCurPartyMember = wNewMonSlot
 	ld a, [wNewMonSlot]
 	ld [wCurPartyMember], a
+;> SetExpForLevel()                                     # the experience of its level
 	ld hl, far_SetExpForLevel
 	rst $10
-	ld a, [$da13]
+;> if wNewMonId < 0x100:
+	ld a, [wNewMonId + 1]
 	or a
-	jp nz, Jump_014_4413
+	jp nz, .bigId
 
+;>     if wNewMonId == 0x01: name = FixedMonNames      # Slib
 	ld a, [wNewMonId]
 	cp $01
-	ld de, $45a2
-	jp z, Jump_014_4469
+	ld de, FixedMonNames
+	jp z, .setName
 
+;>     elif wNewMonId == 0x0C: name = FixedMonNames + 8 * 1      # Hale
 	cp $0c
-	ld de, $45aa
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 1
+	jp z, .setName
 
+;>     elif wNewMonId == 0x34: name = FixedMonNames + 8 * 4      # Gig
 	cp $34
-	ld de, $45c2
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 4
+	jp z, .setName
 
+;>     elif wNewMonId == 0x36: name = FixedMonNames + 8 * 5      # Face
 	cp $36
-	ld de, $45ca
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 5
+	jp z, .setName
 
+;>     elif wNewMonId == 0x38: name = FixedMonNames + 8 * 6      # Pash
 	cp $38
-	ld de, $45d2
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 6
+	jp z, .setName
 
+;>     elif wNewMonId == 0x4C: name = FixedMonNames + 8 * 7      # Fang
 	cp $4c
-	ld de, $45da
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 7
+	jp z, .setName
 
+;>     elif wNewMonId == 0x4E: name = FixedMonNames + 8 * 8
 	cp $4e
-	ld de, $45e2
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 8
+	jp z, .setName
 
+;>     elif wNewMonId == 0x50: name = FixedMonNames + 8 * 9      # Gant
 	cp $50
-	ld de, $45ea
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 9
+	jp z, .setName
 
+;>     elif wNewMonId == 0x64: name = FixedMonNames + 8 * 10
 	cp $64
-	ld de, $45f2
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 10
+	jp z, .setName
 
+;>     elif wNewMonId == 0x66: name = FixedMonNames + 8 * 11      # Wrex
 	cp $66
-	ld de, $45fa
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 11
+	jp z, .setName
 
+;>     elif wNewMonId == 0x68: name = FixedMonNames + 8 * 12      # Mime
 	cp $68
-	ld de, $4602
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 12
+	jp z, .setName
 
+;>     elif wNewMonId == 0x7C: name = FixedMonNames + 8 * 13      # Func
 	cp $7c
-	ld de, $460a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 13
+	jp z, .setName
 
+;>     elif wNewMonId == 0x7E: name = FixedMonNames + 8 * 14
 	cp $7e
-	ld de, $4612
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 14
+	jp z, .setName
 
+;>     elif wNewMonId == 0x80: name = FixedMonNames + 8 * 15      # Ebi
 	cp $80
-	ld de, $461a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 15
+	jp z, .setName
 
+;>     elif wNewMonId == 0x94: name = FixedMonNames + 8 * 16
 	cp $94
-	ld de, $4622
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 16
+	jp z, .setName
 
+;>     elif wNewMonId == 0x96: name = FixedMonNames + 8 * 17      # Mats
 	cp $96
-	ld de, $462a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 17
+	jp z, .setName
 
+;>     elif wNewMonId == 0x9A: name = FixedMonNames + 8 * 18      # Kix
 	cp $9a
-	ld de, $4632
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 18
+	jp z, .setName
 
+;>     elif wNewMonId == 0xB0: name = FixedMonNames + 8 * 19      # Dark
 	cp $b0
-	ld de, $463a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 19
+	jp z, .setName
 
+;>     elif wNewMonId == 0xB2: name = FixedMonNames + 8 * 20
 	cp $b2
-	ld de, $4642
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 20
+	jp z, .setName
 
+;>     elif wNewMonId == 0xB4: name = FixedMonNames + 8 * 21
 	cp $b4
-	ld de, $464a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 21
+	jp z, .setName
 
+;>     elif wNewMonId == 0xC8: name = FixedMonNames + 8 * 22
 	cp $c8
-	ld de, $4652
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 22
+	jp z, .setName
 
+;>     elif wNewMonId == 0xCA: name = FixedMonNames + 8 * 23
 	cp $ca
-	ld de, $465a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 23
+	jp z, .setName
 
+;>     elif wNewMonId == 0xCC: name = FixedMonNames + 8 * 24
 	cp $cc
-	ld de, $4662
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 24
+	jp z, .setName
 
+;>     elif wNewMonId == 0xCE: name = FixedMonNames + 8 * 25
 	cp $ce
-	ld de, $466a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 25
+	jp z, .setName
 
+;>     elif wNewMonId == 0xD0: name = FixedMonNames + 8 * 26
 	cp $d0
-	ld de, $4672
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 26
+	jp z, .setName
 
+;>     elif wNewMonId == 0xD2: name = FixedMonNames + 8 * 27
 	cp $d2
-	ld de, $467a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 27
+	jp z, .setName
 
+;>     elif wNewMonId == 0xD4: name = FixedMonNames + 8 * 28
 	cp $d4
-	ld de, $4682
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 28
+	jp z, .setName
 
+;>     elif wNewMonId == 0xD6: name = FixedMonNames + 8 * 29
 	cp $d6
-	ld de, $468a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 29
+	jp z, .setName
 
+;>     elif wNewMonId == 0xD8: name = FixedMonNames + 8 * 30
 	cp $d8
-	ld de, $4692
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 30
+	jp z, .setName
 
+;>     elif wNewMonId == 0xDA: name = FixedMonNames + 8 * 31
 	cp $da
-	ld de, $469a
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 31
+	jp z, .setName
 
+;>     elif wNewMonId == 0xDC: name = FixedMonNames + 8 * 32
 	cp $dc
-	ld de, $46a2
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 32
+	jp z, .setName
 
+;>     elif wNewMonId == 0xDF: name = FixedMonNames + 8 * 33      # Wata
 	cp $df
-	ld de, $46aa
-	jp z, Jump_014_4469
+	ld de, FixedMonNames + 8 * 33
+	jp z, .setName
 
+;>     else: return
 	ret
 
-
-Jump_014_4413:
+.bigId
+;> else:
+;>     if wNewMonId == 0x131:      # master Mick, name Lizd
+;>@m31         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 35, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 36, 8); return
 	ld a, [wNewMonId]
 	cp $31
-	jr z, jr_014_4472
+	jr z, .master31
 
+;>     elif wNewMonId == 0x132:      # master Dob, name Fuga
+;>@m32         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 37, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 38, 8); return
 	cp $32
-	jr z, jr_014_4489
+	jr z, .master32
 
+;>     elif wNewMonId == 0x133:      # master Mick, name Bone
+;>@m33         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 39, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 40, 8); return
 	cp $33
-	jp z, Jump_014_44a0
+	jp z, .master33
 
+;>     elif wNewMonId == 0x134:      # master Teto, name Kure
+;>@m34         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 41, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 42, 8); return
 	cp $34
-	jp z, Jump_014_44b7
+	jp z, .master34
 
+;>     elif wNewMonId == 0x135:      # master May, name Zee
+;>@m35         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 43, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 44, 8); return
 	cp $35
-	jp z, Jump_014_44ce
+	jp z, .master35
 
+;>     elif wNewMonId == 0x136:      # master Teto, name Pach
+;>@m36         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 45, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 46, 8); return
 	cp $36
-	jp z, Jump_014_44e5
+	jp z, .master36
 
+;>     elif wNewMonId == 0x137:      # master Meta, name Moha
+;>@m37         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 47, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 48, 8); return
 	cp $37
-	jp z, Jump_014_44fc
+	jp z, .master37
 
+;>     elif wNewMonId == 0x138:      # master Magi
+;>@m38         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 49, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 50, 8); return
 	cp $38
-	jp z, Jump_014_4513
+	jp z, .master38
 
+;>     elif wNewMonId == 0x139:      # master Teto, name Diz
+;>@m39         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 51, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 52, 8); return
 	cp $39
-	jp z, Jump_014_452a
+	jp z, .master39
 
+;>     elif wNewMonId == 0x13A:      # master May, name Pete
+;>@m3A         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 53, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 54, 8); return
 	cp $3a
-	jp z, Jump_014_4541
+	jp z, .master3A
 
+;>     elif wNewMonId == 0x13B:      # master Meta, name Meta
+;>@m3B         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 55, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 56, 8); return
 	cp $3b
-	jp z, Jump_014_4558
+	jp z, .master3B
 
+;>     elif wNewMonId == 0x13C:      # master Mila, name Kai
+;>@m3C         CopyToNewMon(wMonMaster, FixedMonNames + 8 * 57, 8); CopyToNewMon(wMonName, FixedMonNames + 8 * 58, 8); return
 	cp $3c
-	jp z, Jump_014_456f
+	jp z, .master3C
 
+;>@egg     elif wNewMonId == 0x15E: mem[MonsterField(wNewMonSlot, wMonEgg)] = 1; return   # an egg
 	cp $5e
-	jp z, Jump_014_4586
+	jp z, .egg
 
+;>@s5f     elif wNewMonId == 0x15F: CopyToNewMon(wMonName, FixedMonNames + 8 * 34, 8); return      # Slio
 	cp $5f
-	jp z, Jump_014_4592
+	jp z, .name15F
 
+;>     elif wNewMonId == 0x1E4: name = FixedMonNames + 8 * 2      # Dran
 	cp $e4
-	ld de, $45b2
-	jr z, jr_014_4469
+	ld de, FixedMonNames + 8 * 2
+	jr z, .setName
 
+;>     elif wNewMonId == 0x1E5: name = FixedMonNames + 8 * 3      # Golm
 	cp $e5
-	ld de, $45ba
-	jr z, jr_014_4469
+	ld de, FixedMonNames + 8 * 3
+	jr z, .setName
 
+;>     else: return
 	ret
 
-
-Jump_014_4469:
-jr_014_4469:
+.setName
+;> CopyToNewMon(wMonName, name, 8)
 	ld hl, wMonName
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-jr_014_4472:
+.master31
+;=@m31
 	ld hl, wMonMaster
-	ld de, $46ba
+	ld de, FixedMonNames + 8 * 35
 	ld b, $08
 	call CopyToNewMon
+;=@m31
 	ld hl, wMonName
-	ld de, $46c2
+	ld de, FixedMonNames + 8 * 36
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-jr_014_4489:
+.master32
+;=@m32
 	ld hl, wMonMaster
-	ld de, $46ca
+	ld de, FixedMonNames + 8 * 37
 	ld b, $08
 	call CopyToNewMon
+;=@m32
 	ld hl, wMonName
-	ld de, $46d2
+	ld de, FixedMonNames + 8 * 38
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_44a0:
+.master33
+;=@m33
 	ld hl, wMonMaster
-	ld de, $46da
+	ld de, FixedMonNames + 8 * 39
 	ld b, $08
 	call CopyToNewMon
+;=@m33
 	ld hl, wMonName
-	ld de, $46e2
+	ld de, FixedMonNames + 8 * 40
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_44b7:
+.master34
+;=@m34
 	ld hl, wMonMaster
-	ld de, $46ea
+	ld de, FixedMonNames + 8 * 41
 	ld b, $08
 	call CopyToNewMon
+;=@m34
 	ld hl, wMonName
-	ld de, $46f2
+	ld de, FixedMonNames + 8 * 42
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_44ce:
+.master35
+;=@m35
 	ld hl, wMonMaster
-	ld de, $46fa
+	ld de, FixedMonNames + 8 * 43
 	ld b, $08
 	call CopyToNewMon
+;=@m35
 	ld hl, wMonName
-	ld de, $4702
+	ld de, FixedMonNames + 8 * 44
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_44e5:
+.master36
+;=@m36
 	ld hl, wMonMaster
-	ld de, $470a
+	ld de, FixedMonNames + 8 * 45
 	ld b, $08
 	call CopyToNewMon
+;=@m36
 	ld hl, wMonName
-	ld de, $4712
+	ld de, FixedMonNames + 8 * 46
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_44fc:
+.master37
+;=@m37
 	ld hl, wMonMaster
-	ld de, $471a
+	ld de, FixedMonNames + 8 * 47
 	ld b, $08
 	call CopyToNewMon
+;=@m37
 	ld hl, wMonName
-	ld de, $4722
+	ld de, FixedMonNames + 8 * 48
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_4513:
+.master38
+;=@m38
 	ld hl, wMonMaster
-	ld de, $472a
+	ld de, FixedMonNames + 8 * 49
 	ld b, $08
 	call CopyToNewMon
+;=@m38
 	ld hl, wMonName
-	ld de, $4732
+	ld de, FixedMonNames + 8 * 50
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_452a:
+.master39
+;=@m39
 	ld hl, wMonMaster
-	ld de, $473a
+	ld de, FixedMonNames + 8 * 51
 	ld b, $08
 	call CopyToNewMon
+;=@m39
 	ld hl, wMonName
-	ld de, $4742
+	ld de, FixedMonNames + 8 * 52
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_4541:
+.master3A
+;=@m3A
 	ld hl, wMonMaster
-	ld de, $474a
+	ld de, FixedMonNames + 8 * 53
 	ld b, $08
 	call CopyToNewMon
+;=@m3A
 	ld hl, wMonName
-	ld de, $4752
+	ld de, FixedMonNames + 8 * 54
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_4558:
+.master3B
+;=@m3B
 	ld hl, wMonMaster
-	ld de, $475a
+	ld de, FixedMonNames + 8 * 55
 	ld b, $08
 	call CopyToNewMon
+;=@m3B
 	ld hl, wMonName
-	ld de, $4762
+	ld de, FixedMonNames + 8 * 56
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_456f:
+.master3C
+;=@m3C
 	ld hl, wMonMaster
-	ld de, $476a
+	ld de, FixedMonNames + 8 * 57
 	ld b, $08
 	call CopyToNewMon
+;=@m3C
 	ld hl, wMonName
-	ld de, $4772
+	ld de, FixedMonNames + 8 * 58
 	ld b, $08
 	call CopyToNewMon
 	ret
 
-
-Jump_014_4586:
+.egg
+;=@egg
 	ld hl, wMonEgg
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld [hl], $01
 	ret
 
-
-Jump_014_4592:
+.name15F
+;=@s5f
 	ld hl, wMonName
-	ld de, $46b2
+	ld de, FixedMonNames + 8 * 34
 	ld b, $08
 	call CopyToNewMon
 	ret
 
 
+;@ path: monster/create
+;@ Chance (out of 256) that a new monster without a fixed sex gets sex 1, by the sex class of
+;@ its species (byte 3 of the species record): 0, 10 %, 50 %, 84 %.
 FemaleChance::
 	db $00, $1a, $80, $d6
 
+;@ path: monster/create
+;@ Fixed names (8 bytes each, padded with $F0) that CreateMonster gives some monster numbers,
+;@ and from entry 35 on pairs of master name and monster name for monsters $131-$13C. Some
+;@ entries are spelled with other font characters than the Latin letters.
 FixedMonNames::
 	db $36, $49, $46, $3f, $f0, $f0, $f0, $f0, $2b, $3e, $49, $42
 	db $f0, $f0, $f0, $f0, $27, $4f, $3e, $4b, $f0, $f0, $f0, $f0, $2a, $4c, $49, $4a
@@ -741,11 +941,18 @@ FixedMonNames::
 	db $f0, $f0, $f0, $f0, $30, $42, $51, $3e, $f0, $f0, $f0, $f0, $30, $46, $49, $3e
 	db $f0, $f0, $f0, $f0, $2e, $3e, $46, $f0, $f0, $f0, $f0, $f0
 
+;@ path: monster/create
+;@ "???" ($64 three times, padded with $F0): the name of unknown parents and their masters.
 UnknownName::
 	db $64, $64, $64, $f0
 	db $f0, $f0, $f0, $f0
 
+;@ def CopyToNewMon(field: hl, src: de, count: b)
+;@ path: monster/create
+;@ Copies `count` bytes from `src` into field `field` of the new monster's record (slot
+;@ wNewMonSlot).
 CopyToNewMon::
+;> dest = MonsterField(wNewMonSlot, field)
 	push bc
 	push de
 	ld a, [wNewMonSlot]
@@ -753,39 +960,59 @@ CopyToNewMon::
 	pop de
 	pop bc
 
-jr_014_478c:
+.copy
+;> copy(dest, src, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_014_478c
+	jr nz, .copy
 
 	ret
 
 
+;@ def SetNewMonByte(field: hl, src: de)
+;@ path: monster/create
+;@ Copies the byte at `src` into field `field` of the new monster's record.
 SetNewMonByte::
+;> dest = MonsterField(wNewMonSlot, field)
 	push de
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop de
+;> mem[dest] = mem[src]
 	ld a, [de]
 	ld [hl], a
 	ret
 
 
+;@ def CopyToNewMonWord(field: hl, src: de)
+;@ path: monster/create
+;@ Copies 2 bytes into the new monster's record (CopyToNewMon). After it come 5 bytes no code
+;@ reaches: ld b, 3 / jp CopyToNewMon, the same for 3 bytes.
 CopyToNewMonWord::
+;> return CopyToNewMon(field, src, 2)
 	ld b, $02
 	jp CopyToNewMon
 
 
 	db $06, $03, $c3, $82, $47
 
+;@ def CopyToNewMon4(field: hl, src: de)
+;@ path: monster/create
+;@ Copies 4 bytes into the new monster's record (CopyToNewMon).
 CopyToNewMon4::
+;> return CopyToNewMon(field, src, 4)
 	ld b, $04
 	jp CopyToNewMon
 
 
+;@ def DropSupersededSkills()
+;@ path: monster/create
+;@ For each of the 8 skills the new monster knows, takes the first skill of that skill's
+;@ series out of its list of skills to learn (DropSupersededSkill).
 DropSupersededSkills::
+;> skills = MonsterField(wNewMonSlot, wMonSkills)
 	ld hl, wMonSkills
 	ld a, [wNewMonSlot]
 	call MonsterField
@@ -793,193 +1020,254 @@ DropSupersededSkills::
 	ld d, h
 	ld b, $08
 
-jr_014_47ba:
+.skill
+;>@s for i in range(8):
+;>     DropSupersededSkill(mem[skills + i], skills + i)
 	ld a, [de]
 	push bc
 	push de
 	call DropSupersededSkill
 	pop de
 	pop bc
+;=@s
 	inc de
 	dec b
-	jr nz, jr_014_47ba
+	jr nz, .skill
 
 	ret
 
 
+;@ def DropSupersededSkill(skill: a, slot: de)
+;@ path: monster/create
+;@ Skill $DB is removed from the known skills itself. For any other skill, the first skill of
+;@ its series (SkillSupersedes) is taken out of the new monster's list of skills to learn
+;@ (wMonSkillList, 25 entries; the first match becomes $FF).
 DropSupersededSkill::
+;> if skill == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> if skill == 0xDB:
+;>     mem[slot] = 0xFF; return
 	cp $db
-	jr nz, jr_014_47d2
+	jr nz, .series
 
 	ld a, $ff
 	ld [de], a
 	ret
 
-
-jr_014_47d2:
-	ld hl, $491d
+.series
+;> base = SkillSupersedes[skill]
+	ld hl, SkillSupersedes
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> if base == 0xFF: return
 	ld a, [hl]
 	cp $ff
 	ret z
 
+;> learn = MonsterField(wNewMonSlot, wMonSkillList)
 	push af
 	ld hl, wMonSkillList
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop af
+;>@f for i in range(25):
 	ld b, $19
 	ld c, a
 
-jr_014_47ed:
+.find
+;>     if mem[learn + i] != 0xFF and mem[learn + i] == base:
 	ld a, [hl]
 	cp $ff
-	jr z, jr_014_47f8
+	jr z, .next
 
 	cp c
-	jr nz, jr_014_47f8
+	jr nz, .next
 
+;>         mem[learn + i] = 0xFF; return
 	ld [hl], $ff
 	ret
 
-
-jr_014_47f8:
+.next
+;=@f
 	inc hl
 	dec b
-	jr nz, jr_014_47ed
+	jr nz, .find
 
 	ret
 
 
+;@ def RandomizeNewMonByte(field: hl)
+;@ path: monster/create
+;@ Lowers a byte field of the new monster's record at random: value * (205..256) / 256, that
+;@ is to 80-100 %.
 RandomizeNewMonByte::
+;> Random()
 	push hl
 	call Random
+;> factor = 0xCD + wRandomHigh % 52
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $34
 	call Divide8
 	add $cd
+;> if factor == 0x100:                    # (the byte wrapped to 0: the value stays)
+;>     return
 	pop hl
 	ret z
 
+;> p = MonsterField(wNewMonSlot, field)
 	push af
 	ld a, [wNewMonSlot]
 	call MonsterField
+;>@d1 mem[p] = (mem[p] * factor) >> 8
 	ld c, [hl]
 	ld b, $00
 	pop af
 	push hl
 	call Multiply24
 	ld c, h
+;=@d1
 	pop hl
 	ld [hl], c
 	ret
 
 
+;@ def RandomizeNewMonWord(field: hl)
+;@ path: monster/create
+;@ The same for a 16-bit field.
 RandomizeNewMonWord::
+;> Random()
 	push hl
 	call Random
+;> factor = 0xCD + wRandomHigh % 52
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $34
 	call Divide8
 	add $cd
+;> if factor == 0x100:
+;>     return
 	pop hl
 	ret z
 
+;> p = MonsterField(wNewMonSlot, field)
 	push af
 	ld a, [wNewMonSlot]
 	call MonsterField
+;>@d2 mem16[p] = (mem16[p] * factor) >> 8
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	pop af
 	dec hl
 	push hl
+;=@d2
 	call Multiply24
 	ld c, h
 	ld b, e
 	pop hl
 	ld [hl], c
 	inc hl
+;=@d2
 	ld [hl], b
 	ret
 
 
+;@ def LoadMonTemplateTo(dest: de)
+;@ path: monster/create
+;@ Copies the 25-byte template of monster wNewMonId (MonTemplates + 25 * wNewMonId) to `dest`.
 LoadMonTemplateTo::
+;>@d3 src = MonTemplates + 25 * wNewMonId
 	push de
 	ld a, [wNewMonId]
 	ld c, a
-	ld a, [$da13]
+	ld a, [wNewMonId + 1]
 	ld b, a
 	ld a, $19
+;=@d3
 	call Multiply24
 	ld a, l
-	add $1d
+	add LOW(MonTemplates)
 	ld l, a
 	ld a, h
-	adc $4c
+	adc HIGH(MonTemplates)
+;=@d3
 	ld h, a
+;>@d4 copy(dest, src, 25)
 	pop de
 	ld b, $19
 
-jr_014_4862:
+.copy
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_014_4862
+;=@d4
+	jr nz, .copy
 
 	ret
 
 
+;@ def RemapMonId()
+;@ path: monster/create
+;@ Replaces wNewMonId by its partner in MonIdRemap (pairs of 16-bit numbers, ended by
+;@ $FFFF), if it is listed there.
 RemapMonId::
+;> entry = MonIdRemap
 	ld a, [wNewMonId]
 	ld c, a
-	ld a, [$da13]
+	ld a, [wNewMonId + 1]
 	ld b, a
-	ld hl, $4893
+	ld hl, MonIdRemap
 
-jr_014_4874:
+.entry
+;>@e while True:
+;>     old = mem16[entry]
 	ld a, [hli]
 	ld e, a
 	ld a, [hli]
 	ld d, a
+;>     if old == 0xFFFF:
+;>         return
 	and e
 	cp $ff
-	jr nz, jr_014_487e
+	jr nz, .check
 
 	ret
 
-
-jr_014_487e:
+.check
+;>     if old == wNewMonId:
 	ld a, e
 	cp c
-	jr nz, jr_014_488f
+	jr nz, .next
 
 	ld a, d
 	cp b
-	jr nz, jr_014_488f
+	jr nz, .next
 
+;>         wNewMonId = mem16[entry + 2]; return
 	ld a, [hli]
 	ld [wNewMonId], a
 	ld a, [hli]
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 	ret
 
-
-jr_014_488f:
+.next
+;>     entry += 4
 	inc hl
 	inc hl
-	jr jr_014_4874
+;=@e
+	jr .entry
 
+;@ path: monster/create
+;@ Pairs of monster numbers (16 bits each) for RemapMonId: the first is replaced by the second.
+;@ Ended by $FFFF.
 MonIdRemap::
 	db $04, $00, $e6, $01, $0b, $00, $0c, $00, $1f, $00, $e4, $01, $20, $00, $e5, $01
 	db $33, $00, $34, $00, $35, $00, $36, $00, $37, $00, $38, $00, $4b, $00, $4c, $00
@@ -991,6 +1279,9 @@ MonIdRemap::
 	db $d3, $00, $d4, $00, $d5, $00, $d6, $00, $d7, $00, $d8, $00, $d9, $00, $da, $00
 	db $db, $00, $dc, $00, $dd, $00, $de, $00, $ff, $ff
 
+;@ path: monster/create
+;@ For each skill number: the first skill of its series ($FF for none), which DropSupersededSkill
+;@ takes out of the list of skills a new monster has yet to learn.
 SkillSupersedes::
 	db $00, $00, $00, $03, $03, $03
 	db $06, $06, $06, $09, $09, $09, $0c, $0c, $0c, $0f, $0f, $0f, $12, $12, $14, $15
@@ -1010,6 +1301,8 @@ SkillSupersedes::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ path: monster/create
+;@ Sex of each monster number (512 entries): 0 or 1 fixed, $FF rolled with FemaleChance.
 MonGenderTable::
 	db $ff, $00, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $00, $00, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -1045,6 +1338,11 @@ MonGenderTable::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ path: monster/create
+;@ The monster templates CreateMonster builds from, 25 bytes per monster number: +0 species,
+;@ +4 level, +5 max HP, +7 max MP, +9 attack, +11 defense, +13 agility, +15 intelligence
+;@ (16 bits each), +17-+20 the four byte stats of the record from $64 (in the order $64, $65,
+;@ $67, $66), +21 the 4 skills it knows ($FF none).
 MonTemplates::
 	db $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $ff
@@ -2462,8 +2760,8 @@ UseItemStartBattle::
 ;> wBattleKind = 0
 	ld a, $00
 	ld [wBattleKind], a
-;> wStatusViewVars[0] += 1
-	ld hl, wStatusViewVars
+;> wFieldMenuState[0] += 1
+	ld hl, wFieldMenuState
 	inc [hl]
 	ret
 

@@ -4,9 +4,13 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $013", ROMX[$4000], BANK[$13]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_13::
 	db $13
 
+;@ path: system/banks
+;@ Entry points of bank $13: experience and level-up gains, and the wipe into a battle.
 FarTable_13::
 	dw GetExpForNextLevel
 	dw SetExpForLevel
@@ -333,56 +337,75 @@ AddPlusBonuses::
 	ret
 
 
+;@ def RollPlusBonus(min: b, range: c, div: d)
+;@ path: monster/levels
+;@ One bonus of AddPlusBonuses: if the monster's plus value (wMonPlus) reaches a random
+;@ threshold min + (random % range), wBaseGain / div (at least 1) is added to the gain in
+;@ wLevelGains[5], which stops at 255.
+;@ test: skip uses the random number generator
 RollPlusBonus::
+;> Random()
 	push de
 	push bc
 	call Random
+;>@r1 threshold = min + (wRandomHigh | wRandomLow << 8) % range
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	pop bc
 	push bc
+;=@r1
 	ld a, c
 	call Divide16
 	pop bc
 	add b
 	ld b, a
+;> if mem[MonsterField(wCurPartyMember, wMonPlus)] < threshold:
+;>@r2     return
 	pop de
 	push de
 	push bc
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
+;=@r2
 	pop bc
 	pop de
 	ld a, [hl]
 	cp b
 	ret c
 
+;>@r3 bonus = max(wBaseGain // div, 1)
 	ld a, [wBaseGain]
 	ld b, a
 	ld a, d
 	call Divide8
 	ld a, b
 	or a
-	jr nz, jr_013_41d9
+;=@r3
+	jr nz, .add
 
 	inc a
 
-jr_013_41d9:
+.add
+;>@r4 wLevelGains[5] = min(wLevelGains[5] + bonus, 255)
 	ld b, a
-	ld a, [$c8cf]
+	ld a, [wLevelGains + 5]
 	add b
-	jr nc, jr_013_41e2
+	jr nc, .store
 
 	ld a, $ff
 
-jr_013_41e2:
-	ld [$c8cf], a
+.store
+	ld [wLevelGains + 5], a
+;=@r4
 	ret
 
 
+;@ path: monster/levels
+;@ Experience curves: 32 tables of 99 levels, 3 bytes per level (24-bit, little endian), the
+;@ experience a monster needs for that level. The species record picks the table (byte 2).
 ExpTables::
 	db $00, $00, $00, $02, $00, $00, $07, $00, $00, $0f, $00, $00, $1e, $00, $00, $32
 	db $00, $00, $5a, $00, $00, $8c, $00, $00, $d7, $00, $00, $4a, $01, $00, $f4, $01
@@ -978,6 +1001,9 @@ ExpTables::
 	db $88, $99, $56, $28, $20, $58, $c8, $a6, $59, $68, $2d, $5b, $08, $b4, $5c, $a8
 	db $3a, $5e, $48, $c1, $5f, $e8, $47, $61, $88, $ce, $62, $28, $55, $64, $c8, $db
 	db $65, $68, $62, $67, $08, $e9, $68, $a8, $6f, $6a, $48, $f6, $6b, $e8, $7c, $6d
+;@ path: monster/levels
+;@ Stat growth curves: 32 curves of 99 levels, one byte per level, the gain of a stat at a
+;@ level-up. Bytes 9-14 of the species record pick the curve of each of the six stats.
 StatGrowthTables::
 	db $00, $01, $01, $00, $01, $01, $01, $00, $00, $01, $00, $01, $00, $00, $01, $00
 	db $01, $00, $00, $00, $01, $01, $00, $01, $00, $00, $01, $01, $00, $00, $01, $01

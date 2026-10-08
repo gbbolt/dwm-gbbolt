@@ -551,9 +551,9 @@ jr_050_431f:
 	inc hl
 	inc hl
 	ld a, [hli]
-	ld [$c1d5], a
+	ld [wOrderFlag0], a
 	ld a, [hli]
-	ld [$c1d6], a
+	ld [wOrderFlag1], a
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_050_4340
@@ -609,7 +609,7 @@ jr_050_4361:
 	ld a, [wMenuChoice]
 	ld [$c1ef], a
 	ld a, [wMenuChoice]
-	ld [$c1d5], a
+	ld [wOrderFlag0], a
 	jr jr_050_43a2
 
 jr_050_438a:
@@ -620,7 +620,7 @@ jr_050_438a:
 	ld a, [wMenuChoice]
 	ld [$c1f0], a
 	ld a, [wMenuChoice]
-	ld [$c1d6], a
+	ld [wOrderFlag1], a
 
 Jump_050_43a2:
 jr_050_43a2:
@@ -2044,7 +2044,7 @@ jr_050_4c40:
 	ld [wSkillUser], a
 	ld a, [wBattleArg3]
 	ld [wSkillId], a
-	ld hl, far_Call_58_642C
+	ld hl, far_AITargetRandomEnemy
 	rst $10
 	pop bc
 	ld a, b
@@ -2073,7 +2073,7 @@ jr_050_4c72:
 	ld [wSkillUser], a
 	ld a, [wBattleArg3]
 	ld [wSkillId], a
-	ld hl, far_Call_58_6379
+	ld hl, far_AITargetAnyone
 	rst $10
 	pop bc
 	ld a, b
@@ -3797,7 +3797,7 @@ Jump_50_571E::
 
 	call Call_50_5772
 	ld a, $01
-	ld [$c1d5], a
+	ld [wOrderFlag0], a
 	ret
 
 
@@ -3957,14 +3957,14 @@ Jump_50_5831::
 
 Jump_50_583B::
 	ld de, $58a0
-	ld hl, $c1d5
+	ld hl, wOrderFlag0
 	ld b, $02
 	call UpdateMenuCursor_50
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_050_5892
 
-	ld a, [$c1d5]
+	ld a, [wOrderFlag0]
 	bit 0, a
 	jr nz, jr_050_5895
 
@@ -4247,7 +4247,7 @@ RunPersonalityChanges::
 
 Jump_50_59D6::
 	call Call_50_5708
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld l, a
 	ld a, [$db59]
 	ld h, a
@@ -4335,7 +4335,7 @@ Call_50_5A53::
 Call_50_5A5E::
 	ld a, [hl]
 	ld [wSkillTarget], a
-	ld hl, far_Call_58_5955
+	ld hl, far_CountTargetNames
 	rst $10
 	ld a, [wBattleTemp]
 	or a
@@ -4347,7 +4347,7 @@ Call_50_5A5E::
 Call_50_5A71::
 	ld a, [hl]
 	ld [wSkillTarget], a
-	ld hl, far_Call_58_5955
+	ld hl, far_CountTargetNames
 	rst $10
 	ld a, [wBattleTemp]
 	or a
@@ -4968,7 +4968,7 @@ jr_050_5d8a:
 
 Call_50_5D9F::
 	ld a, $ff
-	ld hl, $db79
+	ld hl, wTurnOrder
 	ld bc, $000a
 	call FillMemory
 	ld b, $08
@@ -5287,7 +5287,7 @@ Jump_50_5FC1::
 	ld [wMenuChoice], a
 	call Call_50_5D9F
 	call Call_50_600D
-	ld hl, $db42
+	ld hl, wPersonalityNudge
 	ld bc, $0008
 	xor a
 	call FillMemory
@@ -5417,7 +5417,7 @@ Jump_50_606F::
 	or a
 	ret nz
 
-	ld hl, far_Call_58_53CF
+	ld hl, far_ChooseTargetsAndOrder
 	rst $10
 	ret
 
@@ -5429,7 +5429,7 @@ Jump_50_6079::
 	ld [wBattleSubStep], a
 	ld [wBattleSubStep2], a
 	ld [$dd75], a
-	ld [$dd6c], a
+	ld [wReactionKind], a
 	ld [wSkillAnimPhase], a
 	ld a, [wLinkActive]
 	or a
@@ -7362,7 +7362,7 @@ jr_050_6c43:
 jr_050_6c59:
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 	ld a, [wSkillUser]
 	ld [wBattleArg0], a
@@ -8161,33 +8161,49 @@ DrawWindowLayout_50::
 	ld [hli], a
 	jr .loop
 
+;@ def RefreshPanelDigits()
+;@ path: battle/panel
+;@ Copies the changing parts of the party panel from wTilemapBuffer to the screen for each
+;@ monster of the side shown (own side, or the link master's partner side): the mark after
+;@ the name and the two 3-digit HP / MP numbers.
+;@ test: skip writes VRAM while waiting for the LCD
 RefreshPanelDigits::
+;> count = wPartyBattlers
 	ld a, [wPartyBattlers]
 	ld c, a
+;> if wLinkFlags & 0x02:
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_050_7636
+	jr z, .count
 
+;>     count = wEnemyCount               # the link master shows the other side's team
 	ld a, [wEnemyCount]
 	ld c, a
 
-jr_050_7636:
+.count
+;> CopyPanelSlotToScreen(0x25, 0x62)    # first monster
 	push bc
 	ld b, $25
 	ld c, $62
 	call CopyPanelSlotToScreen
 	pop bc
+;> if count == 1:
+;>     return
 	dec c
 	ret z
 
+;> CopyPanelSlotToScreen(0x2B, 0x68)    # second monster
 	push bc
 	ld b, $2b
 	ld c, $68
 	call CopyPanelSlotToScreen
 	pop bc
+;> if count == 2:
+;>     return
 	dec c
 	ret z
 
+;> CopyPanelSlotToScreen(0x31, 0x6E)    # third monster
 	push bc
 	ld b, $31
 	ld c, $6e
@@ -8196,264 +8212,385 @@ jr_050_7636:
 	ret
 
 
+;@ def CopyPanelSlotToScreen(mark: b, digits: c)
+;@ path: battle/panel
+;@ Copies one tile at offset `mark` and two rows of three tiles at offsets `digits` and
+;@ `digits` + 32 from wTilemapBuffer to the BG map at $9800.
+;@ test: skip writes VRAM while waiting for the LCD
 CopyPanelSlotToScreen::
+;>@m WriteVRAM(0x9800 + mark, wTilemapBuffer[mark])
 	ld l, b
 	ld h, $98
 	ld a, b
 	ld de, wTilemapBuffer
 	add e
 	ld e, a
+;=@m
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	call WriteVRAM
+;>@r CopyTileRowToScreen_50(0x9800 + digits, wTilemapBuffer + digits, 3)
 	ld b, $03
 	ld l, c
 	ld h, $98
 	ld a, c
 	ld de, wTilemapBuffer
 	add e
+;=@r
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	call CopyTileRowToScreen_50
+;>@r2 CopyTileRowToScreen_50(0x9820 + digits, wTilemapBuffer + 0x20 + digits, 3)
 	ld b, $03
 	ld a, c
 	add $20
 	ld l, a
 	ld h, $98
 	ld de, wTilemapBuffer
+;=@r2
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	call CopyTileRowToScreen_50
+;=@r2
 	ret
 
 
+;@ def CopyTilemapBufferToScreen_50()
+;@ path: battle/screen
+;@ Copies the whole wTilemapBuffer (18 rows of 32 tiles) to the BG map at wBattleBGMap,
+;@ wrapping inside the 1 KiB map.
+;@ test: skip writes VRAM while waiting for the LCD
 CopyTilemapBufferToScreen_50::
+;> dest = wBattleBGMap
 	ld a, [wBattleBGMap]
 	ld l, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	ld h, a
+;> src = wTilemapBuffer
 	ld de, wTilemapBuffer
+;> for row in range(18):
 	ld c, $12
 
-jr_050_769b:
+.row
+;>     src = CopyTileRowToScreen_50(dest, src, 32)
 	ld b, $20
 	push hl
 	call CopyTileRowToScreen_50
 	pop hl
+;>@d     dest = 0x9800 | ((dest + 32) & 0x03FF)
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
 	or $98
+;=@d
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_050_769b
+	jr nz, .row
 
 	ret
 
 
+;@ def CopyTileRowToScreen_50(dest: hl, src: de, count: b) -> de
+;@ path: battle/screen
+;@ Writes `count` tiles from `src` to the BG map at `dest`, the column wrapping within the
+;@ 32-tile row. Returns the source address after the last tile.
+;@ test: skip writes VRAM while waiting for the LCD
 CopyTileRowToScreen_50::
+.loop
+;> for i in range(count):
+;>     WriteVRAM(dest, mem[src])
 	ld a, [de]
 	call WriteVRAM
+;>@n     dest = (dest & 0xFFE0) | ((dest + 1) & 0x1F)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@n
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>     src += 1
 	inc de
 	dec b
-	jr nz, CopyTileRowToScreen_50
+	jr nz, .loop
 
+;> return src
 	ret
 
 
+;@ def PrintTextToTiles_50(tiles: hl, lines: e, length: d)
+;@ path: battle/screen
+;@ Prints the text wTextGroup / wTextIndex at once into the letter tiles at `tiles` (a text
+;@ box of `lines` lines of `length` letters), then restores the text box settings.
+;@ test: skip prints through another bank
 PrintTextToTiles_50::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_lines = wTextBoxLines
+;> saved_length = wTextBoxLineLength
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = length
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_length
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def PrintNameToTiles_50(tiles: hl, name: de)
+;@ path: battle/screen
+;@ Prints a name (copied into wTextArg0, shown by text $0200) at once into the four letter
+;@ tiles at `tiles`, then restores the text box settings.
+;@ test: skip prints through another bank
 PrintNameToTiles_50::
+;> CopyName(wTextArg0, name)
 	push hl
 	ld hl, wTextArg0
 	call CopyName
 	pop hl
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_lines = wTextBoxLines
+;> saved_length = wTextBoxLineLength
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0401
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 4
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0                        # text $0200 shows wTextArg0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_length
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def ClearTilemapBuffer_50()
+;@ path: battle/screen
+;@ Fills wTilemapBuffer (576 tiles) with the blank tile $E0.
 ClearTilemapBuffer_50::
+;>@f fill(wTilemapBuffer, 0x240, 0xE0)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
-
-jr_050_7754:
+.loop
 	ld a, $e0
 	ld [hli], a
 	dec bc
+;=@f
 	ld a, b
 	or c
-	jr nz, jr_050_7754
+	jr nz, .loop
 
 	ret
 
 
+;@ def ClearScreenMap_50()
+;@ path: unused
+;@ Unused: fills the whole BG map at $9800 with the blank tile $E0.
+;@ test: skip writes VRAM while waiting for the LCD
 ClearScreenMap_50::
-	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
-	db $c9
+;>@l for i in range(0x400):
+	ld hl, $9800
+	ld bc, $0400
+.loop
+;>     WriteVRAMInc(0x9800 + i, 0xE0)
+	ld a, $e0
+	call WriteVRAMInc
+;=@l
+	dec bc
+	ld a, b
+	or c
+	jr nz, .loop
 
+	ret
+
+;@ def UpdateListCursor_50(cursor: hl, table: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Moves the cursor of a paged list (skills, items): `cursor` points at the row (bit 7 =
+;@ chosen) and the page number, `table` at the list's cursor table (the page marker
+;@ position, then one position per row), `rows` is the page size and `count` the number of
+;@ entries. Left / Right turn the pages (wrapping, and pulling the row up on a short last
+;@ page); otherwise the page number is drawn and Up / Down move within the page
+;@ (UpdateMenuCursor_50). Pages don't turn while a text prints.
+;@ test: skip draws to the screen
 UpdateListCursor_50::
+;> turned = False
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> rows_table = table + 2
 	inc de
 	inc de
+;> if not wTextState:
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_050_77d5
+	jp nz, .draw
 
+;>     if wJoyRepeat & 0x20:              # Left: previous page, wrapping to the last
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_050_779b
+	jr z, .right
 
+;>         page = mem[cursor + 1] - 1
 	inc hl
 	ld a, [hl]
 	dec a
 	push af
+;>@pl         pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@pl
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
 	pop af
+;>         turned = True
+;>         if page < 0:
 	cp c
-	jr c, jr_050_77b9
+	jr c, .setPage
 
+;>             page = pages - 1
 	ld a, c
 	dec a
-	jr jr_050_77b9
+	jr .setPage
 
-jr_050_779b:
+.right
+;>     elif wJoyRepeat & 0x10:            # Right: next page, wrapping to the first
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_050_77d5
+	jr z, .draw
 
+;>         page = mem[cursor + 1] + 1
 	inc hl
 	ld a, [hl]
 	inc a
 	push af
+;>@pr         pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@pr
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
 	pop af
+;>         turned = True
+;>         if page >= pages:
 	cp c
-	jr c, jr_050_77b9
+	jr c, .setPage
 
+;>             page = 0
 	ld a, $00
 
-jr_050_77b9:
+.setPage
+;> if turned:
+;>     mem[cursor + 1] = page
 	ld [hld], a
+;>     if page == pages - 1:              # the last page may be short
 	dec c
 	cp c
 	jr nz, RestartMenuCursor_50
 
+;>@rest         rest = count % rows
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@rest
 	call Divide8
 	pop bc
 	pop de
+;>         if rest != 0 and mem[cursor] > rest - 1:
 	or a
 	jr z, RestartMenuCursor_50
 
@@ -8461,320 +8598,470 @@ jr_050_77b9:
 	cp [hl]
 	jr nc, RestartMenuCursor_50
 
+;>             mem[cursor] = rest - 1
 	ld [hl], a
+;>     return RestartMenuCursor_50(cursor, rows_table)
 	jr RestartMenuCursor_50
 
-Jump_050_77d5:
-jr_050_77d5:
+.draw
+;>@pn DrawPageNumber_50(cursor, rows_table, rows, count)
 	push bc
 	push de
 	push hl
 	call DrawPageNumber_50
 	pop hl
 	pop de
+;=@pn
 	pop bc
+;>@dm q, r = divmod(count - 1, rows)
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;> wListLastRows = r
 	ld [wListLastRows], a
+;> last_page = q
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;> if mem[cursor + 1] == last_page:
 	inc hl
 	ld a, [hld]
 	cp c
 	jr nz, UpdateMenuCursor_50
 
+;>     rows = wListLastRows + 1          # rows on the last page
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
+;> UpdateMenuCursor_50(cursor, rows, rows_table)
 
+;@ def UpdateMenuCursor_50(cursor: hl, rows: b, table: de)
+;@ path: menu/cursor
+;@ Moves a menu cursor with Up / Down (wrapping over `rows` rows), restarts the blink when
+;@ it moved, marks it chosen (bit 7) when A is pressed, and draws it at the positions of
+;@ `table` (DrawMenuCursor_50).
+;@ test: skip draws to the screen
 UpdateMenuCursor_50::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:                  # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_050_7809
+	jr z, .down
 
+;>     row = mem[cursor] - 1
 	ld a, [hl]
 	dec a
+;>     if row < 0:
 	cp b
-	jr c, jr_050_7817
+	jr c, StoreMenuCursor_50
 
+;>         row = rows - 1
 	dec b
 	ld a, b
-	jr jr_050_7817
+;>     return StoreMenuCursor_50(cursor, row, table)
+	jr StoreMenuCursor_50
 
-jr_050_7809:
+.down
+;> if wJoyRepeat & 0x80:                  # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_050_7820
+	jr z, FinishMenuCursor_50
 
+;>     row = mem[cursor] + 1
 	ld a, [hl]
 	inc a
+;>     if row >= rows:
 	cp b
-	jr c, jr_050_7817
+	jr c, StoreMenuCursor_50
 
+;>         row = 0
 	ld a, $00
+;>     return StoreMenuCursor_50(cursor, row, table)
+;> FinishMenuCursor_50(cursor, table)
 
+;@ def StoreMenuCursor_50(cursor: hl, row: a, table: de)
+;@ path: menu/cursor
+;@ Tail of the cursor routines when the cursor moved: stores the new row, then
+;@ RestartMenuCursor_50.
+;@ test: skip draws to the screen
 StoreMenuCursor_50::
-jr_050_7817:
+;> mem[cursor] = row
 	ld [hl], a
+;> RestartMenuCursor_50(cursor, table)
 
+;@ def RestartMenuCursor_50(cursor: hl, table: de)
+;@ path: menu/cursor
+;@ Restarts the cursor blink (so the moved cursor shows at once), then FinishMenuCursor_50.
+;@ test: skip draws to the screen
 RestartMenuCursor_50::
+;> wCursorBlinkTimer = 0
 	xor a
 	ld [wCursorBlinkTimer], a
 	push hl
 	push de
 	pop de
 	pop hl
+;> FinishMenuCursor_50(cursor, table)
 
+;@ def FinishMenuCursor_50(cursor: hl, table: de)
+;@ path: menu/cursor
+;@ Tail of the cursor routines: A marks the cursor chosen (bit 7), then it is drawn at its
+;@ position of `table` (DrawMenuCursor_50).
+;@ test: skip draws to the screen
 FinishMenuCursor_50::
-jr_050_7820:
+;> if wJoyPressed & 0x01:                 # A chooses
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_050_7829
+	jr z, .draw
 
+;>     mem[cursor] |= 0x80
 	set 7, [hl]
 
-jr_050_7829:
+.draw
+;> DrawMenuCursor_50(mem[cursor], table)
 	ld a, [hl]
 	call DrawMenuCursor_50
 	ret
 
 
+;@ def UpdateGridCursor_50(cursor: hl, table: de)
+;@ path: menu/cursor
+;@ Moves the cursor of a 2 x 2 menu (the battle menu): Up / Down switch the row (bit 0),
+;@ Left / Right the column (bit 1). Then as UpdateMenuCursor_50: blink restart, A chooses,
+;@ the cursor is drawn.
+;@ test: skip draws to the screen
 UpdateGridCursor_50::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0xC0:                  # Up or Down: the other row
 	ld a, [wJoyRepeat]
 	and $c0
-	jr z, jr_050_783c
+	jr z, .leftRight
 
+;>     return StoreMenuCursor_50(cursor, mem[cursor] ^ 0x01, table)
 	ld a, [hl]
 	xor $01
-	jr jr_050_7817
+	jr StoreMenuCursor_50
 
-jr_050_783c:
+.leftRight
+;> if not wJoyRepeat & 0x30:              # Left or Right: the other column
+;>     return FinishMenuCursor_50(cursor, table)
 	ld a, [wJoyRepeat]
 	and $30
-	jr z, jr_050_7820
+	jr z, FinishMenuCursor_50
 
+;> return StoreMenuCursor_50(cursor, mem[cursor] ^ 0x02, table)
 	ld a, [hl]
 	xor $02
-	jr jr_050_7817
+	jr StoreMenuCursor_50
 
+;@ def ResetCursorBlink_50()
+;@ path: menu/cursor
+;@ Restarts the cursor blink, so the next DrawMenuCursor_50 draws at once.
 ResetCursorBlink_50::
+;> wCursorBlinkTimer = 0
 	xor a
 	ld [wCursorBlinkTimer], a
 	ret
 
 
+;@ def DrawMenuCursor_50(sel: a, table: de)
+;@ path: menu/cursor
+;@ Redraws the cursor column of a menu: every row of the cursor table (screen positions up
+;@ to $FFFF) gets a blank $E0, except row sel & $7F, which gets the arrow $E8 (blinking:
+;@ blank while wCursorBlinkTimer bit 4 is set) or the filled arrow $E9 once chosen (bit 7).
+;@ Drawn to the screen and into wTilemapBuffer. While nothing is chosen it only redraws
+;@ every 16th frame.
+;@ test: skip writes VRAM while waiting for the LCD
 DrawMenuCursor_50::
+;> if not sel & 0x80:
 	ld c, a
 	bit 7, a
-	jr nz, jr_050_7862
+	jr nz, .draw
 
+;>     t = wCursorBlinkTimer & 0x0F
 	ld a, [wCursorBlinkTimer]
 	and $0f
 	push af
+;>     wCursorBlinkTimer += 1
 	ld a, [wCursorBlinkTimer]
 	inc a
 	ld [wCursorBlinkTimer], a
+;>     if t != 0:
+;>         return
 	pop af
 	ld a, c
 	ret nz
 
-jr_050_7862:
+.draw
+;> row = 0
 	ld c, a
 	ld b, $00
-
-jr_050_7865:
+.loop
+;> while True:
+;>     pos = mem16[table]; table += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;>     if pos == 0xFFFF:
+;>         return
 	and l
 	cp $ff
 	ret z
 
+;>@a     addr = PosToScreenMap_50(pos); wLayoutRow = pos
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
 	push de
 	push bc
+;=@a
 	call PosToScreenMap_50
 	pop bc
 	pop de
+;>     if sel & 0x7F != row:
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_050_7897
+	jr nz, .tile
 
+;>         tile = 0xE0
+;>     elif sel & 0x80:
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_050_7897
+	jr nz, .tile
 
+;>         tile = 0xE9
+;>     elif wCursorBlinkTimer & 0x10:
 	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_050_7897
+	jr nz, .tile
 
+;>         tile = 0xE0
+;>     else:
+;>         tile = 0xE8
 	ld a, $e8
 
-jr_050_7897:
+.tile
+;>     WriteVRAM(addr, tile)
 	call WriteVRAM
+;>@buf     mem[TilemapBufferAddr_50(pos)] = tile
 	push af
 	ld a, [wLayoutRow]
 	ld l, a
-	ld a, [$d9eb]
+	ld a, [wLayoutRow + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
+;>     row += 1
 	inc b
-	jr jr_050_7865
+	jr .loop
 
+;@ def DrawPageNumber_50(cursor: hl, table: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ When the list has more entries than a page has rows, draws the page number
+;@ (cursor[1] + 1, as tile $F1 + page) one tile left of the page marker position (the
+;@ first entry of the cursor table; `table` points just past it), on the screen and in
+;@ wTilemapBuffer.
+;@ test: skip writes VRAM while waiting for the LCD
 DrawPageNumber_50::
+;> if rows >= count:
+;>     return
 	ld a, b
 	cp c
 	ret nc
 
+;> page = mem[cursor + 1]
 	inc hl
 	ld c, [hl]
+;>@pos pos = mem16[table - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@pos
 	ld h, a
 	inc de
+;> if pos == 0xFFFF:
+;>     return
 	and l
 	cp $ff
 	ret z
 
+;> pos -= 1
 	dec hl
+;>@w WriteVRAM(PosToScreenMap_50(pos), (page & 0x7F) + 0xF1)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@w
 	call PosToScreenMap_50
 	pop bc
 	pop de
 	ld a, c
 	and $7f
 	add $f1
+;=@w
 	call WriteVRAM
+;>@buf mem[TilemapBufferAddr_50(pos)] = (page & 0x7F) + 0xF1
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	ret
 
 
+;@ def DrawListCursor_50(cursor: hl, table: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Draws a paged list's markers into wTilemapBuffer. `cursor` points at the cursor row
+;@ (bit 7 = chosen), followed by the page number; `table` is the list's cursor table: the
+;@ position of the page marker, then the position of each row. When the list has more
+;@ entries than a page has rows the marker shows an arrow ($E7) with the page number
+;@ ($F1 = "1") left of it, else a plain frame tile ($EE). Then the row cursor is drawn.
+;@ test: skip draws a list from tables
 DrawListCursor_50::
+;> sel = mem[cursor]
 	ld a, [hli]
 	push af
 	push hl
+;>@p p = TilemapBufferAddr_50(mem16[table])
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
+;=@p
 	ld h, a
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
+;=@p
 	ld h, a
+;> tile = 0xE7 if rows < count else 0xEE    # more than one page: an arrow
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_050_7902
+	jr nc, .onePage
 
 	ld a, $e7
 
-jr_050_7902:
+.onePage
+;> mem[p] = tile
 	ld [hld], a
 	pop bc
-	jr nc, jr_050_790a
+;> if rows < count:
+	jr nc, .marked
 
+;>     mem[p - 1] = mem[cursor + 1] + 0xF1     # page number
 	ld a, [bc]
 	add $f1
 	ld [hl], a
-
-jr_050_790a:
+.marked
+;> DrawCursorAt_50(sel, table + 2)
 	pop af
 
+;@ def DrawCursorAt_50(sel: a, table: de)
+;@ path: menu/cursor
+;@ Draws the cursor of entry sel & $7F of a menu cursor table (a list of screen positions)
+;@ into wTilemapBuffer: a filled arrow $E9 once chosen (bit 7), else the arrow $E8 or, in
+;@ the blinking-off phase, a blank $E0.
+;@ test: skip draws from a table
 DrawCursorAt_50::
+;>@pos pos = mem16[table + 2 * (sel & 0x7F)]
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@pos
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;>@ps wLayoutRow = pos; PosToScreenMap_50(pos)      # result not used
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
 	push de
 	push bc
+;=@ps
 	call PosToScreenMap_50
 	pop bc
 	pop de
+;> if sel & 0x80:
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_050_7938
+	jr nz, .draw
 
+;>     tile = 0xE9
+;> elif wCursorBlinkTimer & 0x10:
 	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_050_7938
+	jr nz, .draw
 
+;>     tile = 0xE0
+;> else:
+;>     tile = 0xE8
 	ld a, $e8
 
-jr_050_7938:
+.draw
+;>@d mem[TilemapBufferAddr_50(pos)] = tile
 	push af
 	ld a, [wLayoutRow]
 	ld l, a
-	ld a, [$d9eb]
+	ld a, [wLayoutRow + 1]
 	ld h, a
 	ld a, l
+;=@d
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@d
 	ld [hl], a
 	ret
 
@@ -9438,7 +9725,7 @@ UnusedClearAttrMap::
 
 GetBattlerName_50::
 	cp $03
-	jr nc, jr_050_7d4c
+	jr nc, GetEnemyName_50
 
 GetPartyMonName_50::
 	push hl
@@ -9459,12 +9746,12 @@ jr_050_7d41:
 	inc hl
 	jr jr_050_7d41
 
-jr_050_7d48:
+GetLinkEnemyName_50::
 	ld a, b
 	pop bc
 	jr GetPartyMonName_50
 
-jr_050_7d4c:
+GetEnemyName_50::
 	push bc
 	ld b, a
 	and $03
@@ -9477,7 +9764,7 @@ jr_050_7d4c:
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_050_7d48
+	jr nz, GetLinkEnemyName_50
 
 	push hl
 	ld a, b
@@ -9497,7 +9784,7 @@ jr_050_7d4c:
 
 jr_050_7d72:
 	pop bc
-	jr nz, jr_050_7d9d
+	jr nz, GetLikeName_50
 
 jr_050_7d75:
 	push af
@@ -9529,7 +9816,7 @@ GetSpeciesName_50::
 	ret
 
 
-jr_050_7d9d:
+GetLikeName_50::
 	call GetPartyMonName_50
 	ld a, $2f
 	ld [hli], a

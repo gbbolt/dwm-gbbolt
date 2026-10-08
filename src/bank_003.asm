@@ -3544,7 +3544,7 @@ ItemUseSetWorldFlag::
 ;@ def ItemUseEscape()
 ;@ path: item/use
 ;@ Item 41: leaves the current place (sets wFieldFlags bit 6, resets wMenuStep and wBattleKind,
-;@ steps wStatusViewVars on).
+;@ steps wFieldMenuState on).
 ItemUseEscape::
 ;> RollEncounterGroup()
 	ld hl, far_RollEncounterGroup
@@ -3558,8 +3558,8 @@ ItemUseEscape::
 ;> wBattleKind = 0
 	ld a, $00
 	ld [wBattleKind], a
-;> wStatusViewVars += 1
-	ld hl, wStatusViewVars
+;> wFieldMenuState += 1
+	ld hl, wFieldMenuState
 	inc [hl]
 ;> MaybeUseUpItem()
 	call MaybeUseUpItem

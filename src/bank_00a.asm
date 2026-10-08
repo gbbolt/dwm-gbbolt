@@ -232,7 +232,7 @@ DrawWindowLayoutVRAM::
 
 ;>     else:
 .tile
-;>         WriteVRAM(addr, t)
+;>         WriteVRAM(t, addr)
 	call WriteVRAM
 ;>         addr = NextScreenColumn(addr)
 	call NextScreenColumn
@@ -323,7 +323,7 @@ ShowTilemapBuffer::
 	push hl
 ;>@cols     for _ in range(32):
 .column
-;>         WriteVRAM(addr, mem[src])
+;>         WriteVRAM(mem[src], addr)
 	ld a, [de]
 	call WriteVRAM
 ;>@next         addr = NextScreenColumn(addr)
@@ -617,7 +617,7 @@ ClearScreenMap::
 	ld hl, $9800
 	ld bc, $0400
 .loop
-;>     WriteVRAMInc(0x9800 + i, 0xE0)
+;>     WriteVRAMInc(0xE0, 0x9800 + i)
 	ld a, $e0
 	call WriteVRAMInc
 ;=@l
@@ -964,7 +964,7 @@ DrawMenuCursor0A::
 	ld a, $e8
 
 .tile
-;>     WriteVRAM(addr, tile)
+;>     WriteVRAM(tile, addr)
 	call WriteVRAM
 ;>@buf     mem[OffsetToTilemapBuffer(pos)] = tile
 	push af
@@ -1021,7 +1021,7 @@ DrawPageNumber0A::
 
 ;> pos -= 1
 	dec hl
-;>@w WriteVRAM(PosToScreenMap(pos), (page & 0x7F) + 0xF1)
+;>@w WriteVRAM((page & 0x7F) + 0xF1, PosToScreenMap(pos))
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
@@ -1732,8 +1732,8 @@ PBDrawListEntry::
 ;>@cl     for _ in range(32):
 	ld b, $20
 .clear
-;>         WriteVRAMInc(tiles, 0xFF)
-;>         WriteVRAMInc(tiles + 1, 0x00)
+;>         tiles = WriteVRAMInc(0xFF, tiles)
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -2234,9 +2234,9 @@ PBConfirmInput::
 	cp $81
 	jr z, .take
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep = 0x0E
@@ -2609,7 +2609,7 @@ PBBreedAndSave::
 	ld hl, far_CompactMonsters
 	rst $10
 ;> SortPartyOrClearIcons()                 # bank 1 entry 4
-	ld hl, HeaderLogo
+	ld hl, far_SortPartyOrClearIcons
 	rst $10
 ;> MakeOffspring()
 	ld hl, far_MakeOffspring
@@ -3435,8 +3435,8 @@ DrawNameEntry::
 ;>@cl for _ in range(32):
 	ld b, $20
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -3472,8 +3472,8 @@ BRClearInfo::
 ;>@cl for _ in range(40):
 	ld b, $28
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -3896,9 +3896,9 @@ BRPedigreeConfirmInput::
 	cp $81
 	jr z, .take
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep = 0x14
@@ -4612,9 +4612,9 @@ BRMateConfirmInput::
 	cp $81
 	jr z, .take
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep = 0x17
@@ -5111,7 +5111,7 @@ BRBreedAndSave::
 	ld hl, far_CompactMonsters
 	rst $10
 ;> SortPartyOrClearIcons()                 # bank 1 entry 4
-	ld hl, HeaderLogo
+	ld hl, far_SortPartyOrClearIcons
 	rst $10
 ;> MakeOffspring()
 	ld hl, far_MakeOffspring
@@ -5821,8 +5821,8 @@ DrawSpeciesEntry::
 ;>@cl for _ in range(72):
 	ld b, $48
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -5978,8 +5978,8 @@ DrawEggGenderEntry::
 ;>@cl for _ in range(8):
 	ld b, $08
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -6200,9 +6200,9 @@ HTConfirmInput::
 	cp $81
 	jr z, .hatch
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep = 0x0C
@@ -6942,8 +6942,8 @@ DrawSaveFileMember::
 ;@ test: skip writes VRAM while waiting for the LCD
 ClearTiles::
 ;>@l for _ in range(count):
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -7087,7 +7087,7 @@ CountDivisions::
 ;@ Writes the digit tile $F0 + d at `dest` (waiting for VRAM access).
 ;@ test: skip writes VRAM while waiting for the LCD
 DrawDigit::
-;> WriteVRAM(dest, 0xF0 + d)
+;> WriteVRAM(0xF0 + d, dest)
 	add $f0
 	call WriteVRAM
 	ret
@@ -7718,8 +7718,8 @@ DrawSpeciesEntry2::
 ;>@cl for _ in range(72):
 	ld b, $48
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -7875,8 +7875,8 @@ DrawEggGenderEntry2::
 ;>@cl for _ in range(8):
 	ld b, $08
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -8525,9 +8525,9 @@ APPayConfirmInput::
 	cp $81
 	jr z, .pay
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep += 1
@@ -9061,9 +9061,9 @@ GCConfirmInput::
 	cp $81
 	jr z, .pay
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep = 9
@@ -9746,8 +9746,8 @@ DrawNameEntry2::
 ;>@cl for _ in range(32):
 	ld b, $20
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -9955,8 +9955,8 @@ DrawNameEntry3::
 ;>@cl for _ in range(32):
 	ld b, $20
 .clear
-;>     WriteVRAMInc(tiles, 0xFF)
-;>     WriteVRAMInc(tiles + 1, 0x00)
+;>     tiles = WriteVRAMInc(0xFF, tiles)
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
@@ -10209,9 +10209,9 @@ JFConfirmInput::
 	cp $81
 	jr z, .send
 
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep = 8

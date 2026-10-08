@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $017", ROMX[$4000], BANK[$17]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_17::
 	db $17
 
+;@ path: system/banks
+;@ Entry points of bank $17, the Game Boy Color palettes: field palettes and attribute maps,
+;@ palette sets, the CGB fade and the emulation of Game Boy palette writes.
 FarTable_17::
 	dw LoadMapPalettes
 	dw LoadMapAttrBuffer
@@ -23,168 +28,215 @@ FarTable_17::
 	dw LoadObjPaletteA
 	dw LoadObjPaletteB
 
+;@ def LoadMapPalettes()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, loads background palettes 0-3 of the current map screen into
+;@ wCGBBGPalettes. Normal maps: MapPaletteTable[wMapId] lists one entry per map screen
+;@ (wMapScreen); an entry is the address of a story byte, then 4-byte records (attribute map
+;@ as entry and bank for Decompress, palette address) picked by that byte's value. Gate
+;@ floors: the palettes GatePaletteTable[wMapId]. Then SetSharedBGColors.
+;@ test: skip reads pointer tables in this bank
 LoadMapPalettes::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> if wOnGateFloor:
+;>@g1     CopyBGPalettes(mem16[GatePaletteTable + 2 * wMapId], 0, 4)   # (the floor's attribute map is looked up too, unused)
+;>@g2     return SetSharedBGColors()
 	ld a, [wOnGateFloor]
 	or a
-	jp nz, Jump_017_4064
+	jp nz, .gate
 
-	ld hl, $476f
+;> entry = MapPaletteTable + 2 * wMapId
+	ld hl, MapPaletteTable
 	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> screens = mem16[entry]
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> entry = screens + 2 * wMapScreen
 	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> screen = mem16[entry]
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> flag = mem16[screen]                 # the story byte that picks the version
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
+;> record = screen + 2 + 4 * mem[flag]
 	ld a, [de]
 	add a
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> palettes = mem16[record + 2]         # (the first word is the attribute map)
 	adc h
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
+;> CopyBGPalettes(palettes, 0, 4)
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld c, $00
 	ld b, $04
 	call CopyBGPalettes
+;> return SetSharedBGColors()
 	jp SetSharedBGColors
 
-
-Jump_017_4064:
-	ld de, $5215
-	ld a, [wFloorKind]
+.gate
+;=@g1
+	ld de, GateAttrMaps1
+	ld a, [$c93f]
 	cp $02
-	jr nz, jr_017_4071
+	jr nz, .gateMaps
 
-	ld de, $5415
+	ld de, GateAttrMaps2
 
-jr_017_4071:
+.gateMaps
+;=@g1
 	ld a, [wMapScreen]
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@g1
 	ld h, a
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	add hl, de
 	ld a, [hli]
+;=@g1
 	ld d, [hl]
 	ld e, a
-	ld hl, $51f5
+	ld hl, GatePaletteTable
 	ld a, [wMapId]
 	add a
 	add l
+;=@g1
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
+;=@g1
 	ld l, a
 	ld c, $00
 	ld b, $04
 	call CopyBGPalettes
+;=@g2
 	jr SetSharedBGColors
 
+;@ def LoadMapAttrBuffer()
+;@ path: gfx/palettes
+;@ Unpacks the attribute map of the current map screen (picked like the palettes in
+;@ LoadMapPalettes; on gate floors GateAttrMaps1/2 by the room's layout byte in wFloorLayout) into
+;@ wScreenMap, 4 bits per map cell.
+;@ test: skip reads pointer tables in this bank
 LoadMapAttrBuffer::
+;> if wOnGateFloor:
+;>@g     return Decompress(GateAttrMaps[wFloorLayout[wMapScreen]], wScreenMap)
 	ld a, [wOnGateFloor]
 	or a
-	jp nz, Jump_017_40da
+	jp nz, .gate
 
-	ld hl, $476f
+;> entry = MapPaletteTable + 2 * wMapId
+	ld hl, MapPaletteTable
 	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> screens = mem16[entry]
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> entry = screens + 2 * wMapScreen
 	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> screen = mem16[entry]
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> flag = mem16[screen]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
+;> record = screen + 2 + 4 * mem[flag]
 	ld a, [de]
 	add a
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> source = mem16[record]              # entry and bank of the attribute map
 	adc h
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
+;> Decompress(source, wScreenMap)
 	ld hl, wScreenMap
 	call Decompress
 	ret
 
-
-Jump_017_40da:
-	ld de, $5215
-	ld a, [wFloorKind]
+.gate
+;=@g
+	ld de, GateAttrMaps1
+	ld a, [$c93f]
 	cp $02
-	jr nz, jr_017_40e7
+	jr nz, .gateMaps
 
-	ld de, $5415
+	ld de, GateAttrMaps2
 
-jr_017_40e7:
+.gateMaps
+;=@g
 	ld a, [wMapScreen]
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@g
 	ld h, a
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	add hl, de
 	ld a, [hli]
+;=@g
 	ld d, [hl]
 	ld e, a
 	ld hl, wScreenMap
@@ -192,104 +244,136 @@ jr_017_40e7:
 	ret
 
 
+;@ def SetSharedBGColors()
+;@ path: gfx/palettes
+;@ Loads background palette 7 (FieldBGPalette7, the text box colors) and copies its colors 1
+;@ and 3 into colors 1 and 3 of palettes 0-6, so text and window frames look the same on
+;@ every palette.
 SetSharedBGColors::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld hl, $5655
+;> CopyBGPalettes(FieldBGPalette7, 7, 1)
+	ld hl, FieldBGPalette7
 	ld c, $07
 	ld b, $01
 	call CopyBGPalettes
-	ld a, [$c7d1]
+;> color1 = mem16[wCGBBGPalettes + 7 * 8 + 2]
+	ld a, [wCGBBGPalettes + 58]
 	ld l, a
-	ld a, [$c7d2]
+	ld a, [wCGBBGPalettes + 59]
 	ld h, a
+;>@c1 for p in range(7): mem16[wCGBBGPalettes + 8 * p + 2] = color1
 	ld a, l
-	ld [$c799], a
+	ld [wCGBBGPalettes + 2], a
 	ld a, h
-	ld [$c79a], a
+	ld [wCGBBGPalettes + 3], a
 	ld a, l
-	ld [$c7a1], a
+	ld [wCGBBGPalettes + 10], a
+;=@c1
 	ld a, h
-	ld [$c7a2], a
+	ld [wCGBBGPalettes + 11], a
 	ld a, l
-	ld [$c7a9], a
+	ld [wCGBBGPalettes + 18], a
 	ld a, h
-	ld [$c7aa], a
+	ld [wCGBBGPalettes + 19], a
+;=@c1
 	ld a, l
-	ld [$c7b1], a
+	ld [wCGBBGPalettes + 26], a
 	ld a, h
-	ld [$c7b2], a
+	ld [wCGBBGPalettes + 27], a
 	ld a, l
-	ld [$c7b9], a
+	ld [wCGBBGPalettes + 34], a
+;=@c1
 	ld a, h
-	ld [$c7ba], a
+	ld [wCGBBGPalettes + 35], a
 	ld a, l
-	ld [$c7c1], a
+	ld [wCGBBGPalettes + 42], a
 	ld a, h
-	ld [$c7c2], a
+	ld [wCGBBGPalettes + 43], a
+;=@c1
 	ld a, l
-	ld [$c7c9], a
+	ld [wCGBBGPalettes + 50], a
 	ld a, h
-	ld [$c7ca], a
-	ld a, [$c7d5]
+	ld [wCGBBGPalettes + 51], a
+;> color3 = mem16[wCGBBGPalettes + 7 * 8 + 6]
+	ld a, [wCGBBGPalettes + 62]
 	ld l, a
-	ld a, [$c7d6]
+	ld a, [wCGBBGPalettes + 63]
 	ld h, a
+;>@c3 for p in range(7): mem16[wCGBBGPalettes + 8 * p + 6] = color3
 	ld a, l
-	ld [$c79d], a
+	ld [wCGBBGPalettes + 6], a
 	ld a, h
-	ld [$c79e], a
+	ld [wCGBBGPalettes + 7], a
 	ld a, l
-	ld [$c7a5], a
+	ld [wCGBBGPalettes + 14], a
+;=@c3
 	ld a, h
-	ld [$c7a6], a
+	ld [wCGBBGPalettes + 15], a
 	ld a, l
-	ld [$c7ad], a
+	ld [wCGBBGPalettes + 22], a
 	ld a, h
-	ld [$c7ae], a
+	ld [wCGBBGPalettes + 23], a
+;=@c3
 	ld a, l
-	ld [$c7b5], a
+	ld [wCGBBGPalettes + 30], a
 	ld a, h
-	ld [$c7b6], a
+	ld [wCGBBGPalettes + 31], a
 	ld a, l
-	ld [$c7bd], a
+	ld [wCGBBGPalettes + 38], a
+;=@c3
 	ld a, h
-	ld [$c7be], a
+	ld [wCGBBGPalettes + 39], a
 	ld a, l
-	ld [$c7c5], a
+	ld [wCGBBGPalettes + 46], a
 	ld a, h
-	ld [$c7c6], a
+	ld [wCGBBGPalettes + 47], a
+;=@c3
 	ld a, l
-	ld [$c7cd], a
+	ld [wCGBBGPalettes + 54], a
 	ld a, h
-	ld [$c7ce], a
+	ld [wCGBBGPalettes + 55], a
 	ret
 
 
+;@ def ClearAttrMap()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, sets every cell of the BG map at $9800 to attribute 7 (palette 7).
+;@ test: skip writes VRAM
 ClearAttrMap::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> disable_interrupts(); WaitVRAMAccess(); rVBK = 1; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
+;> addr = 0x9800
 	ld b, $00
 	ld hl, $9800
 
-jr_017_41a5:
+.loop
+;>@loop for i in range(256 * 4):
+;>     addr = WriteVRAMInc(7, addr)
 	ld a, $07
 	call WriteVRAMInc
 	call WriteVRAMInc
 	call WriteVRAMInc
 	call WriteVRAMInc
+;=@loop
 	dec b
-	jr nz, jr_017_41a5
+	jr nz, .loop
 
+;> disable_interrupts(); WaitVRAMAccess(); rVBK = 0; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $00
@@ -298,117 +382,161 @@ jr_017_41a5:
 	ret
 
 
+;@ def LoadFieldObjPalettes()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, loads the eight sprite palettes of the field (FieldObjPalettes).
 LoadFieldObjPalettes::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld hl, $5615
+;> CopyObjPalettes(FieldObjPalettes, 0, 8)
+	ld hl, FieldObjPalettes
 	ld c, $00
 	ld b, $08
 	call CopyObjPalettes
 	ret
 
 
+;@ def LoadMonPicPalette()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, loads the palette of monster picture wPaletteSet (MonPicPalettes, one
+;@ palette each) into background palette number $C81F, then DrawMonPicAttrs.
+;@ test: skip writes VRAM
 LoadMonPicPalette::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;>@pal CopyBGPalettes(MonPicPalettes + 8 * wPaletteSet, mem[0xC81F], 1)
 	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@pal
 	ld a, l
-	add $fd
+	add LOW(MonPicPalettes)
 	ld l, a
 	ld a, h
-	adc $62
+	adc HIGH(MonPicPalettes)
 	ld h, a
-	ld a, [wMonPicPalette]
+;=@pal
+	ld a, [$c81f]
 	ld c, a
 	ld b, $01
 	call CopyBGPalettes
+;> SetSharedBGColors()
 	call SetSharedBGColors
+;> DrawMonPicAttrs()                     # falls through
 
+;@ def DrawMonPicAttrs()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, gives the 6 x 6 tiles of a monster picture palette $C81F: the block
+;@ starts at screen offset $C820 (row * 32 + column) from the screen's top left corner.
+;@ test: skip writes VRAM
 DrawMonPicAttrs::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> row_offset = (hScrollY & 0xF8) * 4
 	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
 	sla l
 	rla
+;> corner = 0x9800 + row_offset
 	sla l
 	rla
 	ld h, $98
 	add h
 	ld h, a
+;> corner += (hScrollX >> 3) & 0x1F      # the screen's top left corner
 	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
 	and $1f
 	add l
+;> offset = mem16[0xC820]
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [wMonPicPos]
+	ld a, [$c820]
 	ld c, a
+;> pos = corner + (offset & 0xFFE0)      # down to the picture's first row
 	ld a, [$c821]
 	ld b, a
 	ld a, c
 	and $e0
 	ld c, a
 	add hl, bc
+;> pos &= ~0x0400                        # stay inside the map at $9800
 	res 2, h
-	ld a, [wMonPicPos]
+;>@cols for i in range(mem[0xC820] & 0x1F):
+	ld a, [$c820]
 	and $1f
 	ld b, a
 
-jr_017_4229:
+.column
+;>     pos = NextMapColumn_17(pos)
 	call NextMapColumn_17
+;=@cols
 	dec b
-	jr nz, jr_017_4229
+	jr nz, .column
 
+;> disable_interrupts(); WaitVRAMAccess(); rVBK = 1; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
+;>@rows for row in range(6):
 	ld c, $06
 
-jr_017_423a:
+.row
+;>     line = pos
 	ld b, $06
 	push hl
 
-jr_017_423d:
-	ld a, [wMonPicPalette]
+.cell
+;>@cells     for col in range(6):
+;>         WriteVRAM(mem[0xC81F], pos); pos = NextMapColumn_17(pos)
+	ld a, [$c81f]
 	call WriteVRAM
 	call NextMapColumn_17
+;=@cells
 	dec b
-	jr nz, jr_017_423d
+	jr nz, .cell
 
+;>     pos = line + 0x20
 	pop hl
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
+;>     pos = 0x9800 | (pos & 0x3FF)
 	ld h, a
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@rows
 	dec c
-	jr nz, jr_017_423a
+	jr nz, .row
 
+;> disable_interrupts(); WaitVRAMAccess(); rVBK = 0; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $00
@@ -417,44 +545,66 @@ jr_017_423d:
 	ret
 
 
+;@ def NextMapColumn_17(pos: hl) -> hl
+;@ path: gfx/palettes
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
 NextMapColumn_17::
+;> column = (pos + 1) & 0x1F
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;> pos = (pos & 0xFFE0) | column
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;> return pos
 	ret
 
 
+;@ def ApplyDMGPalettes()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, makes a change of the Game Boy palette wBGP visible: when wBGP differs
+;@ from the value in effect (wDefaultPalettes[0]), every background palette is rewritten with
+;@ its colors rearranged the way wBGP rearranges the four shades (WriteBGPaletteDMG). Then
+;@ the same for the sprite palettes and wOBP0 (ApplyDMGObjPalettes).
+;@ test: skip writes the palette registers
 ApplyDMGPalettes::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> if wBGP != wDefaultPalettes[0]:
 	ld hl, wDefaultPalettes
 	ld a, [wBGP]
 	cp [hl]
 	jp z, ApplyDMGObjPalettes
 
+;>     WaitVRAMAccess(); rBCPS = 0x80       # palette 0, color 0, auto-increment
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
+;>@pals     for p in range(8):
+;>         WriteBGPaletteDMG(wCGBBGPalettes + 8 * p)
 	ld hl, wCGBBGPalettes
 	call WriteBGPaletteDMG
 	call WriteBGPaletteDMG
 	call WriteBGPaletteDMG
 	call WriteBGPaletteDMG
 	call WriteBGPaletteDMG
+;=@pals
 	call WriteBGPaletteDMG
 	call WriteBGPaletteDMG
 	call WriteBGPaletteDMG
+;>     wDefaultPalettes[0] = wBGP
 	ld a, [wBGP]
 	ld [wDefaultPalettes], a
+;> ApplyDMGObjPalettes()
 	jp ApplyDMGObjPalettes
 
 
@@ -1313,90 +1463,122 @@ FadeInComponent::
 	ret
 
 
+;@ def CopyBGPalettes(src: hl, first: c, count: b)
+;@ path: gfx/palettes
+;@ On a Game Boy Color, copies `count` palettes (8 bytes each) from `src` into
+;@ wCGBBGPalettes from palette `first` on (UploadCGBPalettes sends them to the LCD).
 CopyBGPalettes::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> size = 8 * count
 	ld a, b
 	add a
 	add a
 	add a
 	ld b, a
+;>@d dest = wCGBBGPalettes + 8 * first
 	ld a, c
 	add a
 	add a
 	add a
 	ld de, wCGBBGPalettes
 	add e
+;=@d
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 
-jr_017_46b8:
+.copy
+;> copy(dest, src, size)
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_017_46b8
+	jr nz, .copy
 
 	ret
 
 
+;@ def CopyObjPalettes(src: hl, first: c, count: b)
+;@ path: gfx/palettes
+;@ The same for the sprite palettes (the buffer at wSGBPalettes).
 CopyObjPalettes::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> size = 8 * count
 	ld a, b
 	add a
 	add a
 	add a
 	ld b, a
+;>@d dest = wSGBPalettes + 8 * first
 	ld a, c
 	add a
 	add a
 	add a
 	ld de, wSGBPalettes
 	add e
+;=@d
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 
-jr_017_46d6:
+.copy
+;> copy(dest, src, size)
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_017_46d6
+	jr nz, .copy
 
 	ret
 
 
+;@ def UploadCGBPalettes()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, sends all 8 background palettes (wCGBBGPalettes) and all 8 sprite
+;@ palettes (the 64 bytes after them, at wSGBPalettes) to the palette RAM.
+;@ test: skip writes the palette registers
 UploadCGBPalettes::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> disable_interrupts(); WaitVRAMAccess(); rBCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
+;> src = wCGBBGPalettes
 	ld hl, wCGBBGPalettes
 	ld b, $40
 
-jr_017_46f0:
+.bg
+;>@bg for i in range(64):
+;>     disable_interrupts(); WaitVRAMAccess(); rBCPD = mem[src]; src += 1; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
 	ei
+;=@bg
 	dec b
-	jr nz, jr_017_46f0
+	jr nz, .bg
 
+;> disable_interrupts(); WaitVRAMAccess(); rOCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
@@ -1404,90 +1586,126 @@ jr_017_46f0:
 	ei
 	ld b, $40
 
-jr_017_4706:
+.obj
+;>@obj for i in range(64):                # src continues into the sprite palettes
+;>     disable_interrupts(); WaitVRAMAccess(); rOCPD = mem[src]; src += 1; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
 	ei
+;=@obj
 	dec b
-	jr nz, jr_017_4706
+	jr nz, .obj
 
 	ret
 
 
+;@ def LoadPaletteSet()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, loads background palette set wPaletteSet: all 8 palettes (64 bytes)
+;@ from PaletteSets.
 LoadPaletteSet::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;>@off offset = 64 * wPaletteSet
 	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@off
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;>@cp CopyBGPalettes(PaletteSets + offset, 0, 8)
 	ld a, l
-	add $bd
+	add LOW(PaletteSets)
 	ld l, a
 	ld a, h
-	adc $69
+	adc HIGH(PaletteSets)
 	ld h, a
+;=@cp
 	ld c, $00
 	ld b, $08
 	call CopyBGPalettes
 	ret
 
 
+;@ def LoadObjPaletteA()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, loads sprite palette 0 from ObjPaletteSetsA[wPaletteSet] (8 bytes).
 LoadObjPaletteA::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;>@p CopyObjPalettes(ObjPaletteSetsA + 8 * wPaletteSet, 0, 1)
 	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@p
 	ld a, l
-	add $fd
+	add LOW(ObjPaletteSetsA)
 	ld l, a
 	ld a, h
-	adc $6a
+	adc HIGH(ObjPaletteSetsA)
 	ld h, a
+;=@p
 	ld c, $00
 	ld b, $01
 	call CopyObjPalettes
 	ret
 
 
+;@ def LoadObjPaletteB()
+;@ path: gfx/palettes
+;@ On a Game Boy Color, loads sprite palette 0 from ObjPaletteSetsB[wPaletteSet] (8 bytes).
+;@ The palette tables of the bank follow.
 LoadObjPaletteB::
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;>@p CopyObjPalettes(ObjPaletteSetsB + 8 * wPaletteSet, 0, 1)
 	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@p
 	ld a, l
-	add $0d
+	add LOW(ObjPaletteSetsB)
 	ld l, a
 	ld a, h
-	adc $6b
+	adc HIGH(ObjPaletteSetsB)
 	ld h, a
+;=@p
 	ld c, $00
 	ld b, $01
 	call CopyObjPalettes
 	ret
 
 
+;@ path: gfx/palettes
+;@ Game Boy Color colors of the normal maps, read by LoadMapPalettes and LoadMapAttrBuffer:
+;@ one pointer per map number to a list with one pointer per map screen (wMapScreen). Such a
+;@ screen entry is the address of a story byte, then 4-byte records picked by that byte's
+;@ value: the compressed attribute map (entry and bank for Decompress) and the address of its
+;@ 4 background palettes.
 MapPaletteTable::
 	db $3f, $48, $9d, $48, $25, $49, $9d, $49, $f5, $49, $6d, $4a, $99, $4a, $b3, $4a
 	db $07, $4b, $2f, $4b, $65, $4b, $3f, $48, $79, $4b, $81, $4b, $3f, $48, $8d, $4b
@@ -1659,11 +1877,17 @@ MapPaletteTable::
 	db $bd, $60, $e3, $51, $9a, $d9, $ee, $3c, $dd, $60, $ee, $3c, $dd, $60, $ee, $3c
 	db $dd, $60, $ee, $3c, $dd, $60
 
+;@ path: gfx/palettes
+;@ The background palettes 0-3 of the gate floors: one pointer per map number (16 maps) to
+;@ 4 palettes of 8 bytes.
 GatePaletteTable::
 	db $fd, $60, $1d, $61, $3d, $61, $5d, $61, $7d, $61
 	db $9d, $61, $bd, $61, $dd, $61, $fd, $61, $1d, $62, $3d, $62, $5d, $62, $7d, $62
 	db $9d, $62, $bd, $62, $dd, $62
 
+;@ path: gfx/palettes
+;@ Attribute maps of the gate floor screens, by the screen's layout byte (wFloorLayout): one
+;@ compressed block each (entry and bank for Decompress).
 GateAttrMaps1::
 	db $00, $3d, $01, $3d, $02, $3d, $03, $3d, $04, $3d
 	db $05, $3d, $06, $3d, $07, $3d, $08, $3d, $09, $3d, $0a, $3d, $0b, $3d, $b5, $3d
@@ -1699,6 +1923,8 @@ GateAttrMaps1::
 	db $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d
 	db $b4, $3d, $b4, $3d, $b4, $3d
 
+;@ path: gfx/palettes
+;@ The same for the floors where the byte at $C93F is 2.
 GateAttrMaps2::
 	db $00, $3e, $01, $3e, $02, $3e, $03, $3e, $04, $3e
 	db $05, $3e, $06, $3e, $07, $3e, $08, $3e, $09, $3e, $0a, $3e, $0b, $3e, $0c, $3e
@@ -1734,6 +1960,8 @@ GateAttrMaps2::
 	db $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d, $b4, $3d
 	db $b4, $3d, $b4, $3d, $b4, $3d
 
+;@ path: gfx/palettes
+;@ The eight sprite palettes of the field (8 bytes each, 4 colors of 15 bits).
 FieldObjPalettes::
 	db $ad, $35, $7f, $4b, $9f, $00, $42, $00, $ad, $35
 	db $7f, $4b, $20, $17, $42, $00, $00, $7c, $7f, $4b, $ab, $7d, $42, $00, $00, $7c
@@ -1741,6 +1969,10 @@ FieldObjPalettes::
 	db $7f, $4b, $0f, $42, $42, $00, $00, $7c, $7f, $4b, $1f, $02, $42, $00, $00, $7c
 	db $7f, $4b, $18, $22, $42, $00
 
+;@ path: gfx/palettes
+;@ Background palette 7 of the field, the colors of the text box (SetSharedBGColors copies its
+;@ colors 1 and 3 into the other palettes); the map palettes that MapPaletteTable points to
+;@ follow it.
 FieldBGPalette7::
 	db $39, $01, $ff, $6b, $3f, $03, $00, $00, $7c, $08
 	db $ff, $6b, $7c, $08, $00, $00, $15, $00, $ff, $6b, $9f, $02, $00, $00, $ae, $29
@@ -1946,6 +2178,8 @@ FieldBGPalette7::
 	db $ff, $6b, $7a, $02, $00, $00, $ca, $4d, $ff, $6b, $b2, $76, $00, $00, $ca, $4d
 	db $ff, $6b, $b2, $76, $00, $00, $ee, $04, $ff, $6b, $7a, $02, $00, $00
 
+;@ path: gfx/palettes
+;@ One background palette (8 bytes) per monster picture, by wPaletteSet (LoadMonPicPalette).
 MonPicPalettes::
 	db $bd, $01
 	db $ff, $6b, $5f, $03, $00, $00, $bd, $01, $ff, $6b, $5f, $03, $00, $00, $00, $26
@@ -2057,6 +2291,8 @@ MonPicPalettes::
 	db $ff, $6b, $5f, $59, $00, $08, $17, $10, $ff, $6b, $39, $75, $00, $08, $83, $55
 	db $ff, $6b, $dd, $01, $00, $00, $aa, $0d, $ff, $6b, $e0, $7e, $00, $00
 
+;@ path: gfx/palettes
+;@ Full sets of the 8 background palettes (64 bytes each), by wPaletteSet (LoadPaletteSet).
 PaletteSets::
 	db $33, $46
 	db $be, $77, $f8, $5e, $44, $08, $00, $7c, $00, $7c, $00, $7c, $00, $7c, $00, $7c
@@ -2080,10 +2316,14 @@ PaletteSets::
 	db $ff, $6b, $f9, $7f, $00, $00, $11, $01, $ff, $6b, $f9, $7f, $00, $00, $11, $01
 	db $ff, $6b, $f9, $7f, $00, $00, $28, $7f, $ff, $6b, $f9, $7f, $00, $00
 
+;@ path: gfx/palettes
+;@ Sprite palette 0 by wPaletteSet (8 bytes each), for LoadObjPaletteA.
 ObjPaletteSetsA::
 	db $00, $00
 	db $ff, $6b, $8f, $7f, $1f, $7c, $10, $42, $1f, $7c, $1f, $7c, $1f, $7c
 
+;@ path: gfx/palettes
+;@ Sprite palette 0 by wPaletteSet (8 bytes each), for LoadObjPaletteB.
 ObjPaletteSetsB::
 	db $00, $00
 	db $ff, $02, $17, $00, $df, $01, $00, $00, $ff, $02, $17, $00, $df, $01, $00, $00

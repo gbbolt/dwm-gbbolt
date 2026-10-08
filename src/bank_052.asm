@@ -614,7 +614,7 @@ jr_052_43de:
 	or a
 	jr z, jr_052_43f7
 
-	ld hl, far_Call_58_59DC
+	ld hl, far_NameTargetForMessage
 	rst $10
 	ld a, [wBattleTemp]
 	add $09
@@ -1024,7 +1024,7 @@ jr_052_4610:
 
 
 SkillChance::
-	ld hl, far_Call_53_4D7E
+	ld hl, far_PickChanceEffect_53
 	rst $10
 	ld a, $00
 	ld [wSkillMsgMode], a
@@ -1344,7 +1344,7 @@ jr_052_47e2:
 
 
 RetargetSkill::
-	ld hl, far_Call_58_41E9
+	ld hl, far_AITargetAttack
 	rst $10
 	ret
 
@@ -5408,213 +5408,286 @@ CalcSkillDamageVsZombie::
 	ret
 
 
+;@ def CalcLevelDamageRes24()
+;@ path: battle/skills/damage
+;@ Damage from the user's level (CallHelp): twice the level, for a wild enemy
+;@ 1.5 times; then cut by the target's resistance 24 (ResistDamageA).
 CalcLevelDamageRes24::
+;>@l level = wBattlerLevel[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@l
 	ld h, a
 	ld l, [hl]
 	ld h, $00
+;> if not wLinkActive and wSkillUser >= 4:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_6403
+	jr nz, .double
 
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_052_6403
+	jr c, .double
 
+;>@h     dmg = level + (level >> 1)
 	ld a, l
 	srl a
 	add l
 	ld l, a
 	ld a, h
 	adc $00
+;=@h
 	ld h, a
-	jr jr_052_6404
+	jr .store
 
-jr_052_6403:
+;> else:
+;>     dmg = 2 * level
+.double
 	add hl, hl
 
-jr_052_6404:
+.store
+;> wSkillAmount = dmg
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@r ResistDamageA(GetTargetStatus3(), GetResistByte6() >> 4 & 3)
 	call GetTargetStatus3
 	call GetResistByte6
 	swap a
 	and $03
 	call ResistDamageA
+;=@r
 	ret
 
 
+;@ def CalcLevelDamage()
+;@ path: battle/skills/damage
+;@ Damage from the user's level (WindBeast): three times the level plus 10, for a
+;@ wild enemy 1.5 times the level, at most 180. A random amount of up to 15% of
+;@ that is added or taken off, then the target's Infernos resistance counts
+;@ (InfernosResistDamage).
 CalcLevelDamage::
+;>@l level = wBattlerLevel[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@l
 	ld h, a
 	ld l, [hl]
 	ld h, $00
 	ld b, h
 	ld c, l
+;> if not wLinkActive and wSkillUser >= 4:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_643d
+	jr nz, .own
 
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_052_643d
+	jr c, .own
 
+;>@w     dmg = level + (level >> 1)
 	call ShiftBC1
-	jr jr_052_6442
+	jr .cap
 
-jr_052_643d:
+;> else:
+;>@o     dmg = 3 * level + 10
+.own
 	add hl, bc
 	add hl, bc
 	ld bc, $000a
 
-jr_052_6442:
+.cap
+;=@w
 	add hl, bc
+;> dmg = min(dmg, 180)
 	ld bc, $00b4
 	call CompareHLBC
-	jr c, jr_052_644e
+	jr c, .store
 
 	ld hl, $00b4
 
-jr_052_644e:
+.store
+;> wSkillAmount = dmg
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> spread = Percent30(dmg)
 	call Percent30
 	ld b, h
 	ld c, l
+;> BattleRandom()
 	call BattleRandom
+;> r = DivideHLBC(wRandomLow << 8 | wRandomHigh, spread)[1]
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	call DivideHLBC
+;> if r & 1:
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	sra b
 	rr c
-	jr nc, jr_052_647f
+;=@i
+	jr nc, .plus
 
+;>@i     dmg = (dmg - (r >> 1)) & 0xFFFF
 	ld a, l
 	sub c
 	ld c, a
 	ld a, h
 	sbc b
 	ld b, a
-	jr jr_052_6482
+;=@i
+	jr .done
 
-jr_052_647f:
+;> else:
+;>     dmg = dmg + (r >> 1)
+.plus
 	add hl, bc
 	ld b, h
 	ld c, l
 
-jr_052_6482:
+.done
+;> wSkillAmount = dmg
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> InfernosResistDamage(GetTargetStatus3())
 	call GetTargetStatus3
 	call InfernosResistDamage
 	ret
 
 
+;@ def CalcLevelDamage2()
+;@ path: battle/skills/damage
+;@ Damage from the user's level (WindBeast used by an enemy): twice the level
+;@ plus 30, at most 150, with a random amount of up to a tenth added or taken
+;@ off (taking off stops at 0), then the target's Infernos resistance counts.
+;@ The check meant to give wild enemies 1.5 times the level compares
+;@ wLinkActive instead of the user's position, so it never picks that.
 CalcLevelDamage2::
+;>@l level = wBattlerLevel[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@l
 	ld h, a
 	ld l, [hl]
 	ld h, $00
+;> if not wLinkActive and wLinkActive >= 4:   # never true
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_64b1
+	jr nz, .own
 
 	cp $04
-	jr c, jr_052_64b1
+	jr c, .own
 
+;>@w     dmg = level + (level >> 1)
 	ld b, h
 	ld c, l
 	call ShiftBC1
-	jr jr_052_64b5
+	jr .cap
 
-jr_052_64b1:
+;> else:
+;>@o     dmg = 2 * level + 30
+.own
 	add hl, hl
 	ld bc, $001e
 
-jr_052_64b5:
+.cap
+;=@w
 	add hl, bc
+;> dmg = min(dmg, 150)
 	ld bc, $0096
 	call CompareHLBC
-	jr c, jr_052_64c1
+	jr c, .store
 
 	ld hl, $0096
 
-jr_052_64c1:
+.store
+;> wSkillAmount = dmg
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> spread = Divide16(dmg, 5)[0]
 	ld a, $05
 	call Divide16
 	ld b, h
 	ld c, l
+;> BattleRandom()
 	call BattleRandom
+;> r = DivideHLBC(wRandomLow << 8 | wRandomHigh, spread)[1]
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	call DivideHLBC
+;> if not r & 1:
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	sra b
 	rr c
-	jr c, jr_052_64ef
+;=@i
+	jr c, .minus
 
+;>@i     wSkillAmount = dmg + (r >> 1)
 	add hl, bc
-	jr jr_052_64f7
+	jr .done
 
-jr_052_64ef:
+;> elif dmg >= r >> 1:
+;>@m     wSkillAmount = dmg - (r >> 1)
+.minus
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
-	jr c, jr_052_64ff
+;=@m
+	jr c, .resist
 
-jr_052_64f7:
+.done
+;=@i
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_64ff:
+.resist
+;> InfernosResistDamage(GetTargetStatus3())
 	call GetTargetStatus3
 	call InfernosResistDamage
 	ret
 
 
+;@ def CalcSkillDamageRes24()
+;@ path: battle/skills/damage
+;@ Spell damage from the skill table (RockThrow), then the target's resistance
+;@ 24 counts (ResistDamageB).
 CalcSkillDamageRes24::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageB(status, GetResistByte6() >> 4 & 3)
 	call GetResistByte6
 	swap a
 	and $03
@@ -5622,8 +5695,14 @@ CalcSkillDamageRes24::
 	ret
 
 
+;@ def CalcSkillDamageRes16()
+;@ path: battle/skills/damage
+;@ Spell damage from the skill table (FireAir), then the target's resistance 16
+;@ counts (ResistDamageB).
 CalcSkillDamageRes16::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageB(status, GetResistByte4() >> 4 & 3)
 	call GetResistByte4
 	swap a
 	and $03
@@ -5631,8 +5710,14 @@ CalcSkillDamageRes16::
 	ret
 
 
+;@ def CalcSkillDamageRes17()
+;@ path: battle/skills/damage
+;@ Spell damage from the skill table (FrigidAir), then the target's resistance
+;@ 17 counts (ResistDamageB).
 CalcSkillDamageRes17::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageB(status, GetResistByte4() >> 2 & 3)
 	call GetResistByte4
 	rrca
 	rrca
@@ -5641,8 +5726,14 @@ CalcSkillDamageRes17::
 	ret
 
 
+;@ def CalcSkillDamageRes0()
+;@ path: battle/skills/damage
+;@ Spell damage from the skill table (BigBang), then the target's resistance 0
+;@ (Blaze) counts (ResistDamageB).
 CalcSkillDamageRes0::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageB(status, GetResistByte0() >> 4 & 3)
 	call GetResistByte0
 	swap a
 	and $03
@@ -5650,97 +5741,135 @@ CalcSkillDamageRes0::
 	ret
 
 
+;@ def CalcMPLevelDamage()
+;@ path: battle/skills/damage
+;@ MegaMagic: twice the user's MP plus twice its level, with a random amount of
+;@ up to a tenth added or taken off, then the target's resistance 15 counts
+;@ (ResistDamageB).
 CalcMPLevelDamage::
+;>@a wSkillAmount = 2 * GetBattlerMP(wSkillUser) & 0xFFFF
 	ld a, [wSkillUser]
 	ld e, a
 	call GetBattlerMP
 	add hl, hl
 	ld a, l
 	ld [wSkillAmount], a
+;=@a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@m dmg = (2 * wBattlerLevel[wSkillUser] + wSkillAmount) & 0xFFFF
 	ld a, e
 	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+;=@m
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	add hl, bc
+;> wSkillAmount = dmg
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> spread = Percent40(dmg) >> 2
 	call Percent40
 	call ShiftHL2
+;> if spread:
 	ld a, l
 	or h
-	jr z, jr_052_65a7
+	jr z, .resist
 
+;>     BattleRandom()
 	ld b, h
 	ld c, l
 	call BattleRandom
+;>@r     r = DivideHLBC(wRandomLow << 8 | wRandomHigh, spread)[1]
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	call DivideHLBC
+;>@d     if wRandomHigh & 1:
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	ld a, [wRandomHigh]
 	and $01
-	jr z, jr_052_659e
+;=@d
+	jr z, .plus
 
+;>@s         dmg = (dmg - r) & 0xFFFF
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
-	jr jr_052_659f
+;=@s
+	jr .store
 
-jr_052_659e:
+;>     else:
+;>         dmg = (dmg + r) & 0xFFFF
+.plus
 	add hl, bc
 
-jr_052_659f:
+.store
+;>     wSkillAmount = dmg
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_65a7:
+.resist
+;>@x ResistDamageB(GetTargetStatus3(), GetResistByte4() >> 6)
 	call GetTargetStatus3
 	call GetResistByte4
 	rlca
 	rlca
 	and $03
 	call ResistDamageB
+;=@x
 	ret
 
 
+;@ def TryEffectRes19() -> carry
+;@ path: battle/skills/chance
+;@ Whether a paralysing skill (PalsyAir) takes hold: not on bosses in scripted
+;@ battles (CheckSkillAllowed), else by the target's resistance 19
+;@ (ResistChanceC). Carry when it works.
 TryEffectRes19::
+;> if not CheckSkillAllowed():
+;>     return ReturnNoCarry()
 	call CheckSkillAllowed
 	jp z, ReturnNoCarry
 
+;>@r return ResistChanceC(GetTargetStatus3(), GetResistByte5() >> 6)
 	call GetTargetStatus3
 	call GetResistByte5
 	rlca
 	rlca
 	and $03
 	call ResistChanceC
+;=@r
 	ret
 
 
+;@ def TryEffectRes18() -> carry
+;@ path: battle/skills/chance
+;@ Whether a poisoning skill (PoisonGas) takes hold, by the target's resistance
+;@ 18 (ResistChanceC).
 TryEffectRes18::
+;> return ResistChanceC(GetTargetStatus3(), GetResistByte4() & 3)
 	call GetTargetStatus3
 	call GetResistByte4
 	and $03
@@ -5748,7 +5877,12 @@ TryEffectRes18::
 	ret
 
 
+;@ def TryEffectRes20() -> carry
+;@ path: battle/skills/chance
+;@ Whether a curse (Curse) takes hold, by the target's resistance 20
+;@ (ResistChanceC).
 TryEffectRes20::
+;> return ResistChanceC(GetTargetStatus3(), GetResistByte5() >> 4 & 3)
 	call GetTargetStatus3
 	call GetResistByte5
 	swap a
@@ -5757,139 +5891,197 @@ TryEffectRes20::
 	ret
 
 
+;@ def TryEffectRes21() -> carry
+;@ path: battle/skills/chance
+;@ Whether one of the dance and trick skills (Ahhh, LureDance, LushLicks, LegSweep,
+;@ WarCry) takes hold, by the target's resistance 21: with ResistChanceA for
+;@ skills below $7C, ResistChanceC from $7C on.
 TryEffectRes21::
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;>@l level = GetResistByte5() >> 2 & 3
 	call GetResistByte5
 	rrca
 	rrca
 	and $03
 	ld b, a
+;> if wSkillId < 0x7C:
 	ld a, [wSkillId]
 	cp $7c
 	ld a, b
-	jr nc, jr_052_65fb
+	jr nc, .harder
 
+;>     return ResistChanceA(status, level)
 	call ResistChanceA
-	jr jr_052_65fe
+	jr .done
 
-jr_052_65fb:
+;> return ResistChanceC(status, level)
+.harder
 	call ResistChanceC
 
-jr_052_65fe:
+.done
 	ret
 
 
+;@ def TryEffectRes21NotType4() -> carry
+;@ path: battle/skills/chance
+;@ TryEffectRes21, but never on a target with bit 4 of its type bits
+;@ (wBattlerTypeBits); LegSweep uses it.
 TryEffectRes21NotType4::
+;>@t if wBattlerTypeBits[wSkillTarget] & 0x10:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t
 	ld h, a
 	bit 4, [hl]
+;>     return False
 	ret nz
 
+;> return TryEffectRes21()
 	call TryEffectRes21
 	ret
 
 
+;@ def CanLowerTargetStats() -> carry
+;@ path: battle/skills/effects
+;@ No carry only when there is nothing left to lower (UltraDown): the target's
+;@ defense and agility are both 1 and bit 1 of its status byte 1 (illusion,
+;@ Surround) is set.
 CanLowerTargetStats::
+;>@d if mem16[wBattlerDefense + 2 * wSkillTarget] != 1:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerDefense
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@d
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	dec bc
+;=@d
 	ld a, b
 	or c
-	jr nz, jr_052_6646
+;>@y     return True
+	jr nz, .yes
 
+;>@a if mem16[wBattlerAgility + 2 * wSkillTarget] != 1:
 	ld a, $0f
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@a
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_052_6646
+;>@y2     return True
+	jr nz, .yes
 
+;>@s return not (mem[wBattlerStatus1 + 8 * wSkillTarget] & 0x02)
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 1, [hl]
-	jr z, jr_052_6646
+	jr z, .yes
 
+;=@s
 	xor a
 	ret
 
 
-jr_052_6646:
+.yes
+;=@y
 	scf
 	ret
 
 
+;@ def RunSkill84To86()
+;@ path: battle/skills/effects
+;@ Brings in the monster a calling skill summons: skills $84, $85 and $86 each
+;@ set up their own one (SetUpCalledMonster1-3), the others the fourth kind.
+;@ The called monster's place (position 3 of the user's side) starts with all
+;@ status bytes clear.
 RunSkill84To86::
+;> if wSkillId == 0x84:
 	ld a, [wSkillId]
 	cp $84
-	jr z, jr_052_665d
+;>@1     SetUpCalledMonster1()
+	jr z, .one
 
+;> elif wSkillId == 0x85:
 	cp $85
-	jr z, jr_052_6663
+;>@2     SetUpCalledMonster2()
+	jr z, .two
 
+;> elif wSkillId == 0x86:
 	cp $86
-	jr z, jr_052_6669
+;>@3     SetUpCalledMonster3()
+	jr z, .three
 
+;> else:
+;>     SetUpCalledMonster4()
 	ld hl, far_SetUpCalledMonster4
 	rst $10
-	jr jr_052_666d
+	jr .clear
 
-jr_052_665d:
+.one
+;=@1
 	ld hl, far_SetUpCalledMonster1
 	rst $10
-	jr jr_052_666d
+	jr .clear
 
-jr_052_6663:
+.two
+;=@2
 	ld hl, far_SetUpCalledMonster2
 	rst $10
-	jr jr_052_666d
+	jr .clear
 
-jr_052_6669:
+.three
+;=@3
 	ld hl, far_SetUpCalledMonster3
 	rst $10
 
-jr_052_666d:
+.clear
+;> status = wBattlerStatus + 8 * (wSkillUser & 4 | 3)
 	ld a, [wSkillUser]
 	and $04
 	or $03
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;>@f fill(status, 8, 0)
 	xor a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@f
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
 	ret
 
 
+;@ def ShowUserPicC9()
+;@ path: battle/skills/effects
+;@ Changes the skill's user (TransformSkillUser) and loads picture $C9 for it.
 ShowUserPicC9::
+;> TransformSkillUser()
 	ld hl, far_TransformSkillUser
 	rst $10
+;> LoadBattlerPic(wSkillUser, 0xC9)
 	ld c, $c9
 	ld a, [wSkillUser]
 	ld b, a
@@ -5897,7 +6089,11 @@ ShowUserPicC9::
 	ret
 
 
+;@ def TryEffectRes22() -> carry
+;@ path: battle/skills/chance
+;@ Whether DanceShut takes hold, by the target's resistance 22 (ResistChanceA).
 TryEffectRes22::
+;> return ResistChanceA(GetTargetStatus3(), GetResistByte5() & 3)
 	call GetTargetStatus3
 	call GetResistByte5
 	and $03
@@ -5905,18 +6101,29 @@ TryEffectRes22::
 	ret
 
 
+;@ def TryEffectRes23() -> carry
+;@ path: battle/skills/chance
+;@ Whether MouthShut takes hold, by the target's resistance 23 (ResistChanceA).
 TryEffectRes23::
+;>@r return ResistChanceA(GetTargetStatus3(), GetResistByte6() >> 6)
 	call GetTargetStatus3
 	call GetResistByte6
 	rlca
 	rlca
 	and $03
 	call ResistChanceA
+;=@r
 	ret
 
 
+;@ def CalcSkillDamageRes25()
+;@ path: battle/skills/damage
+;@ GigaSlash: damage from the skill table, then the target's resistance 25
+;@ counts (ResistDamageA).
 CalcSkillDamageRes25::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageA(status, GetResistByte6() >> 2 & 3)
 	call GetResistByte6
 	rrca
 	rrca
@@ -5925,19 +6132,28 @@ CalcSkillDamageRes25::
 	ret
 
 
+;@ def CalcAttack400Damage()
+;@ path: battle/skills/damage
+;@ A normal attack worked out as if the user's attack were 400 (CallEvil); its
+;@ real attack is put back afterwards.
 CalcAttack400Damage::
+;> ptr = wBattlerAttack + 2 * wSkillUser
+;> atk = mem16[ptr]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAttack
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld b, [hl]
+;>@s mem16[ptr] = 400
 	ld c, a
 	push bc
 	ld a, $01
 	ld [hld], a
 	ld [hl], $90
+;> SkillAttackDamage()
 	call SkillAttackDamage
+;> mem16[ptr] = atk
 	pop bc
 	pop hl
 	ld a, c
@@ -5946,36 +6162,58 @@ CalcAttack400Damage::
 	ret
 
 
+;@ def CalcSkillAmount() -> hl
+;@ path: battle/skills/damage
+;@ The base amount of the skill being used into wSkillAmount: the skill table
+;@ (GetSkillValue) has a value and a random spread for own monsters (field $0B)
+;@ and for wild enemies (field $0F); AddSkillSpread adds the random part. Runs on
+;@ into GetTargetStatus3, so it returns the target's status byte 3.
 CalcSkillAmount::
+;> wBattleArg0 = wSkillId
+;> wBattleArg1 = 0
 	ld a, [wSkillId]
 	ld [wBattleArg0], a
 	ld a, $00
 	ld [wBattleArg1], a
+;> if not wLinkActive and wSkillUser & 4:
+;>@w     wBattleArg2 = 0x0F                    # wild enemy
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_66f2
+	jr nz, .own
 
 	ld a, [wSkillUser]
 	bit 2, a
-	jr z, jr_052_66f2
+	jr z, .own
 
+;=@w
 	ld a, $0f
-	jr jr_052_66f4
+	jr .get
 
-jr_052_66f2:
+;> else:
+;>@o     wBattleArg2 = 0x0B                    # own monster or link battle
+.own
 	ld a, $0b
 
-jr_052_66f4:
+.get
+;=@w
 	ld [wBattleArg2], a
+;> GetSkillValue()
 	ld hl, far_GetSkillValue
 	rst $10
+;> AddSkillSpread(wBattleArg1 << 8 | wBattleArg0)
+;> return GetTargetStatus3()                 # runs on into it
 	ld a, [wBattleArg0]
 	ld l, a
 	ld a, [wBattleArg1]
 	ld h, a
 	call AddSkillSpread
 
+;@ def GetTargetStatus3() -> hl
+;@ path: battle/state
+;@ Address of the skill target's status byte 3 (wBattlerStatus3: magic wall,
+;@ open to spells and the like), which the resistance routines read.
 GetTargetStatus3::
+;> return u16(wBattlerStatus3 + (8 * wSkillTarget & 0xFF))
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus3
 	call AddEightTimes
@@ -6782,7 +7020,7 @@ CheckUserFlag42::
 	push hl
 	ld b, a
 	ld a, [wSkillUser]
-	ld hl, $db42
+	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
@@ -7115,7 +7353,7 @@ ActionSteps::
 	dw Jump_52_7EE8
 
 Jump_52_6C98::
-	ld hl, far_Call_53_44CA
+	ld hl, far_RunActionStart_53
 	rst $10
 	ld a, [wBattleSubStep]
 	cp $09
@@ -7426,7 +7664,7 @@ jr_052_6e65:
 
 
 jr_052_6e6a:
-	ld hl, far_Call_53_4F4C
+	ld hl, far_RunCoverStages_53
 	rst $10
 	ret
 
@@ -7515,7 +7753,7 @@ Call_52_6ECF::
 
 
 jr_052_6ed7:
-	ld a, [$dd6c]
+	ld a, [wReactionKind]
 	and $08
 	cp $08
 	ret z
@@ -7648,7 +7886,7 @@ Jump_052_6f71:
 	cp $04
 	jp z, Jump_052_706c
 
-	ld hl, far_Call_58_642C
+	ld hl, far_AITargetRandomEnemy
 	rst $10
 	ld a, $01
 	ld [wBattleSubStep], a
@@ -7666,7 +7904,7 @@ Jump_052_6f83:
 	call CheckBattlerPresent
 	ret nc
 
-	ld hl, far_Call_58_642C
+	ld hl, far_AITargetRandomEnemy
 	rst $10
 	ret
 
@@ -7700,7 +7938,7 @@ jr_052_6fb2:
 	bit 0, [hl]
 	jp z, Jump_052_706c
 
-	ld hl, far_Call_58_642C
+	ld hl, far_AITargetRandomEnemy
 	rst $10
 	ld a, $01
 	ld [wBattleSubStep], a
@@ -7842,17 +8080,17 @@ jr_052_70a4:
 	jp nc, Jump_052_706c
 
 jr_052_70b2:
-	ld a, [$db82]
+	ld a, [wTurnOrderPos]
 	inc a
-	ld [$db82], a
+	ld [wTurnOrderPos], a
 	cp $09
 	jr nc, jr_052_7120
 
 	call Call_52_7782
 	jr c, jr_052_70e0
 
-	ld a, [$db82]
-	ld hl, $db79
+	ld a, [wTurnOrderPos]
+	ld hl, wTurnOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -7919,7 +8157,7 @@ jr_052_7111:
 
 jr_052_7120:
 	xor a
-	ld [$db82], a
+	ld [wTurnOrderPos], a
 	ld hl, wBattleStep
 	inc [hl]
 	ld hl, wSideFlags
@@ -7991,7 +8229,7 @@ jr_052_7176:
 
 Jump_052_7184:
 jr_052_7184:
-	ld a, [$dd6c]
+	ld a, [wReactionKind]
 	cp $02
 	jp z, Jump_052_71f8
 
@@ -8121,7 +8359,7 @@ jr_052_7257:
 	cp $01
 	jr nz, jr_052_7262
 
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 
 jr_052_7262:
@@ -8161,7 +8399,7 @@ jr_052_7286:
 	ld [wMenuChoice], a
 	ld a, $10
 	ld [wSkillUser], a
-	ld hl, far_Call_58_6737
+	ld hl, far_FixActionTarget
 	rst $10
 	ld a, $00
 	ld [wSkillId], a
@@ -8178,7 +8416,7 @@ jr_052_7286:
 	ld a, [wBattleItemTarget]
 	ld [wNamePos], a
 	call GetBattlerNameTo
-	ld hl, far_Call_58_57A4
+	ld hl, far_GetItemMessage
 	rst $10
 	ld a, $18
 	ld [wMonStats], a
@@ -8668,7 +8906,7 @@ Jump_52_7599::
 
 
 Jump_52_75A3::
-	ld hl, far_Call_53_4BEB
+	ld hl, far_PickConfusedAction_53
 	rst $10
 	ret
 
@@ -9637,7 +9875,7 @@ Call_52_7BEC::
 	call BattleRandom
 	ld b, $00
 	ld a, [wSkillTarget]
-	ld hl, $db42
+	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
@@ -9835,7 +10073,7 @@ Jump_52_7D22::
 	push af
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 	pop af
 	ld [wSkillTarget], a
@@ -9949,7 +10187,7 @@ jr_052_7de0:
 	or a
 	jr nz, jr_052_7dde
 
-	ld a, [$dd6c]
+	ld a, [wReactionKind]
 	or a
 	jr z, jr_052_7df9
 
@@ -9992,7 +10230,7 @@ jr_052_7df9:
 	ld a, $d3
 	call Call_52_7E74
 	ld a, $08
-	ld [$dd6c], a
+	ld [wReactionKind], a
 	ld a, $08
 	ld [wBattleArg0], a
 	ld hl, far_Call_53_5E35
@@ -10088,7 +10326,7 @@ Jump_52_7ED9::
 
 
 Jump_52_7EDE::
-	ld hl, far_Call_58_5C48
+	ld hl, far_PickTargetForSkill
 	rst $10
 	ret
 
@@ -10109,7 +10347,7 @@ Jump_52_7EE8::
 
 
 Call_52_7EF1::
-	ld a, [$dd6c]
+	ld a, [wReactionKind]
 	or a
 	jp z, Jump_052_7fc9
 
@@ -10155,7 +10393,7 @@ Call_52_7EF1::
 	ld d, a
 	ld a, [hl]
 	ld [de], a
-	ld a, [$dd6c]
+	ld a, [wReactionKind]
 	cp $40
 	jp z, Jump_052_7fc9
 
@@ -10170,7 +10408,7 @@ Call_52_7EF1::
 
 jr_052_7f4e:
 	ld a, $00
-	ld [$dd6c], a
+	ld [wReactionKind], a
 	xor a
 	ret
 

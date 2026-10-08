@@ -8,257 +8,257 @@ BankNumber_58::
 	db $58
 
 FarTable_58::
-	dw Call_58_53CF
-	dw Call_58_5749
-	dw Call_58_5955
-	dw Call_58_59DC
-	dw Call_58_6379
-	dw Call_58_642C
-	dw Call_58_57C5
-	dw Call_58_57A4
-	dw Call_58_5498
-	dw Call_58_591E
-	dw Call_58_41E9
-	dw Call_58_67BA
-	dw Call_58_5C48
-	dw Call_58_6737
-	dw Call_58_5069
-	dw Call_58_5069
-	dw Call_58_5069
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_4FD2
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_5211
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_52A9
-	dw Call_58_6367
-	dw Call_58_4854
-	dw Call_58_62BF
-	dw Call_58_474B
-	dw Call_58_62CD
-	dw Call_58_48AB
-	dw Call_58_62BF
-	dw Call_58_490E
-	dw Call_58_62CD
-	dw Call_58_62CD
-	dw Call_58_470B
-	dw Call_58_62CD
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_4ED8
-	dw Call_58_62CD
-	dw Call_58_44F7
-	dw Call_58_44F7
-	dw Call_58_44F7
-	dw Call_58_62CD
-	dw Call_58_62CD
-	dw Call_58_469E
-	dw Call_58_469E
-	dw Call_58_635F
-	dw Call_58_46C7
-	dw Call_58_62CD
-	dw Call_58_62CD
-	dw Call_58_62CD
-	dw Call_58_41E9
-	dw Call_58_41E9
-	dw Call_58_63D6
-	dw Call_58_41E9
-	dw Call_58_41E9
-	dw Call_58_5100
-	dw Call_58_41E9
-	dw Call_58_5100
-	dw Call_58_6379
-	dw Call_58_41E9
-	dw Call_58_6367
-	dw Call_58_642C
-	dw Call_58_6367
-	dw Call_58_5339
-	dw Call_58_5352
-	dw Call_58_536B
-	dw Call_58_5384
-	dw Call_58_4D1A
-	dw Call_58_4D5D
-	dw Call_58_4D6D
-	dw Call_58_4D7D
-	dw Call_58_4D8D
-	dw Call_58_4D9D
-	dw Call_58_4DAD
-	dw Call_58_62BF
-	dw Call_58_41E9
-	dw Call_58_642C
-	dw Call_58_642C
-	dw Call_58_642C
-	dw Call_58_63D6
-	dw Call_58_41E9
-	dw Call_58_41E9
-	dw Call_58_62BF
-	dw Call_58_539D
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_4DED
-	dw Call_58_4C85
-	dw Call_58_4E39
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_4E85
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_4CD1
-	dw Call_58_4CD1
-	dw Call_58_6367
-	dw Call_58_62BF
-	dw Call_58_4E85
-	dw Call_58_4B74
-	dw Call_58_4C24
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_41E9
-	dw Call_58_6367
-	dw Call_58_62BF
-	dw Call_58_62CD
-	dw Call_58_4A21
-	dw Call_58_62FD
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_4ABA
-	dw Call_58_62CD
-	dw Call_58_6367
-	dw Call_58_62CD
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_62CD
-	dw Call_58_6367
-	dw Call_58_62BF
-	dw Call_58_4B26
-	dw Call_58_6367
-	dw Call_58_62CD
-	dw Call_58_635F
-	dw Call_58_635F
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6479
-	dw Call_58_642C
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_642C
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_62FD
-	dw Call_58_62CD
-	dw Call_58_62BF
-	dw Call_58_62FD
-	dw Call_58_62CD
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_62BF
-	dw Call_58_62BF
-	dw Call_58_635F
-	dw Call_58_62CD
-	dw Call_58_62BF
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_63D6
-	dw Call_58_6367
-	dw Call_58_4DBD
-	dw Call_58_4DCD
-	dw Call_58_4DDD
-	dw Call_58_53B6
-	dw Call_58_5164
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_41E9
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
-	dw Call_58_6367
+	dw ChooseTargetsAndOrder
+	dw BlankEnemyPicture
+	dw CountTargetNames
+	dw NameTargetForMessage
+	dw AITargetAnyone
+	dw AITargetRandomEnemy
+	dw GetSkillMessage
+	dw GetItemMessage
+	dw RunTargetPicker
+	dw SetNameFormMessage
+	dw AITargetAttack
+	dw AIAttackWeight
+	dw PickTargetForSkill
+	dw FixActionTarget
+	dw AITargetBlaze
+	dw AITargetBlaze
+	dw AITargetBlaze
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetBeat
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetSleep
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetRobMagic
+	dw AITargetSelf
+	dw AITargetSap
+	dw AITargetEnemySide
+	dw AITargetUpper
+	dw AITargetOwnSide
+	dw AITargetSlow
+	dw AITargetEnemySide
+	dw AITargetSpeed
+	dw AITargetOwnSide
+	dw AITargetOwnSide
+	dw AITargetTwinHits
+	dw AITargetOwnSide
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetTransform
+	dw AITargetOwnSide
+	dw AITargetHeal
+	dw AITargetHeal
+	dw AITargetHeal
+	dw AITargetOwnSide
+	dw AITargetOwnSide
+	dw AITargetRevive
+	dw AITargetRevive
+	dw AITargetOwnFirst
+	dw AITargetAntidote
+	dw AITargetOwnSide
+	dw AITargetOwnSide
+	dw AITargetOwnSide
+	dw AITargetAttack
+	dw AITargetAttack
+	dw AITargetSelfLoadSkill
+	dw AITargetAttack
+	dw AITargetAttack
+	dw AITargetRamming
+	dw AITargetAttack
+	dw AITargetRamming
+	dw AITargetAnyone
+	dw AITargetAttack
+	dw AITargetSelf
+	dw AITargetRandomEnemy
+	dw AITargetSelf
+	dw AITargetFireSlash
+	dw AITargetBoltSlash
+	dw AITargetVacuSlash
+	dw AITargetIceSlash
+	dw AITargetMetalCut
+	dw AITargetDrakSlash
+	dw AITargetBeastCut
+	dw AITargetBirdBlow
+	dw AITargetDevilCut
+	dw AITargetZombieCut
+	dw AITargetCleanCut
+	dw AITargetEnemySide
+	dw AITargetAttack
+	dw AITargetRandomEnemy
+	dw AITargetRandomEnemy
+	dw AITargetRandomEnemy
+	dw AITargetSelfLoadSkill
+	dw AITargetAttack
+	dw AITargetAttack
+	dw AITargetEnemySide
+	dw AITargetWindBeast
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetPoisonHit
+	dw AITargetNapAttack
+	dw AITargetParalyze
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetAhhh
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetOddDance
+	dw AITargetOddDance
+	dw AITargetSelf
+	dw AITargetEnemySide
+	dw AITargetAhhh
+	dw AITargetSickLick
+	dw AITargetLegSweep
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetAttack
+	dw AITargetSelf
+	dw AITargetEnemySide
+	dw AITargetOwnSide
+	dw AITargetUltraDown
+	dw AITargetSweep
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetCover
+	dw AITargetOwnSide
+	dw AITargetSelf
+	dw AITargetOwnSide
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetOwnSide
+	dw AITargetSelf
+	dw AITargetEnemySide
+	dw AITargetMouthShut
+	dw AITargetSelf
+	dw AITargetOwnSide
+	dw AITargetOwnFirst
+	dw AITargetOwnFirst
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetRandomAlly
+	dw AITargetRandomEnemy
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetRandomEnemy
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSweep
+	dw AITargetOwnSide
+	dw AITargetEnemySide
+	dw AITargetSweep
+	dw AITargetOwnSide
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetEnemySide
+	dw AITargetEnemySide
+	dw AITargetOwnFirst
+	dw AITargetOwnSide
+	dw AITargetEnemySide
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelfLoadSkill
+	dw AITargetSelf
+	dw AITargetSmashlime
+	dw AITargetSheldodge
+	dw AITargetBranching
+	dw AITargetGigaSlash
+	dw AITargetLife
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetAttack
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
+	dw AITargetSelf
 
-Call_58_41E9::
+AITargetAttack::
 	ld hl, wSkillAmount
 	ld bc, $0008
 	xor a
 	call FillMemory
-	call Call_58_654D
+	call AIRandomEnemyIfDim
 	ret z
 
 	ld a, [wLinkActive]
@@ -267,7 +267,7 @@ Call_58_41E9::
 
 	ld a, [wSkillUser]
 	cp $04
-	jp nc, Call_58_441B
+	jp nc, AITargetWeakAtRandom
 
 Jump_058_4206:
 	ld a, [wSkillUser]
@@ -282,7 +282,7 @@ jr_058_4213:
 	call CheckBattlerPresent
 	jr c, jr_058_421e
 
-	call Call_58_660D
+	call CheckHittable
 	jr c, jr_058_4228
 
 jr_058_421e:
@@ -290,7 +290,7 @@ jr_058_421e:
 	dec b
 	jr nz, jr_058_4213
 
-	call Call_58_432C
+	call AIScoreEnemies
 	jp Jump_058_431a
 
 
@@ -304,7 +304,7 @@ jr_058_422e:
 	call CheckBattlerPresent
 	jr c, jr_058_4239
 
-	call Call_58_43EA
+	call CheckTargetExposed
 	jr z, jr_058_4243
 
 jr_058_4239:
@@ -312,7 +312,7 @@ jr_058_4239:
 	dec b
 	jr nz, jr_058_422e
 
-	call Call_58_4384
+	call AIScoreGroundedEnemies
 	jp Jump_058_431a
 
 
@@ -334,7 +334,7 @@ jr_058_4243:
 
 jr_058_425a:
 	ld a, c
-	call Call_58_43EA
+	call CheckTargetExposed
 	jr nz, jr_058_4266
 
 	ld a, c
@@ -346,7 +346,7 @@ jr_058_4266:
 	dec b
 	jr nz, jr_058_425a
 
-	call Call_58_4384
+	call AIScoreGroundedEnemies
 	jp Jump_058_431a
 
 
@@ -361,10 +361,10 @@ jr_058_4276:
 	call CheckBattlerPresent
 	jr c, jr_058_42a6
 
-	call Call_58_43EA
+	call CheckTargetExposed
 	jr nz, jr_058_42a6
 
-	call Call_58_43FF
+	call AIEstimateDamage
 	ld a, c
 	call GetBattlerHP
 	ld a, [wSkillAmount]
@@ -395,17 +395,17 @@ jr_058_42a6:
 
 jr_058_42ae:
 	pop bc
-	call Call_58_4FA7
+	call AIMetalPenalty
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
-	call Call_58_43D7
+	call AISetScore
 	inc c
 	dec b
 	jr nz, jr_058_4276
 
-	call Call_58_433E
+	call AIPickLowestScore
 	jr jr_058_431a
 
 jr_058_42c6:
@@ -419,10 +419,10 @@ jr_058_42cc:
 	call CheckBattlerCanAct
 	jr c, jr_058_42fc
 
-	call Call_58_43EA
+	call CheckTargetExposed
 	jr nz, jr_058_42fc
 
-	call Call_58_43FF
+	call AIEstimateDamage
 	ld a, c
 	call GetBattlerHP
 	ld a, [wSkillAmount]
@@ -453,17 +453,17 @@ jr_058_42fc:
 
 jr_058_4304:
 	pop bc
-	call Call_58_4FA7
+	call AIMetalPenalty
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
-	call Call_58_43D7
+	call AISetScore
 	inc c
 	dec b
 	jr nz, jr_058_42cc
 
-	call Call_58_433E
+	call AIPickLowestScore
 
 Jump_058_431a:
 jr_058_431a:
@@ -480,7 +480,7 @@ jr_058_431a:
 	ret
 
 
-Call_58_432C::
+AIScoreEnemies::
 	ld a, $00
 	ld [wStatPtr], a
 	ld b, $03
@@ -488,15 +488,15 @@ Call_58_432C::
 	ld c, a
 
 jr_058_4337:
-	call Call_58_43AA
+	call AIScoreHPDefense
 	inc c
 	dec b
 	jr nz, jr_058_4337
 
-Call_58_433E::
+AIPickLowestScore::
 	ld a, $00
 	ld [wSkillStatusPtr], a
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld c, a
 	ld a, [$db59]
 	ld b, a
@@ -504,7 +504,7 @@ Call_58_433E::
 
 jr_058_434e:
 	ld a, e
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -527,7 +527,7 @@ jr_058_4363:
 	jr jr_058_4375
 
 jr_058_436b:
-	call Call_58_5C3E
+	call BattleRandom_58
 	ld a, [wRandomHigh]
 	bit 1, a
 	jr z, jr_058_4363
@@ -544,7 +544,7 @@ jr_058_4375:
 	ret
 
 
-Call_58_4384::
+AIScoreGroundedEnemies::
 	ld a, $01
 	ld [wStatPtr], a
 	ld b, $03
@@ -558,25 +558,25 @@ jr_058_438f:
 	bit 2, [hl]
 	jr nz, jr_058_439f
 
-	call Call_58_43AA
+	call AIScoreHPDefense
 	jr jr_058_43a2
 
 jr_058_439f:
-	call Call_58_43D4
+	call AISetNoScore
 
 jr_058_43a2:
 	inc c
 	dec b
 	jr nz, jr_058_438f
 
-	call Call_58_433E
+	call AIPickLowestScore
 	ret
 
 
-Call_58_43AA::
+AIScoreHPDefense::
 	ld a, c
 	call CheckBattlerPresent
-	jr c, Call_58_43D4
+	jr c, AISetNoScore
 
 	call GetBattlerHP
 	push hl
@@ -601,16 +601,16 @@ Call_58_43AA::
 jr_058_43d0:
 	pop de
 	add hl, de
-	jr Call_58_43D7
+	jr AISetScore
 
-Call_58_43D4::
+AISetNoScore::
 	ld hl, $ffff
 
-Call_58_43D7::
+AISetScore::
 	ld a, c
 	and $03
 	add a
-	ld de, $db58
+	ld de, wTargetScores
 	add e
 	ld e, a
 	ld a, $00
@@ -624,7 +624,7 @@ Call_58_43D7::
 	ret
 
 
-Call_58_43EA::
+CheckTargetExposed::
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
@@ -643,7 +643,7 @@ jr_058_43fe:
 	ret
 
 
-Call_58_43FF::
+AIEstimateDamage::
 	push bc
 	ld a, [wSkillId]
 	cp $37
@@ -668,8 +668,8 @@ jr_058_4419:
 	ret
 
 
-Call_58_441B::
-	call Call_58_654D
+AITargetWeakAtRandom::
+	call AIRandomEnemyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -683,10 +683,10 @@ Call_58_441B::
 	cp $02
 	jr z, jr_058_448a
 
-	call Call_58_5E5B
-	call Call_58_5E75
+	call AIListPresentEnemies
+	call AIListStart
 
-Call_58_4436::
+AIPickWeighted::
 	xor a
 	ld [wSkillTarget], a
 
@@ -695,34 +695,34 @@ jr_058_443a:
 	dec a
 	rst $00
 
-JumpTable_58_443D::
-	dw Jump_58_4463
-	dw Jump_58_4453
-	dw Jump_58_4443
+AIPickWeightedTable::
+	dw AIPickOfOne
+	dw AIPickOfTwo
+	dw AIPickOfThree
 
-Jump_58_4443::
+AIPickOfThree::
 	push bc
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop bc
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, Jump_58_4463
+	jr c, AIPickOfOne
 
 	ld hl, wSkillTarget
 	inc [hl]
 
-Jump_58_4453::
+AIPickOfTwo::
 	push bc
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop bc
 	ld a, [wRandomHigh]
 	cp $aa
-	jr c, Jump_58_4463
+	jr c, AIPickOfOne
 
 	ld hl, wSkillTarget
 	inc [hl]
 
-Jump_58_4463::
+AIPickOfOne::
 	ld hl, wBattleArg0
 	ld a, [wSkillTarget]
 	add l
@@ -749,7 +749,7 @@ Jump_58_4463::
 
 
 jr_058_448a:
-	call Call_58_5E19
+	call AIStartScoresAlt
 
 jr_058_448d:
 	ld a, c
@@ -798,8 +798,8 @@ jr_058_44b5:
 	dec b
 	jr nz, jr_058_448d
 
-	call Call_58_5E5B
-	call Call_58_5E75
+	call AIListPresentEnemies
+	call AIListStart
 	ld a, d
 	cp $02
 	jr c, jr_058_44f3
@@ -808,7 +808,7 @@ jr_058_44b5:
 	push bc
 	push de
 	push hl
-	call Call_58_5E81
+	call AISortFirst
 	pop hl
 	pop de
 	pop bc
@@ -821,19 +821,19 @@ jr_058_44b5:
 	push bc
 	push de
 	push hl
-	call Call_58_5EBF
+	call AISortSecond
 	pop hl
 	pop de
 	pop bc
 	pop af
 
 jr_058_44f3:
-	call Call_58_4436
+	call AIPickWeighted
 	ret
 
 
-Call_58_44F7::
-	call Call_58_6556
+AITargetHeal::
+	call AIRandomAllyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -916,7 +916,7 @@ jr_058_454d:
 	ld d, a
 	ld a, $03
 	sub d
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -934,7 +934,7 @@ jr_058_454d:
 	dec d
 	jr nz, jr_058_4515
 
-	call Call_58_665A
+	call AIPickLowestHPRatio
 	ret
 
 
@@ -1064,7 +1064,7 @@ jr_058_461a:
 	jr jr_058_466e
 
 jr_058_465e:
-	call Call_58_5C3E
+	call BattleRandom_58
 	ld a, [wRandomHigh]
 	cp $80
 	jr c, jr_058_466e
@@ -1106,7 +1106,7 @@ jr_058_4693:
 	jp Jump_058_4515
 
 
-Call_58_469E::
+AITargetRevive::
 	ld a, [wSkillUser]
 	and $04
 	or $02
@@ -1141,8 +1141,8 @@ jr_058_46b8:
 	ret
 
 
-Call_58_46C7::
-	call Call_58_6556
+AITargetAntidote::
+	call AIRandomAllyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -1191,11 +1191,11 @@ jr_058_46fc:
 	ret
 
 
-Call_58_470B::
-	call Call_58_6556
+AITargetTwinHits::
+	call AIRandomAllyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, c
 	xor $04
 	ld c, a
@@ -1229,18 +1229,18 @@ jr_058_473a:
 	ld de, $0000
 
 jr_058_473d:
-	call Call_58_6292
+	call AIStoreScore
 	inc c
 	dec b
 	jr nz, jr_058_4716
 
-	call Call_58_619A
-	call Call_58_6188
+	call AIPickHighestScore
+	call AIFlipTargetSide
 	ret
 
 
-Call_58_474B::
-	call Call_58_6556
+AITargetUpper::
+	call AIRandomAllyIfDim
 	ret z
 
 	ld hl, wSkillStatusPtr
@@ -1260,7 +1260,7 @@ jr_058_4764:
 	jr c, jr_058_47ad
 
 	ld a, [wBattleArg2]
-	call Call_58_5C96
+	call GetBaseDefense_58
 	ld a, [wBattleArg2]
 	call GetBattlerDefense
 	ld a, [wLinkActive]
@@ -1355,7 +1355,7 @@ jr_058_47f0:
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -1404,11 +1404,11 @@ jr_058_481c:
 	ret
 
 
-Call_58_4854::
-	call Call_58_654D
+AITargetSap::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_485b:
 	push bc
@@ -1458,21 +1458,21 @@ jr_058_489c:
 	ld de, $0000
 
 jr_058_489f:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_485b
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_48AB::
-	call Call_58_654D
+AITargetSlow::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_48b2:
 	push bc
@@ -1533,18 +1533,18 @@ jr_058_48ff:
 	ld de, $0000
 
 jr_058_4902:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_48b2
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_490E::
-	call Call_58_6556
+AITargetSpeed::
+	call AIRandomAllyIfDim
 	ret z
 
 	ld hl, wSkillStatusPtr
@@ -1564,7 +1564,7 @@ jr_058_4927:
 	jr c, jr_058_497a
 
 	ld a, [wBattleArg2]
-	call Call_58_60F3
+	call GetBaseAgility_58
 	ld a, [wBattleArg2]
 	ld hl, wBattlerAgility
 	add a
@@ -1669,7 +1669,7 @@ jr_058_49bd:
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -1718,8 +1718,8 @@ jr_058_49e9:
 	ret
 
 
-Call_58_4A21::
-	call Call_58_654D
+AITargetUltraDown::
+	call AIRandomEnemyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -1750,12 +1750,12 @@ jr_058_4a37:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	call Call_58_60E0
+	call IsAtMostOne
 	jr c, jr_058_4a7c
 
 	ld a, c
 	call GetBattlerDefense
-	call Call_58_60E0
+	call IsAtMostOne
 	jr c, jr_058_4a7c
 
 	push bc
@@ -1823,12 +1823,12 @@ jr_058_4a9c:
 	ld [wBattleArg1], a
 	inc c
 	dec b
-	call Call_58_5F0C
+	call AIPickLowestKey
 	ret
 
 
-Call_58_4ABA::
-	call Call_58_6556
+AITargetCover::
+	call AIRandomAllyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -1874,7 +1874,7 @@ jr_058_4af3:
 	pop bc
 	ld a, c
 	and $03
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -1888,7 +1888,7 @@ jr_058_4af3:
 	dec b
 	jr nz, jr_058_4ac9
 
-	call Call_58_6224
+	call AIPickLowestOwnScore
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
@@ -1908,11 +1908,11 @@ jr_058_4af3:
 	ret
 
 
-Call_58_4B26::
-	call Call_58_654D
+AITargetMouthShut::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4b2d:
 	push bc
@@ -1922,7 +1922,7 @@ jr_058_4b2d:
 
 	ld de, $0001
 	ld a, c
-	call Call_58_656E
+	call KnowsBreathSkill
 	jr nc, jr_058_4b68
 
 	ld a, c
@@ -1951,18 +1951,18 @@ jr_058_4b65:
 	ld de, $0000
 
 jr_058_4b68:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4b2d
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4B74::
-	call Call_58_654D
+AITargetSickLick::
+	call AIRandomEnemyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -2085,15 +2085,15 @@ jr_058_4c07:
 	ld h, a
 	ld a, [hl]
 	ld [wBattleArg1], a
-	call Call_58_5F0C
+	call AIPickLowestKey
 	ret
 
 
-Call_58_4C24::
-	call Call_58_654D
+AITargetLegSweep::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4c2b:
 	push bc
@@ -2146,24 +2146,24 @@ jr_058_4c76:
 	ld de, $0000
 
 jr_058_4c79:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4c2b
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4C85::
-	call Call_58_654D
+AITargetNapAttack::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4c90:
 	push bc
@@ -2198,21 +2198,21 @@ jr_058_4cc2:
 	ld de, $0000
 
 jr_058_4cc5:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4c90
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4CD1::
-	call Call_58_654D
+AITargetOddDance::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4cd8:
 	push bc
@@ -2252,21 +2252,21 @@ jr_058_4d0b:
 	ld de, $0000
 
 jr_058_4d0e:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4cd8
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4D1A::
-	call Call_58_654D
+AITargetMetalCut::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4d21:
 	push bc
@@ -2305,123 +2305,123 @@ jr_058_4d4e:
 	ld de, $0000
 
 jr_058_4d51:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4d21
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4D5D::
-	call Call_58_654D
+AITargetDrakSlash::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $01
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4D6D::
-	call Call_58_654D
+AITargetBeastCut::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $02
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4D7D::
-	call Call_58_654D
+AITargetBirdBlow::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $03
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4D8D::
-	call Call_58_654D
+AITargetDevilCut::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $06
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4D9D::
-	call Call_58_654D
+AITargetZombieCut::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $07
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4DAD::
-	call Call_58_654D
+AITargetCleanCut::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $08
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4DBD::
-	call Call_58_654D
+AITargetSmashlime::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $00
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4DCD::
-	call Call_58_654D
+AITargetSheldodge::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $05
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4DDD::
-	call Call_58_654D
+AITargetBranching::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 	ld a, $04
 	ld [wBattleArg0], a
-	call Call_58_64FC
+	call AIScoreFamily
 	ret
 
 
-Call_58_4DED::
-	call Call_58_654D
+AITargetPoisonHit::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4df8:
 	push bc
@@ -2456,24 +2456,24 @@ jr_058_4e2a:
 	ld de, $0000
 
 jr_058_4e2d:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4df8
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4E39::
-	call Call_58_654D
+AITargetParalyze::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4e44:
 	push bc
@@ -2508,24 +2508,24 @@ jr_058_4e76:
 	ld de, $0000
 
 jr_058_4e79:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4e44
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4E85::
-	call Call_58_654D
+AITargetAhhh::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_627C
+	call AIStartScores
 
 jr_058_4e90:
 	push bc
@@ -2566,18 +2566,18 @@ jr_058_4ec9:
 	ld de, $0000
 
 jr_058_4ecc:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_058_4e90
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_4ED8::
-	call Call_58_654D
+AITargetTransform::
+	call AIRandomEnemyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -2614,7 +2614,7 @@ Call_58_4ED8::
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	call Call_58_5F01
+	call Add16To24
 	jr jr_058_4f21
 
 jr_058_4f1c:
@@ -2657,7 +2657,7 @@ Jump_058_4f2a:
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	call Call_58_5F01
+	call Add16To24
 	jr jr_058_4f5c
 
 jr_058_4f57:
@@ -2665,7 +2665,7 @@ jr_058_4f57:
 	ld e, $00
 
 jr_058_4f5c:
-	ld hl, $db58
+	ld hl, wTargetScores
 	ld a, e
 	cp [hl]
 	jr c, jr_058_4f80
@@ -2719,7 +2719,7 @@ jr_058_4f80:
 	ret
 
 
-Call_58_4FA7::
+AIMetalPenalty::
 	ld a, c
 	ld hl, wBattlerTypeBits
 	add l
@@ -2751,14 +2751,14 @@ Call_58_4FA7::
 	ret
 
 
-Call_58_4FD2::
-	call Call_58_654D
+AITargetBeat::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 
 Jump_058_4fdd:
 	push bc
@@ -2786,7 +2786,7 @@ Jump_058_4fdd:
 	and $30
 	ld [de], a
 	push de
-	call Call_58_5E2F
+	call CheckReflects
 	pop hl
 	jr z, jr_058_500e
 
@@ -2845,19 +2845,19 @@ jr_058_5030:
 	dec b
 	jp nz, Jump_058_4fdd
 
-	call Call_58_5D86
-	call Call_58_5E3A
+	call AIPickBestKeyHighScore
+	call AISetTargetFromBest
 	ret
 
 
-Call_58_5069::
-	call Call_58_654D
+AITargetBlaze::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 
 Jump_058_5074:
 	push bc
@@ -2885,7 +2885,7 @@ Jump_058_5074:
 	and $30
 	ld [de], a
 	push de
-	call Call_58_5E2F
+	call CheckReflects
 	pop hl
 	jr z, jr_058_50a5
 
@@ -2944,19 +2944,19 @@ jr_058_50c7:
 	dec b
 	jp nz, Jump_058_5074
 
-	call Call_58_5CEF
-	call Call_58_5E3A
+	call AIPickBestKeyLowScore
+	call AISetTargetFromBest
 	ret
 
 
-Call_58_5100::
-	call Call_58_654D
+AITargetRamming::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	xor a
 	ld [wNamePos], a
 	ld [$db51], a
@@ -3013,27 +3013,27 @@ jr_058_5145:
 	dec b
 	jr nz, jr_058_5118
 
-	call Call_58_5D86
-	call Call_58_5E3A
+	call AIPickBestKeyHighScore
+	call AISetTargetFromBest
 	ret
 
 
-Call_58_5164::
-	call Call_58_654D
+AITargetLife::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
 	ld a, [wLinkActive]
 	or a
-	jp nz, Call_58_62BF
+	jp nz, AITargetEnemySide
 
 	ld a, [wSkillUser]
 	cp $04
-	jp c, Call_58_62BF
+	jp c, AITargetEnemySide
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, c
 	ld [wNameBattler], a
 	ld a, c
@@ -3113,7 +3113,7 @@ jr_058_51e5:
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -3133,15 +3133,15 @@ jr_058_5208:
 	dec b
 	jp nz, Jump_058_51b8
 
-	call Call_58_5E3A
+	call AISetTargetFromBest
 	ret
 
 
-Call_58_5211::
-	call Call_58_654D
+AITargetSleep::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
 	ld a, [wSkillUser]
@@ -3242,12 +3242,12 @@ jr_058_528d:
 	ld h, a
 	ld a, [hl]
 	ld [wBattleArg1], a
-	call Call_58_5F0C
+	call AIPickLowestKey
 	ret
 
 
-Call_58_52A9::
-	call Call_58_654D
+AITargetRobMagic::
+	call AIRandomEnemyIfDim
 	ret z
 
 	ld a, [wSkillUser]
@@ -3344,122 +3344,122 @@ jr_058_531d:
 	ld h, a
 	ld a, [hl]
 	ld [wBattleArg1], a
-	call Call_58_5F0C
+	call AIPickLowestKey
 	ret
 
 
-Call_58_5339::
-	call Call_58_654D
+AITargetFireSlash::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, $00
 	ld [wBattleArg2], a
 	ld a, $c0
 	ld [wBattleArg3], a
-	call Call_58_5FA6
+	call AITargetResistHPDef
 	ret
 
 
-Call_58_5352::
-	call Call_58_654D
+AITargetBoltSlash::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, $01
 	ld [wBattleArg2], a
 	ld a, $30
 	ld [wBattleArg3], a
-	call Call_58_5FA6
+	call AITargetResistHPDef
 	ret
 
 
-Call_58_536B::
-	call Call_58_654D
+AITargetVacuSlash::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, $01
 	ld [wBattleArg2], a
 	ld a, $c0
 	ld [wBattleArg3], a
-	call Call_58_5FA6
+	call AITargetResistHPDef
 	ret
 
 
-Call_58_5384::
-	call Call_58_654D
+AITargetIceSlash::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, $01
 	ld [wBattleArg2], a
 	ld a, $0c
 	ld [wBattleArg3], a
-	call Call_58_5FA6
+	call AITargetResistHPDef
 	ret
 
 
-Call_58_539D::
-	call Call_58_654D
+AITargetWindBeast::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, $01
 	ld [wBattleArg2], a
 	ld a, $c0
 	ld [wBattleArg3], a
-	call Call_58_6043
+	call AITargetResistHP
 	ret
 
 
-Call_58_53B6::
-	call Call_58_654D
+AITargetGigaSlash::
+	call AIRandomEnemyIfDim
 	ret z
 
-	call Call_58_6629
+	call AIUsesScoring
 	ret z
 
-	call Call_58_5E19
+	call AIStartScoresAlt
 	ld a, $06
 	ld [wBattleArg2], a
 	ld a, $0c
 	ld [wBattleArg3], a
-	call Call_58_6043
+	call AITargetResistHP
 	ret
 
 
-Call_58_53CF::
+ChooseTargetsAndOrder::
 	ld a, [wBattleSubStep]
 	rst $00
 
-JumpTable_58_53D3::
-	dw Jump_58_53DF
-	dw Jump_58_541E
-	dw Jump_58_5427
-	dw Jump_58_54D1
-	dw Jump_58_55C2
-	dw Jump_58_5707
+ChooseTargetsSteps::
+	dw ChooseTargetsNext
+	dw ChooseTargetsTactic
+	dw ChooseTargetsPick
+	dw TurnOrderRollSpeeds
+	dw TurnOrderSort
+	dw ChooseTargetsDone
 
-Jump_58_53DF::
+ChooseTargetsNext::
 	ld a, [wLinkActive]
 	or a
-	call nz, Call_58_5C18
+	call nz, LinkRandom
 	ld a, [wSkillUser]
 	cp $08
 	jr z, jr_058_5411
@@ -3501,15 +3501,16 @@ jr_058_541d:
 	ret
 
 
-Jump_58_541E::
+ChooseTargetsTactic::
 	ld hl, far_Call_57_6E0E
 	rst $10
 	ret
 
 
+UnusedJumpToPointer::
 	db $2a, $66, $6f, $e9
 
-Jump_58_5427::
+ChooseTargetsPick::
 	xor a
 	ld [wHitCount], a
 	ld a, [wSkillUser]
@@ -3545,7 +3546,7 @@ Jump_58_5427::
 jr_058_545b:
 	ld a, [wGameModeStep]
 	or a
-	call nz, Call_58_5A20
+	call nz, MaybeForceSkill
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
@@ -3556,12 +3557,12 @@ jr_058_545b:
 	ld h, a
 	ld a, [hl]
 	cp $ff
-	call z, Call_58_54CE
-	call Call_58_5498
+	call z, SetActionAttack
+	call RunTargetPicker
 
 jr_058_5478:
-	call Call_58_5A40
-	call Call_58_5BA1
+	call NotePersonalitySkill
+	call NotePersonalityAttack
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
@@ -3575,10 +3576,10 @@ jr_058_5478:
 	ld [wBattleSubStep], a
 	ld hl, wSkillUser
 	inc [hl]
-	jp Jump_58_53DF
+	jp ChooseTargetsNext
 
 
-Call_58_5498::
+RunTargetPicker::
 	ld a, [wBattleSubStep]
 	cp $16
 	jr c, jr_058_54b1
@@ -3617,13 +3618,13 @@ jr_058_54be:
 	ret
 
 
-Call_58_54CE::
+SetActionAttack::
 	ld [hl], $3a
 	ret
 
 
-Jump_58_54D1::
-	ld hl, $db79
+TurnOrderRollSpeeds::
+	ld hl, wTurnOrder
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
@@ -3636,7 +3637,7 @@ Jump_58_54D1::
 	ld a, $00
 	call FillMemory
 	xor a
-	ld [$db82], a
+	ld [wTurnOrderPos], a
 	ld [wBattlerReload], a
 	ld hl, wSkillStatusPtr
 	ld a, l
@@ -3649,7 +3650,7 @@ Jump_058_5507:
 	push de
 	ld a, [wLinkActive]
 	or a
-	call nz, Call_58_5C18
+	call nz, LinkRandom
 	pop de
 	ld a, e
 	call CheckBattlerPresent
@@ -3678,7 +3679,7 @@ Jump_058_5507:
 	ld b, [hl]
 	ld c, a
 	ld a, e
-	call Call_58_5662
+	call RollSpeed
 	ld a, b
 	or a
 	jr nz, jr_058_5543
@@ -3691,7 +3692,7 @@ Jump_058_5507:
 
 jr_058_5543:
 	ld a, e
-	call Call_58_56CF
+	call IsFirstMoveSkill
 	jr c, jr_058_5561
 
 	ld a, e
@@ -3704,9 +3705,9 @@ jr_058_5543:
 	ld h, a
 	ld a, [hl]
 	cp $55
-	call z, Call_58_55B9
+	call z, SpeedBonusSquallHit
 	cp $56
-	call z, Call_58_55BE
+	call z, SpeedSlowest
 	jr jr_058_5565
 
 jr_058_5561:
@@ -3770,21 +3771,21 @@ jr_058_5587:
 jr_058_55b3:
 	ld hl, wBattleSubStep
 	inc [hl]
-	jr Jump_58_55C2
+	jr TurnOrderSort
 
-Call_58_55B9::
+SpeedBonusSquallHit::
 	ld a, b
 	add $02
 	ld b, a
 	ret
 
 
-Call_58_55BE::
+SpeedSlowest::
 	ld bc, $0001
 	ret
 
 
-Jump_58_55C2::
+TurnOrderSort::
 	ld d, $08
 
 jr_058_55c4:
@@ -3811,7 +3812,7 @@ jr_058_55da:
 	ld a, h
 	ld [$db57], a
 	ld a, c
-	ld [$db58], a
+	ld [wTargetScores], a
 	ld a, b
 	ld [$db59], a
 	ld a, [wNameDest]
@@ -3822,7 +3823,7 @@ jr_058_55da:
 	ld [hli], a
 	ld a, [$db57]
 	ld [hli], a
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld [hli], a
 	ld a, [$db59]
 	ld [hl], a
@@ -3867,14 +3868,14 @@ jr_058_5635:
 	dec d
 	jr nz, jr_058_55c4
 
-	ld a, [$db82]
-	ld de, $db79
+	ld a, [wTurnOrderPos]
+	ld de, wTurnOrder
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
-	ld a, [$db82]
+	ld a, [wTurnOrderPos]
 	ld hl, wBattleArg0
 	ld b, $08
 
@@ -3890,18 +3891,18 @@ jr_058_564c:
 
 jr_058_5656:
 	ld a, $00
-	ld [$db82], a
+	ld [wTurnOrderPos], a
 	ld hl, wBattleSubStep
 	inc [hl]
-	jp Jump_58_5707
+	jp ChooseTargetsDone
 
 
-Call_58_5662::
+RollSpeed::
 	push hl
 	push de
 	push af
 	push bc
-	call Call_58_5C3E
+	call BattleRandom_58
 	ld hl, $0001
 	pop bc
 	ld a, b
@@ -3987,7 +3988,7 @@ jr_058_56cc:
 	ret
 
 
-Call_58_56CF::
+IsFirstMoveSkill::
 	ld hl, wBattlerAction
 	add a
 	add l
@@ -4036,10 +4037,10 @@ jr_058_5706:
 	ret
 
 
-Jump_58_5707::
+ChooseTargetsDone::
 	xor a
 	ld [wBattleSubStep], a
-	ld [$db82], a
+	ld [wTurnOrderPos], a
 	ld [wSkillUser], a
 	ld [wSkillTarget], a
 	ld [wSkillId], a
@@ -4048,11 +4049,12 @@ Jump_58_5707::
 	ret
 
 
+UnusedRandomSkill::
 	db $e5, $fa, $88, $db, $21, $65, $dc, $cb, $37, $85, $6f, $3e, $00, $8c, $67, $44
 	db $4d, $fa, $99, $c8, $e6, $07, $87, $85, $6f, $3e, $00, $8c, $67, $7e, $fe, $ff
 	db $20, $07, $0a, $fe, $ff, $20, $02, $3e, $3a, $4f, $e1, $71, $c9
 
-Call_58_5749::
+BlankEnemyPicture::
 	ld a, $02
 	ld [wBattleStepArg1], a
 	ld a, [wLinkActive]
@@ -4125,7 +4127,7 @@ jr_058_578b:
 	ret
 
 
-Call_58_57A4::
+GetItemMessage::
 	ld a, [wBattleItemEffect]
 	cp $c2
 	jr c, jr_058_57e6
@@ -4140,7 +4142,7 @@ Call_58_57A4::
 	cp $04
 	jr nc, jr_058_57c2
 
-	call Call_58_59CF
+	call CountTargetsOne
 	jp Jump_058_58f8
 
 
@@ -4148,7 +4150,7 @@ jr_058_57c2:
 	jp Jump_058_58e8
 
 
-Call_58_57C5::
+GetSkillMessage::
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -4194,7 +4196,11 @@ jr_058_57fa:
 	ret
 
 
-	db $3e, $ff, $ea, $4c, $db, $c9, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23
+UnusedClearArg0::
+	db $3e, $ff, $ea, $4c, $db, $c9
+
+SkillMessages::
+	db $23, $23, $23, $23, $23, $23, $23, $23, $23, $23
 	db $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23
 	db $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23
 	db $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $22, $22, $23
@@ -4215,7 +4221,7 @@ Jump_058_58e8:
 	push af
 	ld a, $04
 	ld [wSkillTarget], a
-	call Call_58_5955
+	call CountTargetNames
 	pop af
 	ld [wSkillTarget], a
 
@@ -4241,12 +4247,13 @@ jr_058_5907:
 	ret
 
 
+MeatMessages::
 	db $00, $01, $02, $00, $01, $02
 
-Call_58_591E::
-	call Call_58_5C0B
+SetNameFormMessage::
+	call GetMessageSidePos
 	cp $04
-	call nc, Call_58_593D
+	call nc, StripLetterArg0
 	ld a, [wBattleTemp]
 	ld hl, $5937
 	add l
@@ -4259,13 +4266,14 @@ Call_58_591E::
 	ret
 
 
+NameFormMessages::
 	db $03, $05, $07, $04, $06, $08
 
-Call_58_593D::
+StripLetterArg0::
 	ld hl, wTextArg0
 	jr jr_058_5945
 
-Call_58_5942::
+StripLetterArg2::
 	ld hl, wTextArg2
 
 jr_058_5945:
@@ -4286,7 +4294,7 @@ jr_058_594d:
 	ret
 
 
-Call_58_5955::
+CountTargetNames::
 	xor a
 	ld [wBattleTemp], a
 	ld [wBattleTempHigh], a
@@ -4370,7 +4378,7 @@ jr_058_59b9:
 
 	ld a, [wBattleTemp]
 	cp $01
-	jr z, Call_58_59CF
+	jr z, CountTargetsOne
 
 	ld a, [wBattleTempHigh]
 	cp $01
@@ -4379,12 +4387,12 @@ jr_058_59b9:
 	ld a, $02
 	jr jr_058_59d8
 
-Call_58_59CF::
+CountTargetsOne::
 	ld a, $00
 	jr jr_058_59d8
 
 jr_058_59d3:
-	call Call_58_5942
+	call StripLetterArg2
 	ld a, $01
 
 jr_058_59d8:
@@ -4392,7 +4400,7 @@ jr_058_59d8:
 	ret
 
 
-Call_58_59DC::
+NameTargetForMessage::
 	ld hl, wTextArg0
 	ld a, [wLinkActive]
 	or a
@@ -4402,7 +4410,7 @@ Call_58_59DC::
 	cp $03
 	jr c, jr_058_59f1
 
-	call Call_58_5A02
+	call CopySpeciesName
 	jr jr_058_59fe
 
 jr_058_59f1:
@@ -4415,11 +4423,11 @@ jr_058_59f1:
 	call CopyName
 
 jr_058_59fe:
-	call Call_58_5955
+	call CountTargetNames
 	ret
 
 
-Call_58_5A02::
+CopySpeciesName::
 	ld [wNameBattler], a
 	push hl
 	ld hl, wBattlerSpecies
@@ -4440,8 +4448,8 @@ Call_58_5A02::
 	ret
 
 
-Call_58_5A20::
-	call Call_58_5C3E
+MaybeForceSkill::
+	call BattleRandom_58
 	ld a, [wOpeningScene]
 	or a
 	jr z, jr_058_5a2e
@@ -4464,7 +4472,7 @@ jr_058_5a2e:
 	ret
 
 
-Call_58_5A40::
+NotePersonalitySkill::
 	ld a, [wSkillUser]
 	call CheckBattlerCanAct
 	ret c
@@ -4473,7 +4481,7 @@ Call_58_5A40::
 	or a
 	jr z, jr_058_5a5a
 
-	call Call_58_5C18
+	call LinkRandom
 	ld a, [wSkillUser]
 	and $03
 	cp $03
@@ -4486,7 +4494,7 @@ jr_058_5a5a:
 	cp $03
 	ret nc
 
-	call Call_58_5C3E
+	call BattleRandom_58
 
 jr_058_5a63:
 	ld a, [wSkillUser]
@@ -4613,7 +4621,7 @@ jr_058_5afb:
 	ld d, $04
 	jr jr_058_5b25
 
-Call_58_5B02::
+NoteStat67Low::
 	ld hl, wBattlerStat67
 	ld d, $08
 	jr jr_058_5b63
@@ -4628,7 +4636,7 @@ jr_058_5b10:
 	ld d, $20
 	jr jr_058_5b63
 
-Call_58_5B17::
+NotePersonality3High::
 	ld hl, wBattlerPersonality3
 	ld d, $40
 	jr jr_058_5b25
@@ -4682,7 +4690,7 @@ jr_058_5b4e:
 	ret nc
 
 	ld a, [wSkillUser]
-	ld hl, $db42
+	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
@@ -4737,7 +4745,7 @@ jr_058_5b8c:
 	ret nc
 
 	ld a, [wSkillUser]
-	ld hl, $db42
+	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
@@ -4749,7 +4757,7 @@ jr_058_5b8c:
 	ret
 
 
-Call_58_5BA1::
+NotePersonalityAttack::
 	ld a, [wSkillUser]
 	call CheckBattlerCanAct
 	ret c
@@ -4758,7 +4766,7 @@ Call_58_5BA1::
 	or a
 	jr z, jr_058_5bbb
 
-	call Call_58_5C18
+	call LinkRandom
 	ld a, [wSkillUser]
 	and $03
 	cp $03
@@ -4771,7 +4779,7 @@ jr_058_5bbb:
 	cp $03
 	ret nc
 
-	call Call_58_5C3E
+	call BattleRandom_58
 
 jr_058_5bc4:
 	ld a, [wSkillUser]
@@ -4822,16 +4830,16 @@ jr_058_5bc4:
 	ret nc
 
 jr_058_5c03:
-	call Call_58_5B17
+	call NotePersonality3High
 	ret
 
 
 jr_058_5c07:
-	call Call_58_5B02
+	call NoteStat67Low
 	ret
 
 
-Call_58_5C0B::
+GetMessageSidePos::
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
@@ -4841,7 +4849,7 @@ Call_58_5C0B::
 	ret
 
 
-Call_58_5C18::
+LinkRandom::
 	push hl
 	ld a, [wLinkRandom]
 	ld l, a
@@ -4864,17 +4872,17 @@ Call_58_5C18::
 	ret
 
 
-Call_58_5C3E::
+BattleRandom_58::
 	ld a, [wLinkActive]
 	or a
-	jr nz, Call_58_5C18
+	jr nz, LinkRandom
 
 	call Random
 	ret
 
 
-Call_58_5C48::
-	call Call_58_5498
+PickTargetForSkill::
+	call RunTargetPicker
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
@@ -4924,7 +4932,7 @@ jr_058_5c73:
 	ret
 
 
-Call_58_5C96::
+GetBaseDefense_58::
 	push hl
 	ld b, a
 	ld a, [wLinkActive]
@@ -4993,8 +5001,8 @@ jr_058_5ced:
 	ret
 
 
-Call_58_5CEF::
-	ld hl, $db58
+AIPickBestKeyLowScore::
+	ld hl, wTargetScores
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
@@ -5011,7 +5019,7 @@ jr_058_5d08:
 	push hl
 	push de
 	push bc
-	call Call_58_5C3E
+	call BattleRandom_58
 	ld a, [wNameBattler]
 	ld hl, wNamePos
 	and $03
@@ -5094,8 +5102,8 @@ jr_058_5d61:
 	ret
 
 
-Call_58_5D86::
-	ld hl, $db58
+AIPickBestKeyHighScore::
+	ld hl, wTargetScores
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
@@ -5112,7 +5120,7 @@ jr_058_5d9f:
 	push hl
 	push de
 	push bc
-	call Call_58_5C3E
+	call BattleRandom_58
 	ld a, [wNameBattler]
 	ld hl, wNamePos
 	add l
@@ -5193,7 +5201,7 @@ jr_058_5df4:
 	ret
 
 
-Call_58_5E19::
+AIStartScoresAlt::
 	ld hl, wSkillAmount
 	ld a, l
 	ld [wNameDest], a
@@ -5207,7 +5215,7 @@ Call_58_5E19::
 	ret
 
 
-Call_58_5E2F::
+CheckReflects::
 	ld a, c
 	ld hl, wBattlerStatus2
 	call AddEightTimes
@@ -5216,7 +5224,7 @@ Call_58_5E2F::
 	ret
 
 
-Call_58_5E3A::
+AISetTargetFromBest::
 	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
@@ -5237,8 +5245,8 @@ Call_58_5E3A::
 	ret
 
 
-Call_58_5E5B::
-	call Call_58_5E75
+AIListPresentEnemies::
+	call AIListStart
 	ld b, $03
 	ld d, $00
 
@@ -5253,7 +5261,7 @@ jr_058_5e62:
 	jr jr_058_5e70
 
 jr_058_5e6d:
-	call Call_58_66E7
+	call AIDropScore
 
 jr_058_5e70:
 	inc c
@@ -5263,7 +5271,7 @@ jr_058_5e70:
 	ret
 
 
-Call_58_5E75::
+AIListStart::
 	ld hl, wBattleArg0
 	ld a, [wSkillUser]
 	and $04
@@ -5272,13 +5280,13 @@ Call_58_5E75::
 	ret
 
 
-Call_58_5E81::
+AISortFirst::
 	xor a
 	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
-	call Call_58_5CEF
+	call AIPickBestKeyLowScore
 	ld a, [wNameBattler]
 	ld hl, wBattleArg0
 	ld de, wBattleArg0
@@ -5319,8 +5327,8 @@ Call_58_5E81::
 	ret
 
 
-Call_58_5EBF::
-	call Call_58_5D86
+AISortSecond::
+	call AIPickBestKeyHighScore
 	ld a, [wNameBattler]
 	ld hl, wBattleArg2
 	ld de, wBattleArg0
@@ -5361,9 +5369,10 @@ Call_58_5EBF::
 	ret
 
 
+UnusedAddHLBC24::
 	db $7d, $81, $6f, $7c, $88, $67, $af, $ce, $00, $4f, $c9
 
-Call_58_5F01::
+Add16To24::
 	ld a, c
 	add e
 	ld c, a
@@ -5376,7 +5385,7 @@ Call_58_5F01::
 	ret
 
 
-Call_58_5F0C::
+AIPickLowestKey::
 	ld a, c
 	and $03
 	ld hl, wNamePos
@@ -5396,7 +5405,7 @@ Call_58_5F0C::
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -5414,7 +5423,7 @@ jr_058_5f33:
 jr_058_5f3b:
 	inc c
 	dec b
-	jr nz, Call_58_5F0C
+	jr nz, AIPickLowestKey
 
 	ld a, [wBattleArg0]
 	ld [wSkillTarget], a
@@ -5431,7 +5440,7 @@ jr_058_5f3b:
 	ret
 
 
-Call_58_5F57::
+AIScoreHPDef::
 	push hl
 	push bc
 	ld a, c
@@ -5471,7 +5480,7 @@ jr_058_5f7f:
 	ret
 
 
-Call_58_5F83::
+AIScoreHP::
 	push hl
 	push bc
 	ld a, c
@@ -5502,7 +5511,7 @@ jr_058_5fa4:
 	ret
 
 
-Call_58_5FA6::
+AITargetResistHPDef::
 	ld a, c
 	ld [wNameBattler], a
 	push bc
@@ -5513,7 +5522,7 @@ Call_58_5FA6::
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
-	call Call_58_5F57
+	call AIScoreHPDef
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
@@ -5534,7 +5543,7 @@ jr_058_5fcf:
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
-	call Call_58_5F57
+	call AIScoreHPDef
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
@@ -5562,7 +5571,7 @@ jr_058_5fcf:
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -5603,7 +5612,7 @@ jr_058_6027:
 	ret
 
 
-Call_58_6043::
+AITargetResistHP::
 	ld a, c
 	ld [wNameBattler], a
 	push bc
@@ -5614,7 +5623,7 @@ Call_58_6043::
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
-	call Call_58_5F83
+	call AIScoreHP
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
@@ -5635,7 +5644,7 @@ jr_058_606c:
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
-	call Call_58_5F83
+	call AIScoreHP
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
@@ -5663,7 +5672,7 @@ jr_058_606c:
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -5704,7 +5713,7 @@ jr_058_60c4:
 	ret
 
 
-Call_58_60E0::
+IsAtMostOne::
 	ld a, h
 	or a
 	jr nz, jr_058_60ee
@@ -5727,7 +5736,7 @@ jr_058_60ee:
 	ret
 
 
-Call_58_60F3::
+GetBaseAgility_58::
 	push hl
 	ld b, a
 	ld a, [wLinkActive]
@@ -5795,12 +5804,13 @@ jr_058_6149:
 	ret
 
 
+UnusedAverageEnemyAgility::
 	db $e5, $01, $00, $00, $fa, $88, $db, $e6, $04, $ee, $04, $5f, $16, $03, $af, $ea
 	db $50, $db, $7b, $cd, $a5, $2f, $38, $15, $7b, $21, $03, $dc, $87, $85, $6f, $3e
 	db $00, $8c, $67, $2a, $66, $6f, $09, $44, $4d, $21, $50, $db, $34, $1c, $15, $20
 	db $e1, $fa, $50, $db, $60, $69, $cd, $0d, $1e, $44, $4d, $e1, $c9
 
-Call_58_6188::
+AIFlipTargetSide::
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
@@ -5815,8 +5825,8 @@ Call_58_6188::
 	ret
 
 
-Call_58_619A::
-	ld hl, $db58
+AIPickHighestScore::
+	ld hl, wTargetScores
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
@@ -5848,7 +5858,7 @@ jr_058_61b3:
 	push bc
 	push de
 	push hl
-	call Call_58_5C3E
+	call BattleRandom_58
 	pop hl
 	pop de
 	pop bc
@@ -5900,10 +5910,10 @@ jr_058_61df:
 	ret
 
 
-Call_58_6224::
+AIPickLowestOwnScore::
 	ld a, $00
 	ld [wNameBattler], a
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld l, a
 	ld a, [$db59]
 	ld h, a
@@ -5952,7 +5962,7 @@ jr_058_625d:
 	ret
 
 
-Call_58_627C::
+AIStartScores::
 	ld hl, wSkillAmount
 	ld a, l
 	ld [wNameDest], a
@@ -5966,7 +5976,7 @@ Call_58_627C::
 	ret
 
 
-Call_58_6292::
+AIStoreScore::
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
@@ -5990,24 +6000,24 @@ Call_58_6292::
 	ret
 
 
-Call_58_62BF::
+AITargetEnemySide::
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld [wBattleArg0], a
-	call Call_58_62D9
+	call AITargetFirstPresent
 	ret
 
 
-Call_58_62CD::
+AITargetOwnSide::
 	ld a, [wSkillUser]
 	and $04
 	ld [wBattleArg0], a
-	call Call_58_62D9
+	call AITargetFirstPresent
 	ret
 
 
-Call_58_62D9::
+AITargetFirstPresent::
 	ld a, [wBattleArg0]
 	ld c, a
 	ld b, $03
@@ -6038,7 +6048,7 @@ jr_058_62ed:
 	ret
 
 
-Call_58_62FD::
+AITargetSweep::
 	ld a, [wHitCount]
 	or a
 	jr nz, jr_058_632a
@@ -6119,13 +6129,13 @@ jr_058_6350:
 	inc c
 	jr jr_058_6350
 
-Call_58_635F::
+AITargetOwnFirst::
 	ld a, [wSkillUser]
 	and $04
 	ld c, a
 	jr jr_058_62ed
 
-Call_58_6367::
+AITargetSelf::
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
@@ -6139,7 +6149,7 @@ Call_58_6367::
 	ret
 
 
-Call_58_6379::
+AITargetAnyone::
 	ld a, [wRandomHigh]
 	ld c, a
 	and $07
@@ -6212,7 +6222,7 @@ jr_058_63c0:
 	ret
 
 
-Call_58_63D6::
+AITargetSelfLoadSkill::
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
@@ -6228,7 +6238,7 @@ Call_58_63D6::
 	ret
 
 
-Call_58_63EC::
+CountPresent::
 	ld c, e
 	ld b, $03
 	ld d, $00
@@ -6248,8 +6258,8 @@ jr_058_63f8:
 	ret
 
 
-Call_58_63FD::
-	call Call_58_5C3E
+AITargetRandomPresent::
+	call BattleRandom_58
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, d
@@ -6287,30 +6297,32 @@ jr_058_6415:
 	ret
 
 
-Call_58_642C::
+AITargetRandomEnemy::
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld e, a
-	call Call_58_63EC
-	call Call_58_63FD
+	call CountPresent
+	call AITargetRandomPresent
 	ret
 
 
+UnusedRandomEnemy::
 	db $cd, $3e, $5c, $fa, $88, $db, $e6, $04, $ee, $04, $47, $fa, $99, $c8, $e6, $03
 	db $b0, $4f, $79, $cd, $a5, $2f, $30, $0f, $79, $d6, $01, $4f, $38, $03, $b8, $30
 	db $f1, $78, $f6, $03, $4f, $18, $eb, $78, $b1, $4f, $fa, $88, $db, $21, $ec, $dc
 	db $87, $85, $6f, $3e, $00, $8c, $67, $2a, $ea, $8a, $db, $79, $77, $c9
 
-Call_58_6479::
+AITargetRandomAlly::
 	ld a, [wSkillUser]
 	and $04
 	ld e, a
-	call Call_58_63EC
-	call Call_58_63FD
+	call CountPresent
+	call AITargetRandomPresent
 	ret
 
 
+UnusedRandomAlly::
 	db $fa, $88, $db, $e6, $04, $47, $fa, $99, $c8, $e6, $03, $b0, $4f, $fa, $88, $db
 	db $21, $ec, $dc, $87, $85, $6f, $3e, $00, $8c, $67, $7e, $fe, $30, $28, $07, $fe
 	db $31, $28, $03, $79, $18, $1f, $79, $4f, $21, $1b, $dd, $85, $6f, $3e, $00, $8c
@@ -6320,13 +6332,13 @@ Call_58_6479::
 	db $b1, $4f, $fa, $88, $db, $21, $ec, $dc, $87, $85, $6f, $3e, $00, $8c, $67, $2a
 	db $ea, $8a, $db, $79, $77, $c9
 
-Call_58_64FC::
+AIScoreFamily::
 	push bc
 	ld a, c
 	call CheckBattlerPresent
 	jr c, jr_058_651f
 
-	call Call_58_6533
+	call CheckFamily
 	jr nz, jr_058_6524
 
 	pop bc
@@ -6355,17 +6367,17 @@ jr_058_6524:
 	ld de, $0001
 
 jr_058_6527:
-	call Call_58_6292
+	call AIStoreScore
 	pop bc
 	inc c
 	dec b
-	jr nz, Call_58_64FC
+	jr nz, AIScoreFamily
 
-	call Call_58_619A
+	call AIPickHighestScore
 	ret
 
 
-Call_58_6533::
+CheckFamily::
 	ld a, c
 	ld hl, wBattlerSpecies
 	add l
@@ -6383,25 +6395,25 @@ Call_58_6533::
 	ret
 
 
-Call_58_654D::
-	call Call_58_655F
+AIRandomEnemyIfDim::
+	call GetUserIntClass
 	ret nz
 
-	call Call_58_642C
+	call AITargetRandomEnemy
 	xor a
 	ret
 
 
-Call_58_6556::
-	call Call_58_655F
+AIRandomAllyIfDim::
+	call GetUserIntClass
 	ret nz
 
-	call Call_58_6479
+	call AITargetRandomAlly
 	xor a
 	ret
 
 
-Call_58_655F::
+GetUserIntClass::
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
@@ -6414,7 +6426,7 @@ Call_58_655F::
 	ret
 
 
-Call_58_656E::
+KnowsBreathSkill::
 	ld hl, $dc65
 	swap a
 	add l
@@ -6459,6 +6471,7 @@ jr_058_659b:
 	ret
 
 
+UnusedEnemiesProtected::
 	db $c5, $d5, $e5, $fa, $88, $db, $e6, $04, $ee, $04, $4f, $06, $03, $1e, $00, $16
 	db $00, $79, $d5, $cd, $a5, $2f, $d1, $38, $19, $1c, $79, $21, $06, $db, $cd, $6c
 	db $2f, $2a, $e6, $0c, $20, $0b, $23, $2a, $e6, $28, $20, $05, $7e, $e6, $07, $28
@@ -6467,7 +6480,7 @@ jr_058_659b:
 	db $db, $21, $06, $db, $cd, $6c, $2f, $2a, $e6, $0c, $20, $0e, $23, $2a, $e6, $28
 	db $20, $08, $7e, $e6, $07, $20, $03, $37, $18, $04, $3e, $0a, $fe, $01, $e1, $c9
 
-Call_58_660D::
+CheckHittable::
 	push hl
 	ld a, c
 	call CheckBattlerPresent
@@ -6492,7 +6505,7 @@ jr_058_6627:
 	ret
 
 
-Call_58_6629::
+AIUsesScoring::
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
@@ -6518,7 +6531,7 @@ Call_58_6629::
 	jr c, jr_058_6656
 
 jr_058_6650:
-	call Call_58_441B
+	call AITargetWeakAtRandom
 	xor a
 	or a
 	ret
@@ -6530,7 +6543,7 @@ jr_058_6656:
 	ret
 
 
-Call_58_665A::
+AIPickLowestHPRatio::
 	ld a, $00
 	ld [wNameDest], a
 	ld a, $01
@@ -6540,7 +6553,7 @@ Call_58_665A::
 
 jr_058_6669:
 	ld a, [$db5f]
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -6551,7 +6564,7 @@ jr_058_6669:
 	ld b, [hl]
 	ld c, a
 	ld a, [wNameDest]
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -6622,7 +6635,7 @@ jr_058_66bb:
 	ret
 
 
-Call_58_66E7::
+AIDropScore::
 	push hl
 	push de
 	ld a, c
@@ -6637,12 +6650,12 @@ Call_58_66E7::
 	ld l, a
 	ld a, [$db57]
 	ld h, a
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld e, a
 	ld a, [$db59]
 	ld d, a
 	ld a, l
-	ld [$db58], a
+	ld [wTargetScores], a
 	ld a, h
 	ld [$db59], a
 	ld a, e
@@ -6651,7 +6664,7 @@ Call_58_66E7::
 	ld [$db57], a
 
 jr_058_6714:
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld l, a
 	ld a, [$db59]
 	ld h, a
@@ -6664,7 +6677,7 @@ jr_058_6714:
 	ld a, h
 	ld [$db5b], a
 	ld a, e
-	ld [$db58], a
+	ld [wTargetScores], a
 	ld a, d
 	ld [$db59], a
 
@@ -6674,7 +6687,7 @@ jr_058_6734:
 	ret
 
 
-Call_58_6737::
+FixActionTarget::
 	ld a, [wSkillUser]
 	cp $10
 	jr z, jr_058_6750
@@ -6688,7 +6701,7 @@ Call_58_6737::
 	ld h, a
 	ld a, [hli]
 	ld [wBattleArg0], a
-	call Call_58_6794
+	call FixGroupTarget
 	ret
 
 
@@ -6697,10 +6710,10 @@ jr_058_6750:
 	ld a, [hld]
 	ld [wBattleArg0], a
 	cp $c2
-	jr c, Call_58_6794
+	jr c, FixGroupTarget
 
 	cp $c7
-	jr nc, Call_58_6794
+	jr nc, FixGroupTarget
 
 	ld a, [hl]
 	cp $04
@@ -6731,7 +6744,7 @@ jr_058_6770:
 jr_058_677b:
 	ld a, d
 	cp $ff
-	call z, Call_58_6792
+	call z, RememberFirst
 	ld a, c
 	ld hl, wBattlerStatus5
 	call AddEightTimes
@@ -6745,12 +6758,12 @@ jr_058_678d:
 	ret
 
 
-Call_58_6792::
+RememberFirst::
 	ld d, c
 	ret
 
 
-Call_58_6794::
+FixGroupTarget::
 	ld a, $00
 	ld [wBattleArg1], a
 	ld a, $02
@@ -6777,10 +6790,10 @@ jr_058_67ac:
 	inc [hl]
 	jr jr_058_67ac
 
-Call_58_67BA::
+AIAttackWeight::
 	ld a, $14
-	ld [$dd26], a
-	call Call_58_68A5
+	ld [wAttackWeight], a
+	call AILowestEnemyDefense
 	ld a, [wSkillUser]
 	call GetBattlerAttack
 	ld a, [wSkillAmount]
@@ -6790,9 +6803,9 @@ Call_58_67BA::
 	call CompareHLBC
 	jp c, Jump_058_6859
 
-	ld hl, $dd26
+	ld hl, wAttackWeight
 	ld b, $0a
-	call Call_58_6918
+	call AddCapped
 	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
@@ -6811,9 +6824,9 @@ Call_58_67BA::
 	call CompareHLBC
 	jr c, jr_058_6859
 
-	ld hl, $dd26
+	ld hl, wAttackWeight
 	ld b, $0a
-	call Call_58_6918
+	call AddCapped
 	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
@@ -6830,9 +6843,9 @@ Call_58_67BA::
 	call CompareHLBC
 	jr c, jr_058_6859
 
-	ld hl, $dd26
+	ld hl, wAttackWeight
 	ld b, $0a
-	call Call_58_6918
+	call AddCapped
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
@@ -6852,9 +6865,9 @@ Call_58_67BA::
 	call CompareHLBC
 	jr c, jr_058_6859
 
-	ld hl, $dd26
+	ld hl, wAttackWeight
 	ld b, $0a
-	call Call_58_6918
+	call AddCapped
 
 Jump_058_6859:
 jr_058_6859:
@@ -6872,9 +6885,9 @@ jr_058_6859:
 	jr z, jr_058_6876
 
 jr_058_686e:
-	ld hl, $dd26
+	ld hl, wAttackWeight
 	ld b, $1e
-	call Call_58_6918
+	call AddCapped
 
 jr_058_6876:
 	ld a, [wSkillUser]
@@ -6909,11 +6922,11 @@ jr_058_689b:
 	jr nz, jr_058_6880
 
 	ld a, $01
-	ld [$dd26], a
+	ld [wAttackWeight], a
 	ret
 
 
-Call_58_68A5::
+AILowestEnemyDefense::
 	ld a, [wSkillUser]
 	and $04
 	xor $04
@@ -6944,7 +6957,7 @@ jr_058_68c5:
 jr_058_68c8:
 	ld a, $03
 	sub b
-	ld hl, $db58
+	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
@@ -6958,7 +6971,7 @@ jr_058_68c8:
 	dec b
 	jr nz, jr_058_68af
 
-	ld a, [$db58]
+	ld a, [wTargetScores]
 	ld l, a
 	ld a, [$db59]
 	ld h, a
@@ -6995,7 +7008,7 @@ jr_058_6903:
 	ret
 
 
-Call_58_6918::
+AddCapped::
 	ld a, [hl]
 	add b
 	ld [hl], a
@@ -7006,6 +7019,7 @@ Call_58_6918::
 	ret
 
 
+Bank58Padding::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

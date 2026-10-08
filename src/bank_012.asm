@@ -1923,9 +1923,9 @@ FarmDepositChoiceInput::
 	ld a, [wConfirmChoice]
 	cp $81
 	jr z, .second
-;>         wStatusViewVars[0] = 0
+;>         wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>         wMenuSubStep = 8
@@ -2531,9 +2531,9 @@ FarmSwapChoiceInput::
 	ld a, [wConfirmChoice]
 	cp $81
 	jr z, .second
-;>         wStatusViewVars[0] = 0
+;>         wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>         wMenuSubStep = 21
@@ -3279,9 +3279,9 @@ FarmWithdrawChoiceInput::
 	ld a, [wConfirmChoice]
 	cp $81
 	jr z, .second
-;>         wStatusViewVars[0] = 0
+;>         wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>         wMenuSubStep = 8
@@ -3880,9 +3880,9 @@ jr_012_517e:
 	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_51a0
-;>         wStatusViewVars[0] = 0
+;>         wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>         wMenuSubStep = 21
@@ -4392,9 +4392,9 @@ jr_012_53ff:
 	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_5421
-;>         wStatusViewVars[0] = 0
+;>         wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>         wMenuSubStep = 29
@@ -5462,9 +5462,9 @@ FarmViewListInput::
 ;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;>     wStatusViewVars[0] = 0
+;>     wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>     wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>     wMenuSubStep += 1
@@ -6213,9 +6213,9 @@ jr_012_5cb1:
 	ld a, [wMenuChoice3]
 	cp $81
 	jr z, jr_012_5cd4
-;>         wStatusViewVars[0] = 0
+;>         wFieldMenuState[0] = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 ;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
 ;>         wMenuSubStep = 11

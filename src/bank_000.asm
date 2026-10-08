@@ -7959,7 +7959,7 @@ Divide16::
 ;@ remainder in a.
 ;@ test: a = rng.randint(1, 255)
 Divide24::
-;>@q q, r = divmod(n_high << 16 | n, d)
+;>@q q = (n_high << 16 | n) // d; r = (n_high << 16 | n) % d
 	ld d, $18
 	ld b, a
 	xor a
@@ -8464,7 +8464,7 @@ NextDigit24::
 	ld h, $ff
 
 .loop
-;>@q digit, n = divmod(n, d)
+;>@q digit = n // d; n = n % d
 	inc h
 	ldh a, [hNumber]
 	sub e
@@ -9141,7 +9141,7 @@ HealPartyHP::
 	push hl
 	call GetPartySlot
 	pop hl
-;> cap = mem16[MonsterField(slot, wMonMaxHP)]
+;> cap = mem16[MonsterField(slot, addr(wMonMaxHP))]
 	push hl
 	push af
 	ld hl, wMonMaxHP
@@ -9150,7 +9150,7 @@ HealPartyHP::
 	ld h, [hl]
 ;=@c
 	ld l, a
-;>@c AddWordCapped(MonsterField(slot, wMonHP), amount, cap)
+;>@c AddWordCapped(MonsterField(slot, addr(wMonHP)), amount, cap)
 	pop af
 	push hl
 	ld hl, wMonHP
@@ -9170,7 +9170,7 @@ DamagePartyHP::
 	push hl
 	call GetPartySlot
 	pop hl
-;> hp = MonsterField(slot, wMonHP)
+;> hp = MonsterField(slot, addr(wMonHP))
 	push hl
 	ld hl, wMonHP
 	call MonsterField
@@ -9191,7 +9191,7 @@ RestorePartyMP::
 	push hl
 	call GetPartySlot
 	pop hl
-;> cap = mem16[MonsterField(slot, wMonMaxMP)]
+;> cap = mem16[MonsterField(slot, addr(wMonMaxMP))]
 	push hl
 	push af
 	ld hl, wMonMaxMP
@@ -9200,7 +9200,7 @@ RestorePartyMP::
 	ld h, [hl]
 ;=@c
 	ld l, a
-;>@c AddWordCapped(MonsterField(slot, wMonMP), amount, cap)
+;>@c AddWordCapped(MonsterField(slot, addr(wMonMP)), amount, cap)
 	pop af
 	push hl
 	ld hl, wMonMP
@@ -9221,7 +9221,7 @@ LosePartyMP::
 	push hl
 	call GetPartySlot
 	pop hl
-;> mp = MonsterField(slot, wMonMP)
+;> mp = MonsterField(slot, addr(wMonMP))
 	push hl
 	ld hl, wMonMP
 	call MonsterField
@@ -9246,7 +9246,7 @@ RaisePartyAttack::
 ;@ three bytes after it, `call GetPartySlotForLower`, are an unused party
 ;@ entry to LowerMonsterAttack.)
 RaiseMonsterAttack::
-;> RaiseMonsterWord(slot, wMonAttack, amount, 999)
+;> RaiseMonsterWord(slot, addr(wMonAttack), amount, 999)
 	ld de, wMonAttack
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -9259,7 +9259,7 @@ RaiseMonsterAttack::
 ;@ path: monster/stats
 ;@ Lowers the attack of monster record `slot` by `amount`, not below 1.
 LowerMonsterAttack::
-;> LowerMonsterWord(slot, wMonAttack, amount, 1)
+;> LowerMonsterWord(slot, addr(wMonAttack), amount, 1)
 	ld de, wMonAttack
 	ld bc, $0001
 	call LowerMonsterWord
@@ -9278,7 +9278,7 @@ RaisePartyDefense::
 ;@ path: monster/stats
 ;@ Raises the defense of monster record `slot` by `amount`, up to 999.
 RaiseMonsterDefense::
-;> RaiseMonsterWord(slot, wMonDefense, amount, 999)
+;> RaiseMonsterWord(slot, addr(wMonDefense), amount, 999)
 	ld de, wMonDefense
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -9291,7 +9291,7 @@ RaiseMonsterDefense::
 ;@ path: monster/stats
 ;@ Lowers the defense of monster record `slot` by `amount`, not below 1.
 LowerMonsterDefense::
-;> LowerMonsterWord(slot, wMonDefense, amount, 1)
+;> LowerMonsterWord(slot, addr(wMonDefense), amount, 1)
 	ld de, wMonDefense
 	ld bc, $0001
 	call LowerMonsterWord
@@ -9310,7 +9310,7 @@ RaisePartyAgility::
 ;@ path: monster/stats
 ;@ Raises the agility of monster record `slot` by `amount`, up to 511.
 RaiseMonsterAgility::
-;> RaiseMonsterWord(slot, wMonAgility, amount, 511)
+;> RaiseMonsterWord(slot, addr(wMonAgility), amount, 511)
 	ld de, wMonAgility
 	ld bc, $01ff
 	call RaiseMonsterWord
@@ -9323,7 +9323,7 @@ RaiseMonsterAgility::
 ;@ path: monster/stats
 ;@ Lowers the agility of monster record `slot` by `amount`, not below 1.
 LowerMonsterAgility::
-;> LowerMonsterWord(slot, wMonAgility, amount, 1)
+;> LowerMonsterWord(slot, addr(wMonAgility), amount, 1)
 	ld de, wMonAgility
 	ld bc, $0001
 	call LowerMonsterWord
@@ -9343,7 +9343,7 @@ RaisePartyIntelligence::
 ;@ Raises the intelligence of monster record `slot` by `amount`, up to 255.
 ;@ (The bytes after it: an unused RaisePartyWildness, up to 255.)
 RaiseMonsterIntelligence::
-;> RaiseMonsterWord(slot, wMonIntelligence, amount, 255)
+;> RaiseMonsterWord(slot, addr(wMonIntelligence), amount, 255)
 	ld de, wMonIntelligence
 	ld bc, $00ff
 	call RaiseMonsterWord
@@ -9356,7 +9356,7 @@ RaiseMonsterIntelligence::
 ;@ path: monster/stats
 ;@ Lowers the intelligence of monster record `slot` by `amount`, not below 1.
 LowerMonsterIntelligence::
-;> LowerMonsterWord(slot, wMonIntelligence, amount, 1)
+;> LowerMonsterWord(slot, addr(wMonIntelligence), amount, 1)
 	ld de, wMonIntelligence
 	ld bc, $0001
 	call LowerMonsterWord
@@ -9372,7 +9372,7 @@ LowerMonsterIntelligence::
 LowerPartyWildness::
 ;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
-;> LowerMonsterWord(slot, wMonWildness, amount, 0)
+;> LowerMonsterWord(slot, addr(wMonWildness), amount, 0)
 	ld de, wMonWildness
 	ld bc, $0000
 	call LowerMonsterWord
@@ -9385,7 +9385,7 @@ LowerPartyWildness::
 RaisePartyStat64::
 ;> slot = GetPartySlotForRaise(pos)
 	call GetPartySlotForRaise
-;> RaiseMonsterByte(slot, wMonStat64, amount, 255)
+;> RaiseMonsterByte(slot, addr(wMonStat64), amount, 255)
 	ld de, wMonStat64
 	ld c, $ff
 	call RaiseMonsterByte
@@ -9399,7 +9399,7 @@ RaisePartyStat64::
 LowerPartyStat64::
 ;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
-;> LowerMonsterByte(slot, wMonStat64, amount, 0)
+;> LowerMonsterByte(slot, addr(wMonStat64), amount, 0)
 	ld de, wMonStat64
 	ld c, $00
 	call LowerMonsterByte
@@ -9412,7 +9412,7 @@ LowerPartyStat64::
 RaisePartyStat67::
 ;> slot = GetPartySlotForRaise(pos)
 	call GetPartySlotForRaise
-;> RaiseMonsterByte(slot, wMonStat67, amount, 255)
+;> RaiseMonsterByte(slot, addr(wMonStat67), amount, 255)
 	ld de, wMonStat67
 	ld c, $ff
 	call RaiseMonsterByte
@@ -9426,7 +9426,7 @@ RaisePartyStat67::
 LowerPartyStat67::
 ;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
-;> LowerMonsterByte(slot, wMonStat67, amount, 0)
+;> LowerMonsterByte(slot, addr(wMonStat67), amount, 0)
 	ld de, wMonStat67
 	ld c, $00
 	call LowerMonsterByte
@@ -9442,7 +9442,7 @@ LowerPartyStat67::
 RaisePartyStat65::
 ;> slot = GetPartySlotForRaise(pos)
 	call GetPartySlotForRaise
-;> RaiseMonsterByte(slot, wMonStat65, amount, 255)
+;> RaiseMonsterByte(slot, addr(wMonStat65), amount, 255)
 	ld de, wMonStat65
 	ld c, $ff
 	call RaiseMonsterByte
@@ -9456,7 +9456,7 @@ RaisePartyStat65::
 LowerPartyStat65::
 ;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
-;> LowerMonsterByte(slot, wMonStat65, amount, 0)
+;> LowerMonsterByte(slot, addr(wMonStat65), amount, 0)
 	ld de, wMonStat65
 	ld c, $00
 	call LowerMonsterByte
@@ -9475,7 +9475,7 @@ RaisePartyMaxHP::
 ;@ path: monster/stats
 ;@ Raises the maximum HP of monster record `slot` by `amount`, up to 999.
 RaiseMonsterMaxHP::
-;> RaiseMonsterWord(slot, wMonMaxHP, amount, 999)
+;> RaiseMonsterWord(slot, addr(wMonMaxHP), amount, 999)
 	ld de, wMonMaxHP
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -9488,7 +9488,7 @@ RaiseMonsterMaxHP::
 ;@ path: monster/stats
 ;@ Lowers the maximum HP of monster record `slot` by `amount`, not below 1.
 LowerMonsterMaxHP::
-;> LowerMonsterWord(slot, wMonMaxHP, amount, 1)
+;> LowerMonsterWord(slot, addr(wMonMaxHP), amount, 1)
 	ld de, wMonMaxHP
 	ld bc, $0001
 	call LowerMonsterWord
@@ -9507,7 +9507,7 @@ RaisePartyMaxMP::
 ;@ path: monster/stats
 ;@ Raises the maximum MP of monster record `slot` by `amount`, up to 999.
 RaiseMonsterMaxMP::
-;> RaiseMonsterWord(slot, wMonMaxMP, amount, 999)
+;> RaiseMonsterWord(slot, addr(wMonMaxMP), amount, 999)
 	ld de, wMonMaxMP
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -9520,7 +9520,7 @@ RaiseMonsterMaxMP::
 ;@ path: monster/stats
 ;@ Lowers the maximum MP of monster record `slot` by `amount`, not below 1.
 LowerMonsterMaxMP::
-;> LowerMonsterWord(slot, wMonMaxMP, amount, 1)
+;> LowerMonsterWord(slot, addr(wMonMaxMP), amount, 1)
 	ld de, wMonMaxMP
 	ld bc, $0001
 	call LowerMonsterWord
@@ -9993,7 +9993,7 @@ BuildStatusBarEntry::
 ;>     mem[dest + 2] = 0xE3
 	ld a, $e3
 	ld [hli], a
-;>     hp = GetPartyMonsterWord(pos, wMonHP)
+;>     hp = GetPartyMonsterWord(pos, addr(wMonHP))
 	push hl
 	ld hl, wMonHP
 	ldh a, [hNumber]
@@ -10019,7 +10019,7 @@ BuildStatusBarEntry::
 ;>     mem[row2 + 2] = 0xE3
 	ld a, $e3
 	ld [hli], a
-;>     mp = GetPartyMonsterWord(pos, wMonMP)
+;>     mp = GetPartyMonsterWord(pos, addr(wMonMP))
 	push hl
 	ld hl, wMonMP
 	ldh a, [hNumber]
@@ -10046,7 +10046,7 @@ BuildStatusBarEntry::
 ;>     mem[dest + 3] = 0xE4
 	ld a, $e4
 	ld [hli], a
-;>     level = GetPartyMonsterByte(pos, wMonLevel)
+;>     level = GetPartyMonsterByte(pos, addr(wMonLevel))
 	push hl
 	ld hl, wMonLevel
 	ldh a, [hNumber]
@@ -10065,7 +10065,7 @@ BuildStatusBarEntry::
 	adc $00
 ;=@ic
 	ld h, a
-;>     status = GetPartyMonsterByte(pos, wMonStatus)
+;>     status = GetPartyMonsterByte(pos, addr(wMonStatus))
 	push hl
 	ld hl, wMonStatus
 	ldh a, [hNumber]
@@ -10289,7 +10289,7 @@ FlagMask::
 	ld a, $00
 	adc h
 	ld h, a
-;> mask = BitMasks[index & 7]
+;> mask = mem[BitMasks + (index & 7)]
 	pop af
 	push hl
 	ld hl, BitMasks
@@ -10347,7 +10347,7 @@ TestEventFlag::
 ;@ Byte and bit mask of event flag `index`: wEventFlags + index / 8 and
 ;@ BitMasks[index % 8].
 EventFlagMask::
-;>@p p = wEventFlags + (index >> 3)
+;>@p p = u16(addr(wEventFlags) + (index >> 3))
 	push bc
 	srl b
 	rr c
@@ -10359,7 +10359,7 @@ EventFlagMask::
 	ld hl, wEventFlags
 	add hl, bc
 	pop bc
-;> mask = BitMasks[index & 7]
+;> mask = mem[BitMasks + (index & 7)]
 	push hl
 	ld hl, BitMasks
 	ld a, c
@@ -10914,7 +10914,7 @@ CheckBattlerPresent::
 ;@ path: battle/state
 ;@ Attack of the monster at battle position `pos`.
 GetBattlerAttack::
-;> return wBattlerAttack[pos]
+;> return GetWordFromTable(pos, addr(wBattlerAttack))
 	ld hl, wBattlerAttack
 	call GetWordFromTable
 	ret
@@ -10924,7 +10924,7 @@ GetBattlerAttack::
 ;@ path: battle/state
 ;@ Defense of the monster at battle position `pos`.
 GetBattlerDefense::
-;> return wBattlerDefense[pos]
+;> return GetWordFromTable(pos, addr(wBattlerDefense))
 	ld hl, wBattlerDefense
 	call GetWordFromTable
 	ret
@@ -10934,7 +10934,7 @@ GetBattlerDefense::
 ;@ path: battle/state
 ;@ Maximum HP of the monster at battle position `pos`.
 GetBattlerMaxHP::
-;> return GetWordFromTable(pos, wBattlerMaxHP)
+;> return GetWordFromTable(pos, addr(wBattlerMaxHP))
 	ld hl, wBattlerMaxHP
 	call GetWordFromTable
 	ret
@@ -10944,7 +10944,7 @@ GetBattlerMaxHP::
 ;@ path: battle/state
 ;@ Maximum MP of the monster at battle position `pos`.
 GetBattlerMaxMP::
-;> return GetWordFromTable(pos, wBattlerMaxMP)
+;> return GetWordFromTable(pos, addr(wBattlerMaxMP))
 	ld hl, wBattlerMaxMP
 	call GetWordFromTable
 	ret
@@ -10954,7 +10954,7 @@ GetBattlerMaxMP::
 ;@ path: battle/state
 ;@ HP of the monster at battle position `pos`.
 GetBattlerHP::
-;> return GetWordFromTable(pos, wBattlerHP)
+;> return GetWordFromTable(pos, addr(wBattlerHP))
 	ld hl, wBattlerHP
 	call GetWordFromTable
 	ret
@@ -10964,7 +10964,7 @@ GetBattlerHP::
 ;@ path: battle/state
 ;@ MP of the monster at battle position `pos`.
 GetBattlerMP::
-;> return GetWordFromTable(pos, wBattlerMP)
+;> return GetWordFromTable(pos, addr(wBattlerMP))
 	ld hl, wBattlerMP
 	call GetWordFromTable
 	ret
@@ -10974,7 +10974,7 @@ GetBattlerMP::
 ;@ path: system/memory
 ;@ Entry `index` of a table of 16-bit words.
 GetWordFromTable::
-;>@w return mem16[table + 2 * index]
+;>@w return mem16[u16(table + (2 * index & 0xFF))]   # (2 * index wraps at 8 bits)
 	add a
 	add l
 	ld l, a

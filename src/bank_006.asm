@@ -4654,9 +4654,9 @@ Jump_006_6247:
 ;>         wFieldFlags |= 0x02
 	ld hl, wFieldFlags
 	set 1, [hl]
-;>         wStatusViewVars = 0; wFieldMenuStep = 0
+;>         wFieldMenuState = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>         wMenuCount = 0; mem[0xC910] = 0
 	xor a

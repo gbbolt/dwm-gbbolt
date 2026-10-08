@@ -31,12 +31,12 @@ TitleModeInit::
 	ld [wFieldStackPtr], a
 	ld a, h
 	ld [$da7c], a
-;> fill(wMenuChoice, 8, 0)               # menu cursors
+;> fill(wMenuChoice, 0, 8)               # menu cursors
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
-;> fill(wTextTiles, 0x12, 0)             # text box set-up
+;> fill(wTextTiles, 0, 0x12)             # text box set-up
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
@@ -47,7 +47,7 @@ TitleModeInit::
 	ld [wTextBoxMap], a
 	ld a, h
 	ld [$c83f], a
-;> fill(wTitleStep, 8, 0)
+;> fill(wTitleStep, 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -156,12 +156,12 @@ TitleInitMenu::
 ;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
-;> fill(hPlayerGfx, 0x21, 0)              # HRAM part of the game state
+;> fill(hPlayerGfx, 0, 0x21)              # HRAM part of the game state
 	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
 	call FillMemory
-;> fill(wGameStarted, 0x1100, 0)          # WRAM part of the game state
+;> fill(wGameStarted, 0, 0x1100)          # WRAM part of the game state
 	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
@@ -191,12 +191,12 @@ TitleInitMenu::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wMenuChoice, 8, 0)
+;> fill(wMenuChoice, 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wTitleStep, 8, 0)
+;> fill(wTitleStep, 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -295,12 +295,12 @@ TitleInitVSLink::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wMenuChoice, 8, 0)
+;> fill(wMenuChoice, 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wTitleStep, 8, 0)
+;> fill(wTitleStep, 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -313,7 +313,7 @@ TitleInitVSLink::
 	ld [$c8d7], a
 ;> ClearBgMap_15()
 	call ClearBgMap_15
-;> fill(wSceneObjects, 0x17, 0xFF)
+;> fill(wSceneObjects, 0xFF, 0x17)
 	ld hl, wSceneObjects
 	ld bc, $0017
 	ld a, $ff
@@ -394,12 +394,12 @@ TitleInitBreedLink::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wMenuChoice, 8, 0)
+;> fill(wMenuChoice, 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wTitleStep, 8, 0)
+;> fill(wTitleStep, 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -1025,7 +1025,7 @@ DrawEmptyLevelSlot::
 ;> p = TilemapBufferAddr_15(pos)
 	push hl
 	call TilemapBufferAddr_15
-;> fill(p, 5, 0xE0)
+;> fill(p, 0xE0, 5)
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
@@ -1042,7 +1042,7 @@ DrawEmptyLevelSlot::
 	adc $00
 	ld h, a
 	call TilemapBufferAddr_15
-;> fill(p, 2, 0xE0)
+;> fill(p, 0xE0, 2)
 	ld a, $e0
 	ld [hli], a
 	ld [hl], a
@@ -1122,8 +1122,7 @@ DrawSavePartyName::
 ;@ path: title/continue
 ;@ CONTINUE, waiting on the save summary: A goes on to the field, B goes back to the title
 ;@ menu cursor.
-;@ test: wJoyPressed = rand(0, 3)
-;@ test: wTitleStep = rand(1, 4)
+;@ test: skip names the joypad buttons
 ContinueConfirm::
 ;> if wJoyPressed & A_BUTTON:
 	ld a, [wJoyPressed]
@@ -1177,14 +1176,14 @@ TitleNewGameSteps::
 ;@ path: title/newgame
 ;@ Clears the whole game state and puts Terry in map $2F (his room at the start of the story)
 ;@ with an empty party; the next title step starts the field.
-;@ test: wTitleStep = rand(0, 3)
+;@ test: skip clears $1100 bytes of WRAM, the stack included
 NewGameSetup::
-;> fill(hPlayerGfx, 0x21, 0)
+;> fill(hPlayerGfx, 0, 0x21)
 	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
 	call FillMemory
-;> fill(wGameStarted, 0x1100, 0)
+;> fill(wGameStarted, 0, 0x1100)
 	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
@@ -1475,7 +1474,7 @@ CountTeamCandidates::
 ;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots of the monsters that
 ;@ can still join the VS team (see CountTeamCandidates).
 ListTeamCandidates::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -2172,9 +2171,9 @@ VSTeamChoiceInput::
 	cp $81
 	jr z, .ok
 
-;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
+;>         wFieldMenuState[0] = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>         wTitleStep += 1
 	ld hl, wTitleStep
@@ -2728,7 +2727,7 @@ CountPrizeCandidates::
 ;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots of all hatched
 ;@ monsters.
 ListPrizeCandidates::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -3170,9 +3169,9 @@ VSPrizeChoiceInput::
 	cp $81
 	jr z, .ok
 
-;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
+;>         wFieldMenuState[0] = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>         wTitleStep += 1
 	ld hl, wTitleStep
@@ -3584,9 +3583,9 @@ VSReadyInput::
 	or a
 	jr z, .noPrize
 
-;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
+;>         wFieldMenuState[0] = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>         wTitleStep += 1
 	ld hl, wTitleStep
@@ -4539,7 +4538,7 @@ CountBreedCandidates::
 ;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots of all hatched
 ;@ monsters.
 ListBreedCandidates::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -4985,9 +4984,9 @@ BreedChoiceInput::
 	cp $81
 	jr z, .ok
 
-;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
+;>         wFieldMenuState[0] = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>         wTitleStep += 1
 	ld hl, wTitleStep
@@ -5401,9 +5400,9 @@ BreedMenuInput::
 	jr z, .refuse
 
 ;>     else:                             # CHECK
-;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
+;>         wFieldMenuState[0] = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>@g10         wTitleStep += 1
 	ld hl, wTitleStep
@@ -5762,9 +5761,9 @@ BreedSaveInput::
 	jr z, .back
 
 ;>     else:
-;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
+;>         wFieldMenuState[0] = 0; wFieldMenuStep = 0
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 ;>         wTitleStep += 1
 	ld hl, wTitleStep
@@ -6592,7 +6591,7 @@ DrawNameTiles_15::
 ;@ path: gfx/tilemap
 ;@ Fills the $240 bytes of wTilemapBuffer with the blank tile $E0.
 ClearTilemapBuffer_15::
-;>@fill fill(wTilemapBuffer, 0x240, 0xE0)
+;>@fill fill(wTilemapBuffer, 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
@@ -7247,10 +7246,9 @@ CheckSaveChecksum::
 ;@ def ZeroBytes_15(dest: hl, count: bc)
 ;@ path: system/memory
 ;@ Clears `count` bytes from `dest` on.
-;@ test: hl = rand(0xC000, 0xC0FF)
-;@ test: bc = rand(1, 0x100)
+;@ test: skip a count of 0 clears all 64 KiB
 ZeroBytes_15::
-;>@fill fill(dest, count, 0)
+;>@fill fill(dest, 0, count)
 	xor a
 	ld [hli], a
 	dec bc

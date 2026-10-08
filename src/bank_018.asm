@@ -862,397 +862,565 @@ VSResultTakerLeaves::
 	ret
 
 
+;@ def VSResultKeepPrize()
+;@ path: link/result
+;@ Step 12: after the message, a won monster is stored: into the last monster slot (sorted in by
+;@ CompactMonsters), with its library entry set, and the monsters and library are saved. When
+;@ all 20 slots are taken it asks whether to replace one ("The monster farm is full!"). After a
+;@ lost battle nothing is left to do (the game already gave the monster away).
+;@ test: skip saves to battery RAM
 VSResultKeepPrize::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if not wBattlerReload:              # we won
 	ld a, [wBattlerReload]
 	or a
-	jr nz, jr_018_45fe
+	jr nz, .done
 
+;>     rec = wMonsters
 	ld de, wMonsters
 	ld b, $00
 
-jr_018_459b:
+.find
+;>@for     for slot in range(20):
+;>         if mem[rec] == 0:            # a free slot
 	ld a, [de]
 	or a
-	jr z, jr_018_45b8
+;>             break
+	jr z, .free
 
+;>@rec         rec += 0x95
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	inc b
 	ld a, b
 	cp $14
-	jr nz, jr_018_459b
+	jr nz, .find
 
+;>     else:
+;>         PrintSystemText(0x024B)      # "The monster farm is full! ... replace one ...?"
 	ld hl, $024b
 	call PrintSystemText
+;>         wTitleStep += 1
+;>         return
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-jr_018_45b8:
-	ld hl, $d5d0
+.free
+;>@copy     copy(wBreedParent2, wMonsters + 19 * 0x95, 0x95)   # the received monster into the last slot
+	ld hl, wMonsters + 19 * $95
 	ld de, wBreedParent2
 	ld b, $95
 
-jr_018_45c0:
+.copy
+;=@copy
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_018_45c0
+	jr nz, .copy
 
+;>     CopyFromSRAM_18(wPartyCount, sPartyCount, 7)   # party as saved
 	di
 	ld hl, wPartyCount
 	ld de, sPartyCount
 	ld bc, $0007
 	call CopyFromSRAM_18
+;>     CopyFromSRAM_18(wLibraryFlags, sLibraryFlags, 0x20)
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
 	call CopyFromSRAM_18
 	ei
+;>     SetFlag(mem[wBreedParent2 + 9], wLibraryFlags)    # its species joins the library
 	ld hl, wLibraryFlags
-	ld a, [$d703]
+	ld a, [wBreedParent2 + 9]
 	call SetFlag
+;>     CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;>     CopyToSRAM_18(wLibraryFlags, sLibraryFlags, 0x20)
 	di
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
 	call CopyToSRAM_18
+;>     SaveMonsters()
 	call SaveMonsters
 	ei
 
-jr_018_45fe:
+.done
+;> wTitleStep = 0x1A                    # leave
 	ld a, $1a
 	ld [wTitleStep], a
 	ret
 
 
+;@ def CopyFromSRAM_18(dest: hl, src: de, count: bc)
+;@ path: save/sram
+;@ Copies `count` bytes from battery RAM `src` to `dest`, enabling the battery RAM around it.
+;@ test: skip switches the cartridge RAM on and off
 CopyFromSRAM_18::
+;> mem[0x0100] = 0x0A                   # battery RAM on
 	ld a, $0a
 	ld [$0100], a
 
-jr_018_4609:
+.loop
+;>@copy copy(src, dest, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_018_4609
+;=@copy
+	jr nz, .loop
 
+;> mem[0x0100] = 0x00                   # battery RAM off
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def CopyToSRAM_18(src: hl, dest: de, count: bc)
+;@ path: save/sram
+;@ Copies `count` bytes from `src` into battery RAM at `dest`, enabling the battery RAM around it.
+;@ test: skip switches the cartridge RAM on and off
 CopyToSRAM_18::
+;> mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
 
-jr_018_461c:
+.loop
+;>@copy copy(src, dest, count)
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_018_461c
+;=@copy
+	jr nz, .loop
 
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def VSResultShowReplaceYesNo()
+;@ path: link/result
+;@ Step 13: once the question is shown, draws the yes/no window under the banner.
+;@ test: skip draws through helpers
 VSResultShowReplaceYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawReplaceYesNo()
 	call VSResultDrawReplaceYesNo
+;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultDrawReplaceYesNo()
+;@ path: link/result
+;@ Draws the banner, the text box frame and the yes/no window (VSReplaceYesNoWindow) into
+;@ wTilemapBuffer, with the cursor wMenuChoice3.
+;@ test: skip draws through helpers
 VSResultDrawReplaceYesNo::
+;> DrawBannerToBuffer()
 	call DrawBannerToBuffer
+;> DrawWindowLayout_18(0x2E07)          # the text box frame
 	ld de, $2e07
 	call DrawWindowLayout_18
-	ld de, $547a
+;> DrawWindowLayout_18(VSReplaceYesNoWindow)
+	ld de, VSReplaceYesNoWindow
 	call DrawWindowLayout_18
+;> MenuResetBlink_18()
 	call MenuResetBlink_18
-	ld de, $4690
+;> MenuDrawCursorAt_18(wMenuChoice3, VSReplaceYesNoCursor)
+	ld de, VSReplaceYesNoCursor
 	ld a, [wMenuChoice3]
 	call MenuDrawCursorAt_18
 	ret
 
 
+;@ def VSResultReplaceYesNoInput()
+;@ path: link/result
+;@ Step 14: yes/no cursor of "replace one of your monsters?". Yes goes on to the monster/egg
+;@ choice (step $1B); No or B lets the won monster go (step 15).
+;@ test: skip draws through helpers
 VSResultReplaceYesNoInput::
-	ld de, $4690
+;> MoveMenuCursor_18(wMenuChoice3, 2, VSReplaceYesNoCursor)
+	ld de, VSReplaceYesNoCursor
 	ld hl, wMenuChoice3
 	ld b, $02
 	call MoveMenuCursor_18
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_018_4672
+	jr z, .notB
 
-jr_018_466b:
+.release
+;>@rel     wTitleStep += 1                  # let it go
 	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_018_468f
+	jp .done
 
 
-jr_018_4672:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_018_468f
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:         # No
+;>@rel2         wTitleStep += 1
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_018_466b
+	jr z, .release
 
+;>     else:
+;>         wLinkPartnerChoice = 0       # replace a monster (1 = an egg)
 	xor a
 	ld [wLinkPartnerChoice], a
+;>         wTitleStep = 0x1B
 	ld a, $1b
 	ld [wTitleStep], a
 
-Jump_018_468f:
+.done
 	ret
 
 
+;@ path: link/result
+;@ Cursor table of the yes/no window: screen offsets $012F and $016F, $FFFF ends.
 VSReplaceYesNoCursor::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def VSResultReleasePrize()
+;@ path: link/result
+;@ Step 15: "<monster> is returned to the wild." (the won monster is not kept).
+;@ test: skip calls routines in other banks
 VSResultReleasePrize::
+;> PrintSystemText(0x024C)
 	ld hl, $024c
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultReleaseWait()
+;@ path: link/result
+;@ Step 16: waits for the message, then leaves (step $1A).
 VSResultReleaseWait::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wTitleStep = 0x1A
 	ld a, $1a
 	ld [wTitleStep], a
 	ret
 
 
+;@ def VSResultStartReplaceList()
+;@ path: link/result
+;@ Step 17: lists the farm monsters (or eggs, wLinkPartnerChoice bit 0) the won monster may
+;@ replace and asks "Replace with which monster?" / "... which egg?"; with none to choose
+;@ from: "No egg." (step $1E).
+;@ test: skip reads battery RAM
 VSResultStartReplaceList::
+;> if CountReplaceCandidates() == 0:
 	call CountReplaceCandidates
 	or a
-	jr nz, jr_018_46be
+	jr nz, .some
 
+;>     PrintSystemText(0x0252)          # "No egg."
 	ld hl, $0252
 	call PrintSystemText
+;>     wTitleStep = 0x1E
+;>     return
 	ld a, $1e
 	ld [wTitleStep], a
 	ret
 
 
-jr_018_46be:
+.some
+;> ListReplaceCandidates()
 	call ListReplaceCandidates
+;>@text PrintSystemText(0x0253 if wLinkPartnerChoice & 1 else 0x024D)   # which egg / which monster
 	ld hl, $024d
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_46ce
+	jr z, .print
 
 	ld hl, $0253
 
-jr_018_46ce:
+.print
+;=@text
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def CountReplaceCandidates() -> a
+;@ path: link/result
+;@ Counts the monsters the won monster may replace into wTitleListCount: records at the farm
+;@ (state not 0 and not 2 = in the party), not in the party a script put aside, and eggs when
+;@ wLinkPartnerChoice bit 0 is set, hatched monsters when it is clear.
+;@ test: skip reads battery RAM
 CountReplaceCandidates::
+;> rec = wMonsters; count = 0
 	ld de, wMonsters
 	ld b, $00
 	ld c, $00
 
-jr_018_46dd:
+.loop
+;>@for for slot in range(20):
 	push de
+;>@ok     if mem[rec] not in (0, 2) and not IsInStashedParty_18(slot):
 	ld a, [de]
 	or a
-	jr z, jr_018_470a
+	jr z, .next
 
 	cp $02
-	jr z, jr_018_470a
+	jr z, .next
 
+;=@ok
 	push bc
 	push de
 	push hl
 	call IsInStashedParty_18
+;=@ok
 	pop hl
 	pop de
 	pop bc
-	jr nz, jr_018_470a
+	jr nz, .next
 
+;>@egg         egg = mem[rec + 0x63]       # 0 monster, 1 or 2 egg
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;>         kind = wLinkPartnerChoice & 1   # 1 = eggs wanted
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ld l, a
+;>@k         if (egg | egg >> 1) & 1 == kind:
 	ld a, [de]
 	ld h, a
 	srl a
 	or h
+;=@k
 	and $01
 	xor l
-	jr nz, jr_018_470a
+	jr nz, .next
 
+;>             count += 1
 	inc c
 
-jr_018_470a:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
+;=@rec
 	adc $00
 	ld d, a
+;=@for
 	inc b
 	ld a, b
 	cp $14
-	jr nz, jr_018_46dd
+	jr nz, .loop
 
+;> wTitleListCount = count
+;> return count
 	ld a, c
 	ld [wTitleListCount], a
 	ret
 
 
+;@ def ListReplaceCandidates()
+;@ path: link/result
+;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots CountReplaceCandidates
+;@ counts.
+;@ test: skip reads battery RAM
 ListReplaceCandidates::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> out = wSceneObjects
 	ld hl, wSceneObjects
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $00
 	ld c, $00
 
-jr_018_4733:
+.loop
+;>@for for slot in range(20):
 	push de
+;>@ok     if mem[rec] not in (0, 2) and not IsInStashedParty_18(slot):
 	ld a, [de]
 	or a
-	jr z, jr_018_4763
+	jr z, .next
 
 	cp $02
-	jr z, jr_018_4763
+	jr z, .next
 
+;=@ok
 	push bc
 	push de
 	push hl
 	call IsInStashedParty_18
+;=@ok
 	pop hl
 	pop de
 	pop bc
-	jr nz, jr_018_4763
+	jr nz, .next
 
+;>@egg         egg = mem[rec + 0x63]
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;>         kind = wLinkPartnerChoice & 1
 	push hl
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ld l, a
+;>@k         if (egg | egg >> 1) & 1 == kind:
 	ld a, [de]
 	ld h, a
 	srl a
 	or h
+;=@k
 	and $01
 	xor l
 	pop hl
-	jr nz, jr_018_4763
+	jr nz, .next
 
+;>             mem[out] = slot; out += 1
 	ld [hl], c
 	inc hl
 
-jr_018_4763:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
+;=@rec
 	adc $00
 	ld d, a
+;=@for
 	inc c
 	inc b
 	ld a, b
 	cp $14
-	jr nz, jr_018_4733
+	jr nz, .loop
 
 	ret
 
 
+;@ def IsInStashedParty_18(slot: b) -> a
+;@ path: link/result
+;@ When the saved game has no party, checks whether monster `slot` is in the party a script put
+;@ aside (wSavedParty as saved in battery RAM). Returns 1 if so (flag nonzero), else 0.
+;@ test: skip reads battery RAM
 IsInStashedParty_18::
+;> if ReadSRAMByte(sPartyCount):
+;>     return 0
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	or a
-	jr nz, jr_018_47b5
+	jr nz, .no
 
+;> count = ReadSRAMByte(sStashedParty)
 	ld hl, sStashedParty
 	call ReadSRAMByte
+;> if count == 0:
+;>     return 0
 	or a
-	jr z, jr_018_47b5
+	jr z, .no
 
-	ld hl, $a1f4
+;>@for for i in range(count):
+;>@if     if ReadSRAMByte(sStashedParty + 1 + i) == slot:
+	ld hl, sStashedParty + 1
 	call ReadSRAMByte
 	cp b
-	jr z, jr_018_47b7
+;>@yes         return 1
+	jr z, .yes
 
+;=@for
 	ld hl, sStashedParty
 	call ReadSRAMByte
 	cp $01
-	jr z, jr_018_47b5
+	jr z, .no
 
-	ld hl, $a1f5
+;=@if
+	ld hl, sStashedParty + 2
 	call ReadSRAMByte
 	cp b
-	jr z, jr_018_47b7
+	jr z, .yes
 
+;=@for
 	ld hl, sStashedParty
 	call ReadSRAMByte
 	cp $02
-	jr z, jr_018_47b5
+	jr z, .no
 
-	ld hl, $a1f6
+;=@if
+	ld hl, sStashedParty + 3
 	call ReadSRAMByte
 	cp b
-	jr z, jr_018_47b7
+	jr z, .yes
 
-jr_018_47b5:
+;> return 0
+.no
 	xor a
 	ret
 
 
-jr_018_47b7:
+.yes
+;=@yes
 	ld a, $01
 	or a
 	ret
@@ -1316,7 +1484,7 @@ VSResultDrawListNames::
 	ld d, a
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr nz, jr_018_4869
+	jr nz, VSResultDrawEggNames
 
 	ld hl, $9000
 	call VSResultDrawListName
@@ -1373,7 +1541,7 @@ jr_018_4851:
 	ret
 
 
-jr_018_4869:
+VSResultDrawEggNames::
 	ld hl, $9000
 	call VSResultDrawEggName
 	call VSResultDrawEggName
@@ -1870,7 +2038,7 @@ jr_018_4b80:
 	jr z, jr_018_4ba2
 
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 	ld hl, wTitleStep
 	inc [hl]

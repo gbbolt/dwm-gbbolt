@@ -190,7 +190,7 @@ StorePartyPersonalities::
 ;@ def LoadBattleGraphics()
 ;@ path: battle/screen
 ;@ Loads the name tiles and the pictures of the three opposing monsters (tiles $9000, $9240, $9480;
-;@ for an empty position far_Call_58_5749 runs instead), then clears the screen and draws the enemy
+;@ for an empty position far_BlankEnemyPicture runs instead), then clears the screen and draws the enemy
 ;@ pictures and the party panel into the tilemap buffer and the BG map.
 LoadBattleGraphics::
 ;> fill(wMenuChoice, 8, 0)
@@ -228,9 +228,9 @@ LoadBattleGraphics::
 	jr .next1
 
 ;>     else:
-;>         Call_58_5749()
+;>         BlankEnemyPicture()
 .empty1:
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 
 ;>     wSkillTarget += 1; species += 1
@@ -251,7 +251,7 @@ LoadBattleGraphics::
 
 ;=@pic
 .empty2:
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 
 ;=@pic
@@ -272,7 +272,7 @@ LoadBattleGraphics::
 
 ;=@pic
 .empty3:
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 
 ;> fill(0xD9F4, 8, 0)                 # the screen step variables
@@ -3163,1084 +3163,1336 @@ AppendEnemyLetter::
 	ret
 
 
+;@ def SetUpCalledMonster1()
+;@ path: battle/skills
+;@ Fills slot 3 of the user's side (wSkillUser) with the first monster a calling skill brings in: level 30, HP 200, MP 100, attack 180, defense 150, agility 80, intelligence 150, three fixed skills and fixed resistances.
 SetUpCalledMonster1::
+;> pos = wSkillUser & 4 | 3              # slot 3 of the user's side
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
 	ld [wBattleArg0], a
+;> p = addr(wBattlerTypeBits) + pos
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerSex
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerLevel
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 30
 	ld a, $1e
 	ld [hl], a
+;> p = addr(wBattlerHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerMaxHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 100
 	adc h
 	ld h, a
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerMaxMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 100
 	adc h
 	ld h, a
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerAttack) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 180
 	adc h
 	ld h, a
 	ld a, $b4
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerDefense) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 150
 	adc h
 	ld h, a
 	ld a, $96
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerAgility) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 80
 	adc h
 	ld h, a
 	ld a, $50
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntelligence) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 150
 	adc h
 	ld h, a
 	ld a, $96
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntClass) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 1
 	ld h, a
 	ld [hl], $01
+;> p = addr(wBattlerWildness) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 255
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerPersonality1) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 250
 	ld h, a
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerStat67
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality2
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality3
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p = addr(wBattlerSkills) + 16 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;>@sk1 for i, v in enumerate((0x03, 0x2C, 0x01, 0x5A, 0x03, 0x88)): mem[p + i] = v
 	adc h
 	ld h, a
 	ld a, $03
 	ld [hli], a
+;=@sk1
 	ld a, $2c
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
 	ld a, $5a
 	ld [hli], a
+;=@sk1
 	ld a, $03
 	ld [hli], a
 	ld a, $88
 	ld [hli], a
+;> off = 7 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
 	add a
+;> p = addr(wBattlerResist) + off
 	add c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@rs2 for i, v in enumerate((0x16, 0xB5, 0x55, 0x54, 0x15, 0x55, 0x54)): mem[p + i] = v
 	ld a, $16
 	ld [hli], a
+;=@rs2
 	ld a, $b5
 	ld [hli], a
 	ld a, $55
 	ld [hli], a
 	ld a, $54
 	ld [hli], a
+;=@rs2
 	ld a, $15
 	ld [hli], a
 	ld a, $55
 	ld [hli], a
 	ld a, $54
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def SetUpCalledMonster2()
+;@ path: battle/skills
+;@ Fills slot 3 of the user's side with the second called monster: level 40, HP 300, MP 200, attack 210, defense 160, agility 120, intelligence 100, three fixed skills and fixed resistances.
 SetUpCalledMonster2::
+;> pos = wSkillUser & 4 | 3              # slot 3 of the user's side
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
 	ld [wBattleArg0], a
+;> p = addr(wBattlerTypeBits) + pos
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerSex
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerLevel
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 40
 	ld a, $28
 	ld [hl], a
+;> p = addr(wBattlerHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 300
 	adc h
 	ld h, a
 	ld a, $2c
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerMaxHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 300
 	adc h
 	ld h, a
 	ld a, $2c
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerMaxMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerAttack) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 210
 	adc h
 	ld h, a
 	ld a, $d2
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerDefense) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 160
 	adc h
 	ld h, a
 	ld a, $a0
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerAgility) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 120
 	adc h
 	ld h, a
 	ld a, $78
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntelligence) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 100
 	adc h
 	ld h, a
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntClass) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 1
 	ld h, a
 	ld [hl], $01
+;> p = addr(wBattlerWildness) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 255
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerPersonality1) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 250
 	ld h, a
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerStat67
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality2
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality3
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p = addr(wBattlerSkills) + 16 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;>@sk1 for i, v in enumerate((0x02, 0x25, 0x01, 0x5E, 0x02, 0x7A)): mem[p + i] = v
 	adc h
 	ld h, a
 	ld a, $02
 	ld [hli], a
+;=@sk1
 	ld a, $25
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
 	ld a, $5e
 	ld [hli], a
+;=@sk1
 	ld a, $02
 	ld [hli], a
 	ld a, $7a
 	ld [hli], a
+;> off = 7 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
 	add a
+;> p = addr(wBattlerResist) + off
 	add c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@rs2 for i, v in enumerate((0x3A, 0x05, 0x64, 0x54, 0x31, 0x55, 0x84)): mem[p + i] = v
 	ld a, $3a
 	ld [hli], a
+;=@rs2
 	ld a, $05
 	ld [hli], a
 	ld a, $64
 	ld [hli], a
 	ld a, $54
 	ld [hli], a
+;=@rs2
 	ld a, $31
 	ld [hli], a
 	ld a, $55
 	ld [hli], a
 	ld a, $84
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def SetUpCalledMonster3()
+;@ path: battle/skills
+;@ Fills slot 3 of the user's side with the third called monster: level 50, HP 450, MP 200, attack 250, defense 190, agility 150, intelligence 200, three fixed skills and fixed resistances.
 SetUpCalledMonster3::
+;> pos = wSkillUser & 4 | 3              # slot 3 of the user's side
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
 	ld [wBattleArg0], a
+;> p = addr(wBattlerTypeBits) + pos
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerSex
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerLevel
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 50
 	ld a, $32
 	ld [hl], a
+;> p = addr(wBattlerHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 450
 	adc h
 	ld h, a
 	ld a, $c2
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerMaxHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 450
 	adc h
 	ld h, a
 	ld a, $c2
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerMaxMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerAttack) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 250
 	adc h
 	ld h, a
 	ld a, $fa
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerDefense) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 190
 	adc h
 	ld h, a
 	ld a, $be
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerAgility) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 150
 	adc h
 	ld h, a
 	ld a, $96
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntelligence) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntClass) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 2
 	ld h, a
 	ld [hl], $02
+;> p = addr(wBattlerWildness) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 255
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerPersonality1) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 250
 	ld h, a
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerStat67
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality2
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality3
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p = addr(wBattlerSkills) + 16 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;>@sk1 for i, v in enumerate((0x01, 0x40, 0x01, 0x55, 0x01, 0x57)): mem[p + i] = v
 	adc h
 	ld h, a
 	ld a, $01
 	ld [hli], a
+;=@sk1
 	ld a, $40
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
 	ld a, $55
 	ld [hli], a
+;=@sk1
 	ld a, $01
 	ld [hli], a
 	ld a, $57
 	ld [hli], a
+;> off = 7 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
 	add a
+;> p = addr(wBattlerResist) + off
 	add c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@rs2 for i, v in enumerate((0x19, 0xC6, 0xB5, 0x44, 0x19, 0x55, 0x54)): mem[p + i] = v
 	ld a, $19
 	ld [hli], a
+;=@rs2
 	ld a, $c6
 	ld [hli], a
 	ld a, $b5
 	ld [hli], a
 	ld a, $44
 	ld [hli], a
+;=@rs2
 	ld a, $19
 	ld [hli], a
 	ld a, $55
 	ld [hli], a
 	ld a, $54
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def SetUpCalledMonster4()
+;@ path: battle/skills
+;@ Fills slot 3 of the user's side with the fourth called monster: level 60, HP 700 (the maximum is set to only 444), MP 400, attack 350, defense 300, agility 100, intelligence 250, three fixed skills and fixed resistances.
 SetUpCalledMonster4::
+;> pos = wSkillUser & 4 | 3              # slot 3 of the user's side
 	ld b, $00
 	ld a, [wSkillUser]
 	and $04
 	or $03
 	ld [wBattleArg0], a
+;> p = addr(wBattlerTypeBits) + pos
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerSex
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 0
 	ld [hl], b
+;> p += 8                                 # wBattlerLevel
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 60
 	ld a, $3c
 	ld [hl], a
+;> p = addr(wBattlerHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 700
 	adc h
 	ld h, a
 	ld a, $bc
 	ld [hli], a
 	ld a, $02
 	ld [hl], a
+;> p = addr(wBattlerMaxHP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 444
 	adc h
 	ld h, a
 	ld a, $bc
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 400
 	adc h
 	ld h, a
 	ld a, $90
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerMaxMP) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 400
 	adc h
 	ld h, a
 	ld a, $90
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerAttack) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAttack
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 350
 	adc h
 	ld h, a
 	ld a, $5e
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerDefense) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerDefense
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 300
 	adc h
 	ld h, a
 	ld a, $2c
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerAgility) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 100
 	adc h
 	ld h, a
 	ld a, $64
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntelligence) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 250
 	adc h
 	ld h, a
 	ld a, $fa
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerIntClass) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 2
 	ld h, a
 	ld [hl], $02
+;> p = addr(wBattlerWildness) + 2 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerWildness
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 255
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hli], a
 	ld [hl], b
+;> p = addr(wBattlerPersonality1) + pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 250
 	ld h, a
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerStat67
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality2
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p += 8                                 # wBattlerPersonality3
 	ld a, $08
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[p] = 250
 	ld a, $fa
 	ld [hl], a
+;> p = addr(wBattlerSkills) + 16 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;>@sk1 for i, v in enumerate((0x01, 0x62, 0x01, 0x64, 0x02, 0x80)): mem[p + i] = v
 	adc h
 	ld h, a
 	ld a, $01
 	ld [hli], a
+;=@sk1
 	ld a, $62
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
 	ld a, $64
 	ld [hli], a
+;=@sk1
 	ld a, $02
 	ld [hli], a
 	ld a, $80
 	ld [hli], a
+;> off = 7 * pos
 	ld a, [wBattleArg0]
 	ld hl, wBattlerResist
 	ld c, a
 	add a
 	add c
 	add a
+;> p = addr(wBattlerResist) + off
 	add c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@rs2 for i, v in enumerate((0x1A, 0x6F, 0xFA, 0xA9, 0x1E, 0xAA, 0xA8)): mem[p + i] = v
 	ld a, $1a
 	ld [hli], a
+;=@rs2
 	ld a, $6f
 	ld [hli], a
 	ld a, $fa
 	ld [hli], a
 	ld a, $a9
 	ld [hli], a
+;=@rs2
 	ld a, $1e
 	ld [hli], a
 	ld a, $aa
 	ld [hli], a
 	ld a, $a8
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def TransformSkillUser()
+;@ path: battle/skills
+;@ Turns the skill user (wSkillUser) into a stronger form: level 50, maximum HP 999, maximum MP 300, attack 300, defense, agility and intelligence 200, the palette of species $DC, three fixed skills (the other five slots empty) and fixed resistances; its remembered menu cursor is cleared.
 TransformSkillUser::
+;> p = addr(wBattlerLevel) + wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerLevel
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = 50
 	ld h, a
 	ld a, $32
 	ld [hl], a
+;> p = addr(wBattlerMaxHP) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerMaxHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 999
 	adc h
 	ld h, a
 	ld a, $e7
 	ld [hli], a
 	ld a, $03
 	ld [hl], a
+;> p = addr(wBattlerMaxMP) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerMaxMP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 300
 	adc h
 	ld h, a
 	ld a, $2c
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerAttack) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerAttack
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 300
 	adc h
 	ld h, a
 	ld a, $2c
 	ld [hli], a
 	ld a, $01
 	ld [hl], a
+;> p = addr(wBattlerDefense) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerDefense
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> p = addr(wBattlerAgility) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> p = addr(wBattlerIntelligence) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntelligence
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 200
 	adc h
 	ld h, a
 	ld a, $c8
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> SetTransformPalette()
 	call SetTransformPalette
+;> p = addr(wBattlerSkills) + 16 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;>@sk1 for i, v in enumerate((0x01, 0x5E, 0x01, 0x62, 0x02, 0x80, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF)): mem[p + i] = v
 	adc h
 	ld h, a
 	ld a, $01
 	ld [hli], a
+;=@sk1
 	ld a, $5e
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
 	ld a, $62
 	ld [hli], a
+;=@sk1
 	ld a, $02
 	ld [hli], a
 	ld a, $80
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;=@sk1
 	ld a, $ff
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
 	ld a, $ff
 	ld [hli], a
+;=@sk1
 	ld a, $00
 	ld [hli], a
 	ld a, $ff
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;=@sk1
 	ld a, $ff
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
 	ld a, $ff
 	ld [hl], a
+;> off = 7 * wSkillUser
 	ld a, [wSkillUser]
 	ld h, a
 	add a
 	add h
 	add a
 	add h
+;> p = addr(wBattlerResist) + off
 	ld hl, wBattlerResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@rs2 for i, v in enumerate((0x2A, 0xAA, 0xA9, 0x69, 0x4F, 0xAA, 0x5A)): mem[p + i] = v
 	ld a, $2a
 	ld [hli], a
+;=@rs2
 	ld a, $aa
 	ld [hli], a
 	ld a, $a9
 	ld [hli], a
 	ld a, $69
 	ld [hli], a
+;=@rs2
 	ld a, $4f
 	ld [hli], a
 	ld a, $aa
 	ld [hli], a
 	ld a, $5a
 	ld [hl], a
+;> ForgetMenuCursor(wSkillUser)
 	ld a, [wSkillUser]
-	call ClearBattlerFlagBits
+	call ForgetMenuCursor
+;> return
 	ret
 
 
+;@ def SetTransformPalette()
+;@ path: battle/skills
+;@ On a Game Boy Color, gives the skill user the picture palette of species $DC (the species byte at
+;@ $DB00 + position in WRAM bank 2).
+;@ test: skip writes WRAM bank 2
 SetTransformPalette::
+;> if not wOnCGB: return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> rSVBK = 2
 	ld a, $02
 	ldh [rSVBK], a
+;> q = 0xDB00 + wSkillUser
 	ld a, [wSkillUser]
-	ld hl, wSideFlags
+	ld hl, $db00
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[q] = 0xDC                      # in WRAM bank 2
 	ld h, a
 	ld [hl], $dc
+;> rSVBK = 0
 	ld a, $00
 	ldh [rSVBK], a
+;> return
 	ret
 
 
-ClearBattlerFlagBits::
+;@ def ForgetMenuCursor(pos: a)
+;@ path: battle/skills
+;@ Forgets the remembered menu cursor of battle position `pos` (keeps only bit 7 of
+;@ wBattlerMenuMemory).
+;@ test: pos = rand(0, 7)
+ForgetMenuCursor::
+;> q = addr(wBattlerMenuMemory) + pos
 	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[q] &= 0x80
 	ld a, [hl]
 	and $80
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def ThirteenSixteenths(x: hl) -> hl
+;@ path: battle/setup
+;@ Returns about 13/16 of `x`: x/2 + x/4 + x/16 (each part rounded down).
+;@ test: x = rand(0, 0xFFFF)
 ThirteenSixteenths::
+;> half = x >> 1
 	push bc
 	srl h
 	rr l
+;> quarter = half >> 1
 	ld b, h
 	ld c, l
 	srl b
 	rr c
+;> r = half + quarter
 	add hl, bc
+;> sixteenth = quarter >> 2
 	srl b
 	rr c
 	srl b
 	rr c
+;> return (r + sixteenth) & 0xFFFF
 	add hl, bc
 	pop bc
 	ret
@@ -4250,7 +4502,7 @@ BattlerFallSequence::
 	ld a, [wFallStep]
 	rst $00
 
-JumpTable_51_537E::
+FallSteps::
 	dw FallStep0
 	dw FallStep1
 	dw FallStep2
@@ -4334,7 +4586,7 @@ jr_051_53d6:
 
 
 FallStep1::
-	ld hl, far_Call_58_5749
+	ld hl, far_BlankEnemyPicture
 	rst $10
 	ld a, $1a
 	ld [wBattleSubStep], a
@@ -4514,7 +4766,7 @@ LevelUpScreen::
 	ld a, [wCommandStep]
 	rst $00
 
-JumpTable_51_557C::
+LevelUpSteps::
 	dw LevelUpStep00
 	dw LevelUpStep01
 	dw LevelUpStep02
@@ -4988,7 +5240,7 @@ LevelUpStep11::
 	ld hl, wCommandStep
 	inc [hl]
 	call DrawSkillNameColumn
-	call Call_51_592A
+	call DrawForgetSkillInfo
 	call ClearBattleTilemap
 	call DrawForgetMenu
 	call CopyTilemapBufferToBG
@@ -5000,12 +5252,12 @@ DrawForgetMenu::
 	ld hl, far_Call_55_4774
 	rst $10
 	ld de, $6e78
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld de, $6fe2
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld de, $7077
-	call Call_51_72CC
-	call Call_51_58A9
+	call DrawBattleWindow
+	call DrawForgetMPCost
 	ld hl, wMonMaxMP
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -5024,7 +5276,7 @@ DrawForgetMenu::
 	ret
 
 
-Call_51_58A9::
+DrawForgetMPCost::
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
@@ -5109,7 +5361,7 @@ DrawSkillNameTiles::
 	ret
 
 
-Call_51_592A::
+DrawForgetSkillInfo::
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
@@ -5179,8 +5431,8 @@ LevelUpStep12::
 	jr z, jr_051_59ad
 
 	call DrawSkillNameColumn
-	call Call_51_592A
-	call Call_51_58A9
+	call DrawForgetSkillInfo
+	call DrawForgetMPCost
 	call CopyTilemapBufferToBG
 
 jr_051_59ad:
@@ -5189,8 +5441,8 @@ jr_051_59ad:
 	cp [hl]
 	jr z, jr_051_59bd
 
-	call Call_51_592A
-	call Call_51_58A9
+	call DrawForgetSkillInfo
+	call DrawForgetMPCost
 	call CopyTilemapBufferToBG
 
 jr_051_59bd:
@@ -5240,7 +5492,7 @@ LevelUpStep13::
 	ld hl, $0b05
 	call PrintSystemText
 	ld de, $2e07
-	call Call_51_72CC
+	call DrawBattleWindow
 	call CopyTilemapBufferToBG
 	ret
 
@@ -5257,16 +5509,16 @@ LevelUpStep14::
 	call ClearBattleTilemap
 	call DrawForgetMenu
 	ld de, $2e07
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $5ab6
 	ld a, [wConfirmChoice2]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -5275,7 +5527,7 @@ LevelUpStep15::
 	ld de, $5ab6
 	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_5a72
@@ -5546,7 +5798,7 @@ RecruitScreen::
 	ld a, [wCommandStep]
 	rst $00
 
-JumpTable_51_5C37::
+RecruitSteps::
 	dw RecruitStep00
 	dw RecruitStep01
 	dw RecruitStep02
@@ -5705,11 +5957,11 @@ RecruitStep02::
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $5de4
 	ld a, [wMenuChoice]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -5718,7 +5970,7 @@ RecruitStep03::
 	ld de, $5de4
 	ld hl, wMenuChoice
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_5dbc
@@ -5787,10 +6039,10 @@ jr_051_5df7:
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld de, $5de4
 	ld a, [wMenuChoice]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 
 jr_051_5e33:
@@ -5836,11 +6088,11 @@ RecruitStep05::
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $5ed1
 	ld a, [wMenuChoice2]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -5849,7 +6101,7 @@ RecruitStep06::
 	ld de, $5ed1
 	ld hl, wMenuChoice2
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_5ea5
@@ -5934,10 +6186,10 @@ DrawMonsterEggChoice::
 	ld hl, $00c7
 	call SetNewMonPicPalette
 	ld de, $70ab
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld de, $6823
 	ld a, [wListCursor2]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	ret
 
 
@@ -6064,7 +6316,7 @@ DrawReleaseList::
 	ld de, $70d0
 
 jr_051_5fcc:
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $61a5
 	ld a, [wListCursor2]
@@ -6411,7 +6663,7 @@ DrawReleaseConfirm::
 	ld de, $7150
 
 jr_051_61dc:
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $629e
 	ld a, [wListCursor2]
@@ -6422,7 +6674,7 @@ jr_051_61dc:
 
 jr_051_61ef:
 	ld a, [wConfirmChoice2]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -6438,7 +6690,7 @@ RecruitStep12::
 jr_051_6206:
 	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_622b
@@ -6467,7 +6719,7 @@ jr_051_622b:
 	jr z, jr_051_624c
 
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 	ld a, $19
 	ld [wCommandStep], a
@@ -6505,7 +6757,7 @@ jr_051_6260:
 	ld hl, $0b24
 	call PrintSystemText
 	ld de, $2e07
-	call Call_51_72CC
+	call DrawBattleWindow
 	call CopyTilemapBufferToBG
 	ld a, $1f
 	ld [wCommandStep], a
@@ -6556,7 +6808,7 @@ RecruitStep13::
 	ld hl, $0b1d
 	call PrintSystemText
 	ld de, $70d0
-	call Call_51_72CC
+	call DrawBattleWindow
 	jr jr_051_62f6
 
 jr_051_62e0:
@@ -6581,7 +6833,7 @@ jr_051_62f6:
 	call RefreshStatusIcons
 	call DrawBattlePartyPanel
 	ld de, $2e07
-	call Call_51_72CC
+	call DrawBattleWindow
 	call CopyTilemapBufferToBG
 	ld a, $15
 	ld [wCommandStep], a
@@ -6629,11 +6881,11 @@ RecruitStep15::
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $63bc
 	ld a, [wMenuChoice3]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -6642,7 +6894,7 @@ RecruitStep16::
 	ld de, $63bc
 	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_6398
@@ -6774,10 +7026,10 @@ DrawPartyFullMenu::
 	ld de, $5112
 	call DecompressVRAM
 	ld de, $6eef
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld de, $63bc
 	ld a, [wMenuChoice3]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	ret
 
 
@@ -6799,11 +7051,11 @@ DrawPartySwapList::
 	ld hl, far_Call_55_4813
 	rst $10
 	ld de, $6f14
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $6527
 	ld a, [wLinkRefused]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	ret
 
 
@@ -6848,7 +7100,7 @@ RecruitStep20::
 	ld a, [wPartyCount]
 	inc a
 	ld b, a
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_650a
@@ -6928,11 +7180,11 @@ RecruitStep22::
 
 DrawSwapConfirm::
 	ld de, $6f6e
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $65d8
 	ld a, [wLinkPartnerChoice]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -6941,7 +7193,7 @@ RecruitStep23::
 	ld de, $65d8
 	ld hl, wLinkPartnerChoice
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_65aa
@@ -6966,7 +7218,7 @@ jr_051_65aa:
 	jr z, jr_051_65cb
 
 	xor a
-	ld [wStatusViewVars], a
+	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
 	ld a, $1b
 	ld [wCommandStep], a
@@ -7014,7 +7266,7 @@ RecruitStep24::
 	ld hl, $0b19
 	call PrintSystemText
 	ld de, $2e07
-	call Call_51_72CC
+	call DrawBattleWindow
 	call CopyTilemapBufferToBG
 	ld a, [wLinkRefused]
 	and $7f
@@ -7244,11 +7496,11 @@ RedrawMonsterEggChoice::
 	ld hl, $00c7
 	call SetNewMonPicPalette
 	ld de, $70ab
-	call Call_51_72CC
+	call DrawBattleWindow
 	call ResetBattleCursorBlink
 	ld de, $6823
 	ld a, [wListCursor2]
-	call Call_51_75E7
+	call DrawBattleCursorAt
 	call CopyTilemapBufferToBG
 	ret
 
@@ -7257,7 +7509,7 @@ RecruitStep33::
 	ld de, $6823
 	ld hl, wListCursor2
 	ld b, $02
-	call Call_51_74D3
+	call UpdateBattleMenuCursor
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_051_6809
@@ -7864,7 +8116,7 @@ jr_051_7288:
 	db $7d, $ea, $ea, $d9, $7c, $ea, $eb, $d9, $18, $d7, $cd, $ad, $1a, $cd, $47, $72
 	db $18, $cf
 
-Call_51_72CC::
+DrawBattleWindow::
 	ld a, [de]
 	ld l, a
 	inc de
@@ -8160,7 +8412,7 @@ jr_051_74b1:
 	push bc
 	push de
 	push hl
-	call Call_51_758C
+	call DrawBattlePageNumber
 	pop hl
 	pop de
 	pop bc
@@ -8178,13 +8430,13 @@ jr_051_74b1:
 	inc hl
 	ld a, [hld]
 	cp c
-	jr nz, Call_51_74D3
+	jr nz, UpdateBattleMenuCursor
 
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
-Call_51_74D3::
+UpdateBattleMenuCursor::
 	res 7, [hl]
 	ld a, [wJoyRepeat]
 	bit 6, a
@@ -8231,7 +8483,7 @@ jr_051_74fc:
 
 jr_051_7505:
 	ld a, [hl]
-	call Call_51_7529
+	call DrawBattleMenuCursor
 	ret
 
 
@@ -8244,7 +8496,7 @@ ResetBattleCursorBlink::
 	ret
 
 
-Call_51_7529::
+DrawBattleMenuCursor::
 	ld c, a
 	bit 7, a
 	jr nz, jr_051_753e
@@ -8318,7 +8570,7 @@ jr_051_7573:
 	inc b
 	jr jr_051_7541
 
-Call_51_758C::
+DrawBattlePageNumber::
 	ld a, b
 	cp c
 	ret nc
@@ -8402,7 +8654,7 @@ jr_051_75de:
 jr_051_75e6:
 	pop af
 
-Call_51_75E7::
+DrawBattleCursorAt::
 	ld c, a
 	add a
 	add e
@@ -8527,7 +8779,7 @@ jr_051_767c:
 
 DrawBattlePartyPanel::
 	ld de, $2e07
-	call Call_51_72CC
+	call DrawBattleWindow
 	ld a, [wPanelMode]
 	or a
 	jp nz, Jump_051_7763
@@ -8567,7 +8819,7 @@ jr_051_76b9:
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	call Call_51_72CC
+	call DrawBattleWindow
 	ret
 
 
