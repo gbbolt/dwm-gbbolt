@@ -11,16 +11,16 @@ FarTable_17::
 	dw LoadMapPalettes
 	dw LoadMapAttrBuffer
 	dw LoadFieldObjPalettes
-	dw $4272
+	dw ApplyDMGPalettes
 	dw StartCGBFade
-	dw $4478
+	dw UpdateCGBFade
 	dw LoadMonPicPalette
-	dw $41f2
+	dw DrawMonPicAttrs
 	dw UploadCGBPalettes
 	dw SetSharedBGColors
 	dw ClearAttrMap
 	dw LoadPaletteSet
-	dw $4733
+	dw LoadObjPaletteA
 	dw LoadObjPaletteB
 
 LoadMapPalettes::
@@ -80,7 +80,7 @@ LoadMapPalettes::
 
 Jump_017_4064:
 	ld de, $5215
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_017_4071
 
@@ -88,7 +88,7 @@ Jump_017_4064:
 
 jr_017_4071:
 	ld a, [wMapScreen]
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -166,7 +166,7 @@ LoadMapAttrBuffer::
 
 Jump_017_40da:
 	ld de, $5215
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_017_40e7
 
@@ -174,7 +174,7 @@ Jump_017_40da:
 
 jr_017_40e7:
 	ld a, [wMapScreen]
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -332,6 +332,8 @@ LoadMonPicPalette::
 	ld b, $01
 	call CopyBGPalettes
 	call SetSharedBGColors
+
+DrawMonPicAttrs::
 	ld a, [wOnCGB]
 	or a
 	ret z
@@ -429,6 +431,7 @@ NextMapColumn_17::
 	ret
 
 
+ApplyDMGPalettes::
 	ld a, [wOnCGB]
 	or a
 	ret z
@@ -436,7 +439,7 @@ NextMapColumn_17::
 	ld hl, wDefaultPalettes
 	ld a, [wBGP]
 	cp [hl]
-	jp z, Jump_017_4341
+	jp z, ApplyDMGObjPalettes
 
 	call WaitVRAMAccess
 	ld a, $80
@@ -452,630 +455,859 @@ NextMapColumn_17::
 	call WriteBGPaletteDMG
 	ld a, [wBGP]
 	ld [wDefaultPalettes], a
-	jp Jump_017_4341
+	jp ApplyDMGObjPalettes
 
 
+;@ def WriteBGPaletteDMG(pal: hl) -> hl
+;@ path: gfx/palettes
+;@ Writes the CGB background palette at `pal` to rBCPD with its four colors rearranged like the
+;@ Game Boy palette wBGP rearranges the shades: color n is the palette color picked by
+;@ shade field n of wBGP (through .shadeOffsets). Returns pal + 8.
+;@ test: skip writes the palette registers
 WriteBGPaletteDMG::
+;>@s0 rBCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wBGP >> 0) & 3]]   # color 0
 	push hl
 	ld a, [wBGP]
 	and $03
-	ld de, $440c
+	ld de, WriteObjPaletteDMG.shadeOffsets
 	add e
 	ld e, a
+;=@s0
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	add l
 	ld l, a
+;=@s0
 	ld a, $00
 	adc h
 	ld h, a
 	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
+;=@s0
 	ld a, [hl]
 	ldh [rBCPD], a
 	pop hl
+;>@s1 rBCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wBGP >> 2) & 3]]   # color 1
 	push hl
 	ld a, [wBGP]
 	srl a
 	srl a
 	and $03
-	ld de, $440c
+	ld de, WriteObjPaletteDMG.shadeOffsets
+;=@s1
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
+;=@s1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	call WaitVRAMAccess
+;=@s1
 	ld a, [hli]
 	ldh [rBCPD], a
 	ld a, [hl]
 	ldh [rBCPD], a
 	pop hl
-	push hl
-	ld a, [wBGP]
-	swap a
-	and $03
-	ld de, $440c
-	add e
-	ld e, a
-	ld a, $00
-	adc d
-	ld d, a
-	ld a, [de]
-	add l
-	ld l, a
-	ld a, $00
-	adc h
-	ld h, a
-	call WaitVRAMAccess
-	ld a, [hli]
-	ldh [rBCPD], a
-	ld a, [hl]
-	ldh [rBCPD], a
-	pop hl
+;>@s2 rBCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wBGP >> 4) & 3]]   # color 2
 	push hl
 	ld a, [wBGP]
 	swap a
-	srl a
-	srl a
 	and $03
-	ld de, $440c
+	ld de, WriteObjPaletteDMG.shadeOffsets
 	add e
+;=@s2
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	add l
+;=@s2
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	call WaitVRAMAccess
 	ld a, [hli]
+;=@s2
 	ldh [rBCPD], a
 	ld a, [hl]
 	ldh [rBCPD], a
 	pop hl
+;>@s3 rBCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wBGP >> 6) & 3]]   # color 3
+	push hl
+	ld a, [wBGP]
+	swap a
+	srl a
+	srl a
+	and $03
+;=@s3
+	ld de, WriteObjPaletteDMG.shadeOffsets
+	add e
+	ld e, a
+	ld a, $00
+	adc d
+	ld d, a
+;=@s3
+	ld a, [de]
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+;=@s3
+	call WaitVRAMAccess
+	ld a, [hli]
+	ldh [rBCPD], a
+	ld a, [hl]
+	ldh [rBCPD], a
+	pop hl
+;> pal += 8
 	ld a, l
 	add $08
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> return pal
 	ret
 
 
-Jump_017_4341:
-	ld hl, $c89f
+;@ def ApplyDMGObjPalettes()
+;@ path: gfx/palettes
+;@ The sprite half of ApplyDMGPalettes: when wOBP0 differs from the value in effect
+;@ (wDefaultPalettes[1]), all eight sprite palettes (the buffer at wSGBPalettes) are
+;@ rewritten through WriteObjPaletteDMG.
+;@ test: skip writes the palette registers
+ApplyDMGObjPalettes::
+;> if wOBP0 == wDefaultPalettes[1]:
+;>     return
+	ld hl, wDefaultPalettes + 1
 	ld a, [wOBP0]
 	cp [hl]
-	jp z, Jump_017_440b
+	jp z, WriteObjPaletteDMG.done
 
+;> WaitVRAMAccess(); rOCPS = 0x80
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
+;>@pals for p in range(8):
+;>     WriteObjPaletteDMG(wSGBPalettes + 8 * p)
 	ld hl, wSGBPalettes
 	call WriteObjPaletteDMG
 	call WriteObjPaletteDMG
 	call WriteObjPaletteDMG
 	call WriteObjPaletteDMG
 	call WriteObjPaletteDMG
+;=@pals
 	call WriteObjPaletteDMG
 	call WriteObjPaletteDMG
 	call WriteObjPaletteDMG
+;> wDefaultPalettes[1] = wOBP0
 	ld a, [wOBP0]
-	ld [$c89f], a
-	jp Jump_017_440b
+	ld [wDefaultPalettes + 1], a
+	jp WriteObjPaletteDMG.done
 
 
+;@ def WriteObjPaletteDMG(pal: hl) -> hl
+;@ path: gfx/palettes
+;@ Writes the CGB sprite palette at `pal` to rOCPD with its four colors rearranged like the
+;@ Game Boy palette wOBP0 rearranges the shades: color n is the palette color picked by
+;@ shade field n of wOBP0. After it: .shadeOffsets, the byte offset of the color each Game
+;@ Boy shade stands for (shade 0 -> color 1, 1 -> 2, 2 -> 0, 3 -> 3).
+;@ test: skip writes the palette registers
 WriteObjPaletteDMG::
+;>@s0 rOCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wOBP0 >> 0) & 3]]   # color 0
 	push hl
 	ld a, [wOBP0]
 	and $03
-	ld de, $440c
+	ld de, WriteObjPaletteDMG.shadeOffsets
 	add e
 	ld e, a
+;=@s0
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	add l
 	ld l, a
+;=@s0
 	ld a, $00
 	adc h
 	ld h, a
 	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
+;=@s0
 	ld a, [hl]
 	ldh [rOCPD], a
 	pop hl
+;>@s1 rOCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wOBP0 >> 2) & 3]]   # color 1
 	push hl
 	ld a, [wOBP0]
 	srl a
 	srl a
 	and $03
-	ld de, $440c
+	ld de, WriteObjPaletteDMG.shadeOffsets
+;=@s1
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
+;=@s1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	call WaitVRAMAccess
+;=@s1
 	ld a, [hli]
 	ldh [rOCPD], a
 	ld a, [hl]
 	ldh [rOCPD], a
 	pop hl
-	push hl
-	ld a, [wOBP0]
-	swap a
-	and $03
-	ld de, $440c
-	add e
-	ld e, a
-	ld a, $00
-	adc d
-	ld d, a
-	ld a, [de]
-	add l
-	ld l, a
-	ld a, $00
-	adc h
-	ld h, a
-	call WaitVRAMAccess
-	ld a, [hli]
-	ldh [rOCPD], a
-	ld a, [hl]
-	ldh [rOCPD], a
-	pop hl
+;>@s2 rOCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wOBP0 >> 4) & 3]]   # color 2
 	push hl
 	ld a, [wOBP0]
 	swap a
-	srl a
-	srl a
 	and $03
-	ld de, $440c
+	ld de, WriteObjPaletteDMG.shadeOffsets
 	add e
+;=@s2
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	add l
+;=@s2
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	call WaitVRAMAccess
 	ld a, [hli]
+;=@s2
 	ldh [rOCPD], a
 	ld a, [hl]
 	ldh [rOCPD], a
 	pop hl
+;>@s3 rOCPD = mem16[pal + WriteObjPaletteDMG.shadeOffsets[(wOBP0 >> 6) & 3]]   # color 3
+	push hl
+	ld a, [wOBP0]
+	swap a
+	srl a
+	srl a
+	and $03
+;=@s3
+	ld de, WriteObjPaletteDMG.shadeOffsets
+	add e
+	ld e, a
+	ld a, $00
+	adc d
+	ld d, a
+;=@s3
+	ld a, [de]
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+;=@s3
+	call WaitVRAMAccess
+	ld a, [hli]
+	ldh [rOCPD], a
+	ld a, [hl]
+	ldh [rOCPD], a
+	pop hl
+;> pal += 8
 	ld a, l
 	add $08
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> return pal
 	ret
 
-
-Jump_017_440b:
+.done
 	ret
 
-
+.shadeOffsets
 	db $02, $04, $00, $06
 
+;@ def StartCGBFade()
+;@ path: gfx/fade
+;@ Starts a palette fade on a Game Boy Color (StartFade calls it). wFadeState bit 7 clear:
+;@ a fade out to white from level 0, speed wFadeState / 4; bit 7 set: a fade in from white,
+;@ level $20, speed ~wFadeState / 4, and every palette color is set to white ($7FFF) first.
+;@ test: skip writes the palette registers
 StartCGBFade::
+;> if not wFadeState & 0x80:              # fade out
 	ld a, [wFadeState]
 	ld b, a
 	bit 7, b
-	jr nz, jr_017_442e
+	jr nz, .fadeIn
 
+;>     wFadeLevel = 0
 	ld a, $00
 	ld [wFadeLevel], a
+;>     wFadeSpeed = wFadeState >> 2
 	ld a, [wFadeState]
 	srl a
 	srl a
 	ld [wFadeSpeed], a
+;>     wFadeTimer = wFadeSpeed
 	ld [wFadeTimer], a
+;>     StartMusicFadeOut()
 	call StartMusicFadeOut
+;>     return
 	ret
 
-
-jr_017_442e:
+.fadeIn
+;> wFadeLevel = 0x20
 	ld a, $20
 	ld [wFadeLevel], a
+;> wFadeSpeed = (~wFadeState & 0xFF) >> 2
 	ld a, [wFadeState]
 	cpl
 	srl a
 	srl a
 	ld [wFadeSpeed], a
+;> wFadeTimer = wFadeSpeed
 	ld [wFadeTimer], a
+;> disable_interrupts(); WaitVRAMAccess(); rBCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
+;>@bg for i in range(32):                 # all background colors white
 	ld b, $20
 
-jr_017_444c:
+.bg
+;>     disable_interrupts(); WaitVRAMAccess(); rBCPD = 0xFF; rBCPD = 0x7F; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $ff
 	ldh [rBCPD], a
 	ld a, $7f
 	ldh [rBCPD], a
+;=@bg
 	ei
 	dec b
-	jr nz, jr_017_444c
+	jr nz, .bg
 
+;> disable_interrupts(); WaitVRAMAccess(); rOCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
+;>@obj for i in range(32):                # all sprite colors white
 	ld b, $20
 
-jr_017_4467:
+.obj
+;>     disable_interrupts(); WaitVRAMAccess(); rOCPD = 0xFF; rOCPD = 0x7F; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $ff
 	ldh [rOCPD], a
 	ld a, $7f
 	ldh [rOCPD], a
+;=@obj
 	ei
 	dec b
-	jr nz, jr_017_4467
+	jr nz, .obj
 
 	ret
 
 
+;@ def UpdateCGBFade()
+;@ path: gfx/fade
+;@ One frame of the CGB fade: every wFadeSpeed frames the level moves 5 steps (out: up to
+;@ $1F, in: down to 0) and all palettes are written lightened by it (WriteFadeOutPalettes /
+;@ WriteFadeInPalettes). At the end wFadeState is cleared.
+;@ test: skip writes the palette registers
+UpdateCGBFade::
+;> if not wFadeState & 0x80:              # fading out
 	ld a, [wFadeState]
 	bit 7, a
-	jr nz, jr_017_44aa
+	jr nz, .fadeIn
 
+;>     if wFadeTimer:
+;>         wFadeTimer -= 1; return
 	ld a, [wFadeTimer]
 	or a
-	jr z, jr_017_448a
+	jr z, .stepOut
 
 	dec a
 	ld [wFadeTimer], a
 	ret
 
-
-jr_017_448a:
+.stepOut
+;>     wFadeLevel = min(wFadeLevel + 5, 0x1F)
 	ld a, [wFadeLevel]
 	add $05
 	cp $1f
-	jr c, jr_017_4495
+	jr c, .setOut
 
 	ld a, $1f
 
-jr_017_4495:
+.setOut
 	ld [wFadeLevel], a
+;>     WriteFadeOutPalettes()
 	call WriteFadeOutPalettes
+;>     wFadeTimer = wFadeSpeed
 	ld a, [wFadeSpeed]
 	ld [wFadeTimer], a
+;>     if wFadeLevel == 0x1F:
+;>@endo         wFadeState = 0
 	ld a, [wFadeLevel]
 	cp $1f
-	jp z, Jump_017_44d3
+	jp z, .end
 
 	ret
 
-
-jr_017_44aa:
+.fadeIn
+;> else:
+;>     if wFadeTimer:
+;>         wFadeTimer -= 1; return
 	ld a, [wFadeTimer]
 	or a
-	jr z, jr_017_44b5
+	jr z, .stepIn
 
 	dec a
 	ld [wFadeTimer], a
 	ret
 
-
-jr_017_44b5:
+.stepIn
+;>     wFadeLevel = max(wFadeLevel - 5, 0)
 	ld a, [wFadeLevel]
 	sub $05
 	bit 7, a
-	jr z, jr_017_44bf
+	jr z, .setIn
 
 	xor a
 
-jr_017_44bf:
+.setIn
 	ld [wFadeLevel], a
+;>     WriteFadeInPalettes()
 	call WriteFadeInPalettes
+;>     wFadeTimer = wFadeSpeed
 	ld a, [wFadeSpeed]
 	ld [wFadeTimer], a
+;>     if wFadeLevel == 0:
+;>@endi         wFadeState = 0
 	ld a, [wFadeLevel]
 	or a
-	jp z, Jump_017_44d3
+	jp z, .end
 
 	ret
 
-
-Jump_017_44d3:
+.end
+;=@endo
 	xor a
 	ld [wFadeState], a
 	ret
 
 
+;@ def WriteFadeOutPalettes()
+;@ path: gfx/fade
+;@ Writes all eight background palettes (wCGBBGPalettes) and all eight sprite palettes
+;@ (wSGBPalettes) to the CGB palette RAM, faded towards white by wFadeLevel.
+;@ test: skip writes the palette registers
 WriteFadeOutPalettes::
+;> disable_interrupts(); WaitVRAMAccess(); rBCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
+;>@bg for p in range(8):
+;>     WriteFadeOutBGPalette(wCGBBGPalettes + 8 * p)
 	ld hl, wCGBBGPalettes
 	call WriteFadeOutBGPalette
 	call WriteFadeOutBGPalette
 	call WriteFadeOutBGPalette
 	call WriteFadeOutBGPalette
 	call WriteFadeOutBGPalette
+;=@bg
 	call WriteFadeOutBGPalette
 	call WriteFadeOutBGPalette
 	call WriteFadeOutBGPalette
+;> disable_interrupts(); WaitVRAMAccess(); rOCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
+;>@obj for p in range(8):
+;>     WriteFadeOutObjPalette(wSGBPalettes + 8 * p)
 	ld hl, wSGBPalettes
 	call WriteFadeOutObjPalette
 	call WriteFadeOutObjPalette
 	call WriteFadeOutObjPalette
 	call WriteFadeOutObjPalette
 	call WriteFadeOutObjPalette
+;=@obj
 	call WriteFadeOutObjPalette
 	call WriteFadeOutObjPalette
 	call WriteFadeOutObjPalette
 	ret
 
 
+;@ def WriteFadeOutObjPalette(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the four colors of the sprite palette at `pal` (WriteFadeOutObjColor) and returns pal + 8.
+;@ test: skip writes the palette registers
 WriteFadeOutObjPalette::
+;>@c for i in range(4):
+;>     pal = WriteFadeOutObjColor(pal)            # the fourth time by falling through
 	call WriteFadeOutObjColor
 	call WriteFadeOutObjColor
 	call WriteFadeOutObjColor
 
+;@ def WriteFadeOutObjColor(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the RGB555 color at `pal` to rOCPD with each of its components raised to at least wFadeLevel, and
+;@ returns pal + 2.
+;@ test: skip writes the palette registers
 WriteFadeOutObjColor::
+;> color = mem16[pal]; pal += 2
 	ld a, [wFadeLevel]
 	ld d, a
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
+;> out = 0
 	ld de, $0000
+;>@comp for i in range(3):              # red, green, blue: each moves into `out`
+;>     color, out = FadeOutComponent(color, out)
 	call FadeOutComponent
 	call FadeOutComponent
 	call FadeOutComponent
+;> out >>= 1                           # (the last bit into place)
 	rr b
 	rr c
 	rr d
 	rr e
+;> disable_interrupts(); WaitVRAMAccess()
 	di
 	call WaitVRAMAccess
+;> rOCPD = out & 0xFF; rOCPD = out >> 8
 	ld a, e
 	ldh [rOCPD], a
 	ld a, d
 	ldh [rOCPD], a
+;> enable_interrupts()
 	ei
 	ret
 
 
+;@ def WriteFadeOutBGPalette(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the four colors of the background palette at `pal` (WriteFadeOutBGColor) and returns pal + 8.
+;@ test: skip writes the palette registers
 WriteFadeOutBGPalette::
+;>@c for i in range(4):
+;>     pal = WriteFadeOutBGColor(pal)            # the fourth time by falling through
 	call WriteFadeOutBGColor
 	call WriteFadeOutBGColor
 	call WriteFadeOutBGColor
 
+;@ def WriteFadeOutBGColor(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the RGB555 color at `pal` to rBCPD with each of its components raised to at least wFadeLevel, and
+;@ returns pal + 2.
+;@ test: skip writes the palette registers
 WriteFadeOutBGColor::
+;> color = mem16[pal]; pal += 2
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
+;> out = 0
 	ld de, $0000
+;>@comp for i in range(3):              # red, green, blue: each moves into `out`
+;>     color, out = FadeOutComponent(color, out)
 	call FadeOutComponent
 	call FadeOutComponent
 	call FadeOutComponent
+;> out >>= 1                           # (the last bit into place)
 	rr b
 	rr c
 	rr d
 	rr e
+;> disable_interrupts(); WaitVRAMAccess()
 	di
 	call WaitVRAMAccess
+;> rBCPD = out & 0xFF; rBCPD = out >> 8
 	ld a, e
 	ldh [rBCPD], a
 	ld a, d
 	ldh [rBCPD], a
+;> enable_interrupts()
 	ei
 	ret
 
 
+;@ def FadeOutComponent(color: bc, out: de) -> (bc, de)
+;@ path: gfx/fade
+;@ Replaces the low 5-bit component of `color` by max(component, wFadeLevel), then shifts
+;@ color:out (32 bits) right by 5, so the next component comes to the bottom.
 FadeOutComponent::
+;> comp = color & 0x1F
 	push de
 	ld a, c
 	and $1f
 	ld d, a
+;> value = max(comp, wFadeLevel)
 	ld a, [wFadeLevel]
 	cp d
-	jr nc, jr_017_458b
+	jr nc, .keep
 
 	ld a, d
 
-jr_017_458b:
+.keep
+;> color = (color & 0xFFE0) | value
 	ld e, a
 	ld a, c
 	and $e0
 	or e
 	ld c, a
 	pop de
+;>@sh for i in range(5):
+;>     color, out = shift_right_32(color, out)
 	rr b
 	rr c
 	rr d
 	rr e
 	rr b
 	rr c
+;=@sh
 	rr d
 	rr e
 	rr b
 	rr c
 	rr d
 	rr e
+;=@sh
 	rr b
 	rr c
 	rr d
 	rr e
 	rr b
 	rr c
+;=@sh
 	rr d
 	rr e
 	ret
 
 
+;@ def WriteFadeInPalettes()
+;@ path: gfx/fade
+;@ Writes all eight background palettes (wCGBBGPalettes) and all eight sprite palettes
+;@ (wSGBPalettes) to the CGB palette RAM, lightened by wFadeLevel.
+;@ test: skip writes the palette registers
 WriteFadeInPalettes::
+;> disable_interrupts(); WaitVRAMAccess(); rBCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
+;>@bg for p in range(8):
+;>     WriteFadeInBGPalette(wCGBBGPalettes + 8 * p)
 	ld hl, wCGBBGPalettes
 	call WriteFadeInBGPalette
 	call WriteFadeInBGPalette
 	call WriteFadeInBGPalette
 	call WriteFadeInBGPalette
 	call WriteFadeInBGPalette
+;=@bg
 	call WriteFadeInBGPalette
 	call WriteFadeInBGPalette
 	call WriteFadeInBGPalette
+;> disable_interrupts(); WaitVRAMAccess(); rOCPS = 0x80; enable_interrupts()
 	di
 	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
+;>@obj for p in range(8):
+;>     WriteFadeInObjPalette(wSGBPalettes + 8 * p)
 	ld hl, wSGBPalettes
 	call WriteFadeInObjPalette
 	call WriteFadeInObjPalette
 	call WriteFadeInObjPalette
 	call WriteFadeInObjPalette
 	call WriteFadeInObjPalette
+;=@obj
 	call WriteFadeInObjPalette
 	call WriteFadeInObjPalette
 	call WriteFadeInObjPalette
 	ret
 
 
+;@ def WriteFadeInObjPalette(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the four colors of the sprite palette at `pal` (WriteFadeInObjColor) and returns pal + 8.
+;@ test: skip writes the palette registers
 WriteFadeInObjPalette::
+;>@c for i in range(4):
+;>     pal = WriteFadeInObjColor(pal)            # the fourth time by falling through
 	call WriteFadeInObjColor
 	call WriteFadeInObjColor
 	call WriteFadeInObjColor
 
+;@ def WriteFadeInObjColor(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the RGB555 color at `pal` to rOCPD with each of its components raised by wFadeLevel (up to 31), and
+;@ returns pal + 2.
+;@ test: skip writes the palette registers
 WriteFadeInObjColor::
+;> color = mem16[pal]; pal += 2
 	ld a, [wFadeLevel]
 	ld d, a
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
+;> out = 0
 	ld de, $0000
+;>@comp for i in range(3):              # red, green, blue: each moves into `out`
+;>     color, out = FadeInComponent(color, out)
 	call FadeInComponent
 	call FadeInComponent
 	call FadeInComponent
+;> out >>= 1                           # (the last bit into place)
 	rr b
 	rr c
 	rr d
 	rr e
+;> disable_interrupts(); WaitVRAMAccess()
 	di
 	call WaitVRAMAccess
+;> rOCPD = out & 0xFF; rOCPD = out >> 8
 	ld a, e
 	ldh [rOCPD], a
 	ld a, d
 	ldh [rOCPD], a
+;> enable_interrupts()
 	ei
 	ret
 
 
+;@ def WriteFadeInBGPalette(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the four colors of the background palette at `pal` (WriteFadeInBGColor) and returns pal + 8.
+;@ test: skip writes the palette registers
 WriteFadeInBGPalette::
+;>@c for i in range(4):
+;>     pal = WriteFadeInBGColor(pal)            # the fourth time by falling through
 	call WriteFadeInBGColor
 	call WriteFadeInBGColor
 	call WriteFadeInBGColor
 
+;@ def WriteFadeInBGColor(pal: hl) -> hl
+;@ path: gfx/fade
+;@ Writes the RGB555 color at `pal` to rBCPD with each of its components raised by wFadeLevel (up to 31), and
+;@ returns pal + 2.
+;@ test: skip writes the palette registers
 WriteFadeInBGColor::
+;> color = mem16[pal]; pal += 2
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
+;> out = 0
 	ld de, $0000
+;>@comp for i in range(3):              # red, green, blue: each moves into `out`
+;>     color, out = FadeInComponent(color, out)
 	call FadeInComponent
 	call FadeInComponent
 	call FadeInComponent
+;> out >>= 1                           # (the last bit into place)
 	rr b
 	rr c
 	rr d
 	rr e
+;> disable_interrupts(); WaitVRAMAccess()
 	di
 	call WaitVRAMAccess
+;> rBCPD = out & 0xFF; rBCPD = out >> 8
 	ld a, e
 	ldh [rBCPD], a
 	ld a, d
 	ldh [rBCPD], a
+;> enable_interrupts()
 	ei
 	ret
 
 
+;@ def FadeInComponent(color: bc, out: de) -> (bc, de)
+;@ path: gfx/fade
+;@ Replaces the low 5-bit component of `color` by min(component + wFadeLevel, 31), then shifts
+;@ color:out (32 bits) right by 5, so the next component comes to the bottom.
 FadeInComponent::
+;> comp = color & 0x1F
 	push de
 	ld a, c
 	and $1f
 	ld d, a
+;> value = min(comp + wFadeLevel, 0x1F)
 	ld a, [wFadeLevel]
 	add d
 	cp $1f
-	jr c, jr_017_4671
+	jr c, .keep
 
 	ld a, $1f
 
-jr_017_4671:
+.keep
+;> color = (color & 0xFFE0) | value
 	ld e, a
 	ld a, c
 	and $e0
 	or e
 	ld c, a
 	pop de
+;>@sh for i in range(5):
+;>     color, out = shift_right_32(color, out)
 	rr b
 	rr c
 	rr d
 	rr e
 	rr b
 	rr c
+;=@sh
 	rr d
 	rr e
 	rr b
 	rr c
 	rr d
 	rr e
+;=@sh
 	rr b
 	rr c
 	rr d
 	rr e
 	rr b
 	rr c
+;=@sh
 	rr d
 	rr e
 	ret
@@ -1210,6 +1442,7 @@ LoadPaletteSet::
 	ret
 
 
+LoadObjPaletteA::
 	ld a, [wOnCGB]
 	or a
 	ret z

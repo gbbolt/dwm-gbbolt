@@ -570,7 +570,7 @@ jr_051_43e6:
 	ret z
 
 	ld a, $06
-	ld [$c8ee], a
+	ld [wMessageSpeed], a
 	ret
 
 
@@ -4018,7 +4018,7 @@ Jump_51_575F::
 	or a
 	ret nz
 
-	ld hl, far_Call_06_4F9A
+	ld hl, far_FindLearnableSkill
 	rst $10
 	ldh a, [$ffd8]
 	cp $ff
@@ -4350,9 +4350,9 @@ Call_51_592A::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -4360,9 +4360,9 @@ Call_51_592A::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, Jump_51_5602
 	rst $10
 	pop de
@@ -4372,9 +4372,9 @@ Call_51_592A::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -5479,9 +5479,9 @@ jr_051_60da:
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -5490,9 +5490,9 @@ jr_051_60da:
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -5506,9 +5506,9 @@ jr_051_60da:
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	pop hl
 	ld a, l
 	add $10
@@ -7183,9 +7183,9 @@ Call_51_73A3::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -7193,9 +7193,9 @@ Call_51_73A3::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, far_PrintText_41
 	rst $10
 	pop de
@@ -7205,9 +7205,9 @@ Call_51_73A3::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -7221,9 +7221,9 @@ Call_51_73DC::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -7232,9 +7232,9 @@ Call_51_73DC::
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -7248,9 +7248,9 @@ Call_51_73DC::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 

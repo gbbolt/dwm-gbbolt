@@ -477,9 +477,9 @@ Call_5F_431F::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld hl, $8000
@@ -489,9 +489,9 @@ Call_5F_431F::
 	ld [$c828], a
 	ld de, $1402
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, Jump_5F_4C02
 	rst $10
 	pop de
@@ -503,7 +503,7 @@ Call_5F_431F::
 	ld a, e
 	ld [$c828], a
 	ld a, d
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ret
 
 
@@ -513,9 +513,9 @@ Call_5F_435E::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld hl, $8260
@@ -525,9 +525,9 @@ Call_5F_435E::
 	ld [$c828], a
 	ld de, $0b0c
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, Jump_5F_4C02
 	rst $10
 	pop de
@@ -539,7 +539,7 @@ Call_5F_435E::
 	ld a, e
 	ld [$c828], a
 	ld a, d
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ret
 
 

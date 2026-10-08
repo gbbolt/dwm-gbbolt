@@ -298,6 +298,7 @@ jr_013_41e2:
 	ret
 
 
+ExpTables::
 	db $00, $00, $00, $02, $00, $00, $07, $00, $00, $0f, $00, $00, $1e, $00, $00, $32
 	db $00, $00, $5a, $00, $00, $8c, $00, $00, $d7, $00, $00, $4a, $01, $00, $f4, $01
 	db $00, $f8, $02, $00, $38, $04, $00, $c8, $05, $00, $bc, $07, $00, $28, $0a, $00
@@ -892,6 +893,7 @@ jr_013_41e2:
 	db $88, $99, $56, $28, $20, $58, $c8, $a6, $59, $68, $2d, $5b, $08, $b4, $5c, $a8
 	db $3a, $5e, $48, $c1, $5f, $e8, $47, $61, $88, $ce, $62, $28, $55, $64, $c8, $db
 	db $65, $68, $62, $67, $08, $e9, $68, $a8, $6f, $6a, $48, $f6, $6b, $e8, $7c, $6d
+StatGrowthTables::
 	db $00, $01, $01, $00, $01, $01, $01, $00, $00, $01, $00, $01, $00, $00, $01, $00
 	db $01, $00, $00, $00, $01, $01, $00, $01, $00, $00, $01, $01, $00, $00, $01, $01
 	db $01, $00, $00, $00, $00, $01, $01, $01, $00, $01, $00, $01, $01, $00, $00, $01
@@ -1091,78 +1093,114 @@ jr_013_41e2:
 	db $0a, $14, $0f, $0f, $0c, $0a, $10, $11, $10, $10, $0d, $11, $14, $0f, $0a, $0b
 	db $0c, $0d, $0e, $14, $13, $12, $14, $11, $0a, $0c, $12, $13, $10, $14, $0e, $0e
 
+;@ def RunBattleWipe()
+;@ path: battle/transition
+;@ The screen wipe that leads from the field into a battle (bank 6 runs it every frame while
+;@ wFieldFlags bit 6 is set). Step wMenuStep: 0 set up, 1 wipe, 2 switch to the battle mode.
+;@ The wipe keeps its state in the menu variables: wMenuSubStep = kind of wipe (0 columns,
+;@ 1 spiral, 2 boxes), wItemsHandedIn = phase, wHatchSlot = counter, wWindowBgMap = position
+;@ (a BG map offset from the screen corner), $C90B = BG map address of the screen corner.
+;@ test: skip jump table
 RunBattleWipe::
+;> return BattleWipeSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: battle/transition
+;@ Steps of RunBattleWipe.
 BattleWipeSteps::
 	dw BattleWipeStart
 	dw BattleWipeRun
 	dw BattleWipeEnd
 
+;@ def BattleWipeStart()
+;@ path: battle/transition
+;@ Starts the battle music ($4B, or $4D on maps $30 and up outside the gate floors), clears the
+;@ wipe variables, rounds the scroll position to whole tiles, turns tile $E6 into a solid black
+;@ tile, hides sprites over it (hSpriteClip 3) and picks one of the three wipes at random.
+;@ test: skip writes VRAM
 BattleWipeStart::
+;> song = 0x4B
 	ld b, $4b
+;> if not wOnGateFloor and wMapId >= 0x30:
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_013_7381
+	jr nz, .play
 
 	ld a, [wMapId]
 	cp $30
-	jr c, jr_013_7381
+	jr c, .play
 
+;>     song = 0x4D
 	ld b, $4d
 
-jr_013_7381:
+.play
+;> QueueMusic(song)
 	ld a, b
 	call QueueMusic
+;> FillMemory(wMenuStep, 8, 0)           # the wipe variables
 	xor a
 	ld hl, wMenuStep
 	ld bc, $0008
 	call FillMemory
+;> RoundToTile_13(hScrollX)
 	ld hl, hScrollX
 	call RoundToTile_13
+;> RoundToTile_13(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile_13
+;> FillMemory(wLinkChoice, 8, 0)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> row_offset = hScrollY * 4
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
+;> column = hScrollX >> 3
 	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
+;> corner = 0x9800 + row_offset + column
 	add l
 	ld l, a
 	ld a, h
 	adc $98
 	ld h, a
+;> corner = 0x9800 | (corner & 0x3FF)
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;> mem16[0xC90B] = corner                # the wipe's origin
 	ld a, l
 	ld [$c90b], a
 	ld a, h
 	ld [wCursorBlink], a
+;> for addr in range(0x8E60, 0x8E70):    # tile $E6 becomes solid black
 	ld hl, $8e60
 	ld b, $10
 
-jr_013_73cb:
+.fill
+;>     WriteVRAM(0xFF, addr)
 	ld a, $ff
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_013_73cb
+	jr nz, .fill
 
+;> hSpriteClip = 3
 	ld a, $03
 	ldh [hSpriteClip], a
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> Random()
 	call Random
+;> wMenuSubStep = wRandomHigh % 3        # which wipe (Divide8's remainder)
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
@@ -1171,514 +1209,735 @@ jr_013_73cb:
 	ret
 
 
+;@ def BattleWipeRun()
+;@ path: battle/transition
+;@ Runs the wipe chosen by BattleWipeStart.
+;@ test: skip jump table
 BattleWipeRun::
+;> return BattleWipeKinds[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: battle/transition
+;@ The three wipes.
 BattleWipeKinds::
 	dw WipeColumns
 	dw WipeSpiral
 	dw WipeBoxes
 
+;@ def BattleWipeEnd()
+;@ path: battle/transition
+;@ After the wipe: resets the CGB attribute map, starts a fade and switches to game mode 2
+;@ (the battle).
+;@ test: skip calls routines in other banks
 BattleWipeEnd::
+;> wFieldFlags &= ~0x40
 	ld hl, wFieldFlags
 	res 6, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> StartFade(4)
 	ld a, $04
 	call StartFade
+;> wGameMode = 2
 	ld a, $02
 	ld [wGameMode], a
+;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
+;> mem[0xC88C] = 0
 	ld a, $00
 	ld [$c88c], a
+;> mem[0xC88D] = 0
 	ld a, $00
 	ld [$c88d], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def WipeColumns()
+;@ path: battle/transition
+;@ Wipe 0: the screen fills column by column, the even tile rows from the left and the odd
+;@ rows from the right; phase 1 then waits for the jingle.
+;@ test: skip jump table
 WipeColumns::
+;> return WipeColumnsSteps[wItemsHandedIn]()
 	ld a, [wItemsHandedIn]
 	rst $00
 
+;@ path: battle/transition
+;@ Phases of WipeColumns.
 WipeColumnsSteps::
 	dw WipeColumnsStep
 	dw WipeColumnsWait
 
+;@ def WipeColumnsStep()
+;@ path: battle/transition
+;@ Blackens one column per frame: column wHatchSlot on the 9 even rows and column
+;@ 19 - wHatchSlot on the 9 odd rows. After 20 columns the next phase starts.
+;@ test: skip writes VRAM
 WipeColumnsStep::
+;> if wHatchSlot == 20:
 	ld a, [wHatchSlot]
 	cp $14
-	jr nz, jr_013_7434
+	jr nz, .columns
 
+;>     wItemsHandedIn += 1
 	ld hl, wItemsHandedIn
 	inc [hl]
+;>     return
 	ret
 
-
-jr_013_7434:
+.columns
+;> cell = wHatchSlot                     # row 0, from the left
 	ld a, [wHatchSlot]
 	ld hl, $0000
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>@even for row in range(9):
 	ld h, a
 	ld b, $09
 
-jr_013_7442:
+.even
+;>     FillWipeCell(cell)
 	push hl
 	push bc
 	call FillWipeCell
 	pop bc
 	pop hl
+;>     cell += 0x40                      # two rows down
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@even
 	dec b
-	jr nz, jr_013_7442
+	jr nz, .even
 
+;> cell = 0x20 + 19 - wHatchSlot          # row 1, from the right
 	ld a, [wHatchSlot]
 	ld b, a
 	ld a, $13
 	sub b
 	ld hl, $0020
 	add l
+;>@odd for row in range(9):
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld b, $09
 
-jr_013_7466:
+.odd
+;>     FillWipeCell(cell)
 	push hl
 	push bc
 	call FillWipeCell
 	pop bc
 	pop hl
+;>     cell += 0x40
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@odd
 	dec b
-	jr nz, jr_013_7466
+	jr nz, .odd
 
+;> wHatchSlot += 1
 	ld hl, wHatchSlot
 	inc [hl]
 	ret
 
 
+;@ def WipeColumnsWait()
+;@ path: battle/transition
+;@ Waits until the battle jingle is over, then ends the wipe.
+;@ test: skip reads the sound channels
 WipeColumnsWait::
+;> if not CheckJingleDone():
+;>     return
 	call CheckJingleDone
 	ret nz
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def WipeSpiral()
+;@ path: battle/transition
+;@ Wipe 1: six cells per frame along a spiral. Phase 0 runs from the bottom right corner in
+;@ to the center, phase 1 again from the center out (over the screen that is already black),
+;@ phase 2 waits for the jingle.
+;@ test: skip jump table
 WipeSpiral::
+;> WipeSpiralCell(6)                     # falls through; WipeStepDone loops over the six cells
 	ld b, $06
 
-Jump_013_7488:
+;@ def WipeSpiralCell(cells: b)
+;@ path: battle/transition
+;@ One cell of WipeSpiral, by the phase in wItemsHandedIn.
+;@ test: skip jump table
+WipeSpiralCell::
+;> return WipeSpiralSteps[wItemsHandedIn](cells)
 	ld a, [wItemsHandedIn]
 	rst $00
 
+;@ path: battle/transition
+;@ Phases of WipeSpiral.
 WipeSpiralSteps::
-	dw WipeSpiralOut
-	dw WipeSpiralIn
+	dw WipeSpiralToCenter
+	dw WipeSpiralFromCenter
 	dw WipeSpiralWait
 
-WipeSpiralOut::
+;@ def WipeSpiralToCenter(cells: b)
+;@ path: battle/transition
+;@ The direction of the next step of the inward spiral, by the counter wHatchSlot: up the
+;@ right edge, left along the top, down, right, and so on in ever shorter runs ($B4 cells).
+;@ test: skip writes VRAM
+WipeSpiralToCenter::
+;> counter = wHatchSlot
 	push bc
 	ld a, [wHatchSlot]
+;> if counter < 0x11: return WipeStepUp(counter)
 	cp $11
-	jp c, Jump_013_7537
+	jp c, WipeStepUp
 
+;> if counter < 0x23: return WipeStepLeft(counter)
 	cp $23
-	jp c, Jump_013_755c
+	jp c, WipeStepLeft
 
+;> if counter < 0x33: return WipeStepDown(counter)
 	cp $33
-	jp c, Jump_013_7581
+	jp c, WipeStepDown
 
+;> if counter < 0x43: return WipeStepRight(counter)
 	cp $43
-	jp c, Jump_013_7598
+	jp c, WipeStepRight
 
+;> if counter < 0x51: return WipeStepUp(counter)
 	cp $51
-	jp c, Jump_013_7537
+	jp c, WipeStepUp
 
+;> if counter < 0x5F: return WipeStepLeft(counter)
 	cp $5f
-	jp c, Jump_013_755c
+	jp c, WipeStepLeft
 
+;> if counter < 0x6B: return WipeStepDown(counter)
 	cp $6b
-	jp c, Jump_013_7581
+	jp c, WipeStepDown
 
+;> if counter < 0x77: return WipeStepRight(counter)
 	cp $77
-	jp c, Jump_013_7598
+	jp c, WipeStepRight
 
+;> if counter < 0x81: return WipeStepUp(counter)
 	cp $81
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
+;> if counter < 0x8B: return WipeStepLeft(counter)
 	cp $8b
-	jp c, Jump_013_755c
+	jp c, WipeStepLeft
 
+;> if counter < 0x93: return WipeStepDown(counter)
 	cp $93
-	jp c, Jump_013_7581
+	jp c, WipeStepDown
 
+;> if counter < 0x9B: return WipeStepRight(counter)
 	cp $9b
-	jp c, Jump_013_7598
+	jp c, WipeStepRight
 
+;> if counter < 0xA1: return WipeStepUp(counter)
 	cp $a1
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
+;> if counter < 0xA7: return WipeStepLeft(counter)
 	cp $a7
-	jp c, Jump_013_755c
+	jp c, WipeStepLeft
 
+;> if counter < 0xAB: return WipeStepDown(counter)
 	cp $ab
-	jp c, Jump_013_7581
+	jp c, WipeStepDown
 
+;> if counter < 0xAF: return WipeStepRight(counter)
 	cp $af
-	jp c, Jump_013_7598
+	jp c, WipeStepRight
 
+;> if counter < 0xB1: return WipeStepUp(counter)
 	cp $b1
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
-	jr jr_013_755c
+;> return WipeStepLeft(counter)
+	jr WipeStepLeft
 
-WipeSpiralIn::
+;@ def WipeSpiralFromCenter(cells: b)
+;@ path: battle/transition
+;@ The direction of the next step of the outward spiral, starting at the center: left, up,
+;@ right, down in ever longer runs.
+;@ test: skip writes VRAM
+WipeSpiralFromCenter::
+;> counter = wHatchSlot
 	push bc
 	ld a, [wHatchSlot]
+;> if counter < 0x02: return WipeStepLeft(counter)
 	cp $02
-	jr c, jr_013_755c
+	jr c, WipeStepLeft
 
+;> if counter < 0x04: return WipeStepUp(counter)
 	cp $04
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
+;> if counter < 0x08: return WipeStepRight(counter)
 	cp $08
-	jp c, Jump_013_7598
+	jp c, WipeStepRight
 
+;> if counter < 0x0C: return WipeStepDown(counter)
 	cp $0c
-	jp c, Jump_013_7581
+	jp c, WipeStepDown
 
+;> if counter < 0x12: return WipeStepLeft(counter)
 	cp $12
-	jr c, jr_013_755c
+	jr c, WipeStepLeft
 
+;> if counter < 0x18: return WipeStepUp(counter)
 	cp $18
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
+;> if counter < 0x20: return WipeStepRight(counter)
 	cp $20
-	jp c, Jump_013_7598
+	jp c, WipeStepRight
 
+;> if counter < 0x28: return WipeStepDown(counter)
 	cp $28
-	jr c, jr_013_7581
+	jr c, WipeStepDown
 
+;> if counter < 0x32: return WipeStepLeft(counter)
 	cp $32
-	jr c, jr_013_755c
+	jr c, WipeStepLeft
 
+;> if counter < 0x3C: return WipeStepUp(counter)
 	cp $3c
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
+;> if counter < 0x48: return WipeStepRight(counter)
 	cp $48
-	jr c, jr_013_7598
+	jr c, WipeStepRight
 
+;> if counter < 0x54: return WipeStepDown(counter)
 	cp $54
-	jr c, jr_013_7581
+	jr c, WipeStepDown
 
+;> if counter < 0x62: return WipeStepLeft(counter)
 	cp $62
-	jr c, jr_013_755c
+	jr c, WipeStepLeft
 
+;> if counter < 0x70: return WipeStepUp(counter)
 	cp $70
-	jr c, jr_013_7537
+	jr c, WipeStepUp
 
+;> if counter < 0x80: return WipeStepRight(counter)
 	cp $80
-	jr c, jr_013_7598
+	jr c, WipeStepRight
 
+;> if counter < 0x90: return WipeStepDown(counter)
 	cp $90
-	jr c, jr_013_7581
+	jr c, WipeStepDown
 
+;> if counter < 0xA2: return WipeStepLeft(counter)
 	cp $a2
-	jr c, jr_013_755c
+	jr c, WipeStepLeft
 
-	jr jr_013_7537
+;> return WipeStepUp(counter)
+	jr WipeStepUp
 
-Jump_013_7537:
-jr_013_7537:
+;@ def WipeStepUp(counter: a)
+;@ path: battle/transition
+;@ Blackens the cell at wWindowBgMap and moves the position one row up. The inward spiral
+;@ starts here: counter 0 puts the position at row 17, column 19.
+;@ test: skip writes VRAM
+WipeStepUp::
+;> if counter == 0:
 	or a
-	jr nz, jr_013_7545
+	jr nz, .fill
 
+;>     wWindowBgMap = 0x0233
 	ld hl, $0233
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
 
-jr_013_7545:
+.fill
+;> pos = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> FillWipeCell(pos)
 	push hl
 	call FillWipeCell
 	pop hl
+;> pos -= 0x20
 	ld a, l
 	sub $20
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
-	jr jr_013_75ad
+;> return WipeStepDone(pos)
+	jr WipeStepDone
 
-Jump_013_755c:
-jr_013_755c:
+;@ def WipeStepLeft(counter: a)
+;@ path: battle/transition
+;@ Blackens the cell at wWindowBgMap and moves one column left. The outward spiral starts
+;@ here: counter 0 puts the position at the center (row 9, column 10).
+;@ test: skip writes VRAM
+WipeStepLeft::
+;> if counter == 0:
 	or a
-	jr nz, jr_013_756a
+	jr nz, .fill
 
+;>     wWindowBgMap = 0x012A
 	ld hl, $012a
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
 
-jr_013_756a:
+.fill
+;> pos = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> FillWipeCell(pos)
 	push hl
 	call FillWipeCell
 	pop hl
+;> pos -= 1
 	ld a, l
 	sub $01
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
-	jr jr_013_75ad
+;> return WipeStepDone(pos)
+	jr WipeStepDone
 
-Jump_013_7581:
-jr_013_7581:
+;@ def WipeStepDown()
+;@ path: battle/transition
+;@ Blackens the cell at wWindowBgMap and moves one row down.
+;@ test: skip writes VRAM
+WipeStepDown::
+;> pos = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> FillWipeCell(pos)
 	push hl
 	call FillWipeCell
 	pop hl
+;> pos += 0x20
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_013_75ad
+;> return WipeStepDone(pos)
+	jr WipeStepDone
 
-Jump_013_7598:
-jr_013_7598:
+;@ def WipeStepRight()
+;@ path: battle/transition
+;@ Blackens the cell at wWindowBgMap and moves one column right.
+;@ test: skip writes VRAM
+WipeStepRight::
+;> pos = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> FillWipeCell(pos)
 	push hl
 	call FillWipeCell
 	pop hl
+;> pos += 1
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> WipeStepDone(pos)                    # falls through
 
-jr_013_75ad:
+;@ def WipeStepDone(pos: hl)
+;@ path: battle/transition
+;@ Shared tail of the spiral steps: stores the new position and counts the cell; after $B4
+;@ cells the next phase starts. Then the next of WipeSpiral's six cells of this frame.
+;@ test: skip continues WipeSpiral's loop
+WipeStepDone::
+;> wWindowBgMap = pos
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> wHatchSlot += 1
 	ld hl, wHatchSlot
 	inc [hl]
+;> if wHatchSlot == 0xB4:
 	ld a, [wHatchSlot]
 	cp $b4
-	jr nz, jr_013_75c8
+	jr nz, .next
 
+;>     wItemsHandedIn += 1
 	ld hl, wItemsHandedIn
 	inc [hl]
+;>     wHatchSlot = 0
 	xor a
 	ld [wHatchSlot], a
 
-jr_013_75c8:
+.next
+;> cells -= 1
 	pop bc
 	dec b
-	jp nz, Jump_013_7488
+;> if cells:
+;>     return WipeSpiralCell(cells)         # the loop of WipeSpiral
+	jp nz, WipeSpiralCell
 
 	ret
 
 
+;@ def WipeSpiralWait()
+;@ path: battle/transition
+;@ Waits until the battle jingle is over, then ends the wipe.
+;@ test: skip reads the sound channels
 WipeSpiralWait::
+;> if not CheckJingleDone():
+;>     return
 	call CheckJingleDone
 	ret nz
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def WipeBoxes()
+;@ path: battle/transition
+;@ Wipe 2: nine rectangle outlines, from the screen border inwards, one every two frames
+;@ (phase 0 draws one, phase 1 waits a frame); phase 2 waits for the jingle.
+;@ test: skip jump table
 WipeBoxes::
+;> return WipeBoxesSteps[wItemsHandedIn]()
 	ld a, [wItemsHandedIn]
 	rst $00
 
+;@ path: battle/transition
+;@ Phases of WipeBoxes.
 WipeBoxesSteps::
 	dw WipeBoxesStep
 	dw WipeBoxesPause
 	dw WipeBoxesWait
 
+;@ def WipeBoxesStep()
+;@ path: battle/transition
+;@ Draws outline number wHatchSlot (0-8): its corner is wWindowBgMap (one row down and one
+;@ column in each time), its width 20, 18, ... 4 and its height 18, 16, ... 2 (the tables
+;@ after CallBoxCornerFunc). The bottom edge comes first, then the top, the right and the
+;@ left edge.
+;@ test: skip writes VRAM
 WipeBoxesStep::
+;> if wHatchSlot == 0:
 	ld a, [wHatchSlot]
 	or a
-	jr nz, jr_013_75f2
+	jr nz, .draw
 
+;>     wWindowBgMap = 0
 	ld hl, $0000
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
 
-jr_013_75f2:
-	ld hl, $772b
+.draw
+;> entry = widths + wHatchSlot
+	ld hl, CallBoxCornerFunc.widths
 	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> width = mem[entry]
 	ld h, a
 	ld b, [hl]
-	ld hl, $773d
+;> func = funcs + 2 * wHatchSlot
+	ld hl, CallBoxCornerFunc.funcs
 	ld a, [wHatchSlot]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> corner = wWindowBgMap
 	adc h
 	ld h, a
 	ld a, [wWindowBgMap]
 	ld e, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld d, a
+;> cell = CallBoxCornerFunc(func, corner)   # start of the bottom edge
 	call CallBoxCornerFunc
 
-jr_013_7617:
+.bottom
+;>@bottom for i in range(width):
+;>     FillWipeCell(cell); cell += 1
 	push hl
 	push bc
 	call FillWipeCell
 	pop bc
 	pop hl
 	inc hl
+;=@bottom
 	dec b
-	jr nz, jr_013_7617
+	jr nz, .bottom
 
-	ld hl, $772b
+;> entry = widths + wHatchSlot
+	ld hl, CallBoxCornerFunc.widths
 	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> width = mem[entry]
 	ld h, a
 	ld b, [hl]
+;> cell = wWindowBgMap                  # the top edge
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
 
-jr_013_7637:
+.top
+;>@top for i in range(width):
+;>     FillWipeCell(cell); cell += 1
 	push hl
 	push bc
 	call FillWipeCell
 	pop bc
 	pop hl
 	inc hl
+;=@top
 	dec b
-	jr nz, jr_013_7637
+	jr nz, .top
 
+;> entry = heights + wHatchSlot
 	push hl
-	ld hl, $7734
+	ld hl, CallBoxCornerFunc.heights
 	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
+;> height = mem[entry]; cell -= 1      # the right edge, from the top
 	adc h
 	ld h, a
 	ld b, [hl]
 	pop hl
 	dec hl
 
-jr_013_7652:
+.right
+;>@right for i in range(height):
+;>     FillWipeCell(cell); cell += 0x20
 	push hl
 	push bc
 	call FillWipeCell
 	pop bc
 	pop hl
 	ld a, l
+;=@right
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	dec b
-	jr nz, jr_013_7652
+;=@right
+	jr nz, .right
 
-	ld hl, $7734
+;> entry = heights + wHatchSlot
+	ld hl, CallBoxCornerFunc.heights
 	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> height = mem[entry]
 	ld h, a
 	ld b, [hl]
+;> cell = wWindowBgMap                  # the left edge
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
 
-jr_013_7679:
+.left
+;>@left for i in range(height):
+;>     FillWipeCell(cell); cell += 0x20
 	push hl
 	push bc
 	call FillWipeCell
 	pop bc
 	pop hl
 	ld a, l
+;=@left
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	dec b
-	jr nz, jr_013_7679
+;=@left
+	jr nz, .left
 
+;> pos = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> pos += 0x21                          # the next outline: one row down, one column in
 	ld a, l
 	add $21
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> wWindowBgMap = pos
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> wHatchSlot += 1
 	ld hl, wHatchSlot
 	inc [hl]
+;> wItemsHandedIn += 1                  # a frame's pause
 	ld hl, wItemsHandedIn
 	inc [hl]
+;> if wHatchSlot == 9:
+;>     wItemsHandedIn += 1              # all nine: on to waiting
 	ld a, [wHatchSlot]
 	cp $09
 	ret nz
@@ -1688,135 +1947,310 @@ jr_013_7679:
 	ret
 
 
+;@ def WipeBoxesPause()
+;@ path: battle/transition
+;@ The frame between two outlines: back to phase 0.
 WipeBoxesPause::
+;> wItemsHandedIn -= 1
 	ld hl, wItemsHandedIn
 	dec [hl]
 	ret
 
 
+;@ def WipeBoxesWait()
+;@ path: battle/transition
+;@ Waits until the battle jingle is over, then ends the wipe.
+;@ test: skip reads the sound channels
 WipeBoxesWait::
+;> if not CheckJingleDone():
+;>     return
 	call CheckJingleDone
 	ret nz
 
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def CallBoxCornerFunc(func: hl, corner: de) -> hl
+;@ path: battle/transition
+;@ Calls the routine whose address is at `func` (one of .funcs): routine n returns
+;@ corner + (17 - 2n) * 32, the start of the bottom edge of outline n. Then the tables of
+;@ WipeBoxesStep: .widths (20, 18, ... 4), .heights (18, 16, ... 2) and .funcs.
+;@ test: skip jumps through a table
 CallBoxCornerFunc::
+;> return mem16[func](corner)
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	jp hl
 
+.bottom0
+;> # .bottom0: return corner + 0x220       (row 17 of the outline)
+	ld a, e
+	add $20
+	ld e, a
+	ld a, d
+	adc $02
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
 
-	db $7b, $c6, $20, $5f, $7a, $ce, $02, $57, $6b, $62, $c9, $7b, $c6, $e0, $5f, $7a
-	db $ce, $01, $57, $6b, $62, $c9, $7b, $c6, $a0, $5f, $7a, $ce, $01, $57, $6b, $62
-	db $c9, $7b, $c6, $60, $5f, $7a, $ce, $01, $57, $6b, $62, $c9, $7b, $c6, $20, $5f
-	db $7a, $ce, $01, $57, $6b, $62, $c9, $7b, $c6, $e0, $5f, $7a, $ce, $00, $57, $6b
-	db $62, $c9, $7b, $c6, $a0, $5f, $7a, $ce, $00, $57, $6b, $62, $c9, $7b, $c6, $60
-	db $5f, $7a, $ce, $00, $57, $6b, $62, $c9, $7b, $c6, $20, $5f, $7a, $ce, $00, $57
-	db $6b, $62, $c9, $14, $12, $10, $0e, $0c, $0a, $08, $06, $04, $12, $10, $0e, $0c
-	db $0a, $08, $06, $04, $02, $c8, $76, $d3, $76, $de, $76, $e9, $76, $f4, $76, $ff
-	db $76, $0a, $77, $15, $77, $20, $77
+.bottom1
+;> # .bottom1: return corner + 0x1E0       (row 15 of the outline)
+	ld a, e
+	add $e0
+	ld e, a
+	ld a, d
+	adc $01
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
 
+.bottom2
+;> # .bottom2: return corner + 0x1A0       (row 13 of the outline)
+	ld a, e
+	add $a0
+	ld e, a
+	ld a, d
+	adc $01
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.bottom3
+;> # .bottom3: return corner + 0x160       (row 11 of the outline)
+	ld a, e
+	add $60
+	ld e, a
+	ld a, d
+	adc $01
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.bottom4
+;> # .bottom4: return corner + 0x120       (row 9 of the outline)
+	ld a, e
+	add $20
+	ld e, a
+	ld a, d
+	adc $01
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.bottom5
+;> # .bottom5: return corner + 0xE0       (row 7 of the outline)
+	ld a, e
+	add $e0
+	ld e, a
+	ld a, d
+	adc $00
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.bottom6
+;> # .bottom6: return corner + 0xA0       (row 5 of the outline)
+	ld a, e
+	add $a0
+	ld e, a
+	ld a, d
+	adc $00
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.bottom7
+;> # .bottom7: return corner + 0x60       (row 3 of the outline)
+	ld a, e
+	add $60
+	ld e, a
+	ld a, d
+	adc $00
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.bottom8
+;> # .bottom8: return corner + 0x20       (row 1 of the outline)
+	ld a, e
+	add $20
+	ld e, a
+	ld a, d
+	adc $00
+	ld d, a
+;> #
+	ld l, e
+	ld h, d
+	ret
+
+.widths
+	db 20, 18, 16, 14, 12, 10, 8, 6, 4
+.heights
+	db 18, 16, 14, 12, 10, 8, 6, 4, 2
+.funcs
+	dw .bottom0, .bottom1, .bottom2, .bottom3, .bottom4, .bottom5, .bottom6, .bottom7, .bottom8
+
+;@ def RoundToTile_13(ptr: hl)
+;@ path: battle/transition
+;@ Rounds the 16-bit scroll value at `ptr` to the nearest multiple of 8 (a whole tile).
 RoundToTile_13::
+;> mem16[ptr] = (mem16[ptr] + 4) & 0xFFFF
 	ld a, [hl]
 	add $04
 	ld [hli], a
 	ld a, [hl]
 	adc $00
 	ld [hld], a
+;> mem[ptr] &= 0xF8
 	ld a, [hl]
 	and $f8
 	ld [hl], a
 	ret
 
 
+;@ def NextMapColumn_13(pos: hl) -> hl
+;@ path: battle/transition
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row
+;@ (keeps a).
 NextMapColumn_13::
+;> row = pos & 0xFFE0                    # (a is kept)
 	push af
 	ld a, l
 	and $e0
 	push af
+;> column = (pos + 1) & 0x1F
 	ld a, l
 	inc a
 	and $1f
+;> pos = (pos & 0xFFE0) | column
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;> return pos
 	ret
 
 
+;@ def AddWipeOrigin(offset: hl) -> hl
+;@ path: battle/transition
+;@ The BG map address `offset` below the wipe's origin (the screen corner at $C90B),
+;@ wrapping around inside the origin's 32x32 map.
 AddWipeOrigin::
+;> pos = mem16[0xC90B] + offset
 	ld a, [$c90b]
 	add l
 	ld l, a
 	ld a, [wCursorBlink]
 	adc h
+;> pos = (mem16[0xC90B] & 0xFC00) | (pos & 0x3FF)
 	and $03
 	ld h, a
 	ld a, [wCursorBlink]
 	and $fc
 	or h
 	ld h, a
+;> return pos
 	ret
 
 
+;@ def FillWipeCell(cell: hl)
+;@ path: battle/transition
+;@ Puts the black tile $E6 at screen cell `cell` (row * 32 + column from the screen corner).
+;@ test: skip writes VRAM
 FillWipeCell::
+;> WriteVRAM(0xE6, WipeCellAddress(cell))
 	call WipeCellAddress
 	ld a, $e6
 	call WriteVRAM
 	ret
 
 
+;@ def WipeCellAddress(cell: hl) -> hl
+;@ path: battle/transition
+;@ The BG map address of screen cell `cell`: the row part is added to the origin, the
+;@ column is stepped with wrap-around within the row.
 WipeCellAddress::
+;> columns = cell & 0x1F
 	push bc
 	ld b, l
+;> pos = AddWipeOrigin(cell & 0xFFE0)
 	ld a, l
 	and $e0
 	ld l, a
 	call AddWipeOrigin
+;>@cols for i in range(columns):
 	ld a, b
 	and $1f
-	jr z, jr_013_779d
+	jr z, .done
 
 	ld b, a
 
-jr_013_7797:
+.column
+;>     pos = NextMapColumn_13(pos)
 	call NextMapColumn_13
+;=@cols
 	dec b
-	jr nz, jr_013_7797
+	jr nz, .column
 
-jr_013_779d:
+.done
+;> return pos
 	pop bc
 	ret
 
 
+;@ def CheckJingleDone() -> zflag
+;@ path: battle/transition
+;@ Checks whether the battle jingle is over (all four sound channels idle, $FF). Then it
+;@ starts song 2 (the battle music) and returns with the Z flag set (True); otherwise NZ.
+;@ test: skip reads the sound engine's channels
 CheckJingleDone::
+;> idle = mem[0xDDB4] & mem[0xDDCE] & mem[0xDDE8]
 	ld a, [$ddb4]
 	ld hl, $ddce
 	and [hl]
 	ld hl, $dde8
 	and [hl]
+;> idle &= mem[0xDE02]
 	ld hl, $de02
 	and [hl]
+;> if idle != 0xFF:
 	cp $ff
-	jr z, jr_013_77b6
+	jr z, .done
 
+;>     return False
 	ld a, $01
 	or a
 	ret
 
-
-jr_013_77b6:
+.done
+;> QueueMusic(2)
 	ld a, $02
 	call QueueMusic
+;> return True
 	xor a
 	or a
 	ret
-
 
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

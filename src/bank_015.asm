@@ -4,574 +4,880 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $015", ROMX[$4000], BANK[$15]
 
+;@ path: title/mode
+;@ Bank $15 holds game mode 0: the opening, the title menu (continue, new game) and the two
+;@ link-cable modes started from it, VS mode and breeding with a friend.
 BankNumber_15::
 	db $15
 
+;@ path: title/mode
+;@ Far-call entry points of bank $15: mode 0 start-up, mode 0 per-frame routine, and the frame
+;@ logic of link modes 2 (VS mode) and 3 (breeding) that the serial interrupt runs.
 FarTable_15::
-	dw Call_15_4009
-	dw $42b3
-	dw Call_15_46D7
-	dw Call_15_547C
+	dw TitleModeInit
+	dw TitleModeUpdate
+	dw VSLinkFrame
+	dw BreedLinkFrame
 
-Call_15_4009::
+;@ def TitleModeInit()
+;@ path: title/mode
+;@ Start-up of game mode 0: saves the stack pointer, clears the menu and text box state and runs
+;@ the start-up routine of the current step (0 opening, 1 title menu, 2 VS mode, 3 breeding).
+;@ test: skip calls routines in other banks
+TitleModeInit::
+;> wFieldStackPtr = sp
 	ld hl, sp+$00
 	ld a, l
 	ld [wFieldStackPtr], a
 	ld a, h
 	ld [$da7c], a
+;> fill(wLinkChoice, 8, 0)               # menu cursors
 	xor a
 	ld hl, wLinkChoice
 	ld bc, $0008
 	call FillMemory
+;> fill(wTextTiles, 0x12, 0)             # text box set-up
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
+;> wTextBoxMap = 0x99C1
 	ld hl, $99c1
 	ld a, l
 	ld [wTextBoxMap], a
 	ld a, h
 	ld [$c83f], a
+;> fill(wTitleStep, 8, 0)
 	xor a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	ld bc, $0008
 	call FillMemory
+;> DisableSTATInterrupts()
 	call DisableSTATInterrupts
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;> TitleModeInitTable[wGameModeStep]()
 	ld a, [wGameModeStep]
 	rst $00
 
-JumpTable_15_4047::
-	dw Jump_15_404F
-	dw Jump_15_40A0
-	dw Jump_15_4172
-	dw Jump_15_4218
+;@ path: title/mode
+;@ Start-up routine of each step of game mode 0.
+TitleModeInitTable::
+	dw TitleInitOpening
+	dw TitleInitMenu
+	dw TitleInitVSLink
+	dw TitleInitBreedLink
 
-Jump_15_404F::
+;@ def TitleInitOpening()
+;@ path: title/mode
+;@ Step 0: starts the opening (bank $5F draws it) and turns the screen on with only the VBlank
+;@ interrupt.
+;@ test: skip calls routines in other banks
+TitleInitOpening::
+;> wSGBPalSet = 0; wSGBAttrSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> Call_5F_441C()                       # set up the opening
 	ld hl, far_Call_5F_441C
 	rst $10
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> hWX = 7; hWY = 0xFF                   # window off screen
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollY = 0; hScrollX = 0
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLinkMode = 0; wLinkPhase = 0
 	ld a, $00
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wLinkActive = 0; wLinkCommand = 0
 	ld [wLinkActive], a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;> wLinkFlags = 0; wSerialLock = 0
 	xor a
 	ld [wLinkFlags], a
 	ld [wSerialLock], a
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x01)          # VBlank only
 	ld a, $01
 	jp EnableLCDAndInterrupts
 
 
-Jump_15_40A0::
+;@ def TitleInitMenu()
+;@ path: title/mode
+;@ Step 1: the title menu. Loads the SGB border and palettes, checks the save file, clears the
+;@ game state, unpacks the font and window tiles, sets up the text box, clears the screen and
+;@ starts the title music; turns the screen on with the VBlank and serial interrupts (a friend
+;@ may connect a link cable while the menu is open).
+;@ test: skip calls routines in other banks
+TitleInitMenu::
+;> LoadSGBBorder(2)
 	ld a, $02
 	call LoadSGBBorder
+;> SGBPacketDelay()
 	call SGBPacketDelay
+;> wSGBPalSet = 0; wSGBAttrSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> SetSharedBGColors()
 	ld hl, far_SetSharedBGColors
 	rst $10
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> fill(hPlayerGfx, 0x21, 0)              # HRAM part of the game state
 	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
 	call FillMemory
+;> fill(wGameStarted, 0x1100, 0)          # WRAM part of the game state
 	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
 	call FillMemory
+;> wMessageSpeed = 4
 	ld a, $04
-	ld [$c8ee], a
-	call Call_15_60DF
+	ld [wMessageSpeed], a
+;> CheckSaveChecksum()
+	call CheckSaveChecksum
+;> Decompress(0x2E1E, 0x9000)            # font
 	ld de, $2e1e
 	ld hl, $9000
 	call Decompress
+;> Decompress(0x2E1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call Decompress
+;> Decompress(0x2E20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call Decompress
+;> Decompress(0x2E00, 0x8D00)            # window frame tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> SetUpTextBox(0x8B00, 0x1202)          # 18 letters, 2 lines
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
+;> fill(wLinkChoice, 8, 0)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> fill(wTitleStep, 8, 0)
 	xor a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	ld bc, $0008
 	call FillMemory
+;> wTitleBgMap = 0x9800
 	ld hl, $9800
 	ld a, l
-	ld [$c8d6], a
+	ld [wTitleBgMap], a
 	ld a, h
 	ld [$c8d7], a
-	call Call_15_5E8B
+;> ClearBgMap_15()
+	call ClearBgMap_15
+;> QueueMusic(0x24)                      # title menu music
 	ld a, $24
 	call QueueMusic
+;> hWX = 7; hWY = 0xFF
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollY = 0; hScrollX = 0
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLinkMode = 0; wLinkPhase = 0
 	ld a, $00
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wSerialLock = 0; wLinkActive = 0
 	xor a
 	ld [wSerialLock], a
 	ld [wLinkActive], a
-	ld [$c86d], a
+;> wLinkCommand = 0
+	ld [wLinkCommand], a
+;> wLinkFlags = 0; wSerialLock = 0
 	xor a
 	ld [wLinkFlags], a
 	ld [wSerialLock], a
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x09)          # VBlank and serial
 	ld a, $09
 	jp EnableLCDAndInterrupts
 
 
-Jump_15_4172::
+;@ def TitleInitVSLink()
+;@ path: link/vs
+;@ Step 2: VS mode over the link cable. Loads the font and window tiles, sets up the text box,
+;@ clears the screen and the scratch buffer and starts the menu music; the link stays up (the
+;@ serial interrupt runs link mode 2 from here on).
+;@ test: skip calls routines in other banks
+TitleInitVSLink::
+;> wSGBPalSet = 0; wSGBAttrSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> wMessageSpeed = 4
 	ld a, $04
-	ld [$c8ee], a
-	call Call_15_60DF
+	ld [wMessageSpeed], a
+;> CheckSaveChecksum()
+	call CheckSaveChecksum
+;> Decompress(0x2E1E, 0x9000)
 	ld de, $2e1e
 	ld hl, $9000
 	call Decompress
+;> Decompress(0x2E1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call Decompress
+;> Decompress(0x2E20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call Decompress
+;> Decompress(0x2E00, 0x8D00)
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> SetUpTextBox(0x8B00, 0x1202)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
+;> fill(wLinkChoice, 8, 0)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> fill(wTitleStep, 8, 0)
 	xor a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	ld bc, $0008
 	call FillMemory
+;> wTitleBgMap = 0x9800
 	ld hl, $9800
 	ld a, l
-	ld [$c8d6], a
+	ld [wTitleBgMap], a
 	ld a, h
 	ld [$c8d7], a
-	call Call_15_5E8B
+;> ClearBgMap_15()
+	call ClearBgMap_15
+;> fill(wSceneObjects, 0x17, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0017
 	ld a, $ff
 	call FillMemory
+;> QueueMusic(0x24)
 	ld a, $24
 	call QueueMusic
+;> hWX = 7; hWY = 0xFF
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollY = 0; hScrollX = 0
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLinkSendByte = 0
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkReceivedLast = 0
 	xor a
 	ld [wLinkReceivedLast], a
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x09)
 	ld a, $09
 	jp EnableLCDAndInterrupts
 
 
-Jump_15_4218::
+;@ def TitleInitBreedLink()
+;@ path: link/breed
+;@ Step 3: breeding over the link cable. The same set-up as VS mode (without clearing the
+;@ scratch buffer); the serial interrupt runs link mode 3.
+;@ test: skip calls routines in other banks
+TitleInitBreedLink::
+;> wSGBPalSet = 0; wSGBAttrSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> wMessageSpeed = 4
 	ld a, $04
-	ld [$c8ee], a
-	call Call_15_60DF
+	ld [wMessageSpeed], a
+;> CheckSaveChecksum()
+	call CheckSaveChecksum
+;> Decompress(0x2E1E, 0x9000)
 	ld de, $2e1e
 	ld hl, $9000
 	call Decompress
+;> Decompress(0x2E1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call Decompress
+;> Decompress(0x2E20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call Decompress
+;> Decompress(0x2E00, 0x8D00)
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> SetUpTextBox(0x8B00, 0x1202)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
+;> fill(wLinkChoice, 8, 0)
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> fill(wTitleStep, 8, 0)
 	xor a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	ld bc, $0008
 	call FillMemory
+;> wTitleBgMap = 0x9800
 	ld hl, $9800
 	ld a, l
-	ld [$c8d6], a
+	ld [wTitleBgMap], a
 	ld a, h
 	ld [$c8d7], a
-	call Call_15_5E8B
+;> ClearBgMap_15()
+	call ClearBgMap_15
+;> QueueMusic(0x24)
 	ld a, $24
 	call QueueMusic
+;> hWX = 7; hWY = 0xFF
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollY = 0; hScrollX = 0
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLinkSendByte = 0
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkReceivedLast = 0
 	xor a
 	ld [wLinkReceivedLast], a
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x09)
 	ld a, $09
 	jp EnableLCDAndInterrupts
 
 
+;@ def TitleModeUpdate()
+;@ path: title/mode
+;@ Per-frame routine of game mode 0: runs the current step (0 opening, 1 title menu, 2 VS mode,
+;@ 3 breeding).
+;@ test: skip calls routines in other banks
+TitleModeUpdate::
+;> TitleModeUpdateTable[wGameModeStep]()
 	ld a, [wGameModeStep]
 	rst $00
 
-JumpTable_15_42B7::
-	dw Jump_15_42C0
-	dw Jump_15_42CA
-	dw Jump_15_46B9
-	dw Jump_15_5462
+;@ path: title/mode
+;@ Per-frame routine of each step of game mode 0.
+TitleModeUpdateTable::
+	dw TitleUpdateOpening
+	dw TitleUpdateMenu
+	dw TitleUpdateVSLink
+	dw TitleUpdateBreedLink
 	db $c9
 
-Jump_15_42C0::
+;@ def TitleUpdateOpening()
+;@ path: title/mode
+;@ Step 0: answers a linked Game Boy with $F4 ("in the title screen, not ready") and runs a
+;@ frame of the opening in bank $5F.
+;@ test: skip calls routines in other banks
+TitleUpdateOpening::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
+;> far_call(0x5F, 0x03)                 # one frame of the opening
 	ld hl, $5f03
 	rst $10
 	ret
 
 
-Jump_15_42CA::
-	call Call_15_42F1
+;@ def TitleUpdateMenu()
+;@ path: title/menu
+;@ Step 1: runs the title menu. When the player picked VS mode or breeding, the request byte
+;@ ($F0 or $F1, in wLinkCommand) is sent once with this Game Boy driving the clock, and the
+;@ routine waits for the transfer to finish.
+;@ test: skip runs the serial link
+TitleUpdateMenu::
+;> RunTitleMenu()
+	call RunTitleMenu
+;> disable_interrupts()
 	di
-	ld a, [$c86d]
+;> if wLinkCommand:
+	ld a, [wLinkCommand]
 	or a
-	jr z, jr_015_42ef
+	jr z, .done
 
-	ld a, [$c86d]
+;>     b = wLinkCommand; wLinkCommand = 0
+	ld a, [wLinkCommand]
 	ld b, a
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;>     if not wGameModeChange:
 	ld a, [wGameModeChange]
 	or a
-	jr nz, jr_015_42ef
+	jr nz, .done
 
+;>         SerialSendMaster(b)
 	ld a, b
 	call SerialSendMaster
 
-jr_015_42e6:
+.wait
+;>         while wSerialLock & 0x03 != 0x03:
+;>             wait_serial()
 	ld a, [wSerialLock]
 	and $03
 	cp $03
-	jr nz, jr_015_42e6
+	jr nz, .wait
 
-jr_015_42ef:
+.done
+;> enable_interrupts()
 	ei
 	ret
 
 
-Call_15_42F1::
-	ld a, [$c8d2]
+;@ def RunTitleMenu()
+;@ path: title/menu
+;@ Runs the current step of the title menu (wTitleStep).
+;@ test: skip calls routines in other banks
+RunTitleMenu::
+;> TitleMenuSteps[wTitleStep]()
+	ld a, [wTitleStep]
 	rst $00
 
-JumpTable_15_42F5::
-	dw Jump_15_4301
-	dw Jump_15_4342
-	dw Jump_15_43C5
-	dw Jump_15_43DF
-	dw Jump_15_4402
-	dw Jump_15_4436
+;@ path: title/menu
+;@ Steps of the title menu: draw it, move the cursor, run the choice, start the field, show
+;@ the link error, wait for its text.
+TitleMenuSteps::
+	dw TitleMenuOpen
+	dw TitleMenuChoose
+	dw TitleMenuRunChoice
+	dw TitleMenuStartField
+	dw TitleMenuLinkMismatch
+	dw TitleMenuLinkMismatchWait
 
-Jump_15_4301::
+;@ def TitleMenuOpen()
+;@ path: title/menu
+;@ Draws the title menu: only NEW GAME without a saved game, else CONTINUE, NEW GAME, VS MODE
+;@ and BREEDING, with the cursor where it was.
+;@ test: skip touches battery RAM and VRAM
+TitleMenuOpen::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
-	call Call_15_5E7C
-	ld de, $6454
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> window = TitleWindowNoSave
+	ld de, TitleWindowNoSave
+;> if ReadSRAMByte(sSaveValid):
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr z, jr_015_4318
+	jr z, .drawWindow
 
-	ld de, $647d
+;>     window = TitleWindowWithSave
+	ld de, TitleWindowWithSave
 
-jr_015_4318:
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $43b2
+.drawWindow
+;> DrawWindowLayout_15(window)
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> marks = TitleCursorOne
+	ld de, TitleCursorOne
+;> if ReadSRAMByte(sSaveValid):
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr z, jr_015_432d
+	jr z, .drawCursor
 
-	ld de, $43b7
+;>     marks = TitleCursorFour
+	ld de, TitleCursorFour
 
-jr_015_432d:
+.drawCursor
+;> wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
+;> wLinkPartnerChoice = wLinkChoice
 	ld a, [wLinkChoice]
 	ld [wLinkPartnerChoice], a
-	call Call_15_60A2
-	call Call_15_5DC0
-	ld hl, $c8d2
+;> MenuDrawCursorAt_15(wLinkChoice, marks)
+	call MenuDrawCursorAt_15
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4342::
+;@ def TitleMenuChoose()
+;@ path: title/menu
+;@ Moves the title menu cursor and tells a linked Game Boy where it stands ($F4, or $F2 on VS
+;@ MODE and $F3 on BREEDING). A partner asking for a link mode moves the cursor there
+;@ (wLinkPartnerChoice, set by the serial handshake). A chooses.
+;@ test: skip touches battery RAM and the serial link
+TitleMenuChoose::
+;> if wFadeState:
+;>     return SerialSendSlave(0xF4)
 	ld a, [wFadeState]
 	or a
 	ld a, $f4
 	call nz, SerialSendSlave
 	ret nz
 
-	ld de, $43b2
+;> marks = TitleCursorOne; count = 1
+	ld de, TitleCursorOne
 	ld b, $01
+;> if ReadSRAMByte(sSaveValid):
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr z, jr_015_435f
+	jr z, .move
 
-	ld de, $43b7
+;>     marks = TitleCursorFour; count = 4
+	ld de, TitleCursorFour
 	ld b, $04
 
-jr_015_435f:
+.move
+;> wLinkChoice = wLinkPartnerChoice
 	ld hl, wLinkChoice
 	ld a, [wLinkPartnerChoice]
 	ld [wLinkChoice], a
-	call Call_15_5F85
+;> MoveMenuCursor_15(wLinkChoice, count, marks)
+	call MoveMenuCursor_15
+;> wLinkPartnerChoice = wLinkChoice
 	ld a, [wLinkChoice]
 	ld [wLinkPartnerChoice], a
-	ld de, $43b6
+;> sends = TitleSendOne
+	ld de, TitleSendOne
+;> if ReadSRAMByte(sSaveValid):
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr z, jr_015_4380
+	jr z, .send
 
-	ld de, $43c1
+;>     sends = TitleSendFour
+	ld de, TitleSendFour
 
-jr_015_4380:
+.send
+;> i = wLinkChoice & 0x7F
 	ld a, [wLinkChoice]
 	and $7f
+;> p = sends + i
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> SerialSendSlave(mem[p])
 	ld a, [de]
 	call SerialSendSlave
+;> if wJoyPressed & A_BUTTON:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_43b1
+	jp z, .done
 
+;>     if wLinkChoice & 0x7F not in (2, 3):
 	ld a, [wLinkChoice]
 	and $7f
 	cp $02
-	jr z, jr_015_43a9
+	jr z, .next
 
 	cp $03
-	jr z, jr_015_43a9
+	jr z, .next
 
+;>         QueueSound(0x59)            # the link modes beep once the partner answers
 	ld a, $59
 	call QueueSound
 
-jr_015_43a9:
-	ld hl, $c8d2
+.next
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;>     wTitleSubStep = 0
 	xor a
-	ld [$c8d3], a
+	ld [wTitleSubStep], a
 
-Jump_015_43b1:
+.done
 	ret
 
 
-	db $21, $00, $ff, $ff, $f4, $21, $00, $61, $00, $a1, $00, $e1, $00, $ff, $ff, $f4
-	db $f4, $f2, $f3
+;@ path: title/menu
+;@ Cursor position of the title menu without a saved game (tilemap buffer offset; $FFFF ends).
+TitleCursorOne::
+	dw $0021
+	dw $ffff
 
-Jump_15_43C5::
+;@ path: title/menu
+;@ Byte sent to a linked Game Boy for the one entry (see TitleSendFour).
+TitleSendOne::
+	db $f4
+
+;@ path: title/menu
+;@ Cursor positions of the four title menu entries (tilemap buffer offsets; $FFFF ends).
+TitleCursorFour::
+	dw $0021, $0061, $00a1, $00e1
+	dw $ffff
+
+;@ path: title/menu
+;@ Byte sent to a linked Game Boy each frame for the entry under the cursor: $F4 for CONTINUE
+;@ and NEW GAME, $F2 for VS MODE, $F3 for BREEDING.
+TitleSendFour::
+	db $f4, $f4, $f2, $f3
+
+;@ def TitleMenuRunChoice()
+;@ path: title/menu
+;@ Runs the chosen title menu entry. Without a saved game the only entry is NEW GAME, so the
+;@ cursor number is moved up by one.
+;@ test: skip calls routines in other banks
+TitleMenuRunChoice::
+;> choice = wLinkChoice & 0x7F
 	ld a, [wLinkChoice]
 	and $7f
 	ld b, a
+;> if not ReadSRAMByte(sSaveValid):
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr nz, jr_015_43d5
+	jr nz, .run
 
+;>     choice += 1
 	inc b
 
-jr_015_43d5:
+.run
+;> TitleMenuChoiceTable[choice]()
 	ld a, b
 	rst $00
 
-JumpTable_15_43D7::
-	dw Jump_15_4445
-	dw Jump_15_461E
-	dw Jump_15_4677
-	dw Jump_15_4698
+;@ path: title/menu
+;@ What each title menu entry does: continue, new game, VS mode, breeding.
+TitleMenuChoiceTable::
+	dw TitleContinue
+	dw TitleNewGame
+	dw TitleChooseVS
+	dw TitleChooseBreed
 
-Jump_15_43DF::
+;@ def TitleMenuStartField()
+;@ path: title/menu
+;@ Leaves the title: fades out and switches to game mode 1, the field (step 0).
+;@ test: skip starts a serial transfer
+TitleMenuStartField::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wGameMode = 1; wGameModeStep = 0
 	ld a, $01
 	ld [wGameMode], a
 	ld a, $00
 	ld [wGameModeStep], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_15_4402::
+;@ def TitleMenuLinkMismatch()
+;@ path: title/menu
+;@ The partner refused the link mode (it chose the other one, or has no saved game): shows the
+;@ "not ready for link up" message (another text on a Super Game Boy) in a text box.
+;@ test: skip calls routines in other banks
+TitleMenuLinkMismatch::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
+;> if wOnSGB == 1:
 	ld a, [wOnSGB]
 	cp $01
-	jr nz, jr_015_4422
+	jr nz, .notSGB
 
+;>     PrintSystemText(0x0270)
 	ld hl, $0270
 	call PrintSystemText
+;>     DrawWindowLayout_15(0x2E07)      # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
-	ld hl, $c8d2
+	call DrawWindowLayout_15
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-jr_015_4422:
+;> else:
+;>     PrintSystemText(0x021B)          # "Not ready for link up. Check and try again."
+.notSGB
 	ld hl, $021b
 	call PrintSystemText
+;>     DrawWindowLayout_15(0x2E07)
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
-	ld hl, $c8d2
+	call DrawWindowLayout_15
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4436::
+;@ def TitleMenuLinkMismatchWait()
+;@ path: title/menu
+;@ Waits until the link error message is done, then draws the title menu again.
+;@ test: skip starts a serial transfer
+TitleMenuLinkMismatchWait::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wTitleStep = 0
 	xor a
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_4445::
+;@ def TitleContinue()
+;@ path: title/continue
+;@ CONTINUE: runs its sub-step (show the saved game, then wait for A or B).
+;@ test: skip starts a serial transfer
+TitleContinue::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
-	ld a, [$c8d3]
+;> TitleContinueSteps[wTitleSubStep]()
+	ld a, [wTitleSubStep]
 	rst $00
 
-JumpTable_15_444E::
-	dw Jump_15_4452
-	dw Jump_15_45FC
+;@ path: title/continue
+;@ Sub-steps of CONTINUE.
+TitleContinueSteps::
+	dw ContinueShowSave
+	dw ContinueConfirm
 
-Jump_15_4452::
+;@ def ContinueShowSave()
+;@ path: title/continue
+;@ CONTINUE, first frame: loads the saved game from battery RAM and the map palettes, then
+;@ shows the save's summary (ContinueDrawSave).
+;@ test: skip touches battery RAM
+ContinueShowSave::
+;> disable_interrupts()
 	di
+;> LoadGame()
 	call LoadGame
+;> enable_interrupts()
 	ei
+;> LoadMapPalettes()
 	ld hl, far_LoadMapPalettes
 	rst $10
-	jr jr_015_44d7
+;> return ContinueDrawSave()
+	jr ContinueDrawSave
 
+;@ path: unused
+;@ Code that nothing runs (ContinueShowSave jumps over it): when the save was made on a gate
+;@ floor and $D9E7 is set, it would set up a warp back to map 0 at (232, 88), facing up, and
+;@ reset the player's animation; otherwise it sets $D9E7 and loads the game again.
+UnusedContinueWarp::
 	db $fa, $69, $c9, $b7, $28, $74, $fa, $e7, $d9, $b7, $28, $64, $3e, $01, $ea, $ea
 	db $c8, $3e, $01, $ea, $6c, $c9, $3e, $00, $ea, $6d, $c9, $ea, $6e, $c9, $21, $e8
 	db $00, $7d, $ea, $6f, $c9, $7c, $ea, $70, $c9, $21, $58, $00, $7d, $ea, $71, $c9
@@ -581,544 +887,788 @@ Jump_15_4452::
 	db $d7, $21, $00, $02, $d7, $fa, $ba, $d7, $e0, $8b, $21, $09, $01, $d7, $18, $16
 	db $3e, $01, $ea, $e7, $d9, $f3, $cd, $28, $21, $fb
 
-jr_015_44d7:
+;@ def ContinueDrawSave()
+;@ path: title/continue
+;@ Draws the summary of the saved game: Terry's name, the play time and the names and levels
+;@ of the party monsters (empty slots stay blank).
+;@ test: skip calls routines in other banks
+ContinueDrawSave::
+;> if mem[0xD974] != 6:
 	ld a, [$d974]
 	cp $06
-	jr z, jr_015_44e3
+	jr z, .flags
 
+;>     wGameStarted = 0x80
 	ld a, $80
 	ld [wGameStarted], a
 
-jr_015_44e3:
+.flags
+;> if not wFieldFlags & 0x10:
 	ld a, [wFieldFlags]
 	bit 4, a
-	jr nz, jr_015_44ee
+	jr nz, .draw
 
+;>     wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
 
-jr_015_44ee:
+.draw
+;> mem[0xD9E7] = 0
 	xor a
 	ld [$d9e7], a
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> DrawNameTiles_15(wPlayerName, 0x9000)
 	ld de, wPlayerName
 	ld hl, $9000
-	call Call_15_5E2E
-	call Call_15_45AE
-	ld de, $673b
-	call Call_15_5D8F
+	call DrawNameTiles_15
+;> DrawSavePartyNames()
+	call DrawSavePartyNames
+;> DrawWindowLayout_15(SaveInfoWindow)
+	ld de, SaveInfoWindow
+	call DrawWindowLayout_15
+;> PrintNumber2Zeros(wPlayHours, TilemapBufferAddr_15(0x014D))
 	ld a, [wPlayHours]
 	ld c, a
 	ld b, $00
-	ld hl, HeaderComplementCheck
-	call Call_15_5D33
+	ld hl, $014d
+	call TilemapBufferAddr_15
 	call PrintNumber2Zeros
+;> PrintNumber2Zeros(wPlayMinutes, TilemapBufferAddr_15(0x0150))
 	ld a, [wPlayMinutes]
 	ld c, a
 	ld b, $00
 	ld hl, $0150
-	call Call_15_5D33
+	call TilemapBufferAddr_15
 	call PrintNumber2Zeros
+;> if wPartyCount:
 	ld a, [wPartyCount]
 	or a
-	jr z, jr_015_4578
+	jr z, .empty0
 
+;>     level = GetPartyMonsterByte(wMonLevel, 0)
 	ld hl, wMonLevel
 	ld a, $00
 	call GetPartyMonsterByte
 	ld c, a
 	ld b, $00
+;>     PrintNumber2(level, TilemapBufferAddr_15(0x01A4))
 	ld hl, $01a4
-	call Call_15_5D33
+	call TilemapBufferAddr_15
 	call PrintNumber2
+;>     if wPartyCount != 1:
 	ld a, [wPartyCount]
 	cp $01
-	jr z, jr_015_457e
+	jr z, .empty1
 
+;>         level = GetPartyMonsterByte(wMonLevel, 1)
 	ld hl, wMonLevel
 	ld a, $01
 	call GetPartyMonsterByte
 	ld c, a
 	ld b, $00
+;>         PrintNumber2(level, TilemapBufferAddr_15(0x01AA))
 	ld hl, $01aa
-	call Call_15_5D33
+	call TilemapBufferAddr_15
 	call PrintNumber2
+;>         if wPartyCount != 2:
 	ld a, [wPartyCount]
 	cp $02
-	jr z, jr_015_4584
+	jr z, .empty2
 
+;>             level = GetPartyMonsterByte(wMonLevel, 2)
 	ld hl, wMonLevel
 	ld a, $02
 	call GetPartyMonsterByte
 	ld c, a
 	ld b, $00
+;>             PrintNumber2(level, TilemapBufferAddr_15(0x01B0))
 	ld hl, $01b0
-	call Call_15_5D33
+	call TilemapBufferAddr_15
 	call PrintNumber2
-	jr jr_015_458a
+	jr .show
 
-jr_015_4578:
+;> if wPartyCount < 1:                  # (the jumps above land on the first slot left empty)
+;>     DrawEmptyLevelSlot(0x0181)
+.empty0
 	ld hl, $0181
-	call Call_15_4592
+	call DrawEmptyLevelSlot
 
-jr_015_457e:
+;> if wPartyCount < 2:
+;>     DrawEmptyLevelSlot(0x0187)
+.empty1
 	ld hl, $0187
-	call Call_15_4592
+	call DrawEmptyLevelSlot
 
-jr_015_4584:
+;> if wPartyCount < 3:
+;>     DrawEmptyLevelSlot(0x018D)
+.empty2
 	ld hl, $018d
-	call Call_15_4592
+	call DrawEmptyLevelSlot
 
-jr_015_458a:
-	call Call_15_5DC0
-	ld hl, $c8d3
+.show
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleSubStep += 1
+	ld hl, wTitleSubStep
 	inc [hl]
 	ret
 
 
-Call_15_4592::
+;@ def DrawEmptyLevelSlot(pos: hl)
+;@ path: title/continue
+;@ Blanks the level of an empty party slot in the save summary: 5 tiles at `pos` (a tilemap
+;@ buffer offset) and 2 tiles one row down, one column right.
+;@ test: skip writes the tilemap buffer through a helper
+DrawEmptyLevelSlot::
+;> p = TilemapBufferAddr_15(pos)
 	push hl
-	call Call_15_5D33
+	call TilemapBufferAddr_15
+;> fill(p, 5, 0xE0)
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
+;> pos += 0x21                          # one row down, one column right
 	pop hl
 	ld a, l
 	add $21
 	ld l, a
+;> p = TilemapBufferAddr_15(pos)
 	ld a, h
 	adc $00
 	ld h, a
-	call Call_15_5D33
+	call TilemapBufferAddr_15
+;> fill(p, 2, 0xE0)
 	ld a, $e0
 	ld [hli], a
 	ld [hl], a
 	ret
 
 
-Call_15_45AE::
+;@ def DrawSavePartyNames()
+;@ path: title/continue
+;@ Draws the names of the three party monsters of the save into the tiles at $9040, $9080 and
+;@ $90C0 (4 tiles each); empty slots get blank tiles.
+;@ test: skip writes VRAM
+DrawSavePartyNames::
+;>@nm for i in range(3):
+;>@nm     name = PartyMonsterField(wMonName, i)
 	ld hl, wMonName
 	ld a, $00
 	call PartyMonsterField
 	ld e, l
 	ld d, h
+;>@dr     DrawSavePartyName(i + 1, name, 0x9040 + 0x40 * i)
 	ld hl, $9040
 	ld a, $01
-	call Call_15_45E5
+	call DrawSavePartyName
+;=@nm
 	ld hl, wMonName
 	ld a, $01
 	call PartyMonsterField
 	ld e, l
 	ld d, h
+;=@dr
 	ld hl, $9080
 	ld a, $02
-	call Call_15_45E5
+	call DrawSavePartyName
+;=@nm
 	ld hl, wMonName
 	ld a, $02
 	call PartyMonsterField
 	ld e, l
 	ld d, h
+;=@dr
 	ld hl, $90c0
 	ld a, $03
-	call Call_15_45E5
+	call DrawSavePartyName
 	ret
 
 
-Call_15_45E5::
+;@ def DrawSavePartyName(n: a, name: de, tiles: hl)
+;@ path: title/continue
+;@ Draws party monster number `n` (1-3) into the 4 tiles at `tiles`, or blank tiles when the
+;@ party has fewer monsters.
+;@ test: skip writes VRAM
+DrawSavePartyName::
+;> if wPartyCount >= n:
 	ld b, a
 	ld a, [wPartyCount]
 	cp b
-	jp nc, Call_15_5E2E
+;>     return DrawNameTiles_15(name, tiles)
+	jp nc, DrawNameTiles_15
 
+;> for i in range(32):                  # 4 tiles of color 1
 	ld b, $20
 
-jr_015_45ef:
+.blank
+;>     tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>     tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_015_45ef
+	jr nz, .blank
 
 	ret
 
 
-Jump_15_45FC::
+;@ def ContinueConfirm()
+;@ path: title/continue
+;@ CONTINUE, waiting on the save summary: A goes on to the field, B goes back to the title
+;@ menu cursor.
+;@ test: wJoyPressed = rand(0, 3)
+;@ test: wTitleStep = rand(1, 4)
+ContinueConfirm::
+;> if wJoyPressed & A_BUTTON:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_015_460e
+	jr z, .notA
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
-	jr jr_015_461d
+	jr .done
 
-jr_015_460e:
+;> elif wJoyPressed & B_BUTTON:
+.notA
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_461d
+	jr z, .done
 
-	ld hl, $c8d2
+;>     wTitleStep -= 2
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
 
-jr_015_461d:
+.done
 	ret
 
 
-Jump_15_461E::
+;@ def TitleNewGame()
+;@ path: title/newgame
+;@ NEW GAME: runs its sub-step (one, which sets up the new game).
+;@ test: skip starts a serial transfer
+TitleNewGame::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
-	ld a, [$c8d3]
+;> TitleNewGameSteps[wTitleSubStep]()
+	ld a, [wTitleSubStep]
 	rst $00
 
-JumpTable_15_4627::
-	dw Jump_15_462D
-	dw Jump_15_462D
-	dw Jump_15_462D
+;@ path: title/newgame
+;@ Sub-steps of NEW GAME (all three are the same routine).
+TitleNewGameSteps::
+	dw NewGameSetup
+	dw NewGameSetup
+	dw NewGameSetup
 
-Jump_15_462D::
+;@ def NewGameSetup()
+;@ path: title/newgame
+;@ Clears the whole game state and puts Terry in map $2F (his room at the start of the story)
+;@ with an empty party; the next title step starts the field.
+;@ test: wTitleStep = rand(0, 3)
+NewGameSetup::
+;> fill(hPlayerGfx, 0x21, 0)
 	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
 	call FillMemory
+;> fill(wGameStarted, 0x1100, 0)
 	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
 	call FillMemory
+;> wMessageSpeed = 4
 	ld a, $04
-	ld [$c8ee], a
+	ld [wMessageSpeed], a
+;> wGameStarted = 0
 	xor a
 	ld [wGameStarted], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;> wMapId = 0x2F
 	ld a, $2f
 	ld [wMapId], a
+;> wPrevMapId = 0x2F
 	ld [wPrevMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;> wPrevOnGateFloor = 0
 	ld [wPrevOnGateFloor], a
+;> wPartyCount = 0
 	ld a, $00
 	ld [wPartyCount], a
+;> wParty[0] = 0xFF
 	ld a, $ff
 	ld [wParty], a
+;> wParty[1] = 0xFF
 	ld a, $ff
 	ld [$ca8f], a
+;> wParty[2] = 0xFF
 	ld a, $ff
 	ld [$ca90], a
 	ret
 
 
-Jump_15_4677::
+;@ def TitleChooseVS()
+;@ path: title/menu
+;@ VS MODE chosen: unless the partner already refused, asks it for link mode 2 (byte $F0, sent
+;@ by TitleUpdateMenu); else beeps and shows the link error.
+;@ test: skip queues a sound
+TitleChooseVS::
+;> if wLinkRefused != 0xFF:
 	ld a, [wLinkRefused]
 	cp $ff
-	jr z, jr_015_4689
+	jr z, .refused
 
+;>     wJoy2Active = 0
 	ld a, $00
 	ld [wJoy2Active], a
+;>     wLinkCommand = 0xF0
 	ld a, $f0
-	ld [$c86d], a
+	ld [wLinkCommand], a
 	ret
 
 
-jr_015_4689:
+;> else:
+;>     QueueSound(0x59)
+.refused
 	ld a, $59
 	call QueueSound
+;>     wLinkCommand = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;>     wTitleStep = 4
 	ld a, $04
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_4698::
+;@ def TitleChooseBreed()
+;@ path: title/menu
+;@ BREEDING chosen: like TitleChooseVS with link mode 3 (byte $F1).
+;@ test: skip queues a sound
+TitleChooseBreed::
+;> if wLinkRefused != 0xFF:
 	ld a, [wLinkRefused]
 	cp $ff
-	jr z, jr_015_46aa
+	jr z, .refused
 
+;>     wJoy2Active = 0
 	ld a, $00
 	ld [wJoy2Active], a
+;>     wLinkCommand = 0xF1
 	ld a, $f1
-	ld [$c86d], a
+	ld [wLinkCommand], a
 	ret
 
 
-jr_015_46aa:
+;> else:
+;>     QueueSound(0x59)
+.refused
 	ld a, $59
 	call QueueSound
+;>     wLinkCommand = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;>     wTitleStep = 4
 	ld a, $04
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_46B9::
+;@ def TitleUpdateVSLink()
+;@ path: link/vs
+;@ Game loop part of VS mode (game mode 0 step 2): the frames themselves run from the serial
+;@ interrupt (VSLinkFrame); here the link timeout is counted and, while a status screen is open
+;@ (steps 6, 20 and 28), the monster sprites on it are drawn.
+;@ test: skip calls routines in other banks
+TitleUpdateVSLink::
+;> LinkFrameUpdate()
 	call LinkFrameUpdate
-	ld a, [$c8d2]
+;>@status if wTitleStep in (6, 0x14, 0x1C):
+	ld a, [wTitleStep]
 	cp $06
-	jr z, jr_015_46cc
+	jr z, .status
 
+;=@status
 	cp $14
-	jr z, jr_015_46cc
+	jr z, .status
 
+;=@status
 	cp $1c
-	jr z, jr_015_46cc
+	jr z, .status
 
 	ret
 
 
-jr_015_46cc:
-	call Call_15_53B2
-	call Call_15_53EE
+.status
+;>     VSDrawStatusMonster()
+	call VSDrawStatusMonster
+;>     VSDrawStatusParents()
+	call VSDrawStatusParents
+;>     LoadFieldObjPalettes()
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
 	ret
 
 
-Call_15_46D7::
-	ld a, [$c8d2]
+;@ def VSLinkFrame()
+;@ path: link/vs
+;@ One frame of VS mode, run from the serial interrupt: the current step.
+;@ test: skip runs the link protocol
+VSLinkFrame::
+;> VSLinkSteps[wTitleStep]()
+	ld a, [wTitleStep]
 	rst $00
 
-JumpTable_15_46DB::
-	dw Jump_15_4725
-	dw Jump_15_47B7
-	dw Jump_15_4944
-	dw Jump_15_4A0F
-	dw Jump_15_4A14
-	dw Jump_15_4A3D
-	dw Jump_15_4B0B
-	dw Jump_15_4B21
-	dw Jump_15_4B57
-	dw Jump_15_4B6B
-	dw Jump_15_4B93
-	dw Jump_15_4BE9
-	dw Jump_15_4BFD
-	dw Jump_15_4C25
-	dw Jump_15_4C94
-	dw Jump_15_4D22
-	dw Jump_15_4DC8
-	dw Jump_15_4E59
-	dw Jump_15_4E5E
-	dw Jump_15_4E87
-	dw Jump_15_4F5B
-	dw Jump_15_4F71
-	dw Jump_15_4FA7
-	dw Jump_15_4FB7
-	dw Jump_15_4FF8
-	dw Jump_15_5010
-	dw Jump_15_5020
-	dw Jump_15_504D
-	dw Jump_15_50E3
-	dw Jump_15_50FE
-	dw Jump_15_5134
-	dw Jump_15_5168
-	dw Jump_15_51AA
-	dw Jump_15_51BA
-	dw Jump_15_52A1
-	dw Jump_15_533C
-	dw Jump_15_535C
+;@ path: link/vs
+;@ Steps of VS mode: 0-10 choose up to three monsters for the team (INFO shows the status
+;@ screen), 11-21 offer a prize monster or none, 22-24 exchange the prize records, 25-29 the
+;@ FIGHT / PRIZE / EXIT menu (PRIZE shows the partner's prize), 30-31 refused (back to the
+;@ title), 32-34 exchange the teams and start the battle, 35 the prize was in the party,
+;@ 36 the partner cancelled.
+VSLinkSteps::
+	dw VSStart
+	dw VSShowTeamList
+	dw VSTeamListInput
+	dw VSTeamPicked
+	dw VSShowTeamChoice
+	dw VSTeamChoiceInput
+	dw VSTeamShowStatus
+	dw VSTeamStatusDone
+	dw VSAskAnother
+	dw VSShowAnotherYesNo
+	dw VSAnotherInput
+	dw VSAskPrize
+	dw VSShowPrizeYesNo
+	dw VSPrizeYesNoInput
+	dw VSStartPrizeList
+	dw VSShowPrizeList
+	dw VSPrizeListInput
+	dw VSPrizePicked
+	dw VSShowPrizeChoice
+	dw VSPrizeChoiceInput
+	dw VSPrizeShowStatus
+	dw VSPrizeStatusDone
+	dw VSPrizeWait
+	dw VSSendPrize
+	dw VSPrizeSent
+	dw VSAskReady
+	dw VSShowReadyMenu
+	dw VSReadyInput
+	dw VSShowPartnerPrize
+	dw VSPartnerPrizeDone
+	dw VSRefusedSync
+	dw VSBackToTitle
+	dw VSFightWait
+	dw VSSendTeams
+	dw VSStartBattle
+	dw VSPrizeInParty
+	dw VSPartnerCancelled
 
-Jump_15_4725::
-	call Call_15_4730
-	call Call_15_476F
-	ld hl, $c8d2
+;@ def VSStart()
+;@ path: link/vs
+;@ VS mode step 0: lists the monsters that can join the battle team.
+;@ test: wTitleStep = rand(0, 3)
+VSStart::
+;> CountTeamCandidates()
+	call CountTeamCandidates
+;> ListTeamCandidates()
+	call ListTeamCandidates
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_4730::
+;@ def CountTeamCandidates() -> a
+;@ path: link/vs
+;@ Counts the monsters that can still join the VS team: owned, hatched (not an egg) and not
+;@ in wVSTeam yet. The count goes to wTitleListCount and is returned.
+CountTeamCandidates::
+;> rec = wMonsters
 	ld de, wMonsters
+;> count = 0
 	ld b, $00
 	ld c, $00
 
-jr_015_4737:
+;>@for for slot in range(20):
+.loop
 	push de
+;>     if mem[rec]:                     # slot in use
 	ld a, [de]
 	or a
-	jr z, jr_015_475b
+	jr z, .next
 
+;>@egg         if mem[rec + 0x63] == 0 and slot not in wVSTeam:   # hatched, not chosen yet
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_015_475b
+	jr nz, .next
 
-	ld a, [$c0ec]
+;=@egg
+	ld a, [wVSTeam]
 	cp b
-	jr z, jr_015_475b
+	jr z, .next
 
-	ld a, [$c0ed]
+;=@egg
+	ld a, [wVSTeam + 1]
 	cp b
-	jr z, jr_015_475b
+	jr z, .next
 
-	ld a, [$c0ee]
+;=@egg
+	ld a, [wVSTeam + 2]
 	cp b
-	jr z, jr_015_475b
+	jr z, .next
 
+;>             count += 1
 	inc c
 
-jr_015_475b:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
+;=@rec
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	inc b
 	ld a, b
 	cp $14
-	jr nz, jr_015_4737
+	jr nz, .loop
 
+;> wTitleListCount = count
 	ld a, c
-	ld [$c8d8], a
+	ld [wTitleListCount], a
+;> return count
 	ret
 
 
-Call_15_476F::
+;@ def ListTeamCandidates()
+;@ path: link/vs
+;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots of the monsters that
+;@ can still join the VS team (see CountTeamCandidates).
+ListTeamCandidates::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> out = wSceneObjects
 	ld hl, wSceneObjects
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_015_4784:
+;>@for for slot in range(20):
+.loop
 	push de
+;>     if mem[rec]:
 	ld a, [de]
 	or a
-	jr z, jr_015_47a9
+	jr z, .next
 
+;>@egg         if mem[rec + 0x63] == 0 and slot not in wVSTeam:
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_015_47a9
+	jr nz, .next
 
-	ld a, [$c0ec]
+;=@egg
+	ld a, [wVSTeam]
 	cp c
-	jr z, jr_015_47a9
+	jr z, .next
 
-	ld a, [$c0ed]
+;=@egg
+	ld a, [wVSTeam + 1]
 	cp c
-	jr z, jr_015_47a9
+	jr z, .next
 
-	ld a, [$c0ee]
+;=@egg
+	ld a, [wVSTeam + 2]
 	cp c
-	jr z, jr_015_47a9
+	jr z, .next
 
+;>             mem[out] = slot; out += 1
 	ld [hl], c
 	inc hl
 
-jr_015_47a9:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
+;=@rec
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	inc c
 	dec b
-	jr nz, jr_015_4784
+	jr nz, .loop
 
 	ret
 
 
-Jump_15_47B7::
+;@ def VSShowTeamList()
+;@ path: link/vs
+;@ VS mode step 1: once the text is done, draws the team selection screen (the monster list,
+;@ the cursor monster's name, level and sex, the team so far) and asks "Choose monster(s)
+;@ for the battle."
+;@ test: skip calls routines in other banks
+VSShowTeamList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_480B
-	call Call_15_47DD
-	call Call_15_4AFB
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> VSDrawListNames()
+	call VSDrawListNames
+;> VSDrawTeamWindows()
+	call VSDrawTeamWindows
+;> VSDrawTeamNames()
+	call VSDrawTeamNames
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x0225)             # "Choose monster(s) for the battle."
 	ld hl, $0225
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_47DD::
-	ld de, $6928
-	call Call_15_5D8F
-	call Call_15_48E5
-	ld de, $67b5
-	call Call_15_5D8F
-	ld de, $680f
-	call Call_15_5D8F
+;@ def VSDrawTeamWindows()
+;@ path: link/vs
+;@ Draws the windows of the team selection into the tilemap buffer: the cursor monster's name
+;@ and level, the list of four names, the team window and the text box, with the list cursor.
+;@ test: skip draws through helpers
+VSDrawTeamWindows::
+;> DrawWindowLayout_15(TitleNameWindow)
+	ld de, TitleNameWindow
+	call DrawWindowLayout_15
+;> DrawCursorMonLevel()
+	call DrawCursorMonLevel
+;> DrawWindowLayout_15(TitleListWindow)
+	ld de, TitleListWindow
+	call DrawWindowLayout_15
+;> DrawWindowLayout_15(VSTeamWindow)
+	ld de, VSTeamWindow
+	call DrawWindowLayout_15
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $4a03
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;>@g1 MenuDrawListCursor_15(wLinkChoice, VSTeamListCursor, 4, wTitleListCount)
+	ld de, VSTeamListCursor
 	ld b, $04
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wLinkChoice
-	call Call_15_6080
+	call MenuDrawListCursor_15
+;=@g1
 	ret
 
 
-Call_15_480B::
+;@ def VSDrawListNames()
+;@ path: link/vs
+;@ Draws the names of the four list entries on the current page (wMenuChoice2) into the tiles
+;@ from $9100 on (4 tiles each).
+;@ test: skip writes VRAM
+VSDrawListNames::
+;>@entry entry = wSceneObjects + wMenuChoice2 * 4
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@entry
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9100
 	ld hl, $9100
-	call Call_15_4825
-	call Call_15_4825
-	call Call_15_4825
+;> for i in range(4):                   # the fourth by running on into VSDrawListName
+;>     entry, tiles = VSDrawListName(entry, tiles)
+	call VSDrawListName
+	call VSDrawListName
+	call VSDrawListName
 
-Call_15_4825::
+;@ def VSDrawListName(entry: de, tiles: hl) -> (de, hl)
+;@ path: link/vs
+;@ Draws the name of the monster in list entry `entry` into the 4 tiles at `tiles` (blank
+;@ tiles for an empty entry); returns the next entry and the next 4 tiles.
+;@ test: skip writes VRAM
+VSDrawListName::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_015_4846
+	jr z, .blank
 
+;>@name     DrawNameTiles_15(MonsterField(wMonName, mem[entry]), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	pop hl
 	push hl
-	call Call_15_5E2E
+	call DrawNameTiles_15
+;>@ret     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret
 	adc $00
 	ld h, a
 	pop de
@@ -1126,22 +1676,28 @@ Call_15_4825::
 	ret
 
 
-jr_015_4846:
+;> else:
+;>     for i in range(32):              # blank tiles
+.blank
 	ld b, $20
 
-jr_015_4848:
+.blankLoop
+;>         tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_015_4848
+	jr nz, .blankLoop
 
+;>@ret2     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret2
 	adc $00
 	ld h, a
 	pop de
@@ -1149,520 +1705,768 @@ jr_015_4848:
 	ret
 
 
-Call_15_4860::
+;@ def DrawCursorMonName()
+;@ path: link/menu
+;@ Draws the name of the monster under the list cursor into the tiles at $9000 and its sex
+;@ sign into the tile at $9200.
+;@ test: skip prints text
+DrawCursorMonName::
+;>@slot slot = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
 	ld a, [wLinkChoice]
 	and $7f
+;=@slot
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@slot
 	ld h, a
 	ld a, [hl]
+;> if slot == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;>@name DrawNameTiles_15(MonsterField(wMonName, slot), 0x9000)
 	push af
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	ld hl, $9000
-	call Call_15_5E2E
+	call DrawNameTiles_15
+;> sex = mem[MonsterField(wMonGender, slot)] & 1
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $9200
 	and $01
+;> wTextArg0[0] = 0xA7 + sex            # the sex sign
 	add $a7
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0                  # end
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+;> saved_box = (wTextBoxLines, wTextBoxLineLength)
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x9200
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1; wTextBoxLineLength = 1
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2; wTextIndex = 0      # the text that prints wTextArg0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_box[0]
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_box[1]
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
-Call_15_48E5::
+;@ def DrawCursorMonLevel()
+;@ path: link/menu
+;@ Writes the level of the monster under the list cursor into the name window ("Lv" and two
+;@ digits at buffer offset $0161) and the party mark at $0169 when the monster is in the
+;@ party (also a party a script has put aside).
+;@ test: skip touches battery RAM
+DrawCursorMonLevel::
+;>@slot slot = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
 	ld a, [wLinkChoice]
 	and $7f
+;=@slot
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@slot
 	ld h, a
 	ld a, [hl]
+;> if slot == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> level = mem[MonsterField(wMonLevel, slot)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = TilemapBufferAddr_15(0x0161)
 	ld hl, $0161
-	call Call_15_5D33
+	call TilemapBufferAddr_15
+;> mem[p] = 0xDE                        # "Lv"
 	ld a, $de
 	ld [hli], a
+;> mem[p + 1] = 0xE0
 	ld a, $e0
 	ld [hli], a
+;> mem[p + 2] = 0xE0
 	ld a, $e0
 	ld [hld], a
-	call Call_15_6135
+;> PrintTwoDigits_15(level, p + 1)
+	call PrintTwoDigits_15
+;> owner = mem[MonsterField(wMonsters, slot)]
 	pop af
 	push af
 	ld hl, wMonsters
 	call MonsterField
 	pop af
 	ld b, a
+;>@party if owner == 2 or IsInStashedParty(slot):    # in the party
 	ld a, [hl]
 	cp $02
-	jr z, jr_015_4930
+	jr z, .inParty
 
-	call Call_15_4F14
-	jr nz, jr_015_4930
+;=@party
+	call IsInStashedParty
+	jr nz, .inParty
 
-	jr jr_015_493a
+	jr .notInParty
 
-jr_015_4930:
+;>     mem[TilemapBufferAddr_15(0x0169)] = 0xE3
+.inParty
 	ld hl, $0169
-	call Call_15_5D33
+	call TilemapBufferAddr_15
 	ld a, $e3
 	ld [hl], a
 	ret
 
 
-jr_015_493a:
+;> else:
+;>     mem[TilemapBufferAddr_15(0x0169)] = 0xE0
+.notInParty
 	ld hl, $0169
-	call Call_15_5D33
+	call TilemapBufferAddr_15
 	ld a, $e0
 	ld [hl], a
 	ret
 
 
-Jump_15_4944::
+;@ def VSTeamListInput()
+;@ path: link/vs
+;@ VS mode step 2: moves the cursor through the monster list (Left/Right turn the page) and
+;@ redraws what changed. A picks the monster under the cursor; B takes the last team member
+;@ back out, or with an empty team refuses the battle (byte $FD to the partner).
+;@ test: skip runs the link protocol
+VSTeamListInput::
+;> if wFadeState or wTextState:
+;>@wait     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;=@wait
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5391
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
-	ld de, $4a03
+;>@old old_page = wMenuChoice2; old_cursor = wLinkChoice
+	ld de, VSTeamListCursor
 	ld hl, wLinkChoice
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@old
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
-	call Call_15_5EFC
+;> MovePagedListCursor_15(wLinkChoice, 4, wTitleListCount, VSTeamListCursor)
+	call MovePagedListCursor_15
+;> if wLinkChoice != old_cursor:
 	pop af
 	ld hl, wLinkChoice
 	cp [hl]
-	jr z, jr_015_4976
+	jr z, .samePos
 
-	call Call_15_4860
-	call Call_15_48E5
-	call Call_15_5DC0
+;>     DrawCursorMonName()
+	call DrawCursorMonName
+;>     DrawCursorMonLevel()
+	call DrawCursorMonLevel
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
 
-jr_015_4976:
+.samePos
+;> if wMenuChoice2 != old_page:
 	pop af
 	ld hl, wMenuChoice2
 	cp [hl]
-	jr z, jr_015_4989
+	jr z, .samePage
 
-	call Call_15_480B
-	call Call_15_4860
-	call Call_15_48E5
-	call Call_15_5DC0
+;>     VSDrawListNames()
+	call VSDrawListNames
+;>     DrawCursorMonName()
+	call DrawCursorMonName
+;>     DrawCursorMonLevel()
+	call DrawCursorMonLevel
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
 
-jr_015_4989:
+.samePage
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_49d4
+	jr z, .notB
 
-	ld a, [$c0ee]
+;>     for i in (2, 1, 0):               # take the last member out again
+;>@if         if wVSTeam[i] != 0xFF:
+	ld a, [wVSTeam + 2]
 	cp $ff
-	jr z, jr_015_499e
+	jr z, .notThird
 
+;>@clr             wVSTeam[i] = 0xFF
 	ld a, $ff
-	ld [$c0ee], a
-	jr jr_015_49b8
+	ld [wVSTeam + 2], a
+;>@rm             VSDrawTeamNames()
+	jr .removed
 
-jr_015_499e:
-	ld a, [$c0ed]
+.notThird
+;=@if
+	ld a, [wVSTeam + 1]
 	cp $ff
-	jr z, jr_015_49ac
+	jr z, .notSecond
 
+;=@clr
 	ld a, $ff
-	ld [$c0ed], a
-	jr jr_015_49b8
+	ld [wVSTeam + 1], a
+;=@rm
+	jr .removed
 
-jr_015_49ac:
-	ld a, [$c0ec]
+.notSecond
+;=@if
+	ld a, [wVSTeam]
 	cp $ff
-	jr z, jr_015_49c2
+	jr z, .refuse
 
+;=@clr
 	ld a, $ff
-	ld [$c0ec], a
+	ld [wVSTeam], a
 
-jr_015_49b8:
-	call Call_15_4AFB
+.removed
+;=@rm
+	call VSDrawTeamNames
+;>             wTitleStep = 0             # list the candidates again
 	ld a, $00
-	ld [$c8d2], a
-	jr jr_015_4a02
+	ld [wTitleStep], a
+;>             break
+	jr .done
 
-jr_015_49c2:
+;>     else:                             # the team is empty
+;>         PrintSystemText(0x022D)       # "Refused the battle."
+.refuse
 	ld hl, $022d
 	call PrintSystemText
+;>         wTitleStep = 0x24
 	ld a, $24
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>         wLinkSendByte = 0xFD
 	ld a, $fd
 	ld [wLinkSendByte], a
-	jr jr_015_4a02
+	jr .done
 
-jr_015_49d4:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_4a02
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
+;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
 	ld a, [wLinkChoice]
 	and $7f
+;=@pick
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@pick
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 
-Jump_015_4a02:
-jr_015_4a02:
+.done
 	ret
 
 
-	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the VS team list (tilemap buffer offsets): first the page number, then
+;@ the four rows; $FFFF ends.
+VSTeamListCursor::
+	dw $0145
+	dw $0061, $00a1, $00e1, $0121
+	dw $ffff
 
-Jump_15_4A0F::
-	ld hl, $c8d2
+;@ def VSTeamPicked()
+;@ path: link/vs
+;@ VS mode step 3: goes on to the INFO / OK choice.
+;@ test: wTitleStep = rand(0, 30)
+VSTeamPicked::
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4A14::
+;@ def VSShowTeamChoice()
+;@ path: link/vs
+;@ VS mode step 4: once the text is done, draws the INFO / OK window for the picked monster.
+;@ test: skip draws through helpers
+VSShowTeamChoice::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5E7C
-	call Call_15_4A27
-	call Call_15_5DC0
-	ld hl, $c8d2
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> VSDrawTeamChoice()
+	call VSDrawTeamChoice
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_4A27::
-	call Call_15_47DD
-	ld de, $6849
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $4af5
+;@ def VSDrawTeamChoice()
+;@ path: link/vs
+;@ Draws the team selection windows with the INFO / OK window and its cursor.
+;@ test: skip draws through helpers
+VSDrawTeamChoice::
+;> VSDrawTeamWindows()
+	call VSDrawTeamWindows
+;> DrawWindowLayout_15(InfoOkWindow)
+	ld de, InfoOkWindow
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> MenuDrawCursorAt_15(wConfirmChoice, VSTeamChoiceCursor)
+	ld de, VSTeamChoiceCursor
 	ld a, [wConfirmChoice]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_4A3D::
-	call Call_15_5391
+;@ def VSTeamChoiceInput()
+;@ path: link/vs
+;@ VS mode step 5: INFO / OK for the picked monster. B goes back to the list, INFO opens the
+;@ monster's status screen, OK puts it into the next free team place; with three members (or
+;@ nobody left to choose) the prize question follows, else "Choose another monster?".
+;@ test: skip runs the link protocol
+VSTeamChoiceInput::
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
-	ld de, $4af5
+;> MoveMenuCursor_15(wConfirmChoice, 2, VSTeamChoiceCursor)
+	ld de, VSTeamChoiceCursor
 	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_15_5F85
+	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_4a71
+	jr z, .notB
 
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_480B
-	call Call_15_47DD
-	call Call_15_5DC0
-	ld hl, $c8d2
+;>     ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;>     DrawCursorMonName()
+	call DrawCursorMonName
+;>     VSDrawListNames()
+	call VSDrawListNames
+;>     VSDrawTeamWindows()
+	call VSDrawTeamWindows
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;>@g2     wTitleStep -= 3                   # back to the list
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	jp Jump_015_4af4
+;=@g2
+	jp .done
 
 
-jr_015_4a71:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_4af4
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice != 0x81:        # INFO
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_015_4a93
+	jr z, .ok
 
+;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+;>         wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_015_4af4
+	jp .done
 
 
-jr_015_4a93:
-	ld a, [$c0ec]
+;>     else:                             # OK: into the first free place
+;>         for i in range(3):
+;>@if             if i == 2 or wVSTeam[i] == 0xFF:
+.ok
+	ld a, [wVSTeam]
 	cp $ff
-	jr nz, jr_015_4aa2
+	jr nz, .notFirst
 
+;>@set                 wVSTeam[i] = wCurPartyMember
 	ld a, [wCurPartyMember]
-	ld [$c0ec], a
-	jr jr_015_4ad3
+	ld [wVSTeam], a
+;>@brk                 break
+	jr .added
 
-jr_015_4aa2:
-	ld a, [$c0ed]
+.notFirst
+;=@if
+	ld a, [wVSTeam + 1]
 	cp $ff
-	jr nz, jr_015_4ab1
+	jr nz, .third
 
+;=@set
 	ld a, [wCurPartyMember]
-	ld [$c0ed], a
-	jr jr_015_4ad3
+	ld [wVSTeam + 1], a
+;=@brk
+	jr .added
 
-jr_015_4ab1:
+.third
+;=@set
 	ld a, [wCurPartyMember]
-	ld [$c0ee], a
-	call Call_15_4AFB
-	ld hl, $c8d2
+	ld [wVSTeam + 2], a
+;>@dr         VSDrawTeamNames()
+	call VSDrawTeamNames
+;>@g3         if i == 2:
+;>@six             wTitleStep += 6           # the team is full: the prize question
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+;=@six
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
+;=@g3
 	ret
 
 
-jr_015_4ad3:
-	call Call_15_4AFB
-	ld hl, $c8d2
+.added
+;=@dr
+	call VSDrawTeamNames
+;>         else:
+;>             wTitleStep += 3           # "Choose another monster?"
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	call Call_15_4730
+;>             if CountTeamCandidates() == 0:
+	call CountTeamCandidates
 	or a
-	jr nz, jr_015_4af4
+	jr nz, .done
 
-	ld hl, $c8d2
+;>@g4                 wTitleStep += 3       # nobody left: the prize question
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
-Jump_015_4af4:
-jr_015_4af4:
+.done
+;=@g4
 	ret
 
 
-	db $2e, $00, $6e, $00, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the INFO / OK window (tilemap buffer offsets, $FFFF ends).
+VSTeamChoiceCursor::
+	dw $002e, $006e
+	dw $ffff
 
-Call_15_4AFB::
-	ld de, $c0ec
+;@ def VSDrawTeamNames()
+;@ path: link/vs
+;@ Draws the names of the (up to three) team members into the tiles from $9040 on.
+;@ test: skip writes VRAM
+VSDrawTeamNames::
+;> entry, tiles = wVSTeam, 0x9040
+	ld de, wVSTeam
 	ld hl, $9040
-	call Call_15_4825
-	call Call_15_4825
-	call Call_15_4825
+;> for i in range(3):
+;>     entry, tiles = VSDrawListName(entry, tiles)
+	call VSDrawListName
+	call VSDrawListName
+	call VSDrawListName
 	ret
 
 
-Jump_15_4B0B::
+;@ def VSTeamShowStatus()
+;@ path: link/vs
+;@ VS mode step 6: runs the monster status screen for the picked monster until it closes.
+;@ test: skip calls routines in other banks
+VSTeamShowStatus::
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep:                     # the status screen was closed
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4B21::
+;@ def VSTeamStatusDone()
+;@ path: link/vs
+;@ VS mode step 7: after the status screen, loads the font again, prints the team question
+;@ and redraws the team selection with the INFO / OK window (back to step 5).
+;@ test: skip calls routines in other banks
+VSTeamStatusDone::
+;> DecompressVRAM(0x2E, 0x1E, 0x9000)   # font
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call DecompressVRAM
+;> PrintSystemText(0x0225)             # "Choose monster(s) for the battle."
 	ld hl, $0225
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_480B
-	call Call_15_47DD
-	call Call_15_4A27
-	call Call_15_4AFB
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> VSDrawListNames()
+	call VSDrawListNames
+;> VSDrawTeamWindows()
+	call VSDrawTeamWindows
+;> VSDrawTeamChoice()
+	call VSDrawTeamChoice
+;> VSDrawTeamNames()
+	call VSDrawTeamNames
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 5
 	ld a, $05
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_4B57::
+;@ def VSAskAnother()
+;@ path: link/vs
+;@ VS mode step 8: asks "Choose another monster?".
+;@ test: skip prints text
+VSAskAnother::
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
+	call DrawWindowLayout_15
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x0227)
 	ld hl, $0227
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4B6B::
+;@ def VSShowAnotherYesNo()
+;@ path: link/vs
+;@ VS mode step 9: once the question is printed, beeps and draws the YES / NO window.
+;@ test: skip draws through helpers
+VSShowAnotherYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	call Call_15_4B80
-	call Call_15_5DC0
-	ld hl, $c8d2
+;> VSDrawAnotherYesNo()
+	call VSDrawAnotherYesNo
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_4B80::
-	ld de, $6873
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $4be3
+;@ def VSDrawAnotherYesNo()
+;@ path: link/vs
+;@ Draws the YES / NO window of "Choose another monster?" with its cursor.
+;@ test: skip draws through helpers
+VSDrawAnotherYesNo::
+;> DrawWindowLayout_15(YesNoWindow_15)
+	ld de, YesNoWindow_15
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> MenuDrawCursorAt_15(wConfirmChoice2, VSAnotherCursor)
+	ld de, VSAnotherCursor
 	ld a, [wConfirmChoice2]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_4B93::
-	call Call_15_5391
+;@ def VSAnotherInput()
+;@ path: link/vs
+;@ VS mode step 10: YES goes back to the monster list for the next team member; NO or B goes
+;@ on to the prize question.
+;@ test: skip runs the link protocol
+VSAnotherInput::
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
-	ld de, $4be3
+;> MoveMenuCursor_15(wConfirmChoice2, 2, VSAnotherCursor)
+	ld de, VSAnotherCursor
 	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_15_5F85
+	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_4bb0
+	jr z, .notB
 
-jr_015_4ba9:
-	ld hl, $c8d2
+;>@no     wTitleStep += 1                   # the prize question
+.no
+	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_015_4be2
 
 
-jr_015_4bb0:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4be2
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice2 == 0x81:       # NO
+;>         wTitleStep += 1
 	ld a, [wConfirmChoice2]
 	cp $81
-	jr z, jr_015_4ba9
+;=@no
+	jr z, .no
 
-	call Call_15_4730
-	call Call_15_476F
-	call Call_15_4860
-	call Call_15_480B
-	call Call_15_47DD
+;>     else:
+;>         CountTeamCandidates()
+	call CountTeamCandidates
+;>         ListTeamCandidates()
+	call ListTeamCandidates
+;>         DrawCursorMonName()
+	call DrawCursorMonName
+;>         VSDrawListNames()
+	call VSDrawListNames
+;>         VSDrawTeamWindows()
+	call VSDrawTeamWindows
+;>         wTitleStep = 1
 	ld a, $01
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>         wLinkChoice = 0; wMenuChoice2 = 0
 	xor a
 	ld [wLinkChoice], a
 	ld [wMenuChoice2], a
@@ -1673,90 +2477,146 @@ Jump_015_4be2:
 	ret
 
 
-	db $cf, $01, $0f, $02, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the YES / NO window of "Choose another monster?" ($FFFF ends).
+VSAnotherCursor::
+	dw $01cf, $020f
+	dw $ffff
 
-Jump_15_4BE9::
+;@ def VSAskPrize()
+;@ path: link/vs
+;@ VS mode step 11: asks "Submit a prize?" (the winner of the battle takes the prize monster).
+;@ test: skip prints text
+VSAskPrize::
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
+	call DrawWindowLayout_15
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x0228)
 	ld hl, $0228
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4BFD::
+;@ def VSShowPrizeYesNo()
+;@ path: link/vs
+;@ VS mode step 12: once the question is printed, beeps and draws the YES / NO window.
+;@ test: skip draws through helpers
+VSShowPrizeYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	call Call_15_4C12
-	call Call_15_5DC0
-	ld hl, $c8d2
+;> VSDrawPrizeYesNo()
+	call VSDrawPrizeYesNo
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_4C12::
-	ld de, $6873
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $4c8e
+;@ def VSDrawPrizeYesNo()
+;@ path: link/vs
+;@ Draws the YES / NO window of "Submit a prize?" with its cursor.
+;@ test: skip draws through helpers
+VSDrawPrizeYesNo::
+;> DrawWindowLayout_15(YesNoWindow_15)
+	ld de, YesNoWindow_15
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> MenuDrawCursorAt_15(wMenuChoice3, VSPrizeYesNoCursor)
+	ld de, VSPrizeYesNoCursor
 	ld a, [wMenuChoice3]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_4C25::
-	call Call_15_5391
+;@ def VSPrizeYesNoInput()
+;@ path: link/vs
+;@ VS mode step 13: YES lists the monsters that can be offered as the prize; NO or B offers
+;@ none (an empty record, slot $14 = wBreedParent1) and goes on to the exchange.
+;@ test: skip runs the link protocol
+VSPrizeYesNoInput::
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
-	ld de, $4c8e
+;> MoveMenuCursor_15(wMenuChoice3, 2, VSPrizeYesNoCursor)
+	ld de, VSPrizeYesNoCursor
 	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_15_5F85
+	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_4c5c
+	jr z, .notB
 
-jr_015_4c3b:
+;>@none     DrawWindowLayout_15(0x2E07)
+.none
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
+	call DrawWindowLayout_15
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;>     PrintSystemText(0x0229)           # no prize
 	ld hl, $0229
 	call PrintSystemText
+;>     wCurPartyMember = 0x14            # the prize is the empty record in slot 20
 	ld a, $14
 	ld [wCurPartyMember], a
+;>     wBreedParent1[0] = 0
 	ld a, $00
 	ld [wBreedParent1], a
+;>     wTitleStep = 0x16
 	ld a, $16
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jp Jump_015_4c8d
 
 
-jr_015_4c5c:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4be2
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:          # NO: as B
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_015_4c3b
+;>         pass                          # jumps to the B code above: no prize
+	jr z, .none
 
-	call Call_15_4CC2
-	call Call_15_4CEC
-	call Call_15_4860
-	call Call_15_480B
-	call Call_15_47DD
+;>     else:
+;>         CountPrizeCandidates()
+	call CountPrizeCandidates
+;>         ListPrizeCandidates()
+	call ListPrizeCandidates
+;>         DrawCursorMonName()
+	call DrawCursorMonName
+;>         VSDrawListNames()
+	call VSDrawListNames
+;>         VSDrawTeamWindows()
+	call VSDrawTeamWindows
+;>         wLinkChoice = 0; wMenuChoice2 = 0
 	xor a
 	ld [wLinkChoice], a
 	ld [wMenuChoice2], a
-	ld hl, $c8d2
+;>         wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_015_4c8d
 
@@ -1765,188 +2625,284 @@ Jump_015_4c8d:
 	ret
 
 
-	db $cf, $01, $0f, $02, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the YES / NO window of "Submit a prize?" ($FFFF ends).
+VSPrizeYesNoCursor::
+	dw $01cf, $020f
+	dw $ffff
 
-Jump_15_4C94::
-	call Call_15_4CC2
-	call Call_15_4CEC
-	ld hl, $c8d2
+;@ def VSStartPrizeList()
+;@ path: link/vs
+;@ VS mode step 14: lists the monsters that can be offered as the prize. With none, no prize
+;@ is offered (an empty record) and the exchange follows.
+;@ test: skip prints text
+VSStartPrizeList::
+;> CountPrizeCandidates()
+	call CountPrizeCandidates
+;> ListPrizeCandidates()
+	call ListPrizeCandidates
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
-	ld a, [$c8d8]
+;> if wTitleListCount:
+;>     return
+	ld a, [wTitleListCount]
 	or a
 	ret nz
 
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
+	call DrawWindowLayout_15
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x0229)             # "No monsters left at the farm. Thus, no prize."
 	ld hl, $0229
 	call PrintSystemText
+;> wCurPartyMember = 0x14               # the empty record in slot 20
 	ld a, $14
 	ld [wCurPartyMember], a
+;> wBreedParent1[0] = 0
 	ld a, $00
 	ld [wBreedParent1], a
+;> wTitleStep = 0x16
 	ld a, $16
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Call_15_4CC2::
+;@ def CountPrizeCandidates() -> a
+;@ path: link/vs
+;@ Counts the hatched monsters (owned, not eggs) into wTitleListCount and returns the count.
+CountPrizeCandidates::
+;> rec = wMonsters; count = 0
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_015_4cc9:
+;>@for for slot in range(20):
+.loop
 	push de
+;>     if mem[rec]:
 	ld a, [de]
 	or a
-	jr z, jr_015_4cdb
+	jr z, .next
 
+;>@egg         if mem[rec + 0x63] == 0:      # not an egg
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_015_4cdb
+	jr nz, .next
 
+;>             count += 1
 	inc c
 
-jr_015_4cdb:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
+;=@rec
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	dec b
-	jr nz, jr_015_4cc9
+	jr nz, .loop
 
+;> wTitleListCount = count
 	ld a, c
-	ld [$c8d8], a
+	ld [wTitleListCount], a
+;> return count
 	ret
 
 
-Call_15_4CEC::
+;@ def ListPrizeCandidates()
+;@ path: link/vs
+;@ Fills the list in wSceneObjects (20 bytes, $FF = end) with the slots of all hatched
+;@ monsters.
+ListPrizeCandidates::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> out = wSceneObjects
 	ld hl, wSceneObjects
+;> rec = wMonsters
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_015_4d01:
+;>@for for slot in range(20):
+.loop
 	push de
+;>     if mem[rec]:
 	ld a, [de]
 	or a
-	jr z, jr_015_4d14
+	jr z, .next
 
+;>@egg         if mem[rec + 0x63] == 0:
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@egg
 	ld a, [de]
 	or a
-	jr nz, jr_015_4d14
+	jr nz, .next
 
+;>             mem[out] = slot; out += 1
 	ld [hl], c
 	inc hl
 
-jr_015_4d14:
+.next
+;>@rec     rec += 0x95
 	pop de
 	ld a, e
 	add $95
 	ld e, a
+;=@rec
 	ld a, d
 	adc $00
 	ld d, a
+;=@for
 	inc c
 	dec b
-	jr nz, jr_015_4d01
+	jr nz, .loop
 
 	ret
 
 
-Jump_15_4D22::
+;@ def VSShowPrizeList()
+;@ path: link/vs
+;@ VS mode step 15: once the text is done, draws the prize selection screen and asks "Choose
+;@ a monster for the prize?".
+;@ test: skip calls routines in other banks
+VSShowPrizeList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_4D73
-	call Call_15_4D45
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> VSDrawPrizeListNames()
+	call VSDrawPrizeListNames
+;> VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x022A)             # "Choose a monster for the prize?"
 	ld hl, $022a
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_4D45::
-	ld de, $6928
-	call Call_15_5D8F
-	call Call_15_48E5
-	ld de, $67b5
-	call Call_15_5D8F
-	ld de, $680f
-	call Call_15_5D8F
+;@ def VSDrawPrizeWindows()
+;@ path: link/vs
+;@ Draws the windows of the prize selection (as VSDrawTeamWindows, with the prize list cursor).
+;@ test: skip draws through helpers
+VSDrawPrizeWindows::
+;> DrawWindowLayout_15(TitleNameWindow)
+	ld de, TitleNameWindow
+	call DrawWindowLayout_15
+;> DrawCursorMonLevel()
+	call DrawCursorMonLevel
+;> DrawWindowLayout_15(TitleListWindow)
+	ld de, TitleListWindow
+	call DrawWindowLayout_15
+;> DrawWindowLayout_15(VSTeamWindow)
+	ld de, VSTeamWindow
+	call DrawWindowLayout_15
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $4e4d
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;>@g5 MenuDrawListCursor_15(wLinkChoice, VSPrizeListCursor, 4, wTitleListCount)
+	ld de, VSPrizeListCursor
 	ld b, $04
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wLinkChoice
-	call Call_15_6080
+	call MenuDrawListCursor_15
+;=@g5
 	ret
 
 
-Call_15_4D73::
+;@ def VSDrawPrizeListNames()
+;@ path: link/vs
+;@ Draws the names of the four prize list entries on the current page into the tiles from
+;@ $9100 on (as VSDrawListNames).
+;@ test: skip writes VRAM
+VSDrawPrizeListNames::
+;>@entry entry = wSceneObjects + wMenuChoice2 * 4
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@entry
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9100
 	ld hl, $9100
-	call Call_15_4D8D
-	call Call_15_4D8D
-	call Call_15_4D8D
+;> for i in range(4):                   # the fourth by running on into VSDrawPrizeListName
+;>     entry, tiles = VSDrawPrizeListName(entry, tiles)
+	call VSDrawPrizeListName
+	call VSDrawPrizeListName
+	call VSDrawPrizeListName
 
-Call_15_4D8D::
+;@ def VSDrawPrizeListName(entry: de, tiles: hl) -> (de, hl)
+;@ path: link/vs
+;@ A copy of VSDrawListName: the name of the monster in list entry `entry` into the 4 tiles at
+;@ `tiles` (blank for an empty entry); returns the next entry and tiles.
+;@ test: skip writes VRAM
+VSDrawPrizeListName::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_015_4dae
+	jr z, .blank
 
+;>@name     DrawNameTiles_15(MonsterField(wMonName, mem[entry]), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	pop hl
 	push hl
-	call Call_15_5E2E
+	call DrawNameTiles_15
+;>@ret     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret
 	adc $00
 	ld h, a
 	pop de
@@ -1954,22 +2910,28 @@ Call_15_4D8D::
 	ret
 
 
-jr_015_4dae:
+;> else:
+;>     for i in range(32):              # blank tiles
+.blank
 	ld b, $20
 
-jr_015_4db0:
+.blankLoop
+;>         tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_015_4db0
+	jr nz, .blankLoop
 
+;>@ret2     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret2
 	adc $00
 	ld h, a
 	pop de
@@ -1977,1005 +2939,1462 @@ jr_015_4db0:
 	ret
 
 
-Jump_15_4DC8::
+;@ def VSPrizeListInput()
+;@ path: link/vs
+;@ VS mode step 16: moves the cursor through the prize list. A picks the monster; B goes back
+;@ to "Submit a prize?".
+;@ test: skip runs the link protocol
+VSPrizeListInput::
+;> if wFadeState or wTextState:
+;>@wait     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;=@wait
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5391
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
-	ld de, $4e4d
+;>@old old_page = wMenuChoice2; old_cursor = wLinkChoice
+	ld de, VSPrizeListCursor
 	ld hl, wLinkChoice
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@old
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
-	call Call_15_5EFC
+;> MovePagedListCursor_15(wLinkChoice, 4, wTitleListCount, VSPrizeListCursor)
+	call MovePagedListCursor_15
+;> if wLinkChoice != old_cursor:
 	pop af
 	ld hl, wLinkChoice
 	cp [hl]
-	jr z, jr_015_4dfa
+	jr z, .samePos
 
-	call Call_15_4860
-	call Call_15_48E5
-	call Call_15_5DC0
+;>     DrawCursorMonName()
+	call DrawCursorMonName
+;>     DrawCursorMonLevel()
+	call DrawCursorMonLevel
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
 
-jr_015_4dfa:
+.samePos
+;> if wMenuChoice2 != old_page:
 	pop af
 	ld hl, wMenuChoice2
 	cp [hl]
-	jr z, jr_015_4e0d
+	jr z, .samePage
 
-	call Call_15_4D73
-	call Call_15_4860
-	call Call_15_48E5
-	call Call_15_5DC0
+;>     VSDrawPrizeListNames()
+	call VSDrawPrizeListNames
+;>     DrawCursorMonName()
+	call DrawCursorMonName
+;>     DrawCursorMonLevel()
+	call DrawCursorMonLevel
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
 
-jr_015_4e0d:
+.samePage
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_4e1b
+	jr z, .notB
 
+;>     wTitleStep = 0x0B                 # back to "Submit a prize?"
 	ld a, $0b
-	ld [$c8d2], a
-	jr jr_015_4e4c
+	ld [wTitleStep], a
+	jr .done
 
-jr_015_4e1b:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_4e4c
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wConfirmChoice = 0; wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice], a
 	ld [wConfirmChoice2], a
+;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
 	ld a, [wLinkChoice]
 	and $7f
+;=@pick
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@pick
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 
-Jump_015_4e4c:
-jr_015_4e4c:
+.done
 	ret
 
 
-	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the prize list: the page number, then the four rows ($FFFF ends).
+VSPrizeListCursor::
+	dw $0145
+	dw $0061, $00a1, $00e1, $0121
+	dw $ffff
 
-Jump_15_4E59::
-	ld hl, $c8d2
+;@ def VSPrizePicked()
+;@ path: link/vs
+;@ VS mode step 17: goes on to the INFO / OK choice for the prize.
+;@ test: wTitleStep = rand(0, 30)
+VSPrizePicked::
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4E5E::
+;@ def VSShowPrizeChoice()
+;@ path: link/vs
+;@ VS mode step 18: once the text is done, draws the INFO / OK window for the picked prize.
+;@ test: skip draws through helpers
+VSShowPrizeChoice::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5E7C
-	call Call_15_4E71
-	call Call_15_5DC0
-	ld hl, $c8d2
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> VSDrawPrizeChoice()
+	call VSDrawPrizeChoice
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_4E71::
-	call Call_15_4D45
-	ld de, $6849
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $4f0e
+;@ def VSDrawPrizeChoice()
+;@ path: link/vs
+;@ Draws the prize selection windows with the INFO / OK window and its cursor.
+;@ test: skip draws through helpers
+VSDrawPrizeChoice::
+;> VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;> DrawWindowLayout_15(InfoOkWindow)
+	ld de, InfoOkWindow
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> MenuDrawCursorAt_15(wConfirmChoice, VSPrizeChoiceCursor)
+	ld de, VSPrizeChoiceCursor
 	ld a, [wConfirmChoice]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_4E87::
-	call Call_15_5391
+;@ def VSPrizeChoiceInput()
+;@ path: link/vs
+;@ VS mode step 19: INFO / OK for the prize. B goes back to the list, INFO opens the status
+;@ screen, OK offers the monster, unless it is in the party (then a message and back).
+;@ test: skip runs the link protocol
+VSPrizeChoiceInput::
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
-	ld de, $4f0e
+;> MoveMenuCursor_15(wConfirmChoice, 2, VSPrizeChoiceCursor)
+	ld de, VSPrizeChoiceCursor
 	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_15_5F85
+	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_4ebb
+	jr z, .notB
 
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_4D73
-	call Call_15_4D45
-	call Call_15_5DC0
-	ld hl, $c8d2
+;>     ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;>     DrawCursorMonName()
+	call DrawCursorMonName
+;>     VSDrawPrizeListNames()
+	call VSDrawPrizeListNames
+;>     VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;>@g6     wTitleStep -= 3                   # back to the list
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	jp Jump_015_4f0d
+;=@g6
+	jp .done
 
 
-jr_015_4ebb:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_4f0d
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice != 0x81:        # INFO
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_015_4edd
+	jr z, .ok
 
+;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+;>         wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_015_4f0d
+	jp .done
 
 
-jr_015_4edd:
-	ld hl, $c8d2
+;>     else:
+;>         wTitleStep += 3               # OK: on to the exchange
+.ok
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
+;>         slot = wCurPartyMember
 	ld a, [wCurPartyMember]
 	ld b, a
-	call Call_15_4F14
-	jr nz, jr_015_4f00
+;>@party         if IsInStashedParty(slot) or mem[MonsterField(wMonsters, slot)] == 2:
+	call IsInStashedParty
+	jr nz, .inParty
 
+;=@party
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_015_4f0d
+	jr nz, .done
 
-jr_015_4f00:
+;>             PrintSystemText(0x025C)   # "You cannot choose the monster in your current party as a prize."
+.inParty
 	ld hl, $025c
 	call PrintSystemText
+;>             wTitleStep = 0x23
 	ld a, $23
-	ld [$c8d2], a
-	jr jr_015_4f0d
+	ld [wTitleStep], a
+	jr .done
 
-Jump_015_4f0d:
-jr_015_4f0d:
+.done
 	ret
 
 
-	db $2e, $00, $6e, $00, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the INFO / OK window of the prize ($FFFF ends).
+VSPrizeChoiceCursor::
+	dw $002e, $006e
+	dw $ffff
 
-Call_15_4F14::
+;@ def IsInStashedParty(slot: b) -> a
+;@ path: link/vs
+;@ When the saved game has no party, checks whether monster `slot` is in the party a script put
+;@ aside (wSavedParty as saved in battery RAM). Returns 1 if so, else 0.
+;@ test: skip reads battery RAM
+IsInStashedParty::
+;> if ReadSRAMByte(sPartyCount):
+;>     return 0
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	or a
-	jr nz, jr_015_4f55
+	jr nz, .no
 
-	ld hl, $a1f3
+;> count = ReadSRAMByte(sStashedParty)
+	ld hl, sStashedParty
 	call ReadSRAMByte
+;> if count == 0:
+;>     return 0
 	or a
-	jr z, jr_015_4f55
+	jr z, .no
 
-	ld hl, $a1f4
+;>@for for i in range(count):
+;>@if     if ReadSRAMByte(sStashedParty + 1 + i) == slot:
+	ld hl, sStashedParty + 1
 	call ReadSRAMByte
 	cp b
-	jr z, jr_015_4f57
+;>@yes         return 1
+	jr z, .yes
 
-	ld hl, $a1f3
+;=@for
+	ld hl, sStashedParty
 	call ReadSRAMByte
 	cp $01
-	jr z, jr_015_4f55
+	jr z, .no
 
-	ld hl, $a1f5
+;=@if
+	ld hl, sStashedParty + 2
 	call ReadSRAMByte
 	cp b
-	jr z, jr_015_4f57
+	jr z, .yes
 
-	ld hl, $a1f3
+;=@for
+	ld hl, sStashedParty
 	call ReadSRAMByte
 	cp $02
-	jr z, jr_015_4f55
+	jr z, .no
 
-	ld hl, $a1f6
+;=@if
+	ld hl, sStashedParty + 3
 	call ReadSRAMByte
 	cp b
-	jr z, jr_015_4f57
+	jr z, .yes
 
-jr_015_4f55:
+;> return 0
+.no
 	xor a
 	ret
 
 
-jr_015_4f57:
+.yes
+;=@yes
 	ld a, $01
 	or a
 	ret
 
 
-Jump_15_4F5B::
+;@ def VSPrizeShowStatus()
+;@ path: link/vs
+;@ VS mode step 20: runs the monster status screen for the picked prize until it closes.
+;@ test: skip calls routines in other banks
+VSPrizeShowStatus::
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep:
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_4F71::
+;@ def VSPrizeStatusDone()
+;@ path: link/vs
+;@ VS mode step 21: after the status screen, loads the font again and redraws the prize
+;@ selection with the INFO / OK window (back to step 18).
+;@ test: skip calls routines in other banks
+VSPrizeStatusDone::
+;> DecompressVRAM(0x2E, 0x1E, 0x9000)   # font
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call DecompressVRAM
+;> PrintSystemText(0x022A)             # "Choose a monster for the prize?"
 	ld hl, $022a
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_4D73
-	call Call_15_4D45
-	call Call_15_4E71
-	call Call_15_4AFB
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> VSDrawPrizeListNames()
+	call VSDrawPrizeListNames
+;> VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;> VSDrawPrizeChoice()
+	call VSDrawPrizeChoice
+;> VSDrawTeamNames()
+	call VSDrawTeamNames
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 0x12
 	ld a, $12
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_4FA7::
+;@ def VSPrizeWait()
+;@ path: link/vs
+;@ VS mode step 22: "One moment please." and tells the partner this side is ready (byte 1).
+;@ test: skip prints text
+VSPrizeWait::
+;> PrintSystemText(0x021F)
 	ld hl, $021f
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> wLinkSendByte = 1
 	ld a, $01
 	ld [wLinkSendByte], a
 	ret
 
 
-Jump_15_4FB7::
-	call Call_15_5391
+;@ def VSSendPrize()
+;@ path: link/vs
+;@ VS mode step 23: when the partner is ready too, exchanges the prize records ($95 bytes):
+;@ ours goes out, the partner's lands in wBreedParent2.
+;@ test: skip runs the link protocol
+VSSendPrize::
+;> if not VSCheckPartnerCancel():
+;>     return
+	call VSCheckPartnerCancel
 	ret z
 
+;> if wLinkReceivedLast != 1:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> wLinkSendLength = 0x95
 	ld a, $95
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkPrizeSlot = wCurPartyMember
 	ld a, [wCurPartyMember]
-	ld [$c8ba], a
+	ld [wLinkPrizeSlot], a
+;> wLinkSendPtr = MonsterField(wMonsters, wCurPartyMember)
 	ld hl, wMonsters
 	call MonsterField
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wBreedParent2
 	ld hl, wBreedParent2
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF                 # send the buffer
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
 	ret
 
 
-Jump_15_4FF8::
+;@ def VSPrizeSent()
+;@ path: link/vs
+;@ VS mode step 24: waits for the end byte $F0 of the record exchange.
+;@ test: wLinkReceivedLast = rand(0xEF, 0xF1)
+;@ test: wTitleStep = rand(0, 30)
+VSPrizeSent::
+;> if wLinkReceivedLast != 0xF0:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;> wLinkSendByte = 0
 	ld a, $00
 	ld [wLinkSendByte], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> wTextState = 0
 	xor a
 	ld [wTextState], a
 	ret
 
 
-Jump_15_5010::
+;@ def VSAskReady()
+;@ path: link/vs
+;@ VS mode step 25: once the text is done, asks "Are you ready to fight?".
+;@ test: skip prints text
+VSAskReady::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PrintSystemText(0x022B)
 	ld hl, $022b
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_5020::
+;@ def VSShowReadyMenu()
+;@ path: link/vs
+;@ VS mode step 26: once the question is printed, draws the FIGHT / PRIZE / EXIT window.
+;@ test: skip draws through helpers
+VSShowReadyMenu::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5E7C
-	call Call_15_5037
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> VSDrawReadyMenu()
+	call VSDrawReadyMenu
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_5037::
-	call Call_15_4D45
-	ld de, $6898
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $50db
+;@ def VSDrawReadyMenu()
+;@ path: link/vs
+;@ Draws the prize selection windows with the FIGHT / PRIZE / EXIT window and its cursor.
+;@ test: skip draws through helpers
+VSDrawReadyMenu::
+;> VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;> DrawWindowLayout_15(VSReadyWindow)
+	ld de, VSReadyWindow
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> MenuDrawCursorAt_15(wConfirmChoice2, VSReadyCursor)
+	ld de, VSReadyCursor
 	ld a, [wConfirmChoice2]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_504D::
+;@ def VSReadyInput()
+;@ path: link/vs
+;@ VS mode step 27: FIGHT goes on to the battle, PRIZE shows the monster the partner offers,
+;@ EXIT or B refuses the battle (byte $FE). A refusal from the partner ends it too.
+;@ test: skip runs the link protocol
+VSReadyInput::
+;> if wLinkReceivedLast == 0xFE:        # the partner refused
 	ld a, [wLinkReceivedLast]
 	cp $fe
-	jr nz, jr_015_5067
+	jr nz, .input
 
+;>     PrintSystemText(0x022E)           # "Battle refused."
 	ld hl, $022e
 	call PrintSystemText
+;>     wTitleStep = 0x1E
 	ld a, $1e
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
-	jp Jump_015_50da
+	jp .done
 
 
-jr_015_5067:
-	ld de, $50db
+.input
+;> MoveMenuCursor_15(wConfirmChoice2, 3, VSReadyCursor)
+	ld de, VSReadyCursor
 	ld hl, wConfirmChoice2
 	ld b, $03
-	call Call_15_5F85
+	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_508c
+	jr z, .notB
 
-jr_015_5079:
+;>     PrintSystemText(0x022D)           # "Refused the battle."
+.refuse
 	ld hl, $022d
 	call PrintSystemText
+;>     wTitleStep = 0x1E
 	ld a, $1e
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
-	jp Jump_015_50da
+	jp .done
 
 
-jr_015_508c:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_50da
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice2 == 0x80:       # FIGHT
 	ld a, [wConfirmChoice2]
 	cp $80
-	jr z, jr_015_50c6
+;>@five         wTitleStep += 5
+	jr z, .fight
 
+;>     elif wConfirmChoice2 == 0x82:     # EXIT: refuse as for B (the code above)
 	cp $82
-	jr z, jr_015_5079
+;>         pass                          # jumps to the B code above: "Refused the battle."
+	jr z, .refuse
 
+;>     elif wBreedParent2[0]:            # PRIZE: the partner offers one
 	ld a, [wBreedParent2]
 	or a
-	jr z, jr_015_50b8
+	jr z, .noPrize
 
+;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+;>         wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_015_50da
+	jp .done
 
 
-jr_015_50b8:
+;>     else:
+;>         PrintSystemText(0x022F)       # "No prize."
+.noPrize
 	ld hl, $022f
 	call PrintSystemText
+;>         wTitleStep = 0x19
 	ld a, $19
-	ld [$c8d2], a
-	jp Jump_015_50da
+	ld [wTitleStep], a
+	jp .done
 
 
-jr_015_50c6:
-	ld hl, $c8d2
+.fight
+;=@five
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+;=@five
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
-Jump_015_50da:
+.done
 	ret
 
 
-	db $2c, $00, $6c, $00, $ac, $00, $ff, $ff
+;@ path: link/vs
+;@ Cursor positions of the FIGHT / PRIZE / EXIT window ($FFFF ends).
+VSReadyCursor::
+	dw $002c, $006c, $00ac
+	dw $ffff
 
-Jump_15_50E3::
+;@ def VSShowPartnerPrize()
+;@ path: link/vs
+;@ VS mode step 28: shows the status screen of the partner's prize (slot $15 = wBreedParent2)
+;@ until it closes.
+;@ test: skip calls routines in other banks
+VSShowPartnerPrize::
+;> wCurPartyMember = 0x15
 	ld a, $15
 	ld [wCurPartyMember], a
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep:
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_50FE::
+;@ def VSPartnerPrizeDone()
+;@ path: link/vs
+;@ VS mode step 29: after the status screen, loads the font again, asks "Are you ready to
+;@ fight?" and redraws the screen with the FIGHT / PRIZE / EXIT window.
+;@ test: skip calls routines in other banks
+VSPartnerPrizeDone::
+;> DecompressVRAM(0x2E, 0x1E, 0x9000)   # font
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call DecompressVRAM
+;> PrintSystemText(0x022B)
 	ld hl, $022b
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_4D73
-	call Call_15_4D45
-	call Call_15_4AFB
-	call Call_15_5037
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> VSDrawPrizeListNames()
+	call VSDrawPrizeListNames
+;> VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;> VSDrawTeamNames()
+	call VSDrawTeamNames
+;> VSDrawReadyMenu()
+	call VSDrawReadyMenu
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 0x1A
 	ld a, $1a
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_5134::
+;@ def VSRefusedSync()
+;@ path: link/vs
+;@ VS mode step 30: after a refusal, waits for the partner's $FE, then runs one last block
+;@ exchange ($64 bytes of wSavedTilemap both ways) so both Game Boys leave together.
+;@ test: skip runs the link protocol
+VSRefusedSync::
+;> if wLinkReceivedLast != 0xFE:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $fe
 	ret nz
 
+;> wLinkSendLength = 0x64
 	ld a, $64
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkSendPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_5168::
+;@ def VSBackToTitle()
+;@ path: link/vs
+;@ VS mode step 31: when the last exchange has ended ($F0), closes the link and goes back to
+;@ the title menu (game mode 0 step 1).
+;@ test: skip starts a fade
+VSBackToTitle::
+;> if wLinkReceivedLast != 0xF0:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;> wGameMode = 0; wGameModeStep = 1
 	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 0; wLinkPhase = 0
 	ld a, $00
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wLinkFlags = 0
 	xor a
 	ld [wLinkFlags], a
+;> wSerialLock = 0
 	ld [wSerialLock], a
+;> wLinkActive = 0
 	ld [wLinkActive], a
+;> wLinkReceivedLast = 0
 	xor a
 	ld [wLinkReceivedLast], a
+;> wLinkSendByte = 0
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkCommand = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
 	ret
 
 
-Jump_15_51AA::
+;@ def VSFightWait()
+;@ path: link/vs
+;@ VS mode step 32: "One moment please." and tells the partner this side is ready (byte 1).
+;@ test: skip prints text
+VSFightWait::
+;> PrintSystemText(0x021F)
 	ld hl, $021f
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> wLinkSendByte = 1
 	ld a, $01
 	ld [wLinkSendByte], a
 	ret
 
 
-Jump_15_51BA::
+;@ def VSSendTeams()
+;@ path: link/vs
+;@ VS mode step 33: when the partner is ready, moves the team into monster slots 0-2 (through
+;@ the buffer wSavedTilemap), notes where the members came from (wVSTeamSlots, wVSTeamCount)
+;@ and sends the three records ($1BF bytes); the partner's team arrives in slots 4-6. Prints
+;@ "Fight!!".
+;@ test: skip runs the link protocol
+VSSendTeams::
+;> if wLinkReceivedLast == 0xFE:        # the partner refused
 	ld a, [wLinkReceivedLast]
 	cp $fe
-	jr nz, jr_015_51d4
+	jr nz, .notRefused
 
+;>     PrintSystemText(0x022E)           # "Battle refused."
 	ld hl, $022e
 	call PrintSystemText
+;>     wTitleStep = 0x1E
 	ld a, $1e
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
-	jp Jump_015_5286
+	jp .done
 
 
-jr_015_51d4:
+.notRefused
+;> if wLinkReceivedLast != 1:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
-	ld a, [$c0ec]
+;> CopyTeamRecord(wVSTeam[0], wSavedTilemap)
+	ld a, [wVSTeam]
 	ld de, wSavedTilemap
-	call Call_15_5287
-	ld a, [$c0ed]
+	call CopyTeamRecord
+;> CopyTeamRecord(wVSTeam[1], wSavedTilemap + 0x95)
+	ld a, [wVSTeam + 1]
 	ld de, $c395
-	call Call_15_5287
-	ld a, [$c0ee]
+	call CopyTeamRecord
+;> CopyTeamRecord(wVSTeam[2], wSavedTilemap + 0x12A)
+	ld a, [wVSTeam + 2]
 	ld de, $c42a
-	call Call_15_5287
+	call CopyTeamRecord
+;>@copy copy(wMonsters, wSavedTilemap, 3 * 0x95)
 	ld hl, wSavedTilemap
 	ld de, wMonsters
 	ld b, $95
 
-jr_015_51fd:
+.copy
+;=@copy
 	ld a, [hli]
 	ld [de], a
 	inc de
 	ld a, [hli]
 	ld [de], a
 	inc de
+;=@copy
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_015_51fd
+	jr nz, .copy
 
-	ld a, [$c0ec]
-	ld [$c8c4], a
-	ld a, [$c0ed]
-	ld [$c8c5], a
-	ld a, [$c0ee]
-	ld [$c8c6], a
+;> wVSTeamSlots[0:3] = wVSTeam[0:3]
+	ld a, [wVSTeam]
+	ld [wVSTeamSlots], a
+	ld a, [wVSTeam + 1]
+	ld [wVSTeamSlots + 1], a
+	ld a, [wVSTeam + 2]
+	ld [wVSTeamSlots + 2], a
+;> wVSTeamCount = 0
 	xor a
-	ld [$c8c3], a
-	ld a, [$c8c4]
+	ld [wVSTeamCount], a
+;>@cnt for i in range(3):              # count the members up to the first empty place
+;>@cnt2     if wVSTeamSlots[i] == 0xFF: break
+	ld a, [wVSTeamSlots]
 	cp $ff
-	jr z, jr_015_5243
+	jr z, .counted
 
+;>@inc     wVSTeamCount = i + 1
 	ld a, $01
-	ld [$c8c3], a
-	ld a, [$c8c5]
+	ld [wVSTeamCount], a
+;=@cnt2
+	ld a, [wVSTeamSlots + 1]
 	cp $ff
-	jr z, jr_015_5243
+	jr z, .counted
 
+;=@inc
 	ld a, $02
-	ld [$c8c3], a
-	ld a, [$c8c6]
+	ld [wVSTeamCount], a
+;=@cnt2
+	ld a, [wVSTeamSlots + 2]
 	cp $ff
-	jr z, jr_015_5243
+	jr z, .counted
 
+;=@inc
 	ld a, $03
-	ld [$c8c3], a
+	ld [wVSTeamCount], a
 
-jr_015_5243:
+.counted
+;>@master copy(wMonMaster, wPlayerName, 8)    # the first member's master is this player
 	ld hl, wPlayerName
 	ld de, wMonMaster
 	ld b, $08
 
-jr_015_524b:
+.master
+;=@master
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_015_524b
+	jr nz, .master
 
+;> wLinkSendLength = 0x1BF             # the three records
 	ld hl, $01bf
 	ld a, l
 	ld [wLinkSendLength], a
 	ld a, h
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkSendPtr = wMonsters
 	ld hl, wMonsters
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wMonsters + 4 * 0x95  # slot 4
 	ld hl, $cd15
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> PrintSystemText(0x022C)             # "Fight!!"
 	ld hl, $022c
 	call PrintSystemText
 
-Jump_015_5286:
+.done
 	ret
 
 
-Call_15_5287::
+;@ def CopyTeamRecord(slot: a, dest: de)
+;@ path: link/vs
+;@ Copies the $95-byte record of monster `slot` to `dest`; an empty team place ($FF) gives a
+;@ record whose first byte is 0 (no monster).
+;@ test: skip copies through MonsterField
+CopyTeamRecord::
+;> if slot & 0x7F == 0x7F:
 	and $7f
 	cp $7f
-	jr nz, jr_015_5290
+	jr nz, .copy
 
+;>     mem[dest] = 0
 	xor a
 	ld [de], a
 	ret
 
 
-jr_015_5290:
+;> else:
+;>@copy     copy(dest, MonsterField(wMonsters, slot), 0x95)
+.copy
 	push de
 	ld hl, wMonsters
 	call MonsterField
 	pop de
 	ld b, $95
 
-jr_015_529a:
+.loop
+;=@copy
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_015_529a
+	jr nz, .loop
 
 	ret
 
 
-Jump_15_52A1::
+;@ def VSStartBattle()
+;@ path: link/vs
+;@ VS mode step 34: when the teams are exchanged ($F0), the Game Boy that drives the clock
+;@ swaps slots 0-2 with 4-6, so that on both Game Boys slots 0-2 hold the same team; makes
+;@ those slots the party and starts the battle (game mode 2, link mode 1).
+;@ test: skip calls routines in other banks
+VSStartBattle::
+;> if wLinkReceivedLast != 0xF0:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;> RollEncounterGroup()
 	ld hl, far_RollEncounterGroup
 	rst $10
+;> src = dst = wMonsters
 	ld hl, wMonsters
 	ld de, wMonsters
 	ld b, $95
+;> if wLinkFlags & 0x02:                # this side drives the clock
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_015_52c1
+	jr z, .swap
 
+;>     dst = wMonsters + 4 * 0x95        # slot 4
 	ld de, $cd15
 
-jr_015_52c1:
+.swap
+;>@swap for i in range(3 * 0x95):            # (src == dst changes nothing)
+;>     mem[src + i], mem[dst + i] = mem[dst + i], mem[src + i]
 	ld c, [hl]
 	ld a, [de]
 	ld [hli], a
 	ld a, c
 	ld [de], a
 	inc de
+;=@swap
 	ld c, [hl]
 	ld a, [de]
 	ld [hli], a
 	ld a, c
 	ld [de], a
 	inc de
+;=@swap
 	ld c, [hl]
 	ld a, [de]
 	ld [hli], a
 	ld a, c
 	ld [de], a
 	inc de
+;=@swap
 	dec b
-	jr nz, jr_015_52c1
+	jr nz, .swap
 
+;> wParty[0:3] = [0xFF, 0xFF, 0xFF]
 	ld a, $ff
 	ld [wParty], a
-	ld [$ca8f], a
-	ld [$ca90], a
+	ld [wParty + 1], a
+	ld [wParty + 2], a
+;> count = 0
 	ld b, $00
+;>@p0 for i in range(3):               # slots 0-2 up to the first empty one
+;>@p1     if mem[wMonsters + i * 0x95] == 0: break
 	ld a, [wMonsters]
 	or a
-	jr z, jr_015_5307
+	jr z, .partyDone
 
+;>@p2     wParty[i] = i; count += 1
 	ld a, $00
 	ld [wParty], a
 	inc b
+;=@p1
 	ld a, [$cb56]
 	or a
-	jr z, jr_015_5307
+	jr z, .partyDone
 
+;=@p2
 	ld a, $01
-	ld [$ca8f], a
+	ld [wParty + 1], a
 	inc b
+;=@p1
 	ld a, [$cbeb]
 	or a
-	jr z, jr_015_5307
+	jr z, .partyDone
 
+;=@p2
 	ld a, $02
-	ld [$ca90], a
+	ld [wParty + 2], a
 	inc b
 
-jr_015_5307:
+.partyDone
+;> wPartyCount = count
 	ld a, b
 	ld [wPartyCount], a
-	ld a, [$c8ba]
+;> if wLinkPrizeSlot == 0x14:           # no prize offered
+	ld a, [wLinkPrizeSlot]
 	cp $14
-	jr nz, jr_015_5317
+	jr nz, .start
 
+;>     wLinkPrizeSlot = 0xFF
 	ld a, $ff
-	ld [$c8ba], a
+	ld [wLinkPrizeSlot], a
 
-jr_015_5317:
+.start
+;> wGameMode = 2; wGameModeStep = 0     # the battle
 	ld hl, wGameMode
 	ld a, $02
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 1; wLinkPhase = 0
 	ld a, $01
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wLinkSendByte = 0
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkReceivedLast = 0
 	xor a
 	ld [wLinkReceivedLast], a
 	ret
 
 
-Jump_15_533C::
+;@ def VSPrizeInParty()
+;@ path: link/vs
+;@ VS mode step 35: after "You cannot choose the monster in your current party as a prize."
+;@ redraws the prize list (back to step 16).
+;@ test: skip draws through helpers
+VSPrizeInParty::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_4D73
-	call Call_15_4D45
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> VSDrawPrizeListNames()
+	call VSDrawPrizeListNames
+;> VSDrawPrizeWindows()
+	call VSDrawPrizeWindows
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> PrintSystemText(0x022A)             # "Choose a monster for the prize?"
 	ld hl, $022a
 	call PrintSystemText
+;> wTitleStep = 0x10
 	ld a, $10
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_535C::
+;@ def VSPartnerCancelled()
+;@ path: link/vs
+;@ VS mode step 36: one side cancelled (byte $FD); once the partner's $FD arrives, runs the last
+;@ block exchange and goes to step 31 (back to the title).
+;@ test: skip runs the link protocol
+VSPartnerCancelled::
+;> if wLinkReceivedLast != 0xFD:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
+;> wLinkSendLength = 0x64
 	ld a, $64
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkSendPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wTitleStep = 0x1F
 	ld a, $1f
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
 	ret
 
 
-Call_15_5391::
+;@ def VSCheckPartnerCancel()
+;@ path: link/vs
+;@ Checks whether the partner cancelled VS mode (byte $FD). If so prints "Battle refused.",
+;@ answers $FD and goes to step 36, returning false (zero flag set); else returns true.
+;@ test: skip prints text
+VSCheckPartnerCancel::
+;> if wLinkReceivedLast != 0xFD:
+;>     return True
 	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
+;> PrintSystemText(0x022E)             # "Battle refused."
 	ld hl, $022e
 	call PrintSystemText
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
+	call DrawWindowLayout_15
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 0x24
 	ld a, $24
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;> wLinkSendByte = 0xFD
 	ld a, $fd
 	ld [wLinkSendByte], a
+;> return False
 	xor a
 	ret
 
 
-Call_15_53B2::
+;@ def VSDrawStatusMonster()
+;@ path: link/menu
+;@ On page 5 of the monster status screen (wFieldMenuStep 5), draws the monster's sprite at
+;@ (144, 64), stepping between its two frames every 16 frames.
+;@ test: skip calls routines in other banks
+VSDrawStatusMonster::
+;> if wFieldMenuStep != 5:
+;>     return
 	ld a, [wFieldMenuStep]
 	cp $05
 	ret nz
 
+;> species = mem[MonsterField(wMonRecSpecies, wCurPartyMember)]
 	ld hl, wMonRecSpecies
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
 	push af
+;> hSpriteX = 0x0090
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0040
 	ld a, $40
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@frame hSpriteFrame = (wFrameCounter >> 4) & 1
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_015_53e1
+	jr z, .frame
 
 	ld b, $01
 
-jr_015_53e1:
+.frame
+;=@frame
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x50; hSpriteAttr = 0
 	ld a, $50
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Call_15_53EE::
+;@ def VSDrawStatusParents()
+;@ path: link/menu
+;@ On page 9 of the monster status screen (the pedigree), draws the sprites of both parents
+;@ at (144, 48) and (144, 120).
+;@ test: skip calls routines in other banks
+VSDrawStatusParents::
+;> if wFieldMenuStep != 9:
+;>     return
 	ld a, [wFieldMenuStep]
 	cp $09
 	ret nz
 
+;> species = mem[MonsterField(wMonParent1, wCurPartyMember)]
 	ld hl, wMonParent1
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
+;> if species == 0xFF:                  # no parents
+;>     return
 	cp $ff
 	ret z
 
+;> hSpriteX = 0x0090
 	push af
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0030
 	ld a, $30
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@frame1 hSpriteFrame = (wFrameCounter >> 4) & 1
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_015_5420
+	jr z, .frame1
 
 	ld b, $01
 
-jr_015_5420:
+.frame1
+;=@frame1
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x60; hSpriteAttr = 0
 	ld a, $60
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
+;> species = mem[MonsterField(wMonParent2, wCurPartyMember)]
 	ld hl, wMonParent2
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
 	push af
+;> hSpriteX = 0x0090
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0078
 	ld a, $78
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@frame2 hSpriteFrame = (wFrameCounter >> 4) & 1
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_015_5455
+	jr z, .frame2
 
 	ld b, $01
 
-jr_015_5455:
+.frame2
+;=@frame2
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x70; hSpriteAttr = 0
 	ld a, $70
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Jump_15_5462::
+TitleUpdateBreedLink::
 	call LinkFrameUpdate
-	ld a, [$c8d2]
+	ld a, [wTitleStep]
 	cp $06
 	jr z, jr_015_5471
 
@@ -2986,54 +4405,54 @@ Jump_15_5462::
 
 
 jr_015_5471:
-	call Call_15_5C60
-	call Call_15_5C9C
+	call BreedDrawStatusMonster
+	call BreedDrawStatusParents
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
 	ret
 
 
-Call_15_547C::
-	ld a, [$c8d2]
+BreedLinkFrame::
+	ld a, [wTitleStep]
 	rst $00
 
-JumpTable_15_5480::
-	dw Jump_15_54B4
-	dw Jump_15_551F
-	dw Jump_15_55BF
-	dw Jump_15_5659
-	dw Jump_15_565E
-	dw Jump_15_5687
-	dw Jump_15_572F
-	dw Jump_15_5745
-	dw Jump_15_5775
-	dw Jump_15_5785
-	dw Jump_15_57C3
-	dw Jump_15_582F
-	dw Jump_15_583A
-	dw Jump_15_5863
-	dw Jump_15_58E9
-	dw Jump_15_5904
-	dw Jump_15_5934
-	dw Jump_15_595C
-	dw Jump_15_5990
-	dw Jump_15_59D2
-	dw Jump_15_59E1
-	dw Jump_15_5A0F
-	dw Jump_15_5A7B
-	dw Jump_15_5A8B
-	dw Jump_15_5ADF
-	dw Jump_15_5C0A
+BreedLinkSteps::
+	dw BreedStart
+	dw BreedShowList
+	dw BreedListInput
+	dw BreedPicked
+	dw BreedShowChoice
+	dw BreedChoiceInput
+	dw BreedShowStatus
+	dw BreedStatusDone
+	dw BreedWait
+	dw BreedSendMonster
+	dw BreedCheckPair
+	dw BreedAskBreed
+	dw BreedShowMenu
+	dw BreedMenuInput
+	dw BreedShowPartner
+	dw BreedPartnerDone
+	dw BreedBackToList
+	dw BreedRefusedSync
+	dw BreedBackToTitle
+	dw BreedAskSave
+	dw BreedShowSaveYesNo
+	dw BreedSaveInput
+	dw BreedFinalWait
+	dw BreedFinalSync
+	dw BreedMakeOffspring
+	dw BreedPartnerCancelled
 
-Jump_15_54B4::
-	call Call_15_54BF
-	call Call_15_54E9
-	ld hl, $c8d2
+BreedStart::
+	call CountBreedCandidates
+	call ListBreedCandidates
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_54BF::
+CountBreedCandidates::
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
@@ -3068,11 +4487,11 @@ jr_015_54d8:
 	jr nz, jr_015_54c6
 
 	ld a, c
-	ld [$c8d8], a
+	ld [wTitleListCount], a
 	ret
 
 
-Call_15_54E9::
+ListBreedCandidates::
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -3116,44 +4535,44 @@ jr_015_5511:
 	ret
 
 
-Jump_15_551F::
+BreedShowList::
 	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_556A
-	call Call_15_5542
-	call Call_15_5DC0
+	call ClearTilemapBuffer_15
+	call DrawCursorMonName
+	call BreedDrawListNames
+	call BreedDrawWindows
+	call CopyTilemapBufferToVram_15
 	ld hl, $021c
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_5542::
+BreedDrawWindows::
 	ld de, $6928
-	call Call_15_5D8F
-	call Call_15_48E5
+	call DrawWindowLayout_15
+	call DrawCursorMonLevel
 	ld de, $67b5
-	call Call_15_5D8F
+	call DrawWindowLayout_15
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5FE3
+	call DrawWindowLayout_15
+	call MenuResetBlink_15
 	ld de, $564d
 	ld b, $04
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wLinkChoice
-	call Call_15_6080
+	call MenuDrawListCursor_15
 	ret
 
 
-Call_15_556A::
+BreedDrawListNames::
 	ld a, [wMenuChoice2]
 	add a
 	add a
@@ -3164,11 +4583,11 @@ Call_15_556A::
 	adc d
 	ld d, a
 	ld hl, $9100
-	call Call_15_5584
-	call Call_15_5584
-	call Call_15_5584
+	call BreedDrawListName
+	call BreedDrawListName
+	call BreedDrawListName
 
-Call_15_5584::
+BreedDrawListName::
 	push de
 	push hl
 	ld a, [de]
@@ -3182,7 +4601,7 @@ Call_15_5584::
 	ld d, h
 	pop hl
 	push hl
-	call Call_15_5E2E
+	call DrawNameTiles_15
 	pop hl
 	ld a, l
 	add $40
@@ -3218,7 +4637,7 @@ jr_015_55a7:
 	ret
 
 
-Jump_15_55BF::
+BreedListInput::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -3227,12 +4646,12 @@ Jump_15_55BF::
 	or a
 	ret nz
 
-	call Call_15_5C3F
+	call BreedCheckPartnerCancel
 	ret z
 
 	ld de, $564d
 	ld hl, wLinkChoice
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -3240,15 +4659,15 @@ Jump_15_55BF::
 	push af
 	ld a, [hl]
 	push af
-	call Call_15_5EFC
+	call MovePagedListCursor_15
 	pop af
 	ld hl, wLinkChoice
 	cp [hl]
 	jr z, jr_015_55f1
 
-	call Call_15_4860
-	call Call_15_48E5
-	call Call_15_5DC0
+	call DrawCursorMonName
+	call DrawCursorMonLevel
+	call CopyTilemapBufferToVram_15
 
 jr_015_55f1:
 	pop af
@@ -3256,10 +4675,10 @@ jr_015_55f1:
 	cp [hl]
 	jr z, jr_015_5604
 
-	call Call_15_556A
-	call Call_15_4860
-	call Call_15_48E5
-	call Call_15_5DC0
+	call BreedDrawListNames
+	call DrawCursorMonName
+	call DrawCursorMonLevel
+	call CopyTilemapBufferToVram_15
 
 jr_015_5604:
 	ld a, [wJoyPressed]
@@ -3269,7 +4688,7 @@ jr_015_5604:
 	ld hl, $0221
 	call PrintSystemText
 	ld a, $19
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ld a, $fd
 	ld [wLinkSendByte], a
 	jr jr_015_564c
@@ -3298,7 +4717,7 @@ Jump_015_561e:
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
 Jump_015_564c:
@@ -3308,58 +4727,58 @@ jr_015_564c:
 
 	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
 
-Jump_15_5659::
-	ld hl, $c8d2
+BreedPicked::
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_565E::
+BreedShowChoice::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5E7C
-	call Call_15_5671
-	call Call_15_5DC0
-	ld hl, $c8d2
+	call ClearTilemapBuffer_15
+	call BreedDrawChoice
+	call CopyTilemapBufferToVram_15
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_5671::
-	call Call_15_5542
+BreedDrawChoice::
+	call BreedDrawWindows
 	ld de, $6849
-	call Call_15_5D8F
-	call Call_15_5FE3
+	call DrawWindowLayout_15
+	call MenuResetBlink_15
 	ld de, $5729
 	ld a, [wConfirmChoice]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_5687::
-	call Call_15_5C3F
+BreedChoiceInput::
+	call BreedCheckPartnerCancel
 	ret z
 
 	ld de, $5729
 	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_15_5F85
+	call MoveMenuCursor_15
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_56bb
 
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_556A
-	call Call_15_5542
-	call Call_15_5DC0
-	ld hl, $c8d2
+	call ClearTilemapBuffer_15
+	call DrawCursorMonName
+	call BreedDrawListNames
+	call BreedDrawWindows
+	call CopyTilemapBufferToVram_15
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
 	jp Jump_015_5728
 
@@ -3378,7 +4797,7 @@ jr_015_56bb:
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_015_5728
 
@@ -3386,7 +4805,7 @@ jr_015_56bb:
 jr_015_56dd:
 	ld a, [wCurPartyMember]
 	ld b, a
-	call Call_15_4F14
+	call IsInStashedParty
 	jr nz, jr_015_56f4
 
 	ld a, [wCurPartyMember]
@@ -3400,7 +4819,7 @@ jr_015_56f4:
 	ld hl, $025d
 	call PrintSystemText
 	ld a, $10
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jr jr_015_5728
 
 jr_015_5701:
@@ -3414,15 +4833,15 @@ jr_015_5701:
 	ld hl, $0230
 	call PrintSystemText
 	ld a, $10
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jr jr_015_5728
 
 jr_015_571c:
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
 Jump_015_5728:
@@ -3432,7 +4851,7 @@ jr_015_5728:
 
 	db $2e, $00, $6e, $00, $ff, $ff
 
-Jump_15_572F::
+BreedShowStatus::
 	xor a
 	ld [wMenuSubStep], a
 	xor a
@@ -3443,12 +4862,12 @@ Jump_15_572F::
 	or a
 	ret z
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_5745::
+BreedStatusDone::
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
@@ -3458,35 +4877,35 @@ Jump_15_5745::
 	ld hl, $021c
 	call PrintSystemText
 	call RunTextToEnd
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_556A
-	call Call_15_5671
-	call Call_15_5DC0
+	call ClearTilemapBuffer_15
+	call DrawCursorMonName
+	call BreedDrawListNames
+	call BreedDrawChoice
+	call CopyTilemapBufferToVram_15
 	ld a, $05
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_5775::
+BreedWait::
 	ld hl, $021f
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $01
 	ld [wLinkSendByte], a
 	ret
 
 
-Jump_15_5785::
-	call Call_15_5C3F
+BreedSendMonster::
+	call BreedCheckPartnerCancel
 	ret z
 
 	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $95
 	ld [wLinkSendLength], a
@@ -3511,7 +4930,7 @@ Jump_15_5785::
 	ret
 
 
-Jump_15_57C3::
+BreedCheckPair::
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
@@ -3532,7 +4951,7 @@ Jump_15_57C3::
 	ld hl, $021e
 	call PrintSystemText
 	ld a, $10
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jr jr_015_582e
 
 jr_015_57ef:
@@ -3567,52 +4986,52 @@ jr_015_57ef:
 	ld hl, $025e
 	call PrintSystemText
 	ld a, $10
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jr jr_015_582e
 
 jr_015_5825:
 	ld a, $00
 	ld [wLinkSendByte], a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
 jr_015_582e:
 	ret
 
 
-Jump_15_582F::
+BreedAskBreed::
 	ld hl, $0220
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_583A::
+BreedShowMenu::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_15_5E7C
-	call Call_15_584D
-	call Call_15_5DC0
-	ld hl, $c8d2
+	call ClearTilemapBuffer_15
+	call BreedDrawMenu
+	call CopyTilemapBufferToVram_15
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_584D::
-	call Call_15_5542
+BreedDrawMenu::
+	call BreedDrawWindows
 	ld de, $68e0
-	call Call_15_5D8F
-	call Call_15_5FE3
+	call DrawWindowLayout_15
+	call MenuResetBlink_15
 	ld de, $58e1
 	ld a, [wConfirmChoice2]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_5863::
+BreedMenuInput::
 	ld a, [wLinkReceivedLast]
 	cp $fe
 	jr nz, jr_015_587d
@@ -3620,7 +5039,7 @@ Jump_15_5863::
 	ld hl, $0222
 	call PrintSystemText
 	ld a, $11
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ld a, $fe
 	ld [wLinkSendByte], a
 	jp Jump_015_58e0
@@ -3630,7 +5049,7 @@ jr_015_587d:
 	ld de, $58e1
 	ld hl, wConfirmChoice2
 	ld b, $03
-	call Call_15_5F85
+	call MoveMenuCursor_15
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_58a2
@@ -3639,7 +5058,7 @@ jr_015_588f:
 	ld hl, $0221
 	call PrintSystemText
 	ld a, $11
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ld a, $fe
 	ld [wLinkSendByte], a
 	jp Jump_015_58e0
@@ -3662,932 +5081,1349 @@ jr_015_58a2:
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_015_58e0
 
 
 jr_015_58c8:
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
 Jump_015_58e0:
 	ret
 
 
+BreedMenuCursor::
 	db $2c, $00, $6c, $00, $ac, $00, $ff, $ff
 
-Jump_15_58E9::
+;@ def BreedShowPartner()
+;@ path: link/breed
+;@ Breeding step 14: CHECK shows the status screen of the partner's monster (slot $15 =
+;@ wBreedParent2) until it closes.
+;@ test: skip calls routines in other banks
+BreedShowPartner::
+;> wCurPartyMember = 0x15
 	ld a, $15
 	ld [wCurPartyMember], a
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep:
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
-	ld hl, $c8d2
+;>     wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_5904::
+;@ def BreedPartnerDone()
+;@ path: link/breed
+;@ Breeding step 15: after the status screen, loads the font again, asks "Want to breed?" and
+;@ redraws the BREED / CHECK / EXIT menu (back to step 13).
+;@ test: skip calls routines in other banks
+BreedPartnerDone::
+;> DecompressVRAM(0x2E, 0x1E, 0x9000)   # font
 	ld de, $2e1e
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call DecompressVRAM
+;> PrintSystemText(0x0220)             # "Want to breed?"
 	ld hl, $0220
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_556A
-	call Call_15_584D
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> BreedDrawListNames()
+	call BreedDrawListNames
+;> BreedDrawMenu()
+	call BreedDrawMenu
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 0x0D
 	ld a, $0d
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_5934::
+;@ def BreedBackToList()
+;@ path: link/breed
+;@ Breeding step 16: after a message (wrong monster, same sex, failed pair) clears the byte
+;@ sent to the partner and shows the list again (step 2).
+;@ test: skip calls routines in other banks
+BreedBackToList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wLinkSendByte = 0
 	ld a, $00
 	ld [wLinkSendByte], a
+;> PrintSystemText(0x021C)             # "Choose a monster for breeding."
 	ld hl, $021c
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
-	call Call_15_5E7C
-	call Call_15_4860
-	call Call_15_556A
-	call Call_15_5542
-	call Call_15_5DC0
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> DrawCursorMonName()
+	call DrawCursorMonName
+;> BreedDrawListNames()
+	call BreedDrawListNames
+;> BreedDrawWindows()
+	call BreedDrawWindows
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 2
 	ld a, $02
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
-Jump_15_595C::
+;@ def BreedRefusedSync()
+;@ path: link/breed
+;@ Breeding step 17: after a refusal, waits for the partner's $FE, then runs one last block
+;@ exchange ($64 bytes of wSavedTilemap both ways) so both Game Boys leave together.
+;@ test: skip runs the link protocol
+BreedRefusedSync::
+;> if wLinkReceivedLast != 0xFE:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $fe
 	ret nz
 
+;> wLinkSendLength = 0x64
 	ld a, $64
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkSendPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_5990::
+;@ def BreedBackToTitle()
+;@ path: link/breed
+;@ Breeding step 18: when the last exchange has ended ($F0), closes the link and goes back to
+;@ the title menu (game mode 0 step 1).
+;@ test: skip starts a fade
+BreedBackToTitle::
+;> if wLinkReceivedLast != 0xF0:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;> wGameMode = 0; wGameModeStep = 1
 	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 0; wLinkPhase = 0
 	ld a, $00
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wLinkFlags = 0
 	xor a
 	ld [wLinkFlags], a
+;> wSerialLock = 0
 	ld [wSerialLock], a
+;> wLinkActive = 0
 	ld [wLinkActive], a
+;> wLinkReceivedLast = 0
 	xor a
 	ld [wLinkReceivedLast], a
+;> wLinkSendByte = 0
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkCommand = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
 	ret
 
 
-Jump_15_59D2::
+;@ def BreedAskSave()
+;@ path: link/breed
+;@ Breeding step 19: asks "Save the result of breeding?".
+;@ test: skip prints text
+BreedAskSave::
+;> PrintSystemText(0x0223)
 	ld hl, $0223
 	call PrintSystemText
+;> wMenuChoice3 = 0
 	xor a
 	ld [wMenuChoice3], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_15_59E1::
+;@ def BreedShowSaveYesNo()
+;@ path: link/breed
+;@ Breeding step 20: once the question is printed, beeps and draws its YES / NO window.
+;@ test: skip draws through helpers
+BreedShowSaveYesNo::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-	call Call_15_5E7C
-	call Call_15_59F9
-	call Call_15_5DC0
-	ld hl, $c8d2
+;> ClearTilemapBuffer_15()
+	call ClearTilemapBuffer_15
+;> BreedDrawSaveYesNo()
+	call BreedDrawSaveYesNo
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_15_59F9::
-	call Call_15_584D
-	ld de, $6716
-	call Call_15_5D8F
-	call Call_15_5FE3
-	ld de, $5a75
+;@ def BreedDrawSaveYesNo()
+;@ path: link/breed
+;@ Draws the breeding menu with the YES / NO window of "Save the result of breeding?".
+;@ test: skip draws through helpers
+BreedDrawSaveYesNo::
+;> BreedDrawMenu()
+	call BreedDrawMenu
+;> DrawWindowLayout_15(BreedSaveYesNoWindow)
+	ld de, BreedSaveYesNoWindow
+	call DrawWindowLayout_15
+;> MenuResetBlink_15()
+	call MenuResetBlink_15
+;> MenuDrawCursorAt_15(wMenuChoice3, BreedSaveCursor)
+	ld de, BreedSaveCursor
 	ld a, [wMenuChoice3]
-	call Call_15_60A2
+	call MenuDrawCursorAt_15
 	ret
 
 
-Jump_15_5A0F::
+;@ def BreedSaveInput()
+;@ path: link/breed
+;@ Breeding step 21: YES goes on to the breeding; NO or B goes back to "Want to breed?". A
+;@ refusal from the partner ends it.
+;@ test: skip runs the link protocol
+BreedSaveInput::
+;> if wLinkReceivedLast == 0xFE:        # the partner refused
 	ld a, [wLinkReceivedLast]
 	cp $fe
-	jr nz, jr_015_5a29
+	jr nz, .input
 
+;>     PrintSystemText(0x0222)           # "Breeding refused."
 	ld hl, $0222
 	call PrintSystemText
+;>     wTitleStep = 0x11
 	ld a, $11
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
-jr_015_5a29:
-	ld de, $5a75
+.input
+;> MoveMenuCursor_15(wMenuChoice3, 2, BreedSaveCursor)
+	ld de, BreedSaveCursor
 	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_15_5F85
+	call MoveMenuCursor_15
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_015_5a52
+	jr z, .notB
 
-jr_015_5a3b:
-	call Call_15_5E7C
-	call Call_15_584D
-	call Call_15_5DC0
+;>     ClearTilemapBuffer_15()
+.back
+	call ClearTilemapBuffer_15
+;>     BreedDrawMenu()
+	call BreedDrawMenu
+;>     CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;>     PrintSystemText(0x0220)           # "Want to breed?"
 	ld hl, $0220
 	call PrintSystemText
+;>     wTitleStep = 0x0C
 	ld a, $0c
-	ld [$c8d2], a
-	jp Jump_015_5a74
+	ld [wTitleStep], a
+	jp .done
 
 
-jr_015_5a52:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_015_5a74
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:          # NO: back as for B (the code above)
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_015_5a3b
+;>         pass                          # jumps to the B code above: back to "Want to breed?"
+	jr z, .back
 
+;>     else:
+;>         wStatusViewVars[0] = 0; wFieldMenuStep = 0
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+;>         wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
-	jp Jump_015_5a74
+	jp .done
 
 
-Jump_015_5a74:
+.done
 	ret
 
 
-	db $2f, $01, $6f, $01, $ff, $ff
+;@ path: link/breed
+;@ Cursor positions of the YES / NO window of "Save the result of breeding?" ($FFFF ends).
+BreedSaveCursor::
+	dw $012f, $016f
+	dw $ffff
 
-Jump_15_5A7B::
+;@ def BreedFinalWait()
+;@ path: link/breed
+;@ Breeding step 22: "One moment please." and tells the partner this side is ready (byte 1).
+;@ test: skip prints text
+BreedFinalWait::
+;> PrintSystemText(0x021F)
 	ld hl, $021f
 	call PrintSystemText
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> wLinkSendByte = 1
 	ld a, $01
 	ld [wLinkSendByte], a
 	ret
 
 
-Jump_15_5A8B::
+;@ def BreedFinalSync()
+;@ path: link/breed
+;@ Breeding step 23: when the partner is ready too, runs the last block exchange and prints
+;@ "The ceremony!". A refusal from the partner ends it.
+;@ test: skip runs the link protocol
+BreedFinalSync::
+;> if wLinkReceivedLast == 0xFE:        # the partner refused
 	ld a, [wLinkReceivedLast]
 	cp $fe
-	jr nz, jr_015_5aa5
+	jr nz, .notRefused
 
+;>     PrintSystemText(0x0222)           # "Breeding refused."
 	ld hl, $0222
 	call PrintSystemText
+;>     wTitleStep = 0x11
 	ld a, $11
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;>     wLinkSendByte = 0xFE
 	ld a, $fe
 	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
-jr_015_5aa5:
+.notRefused
+;> if wLinkReceivedLast != 1:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
+;> wLinkSendLength = 0x64
 	ld a, $64
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkSendPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
-	ld hl, $c8d2
+;> wTitleStep += 1
+	ld hl, wTitleStep
 	inc [hl]
+;> PrintSystemText(0x0224)             # "The ceremony!"
 	ld hl, $0224
 	call PrintSystemText
 	ret
 
 
-Jump_15_5ADF::
+;@ def BreedMakeOffspring()
+;@ path: link/breed
+;@ Breeding step 24: when the last exchange has ended ($F0), closes the link and makes the
+;@ offspring: this side's parent is copied to wBreedParent1 (the partner's is in wBreedParent2)
+;@ and leaves the farm, the egg is made (MakeOffspring in bank $16), the monster library flags
+;@ and the monsters are saved, and the game goes to the field (map 8, the breeding ceremony)
+;@ with the parents' names and the offspring's species name ready for its messages.
+;@ test: skip touches battery RAM
+BreedMakeOffspring::
+;> if wLinkReceivedLast != 0xF0:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
+;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
+;> wGameMode = 1; wGameModeStep = 1     # the field
 	ld hl, wGameMode
 	ld a, $01
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 0; wLinkPhase = 0
 	ld a, $00
 	ld [wLinkMode], a
 	ld a, $00
 	ld [wLinkPhase], a
+;> wLinkFlags = 0
 	xor a
 	ld [wLinkFlags], a
+;> wSerialLock = 0
 	ld [wSerialLock], a
+;> wLinkReceivedLast = 0
 	xor a
 	ld [wLinkReceivedLast], a
+;> wLinkSendByte = 0
 	xor a
 	ld [wLinkSendByte], a
+;> wLinkCommand = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;>@pick wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
 	ld a, [wLinkChoice]
 	and $7f
+;=@pick
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@pick
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;>@copy copy(wBreedParent1, MonsterField(wMonsters, wCurPartyMember), 0x95)
 	ld hl, wMonsters
 	call MonsterField
 	ld de, wBreedParent1
 	ld b, $95
 
-jr_015_5b41:
+.copy
+;=@copy
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_015_5b41
+	jr nz, .copy
 
+;> wEncGfx[0] = mem[MonsterField(wMonRecSpecies, wCurPartyMember)] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	add $10
 	ld [wEncGfx], a
+;> wEncGfx[1] = 1
 	ld a, $01
-	ld [$d7cb], a
+	ld [wEncGfx + 1], a
+;> mem[MonsterField(wMonsters, wCurPartyMember)] = 0      # the parent leaves the farm
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
+;> wEncGfx[2] = mem[MonsterField(wMonRecSpecies, 0x15)] + 0x10   # the partner's monster
 	ld a, $15
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	add $10
-	ld [$d7cc], a
+	ld [wEncGfx + 2], a
+;> wEncGfx[3] = 1
 	ld a, $01
-	ld [$d7cd], a
+	ld [wEncGfx + 3], a
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_16_4015
+;> Call_16_4015()                       # make the offspring egg
+	ld hl, far_MakeOffspring
 	rst $10
+;> wLinkActive = 0
 	xor a
 	ld [wLinkActive], a
+;> disable_interrupts()
 	di
+;> mem[0x0100] = 0x0A                   # battery RAM on
 	ld hl, wLibraryFlags
-	ld de, $a1ce
+	ld de, sLibraryFlags
 	ld b, $20
 	ld a, $0a
 	ld [$0100], a
 
-jr_015_5b93:
+.saveFlags
+;> copy(sLibraryFlags, wLibraryFlags, 0x20)
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_015_5b93
+	jr nz, .saveFlags
 
+;> mem[0x0100] = 0x00                   # battery RAM off
 	ld a, $00
 	ld [$0100], a
+;> SaveMonsters()
 	call SaveMonsters
+;> enable_interrupts()
 	ei
+;>@n0 CopyName(MonsterField(wMonName, 0x14), wTextArg0)     # this side's parent
 	ld a, $14
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@n0
 	ld hl, wTextArg0
 	call CopyName
+;>@n1 CopyName(MonsterField(wMonName, 0x15), wTextArg1)     # the partner's
 	ld a, $15
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@n1
 	ld hl, wTextArg1
 	call CopyName
+;>@sp CopySystemText(0x0500 + mem[MonsterField(wMonRecSpecies, wCurPartyMember)], wTextArg2)
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld l, [hl]
 	ld h, $05
 	ld de, wTextArg2
+;=@sp
 	call CopySystemText
+;> wMessageSpeed = 4
 	ld a, $04
-	ld [$c8ee], a
+	ld [wMessageSpeed], a
+;> wGameStarted = 0
 	xor a
 	ld [wGameStarted], a
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> wMapId = 8
 	ld a, $08
 	ld [wMapId], a
+;> wPrevMapId = 8
 	ld [wPrevMapId], a
+;> wOnGateFloor = 0
 	ld a, $00
 	ld [wOnGateFloor], a
+;> wPrevOnGateFloor = 0
 	ld [wPrevOnGateFloor], a
+;> wPartyCount = 0
 	ld a, $00
 	ld [wPartyCount], a
+;> wParty[0] = 0xFF
 	ld a, $ff
 	ld [wParty], a
+;> wParty[1] = 0xFF
 	ld a, $ff
-	ld [$ca8f], a
+	ld [wParty + 1], a
+;> wParty[2] = 0xFF
 	ld a, $ff
-	ld [$ca90], a
+	ld [wParty + 2], a
 	ret
 
 
-Jump_15_5C0A::
+;@ def BreedPartnerCancelled()
+;@ path: link/breed
+;@ Breeding step 25: one side cancelled (byte $FD); once the partner's $FD arrives, runs the
+;@ last block exchange and goes to step 18 (back to the title).
+;@ test: skip runs the link protocol
+BreedPartnerCancelled::
+;> if wLinkReceivedLast != 0xFD:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
+;> wLinkSendLength = 0x64
 	ld a, $64
 	ld [wLinkSendLength], a
 	xor a
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;> wLinkSendPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkSendPtr], a
 	ld a, h
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;> wLinkRecvPtr = wSavedTilemap
 	ld hl, wSavedTilemap
 	ld a, l
 	ld [wLinkRecvPtr], a
 	ld a, h
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;> wLinkSendByte = 0xFF
 	ld a, $ff
 	ld [wLinkSendByte], a
+;> wTitleStep = 0x12
 	ld a, $12
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;> wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
 	ret
 
 
-Call_15_5C3F::
+;@ def BreedCheckPartnerCancel()
+;@ path: link/breed
+;@ Checks whether the partner cancelled breeding (byte $FD). If so prints "Breeding refused.",
+;@ answers $FD and goes to step 25, returning false (zero flag set); else returns true.
+;@ test: skip prints text
+BreedCheckPartnerCancel::
+;> if wLinkReceivedLast != 0xFD:
+;>     return True
 	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
+;> PrintSystemText(0x0222)             # "Breeding refused."
 	ld hl, $0222
 	call PrintSystemText
+;> DrawWindowLayout_15(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_15_5D8F
-	call Call_15_5DC0
+	call DrawWindowLayout_15
+;> CopyTilemapBufferToVram_15()
+	call CopyTilemapBufferToVram_15
+;> wTitleStep = 0x19
 	ld a, $19
-	ld [$c8d2], a
+	ld [wTitleStep], a
+;> wLinkSendByte = 0xFD
 	ld a, $fd
 	ld [wLinkSendByte], a
+;> return False
 	xor a
 	ret
 
 
-Call_15_5C60::
+;@ def BreedDrawStatusMonster()
+;@ path: link/menu
+;@ A copy of VSDrawStatusMonster: on page 5 of the monster status screen draws the monster's
+;@ sprite at (144, 64), stepping between its two frames every 16 frames.
+;@ test: skip calls routines in other banks
+BreedDrawStatusMonster::
+;> if wFieldMenuStep != 5:
+;>     return
 	ld a, [wFieldMenuStep]
 	cp $05
 	ret nz
 
+;> species = mem[MonsterField(wMonRecSpecies, wCurPartyMember)]
 	ld hl, wMonRecSpecies
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
 	push af
+;> hSpriteX = 0x0090
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0040
 	ld a, $40
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@frame hSpriteFrame = (wFrameCounter >> 4) & 1
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_015_5c8f
+	jr z, .frame
 
 	ld b, $01
 
-jr_015_5c8f:
+.frame
+;=@frame
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x50; hSpriteAttr = 0
 	ld a, $50
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Call_15_5C9C::
+;@ def BreedDrawStatusParents()
+;@ path: link/menu
+;@ A copy of VSDrawStatusParents: on page 9 of the monster status screen draws the sprites of
+;@ both parents at (144, 48) and (144, 120).
+;@ test: skip calls routines in other banks
+BreedDrawStatusParents::
+;> if wFieldMenuStep != 9:
+;>     return
 	ld a, [wFieldMenuStep]
 	cp $09
 	ret nz
 
+;> species = mem[MonsterField(wMonParent1, wCurPartyMember)]
 	ld hl, wMonParent1
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
+;> if species == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> hSpriteX = 0x0090
 	push af
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0030
 	ld a, $30
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@frame1 hSpriteFrame = (wFrameCounter >> 4) & 1
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_015_5cce
+	jr z, .frame1
 
 	ld b, $01
 
-jr_015_5cce:
+.frame1
+;=@frame1
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x60; hSpriteAttr = 0
 	ld a, $60
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
+;> species = mem[MonsterField(wMonParent2, wCurPartyMember)]
 	ld hl, wMonParent2
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
 	push af
+;> hSpriteX = 0x0090
 	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x0078
 	ld a, $78
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = species + 0x10
 	pop af
 	add $10
 	ld [hli], a
+;>@frame2 hSpriteFrame = (wFrameCounter >> 4) & 1
 	ld b, $00
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_015_5d03
+	jr z, .frame2
 
 	ld b, $01
 
-jr_015_5d03:
+.frame2
+;=@frame2
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0x70; hSpriteAttr = 0
 	ld a, $70
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
+;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Call_15_5D10::
+;@ def NextBgColumn_15(addr: hl) -> hl
+;@ path: gfx/tilemap
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
+;@ test: hl = rand(0x9800, 0x9BFF)
+NextBgColumn_15::
+;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@col
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@col
 	ret
 
 
-Call_15_5D1F::
-	ld a, [$c8d6]
+;@ def TitleBgAddr(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ BG map address of a screen offset: wTitleBgMap + `offset`, wrapped around within the 1 KiB
+;@ BG map.
+;@ test: hl = rand(0, 0x3FF)
+;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
+TitleBgAddr::
+;> addr = wTitleBgMap + offset
+	ld a, [wTitleBgMap]
 	add l
 	ld l, a
-	ld a, [$c8d7]
+	ld a, [wTitleBgMap + 1]
 	adc h
+;>@g11 return (addr & 0x03FF) | (wTitleBgMap & 0xFC00)
 	and $03
 	ld h, a
-	ld a, [$c8d7]
+	ld a, [wTitleBgMap + 1]
 	and $fc
 	or h
 	ld h, a
+;=@g11
 	ret
 
 
-Call_15_5D33::
+;@ def TilemapBufferAddr_15(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ Address of a screen offset in wTilemapBuffer.
+;@ test: hl = rand(0, 0x23F)
+TilemapBufferAddr_15::
+;>@g12 return wTilemapBuffer + offset
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;=@g12
 	ret
 
 
-Call_15_5D3C::
+;@ def TitleBgAddrWrapped(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ BG map address of a screen offset (row * 32 + column), wrapping the column around within
+;@ the BG map row as the screen is scrolled.
+;@ test: hl = rand(0, 0x23F)
+;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
+TitleBgAddrWrapped::
+;> addr = TitleBgAddr(offset & 0xFFE0)  # start of the row
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_15_5D1F
+	call TitleBgAddr
+;> for i in range(offset & 0x1F):
 	ld a, b
 	and $1f
-	jr z, jr_015_5d51
+	jr z, .done
 
 	ld b, a
 
-jr_015_5d4b:
-	call Call_15_5D10
+.loop
+;>     addr = NextBgColumn_15(addr)
+	call NextBgColumn_15
 	dec b
-	jr nz, jr_015_5d4b
+	jr nz, .loop
 
-jr_015_5d51:
+.done
+;> return addr
 	pop bc
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls (a copy of the window drawer that writes straight into the BG map,
+;@ as DrawWindowLayout_15 does into the tilemap buffer).
+DrawLayoutToVram_15::
 	db $1a, $6f, $13, $1a, $67, $13, $cd, $3c, $5d, $7d, $e0, $d5, $7c, $e0, $d6, $1a
 	db $13, $fe, $d9, $c8, $fe, $d8, $20, $1c, $f0, $d5, $6f, $f0, $d6, $67, $7d, $c6
 	db $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67, $7d, $e0, $d5, $7c
 	db $e0, $d6, $18, $db, $cd, $ad, $1a, $cd, $10, $5d, $18, $d3
 
-Call_15_5D8F::
+;@ def DrawWindowLayout_15(layout: de)
+;@ path: gfx/tilemap
+;@ Draws a window layout into wTilemapBuffer. Layout format: a u16 screen offset (row * 32 +
+;@ column) where it starts, then tile numbers; $D8 starts the next row below the start, $D9
+;@ ends.
+;@ test: skip reads a layout from ROM
+DrawWindowLayout_15::
+;>@start row = p = TilemapBufferAddr_15(mem16[layout]); layout += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_15_5D33
+;=@start
+	call TilemapBufferAddr_15
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 
-jr_015_5d9e:
+.loop
+;> while (t := mem[layout]) != 0xD9:
+;>     layout += 1
 	ld a, [de]
 	inc de
 	cp $d9
 	ret z
 
+;>     if t == 0xD8:                    # next row
 	cp $d8
-	jr nz, jr_015_5dbd
+	jr nz, .tile
 
+;>@row         row += 32; p = row
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@row
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hNumber], a
+;=@row
 	ld a, h
-	ldh [$ffd6], a
-	jr jr_015_5d9e
+	ldh [hNumber + 1], a
+	jr .loop
 
-jr_015_5dbd:
+;>     else:
+;>         mem[p] = t; p += 1
+.tile
 	ld [hli], a
-	jr jr_015_5d9e
+	jr .loop
 
-Call_15_5DC0::
-	ld a, [$c8d6]
+;@ def CopyTilemapBufferToVram_15()
+;@ path: gfx/tilemap
+;@ Copies the 18 rows of 32 tiles of wTilemapBuffer to the BG map at wTitleBgMap (columns and
+;@ rows wrap around within the BG map).
+;@ test: skip writes VRAM
+CopyTilemapBufferToVram_15::
+;> addr = wTitleBgMap
+	ld a, [wTitleBgMap]
 	ld l, a
-	ld a, [$c8d7]
+	ld a, [wTitleBgMap + 1]
 	ld h, a
+;> src = wTilemapBuffer
 	ld de, wTilemapBuffer
+;> for row in range(18):
 	ld c, $12
 
-jr_015_5dcd:
+.row
+;>     p = addr
+;>     for col in range(32):
 	ld b, $20
 	push hl
 
-jr_015_5dd0:
+.col
+;>@src         WriteVRAM(mem[src], p); src += 1
 	ld a, [de]
 	call WriteVRAM
+;>@next         p = NextBgColumn_15(p)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@next
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;=@src
 	inc de
 	dec b
-	jr nz, jr_015_5dd0
+	jr nz, .col
 
+;>@down     addr = ((addr + 32) & 0x03FF) | 0x9800
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@down
 	or $98
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_015_5dcd
+	jr nz, .row
 
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls (a text box printer that prints the current text into the tiles at
+;@ hl, lines and line length in de).
+DrawTextTiles_15::
 	db $fa, $27, $c8, $4f, $fa, $28, $c8, $47, $c5, $fa, $29, $c8, $4f, $fa, $2a, $c8
 	db $47, $c5, $7d, $ea, $27, $c8, $7c, $ea, $28, $c8, $7b, $ea, $29, $c8, $7a, $ea
 	db $2a, $c8, $21, $02, $41, $d7, $d1, $e1, $7d, $ea, $27, $c8, $7c, $ea, $28, $c8
 	db $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $c9
 
-Call_15_5E2E::
+;@ def DrawNameTiles_15(name: de, tiles: hl)
+;@ path: text/tiles
+;@ Prints a 4-letter name into the 4 tiles at `tiles` (through wTextArg0 and text 0 of group 2,
+;@ which prints it), keeping the text box settings.
+;@ test: skip prints text
+DrawNameTiles_15::
+;> CopyName(name, wTextArg0)
 	push hl
 	ld hl, wTextArg0
 	call CopyName
 	pop hl
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+;> saved_box = (wTextBoxLines, wTextBoxLineLength)
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1; wTextBoxLineLength = 4
 	ld de, $0401
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2; wTextIndex = 0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_box[0]
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_box[1]
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
-Call_15_5E7C::
+;@ def ClearTilemapBuffer_15()
+;@ path: gfx/tilemap
+;@ Fills the $240 bytes of wTilemapBuffer with the blank tile $E0.
+ClearTilemapBuffer_15::
+;>@fill fill(wTilemapBuffer, 0x240, 0xE0)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
-jr_015_5e82:
+.loop
+;=@fill
 	ld a, $e0
 	ld [hli], a
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_015_5e82
+	jr nz, .loop
 
+;=@fill
 	ret
 
 
-Call_15_5E8B::
+;@ def ClearBgMap_15()
+;@ path: gfx/tilemap
+;@ Fills the BG map at $9800 (32 x 32 tiles) with the blank tile $E0.
+;@ test: skip writes VRAM
+ClearBgMap_15::
+;> p = 0x9800
 	ld hl, $9800
 	ld bc, $0400
 
-jr_015_5e91:
+.loop
+;> for i in range(0x400):
+;>@g14     p = WriteVRAMInc(0xE0, p)
 	ld a, $e0
 	call WriteVRAMInc
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_015_5e91
+	jr nz, .loop
 
+;=@g14
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls: opens a menu screen (clears the menu variables, sets the BG map
+;@ position from the scroll registers, clears the tilemap buffer and BG map, loads the window
+;@ tiles from $2E0D and advances wTitleStep).
+UnusedMenuOpen_15::
 	db $21, $da, $c8, $01, $08, $00, $3e, $00, $cd, $c7, $12, $f0, $bb, $6f, $26, $00
 	db $29, $29, $f0, $b7, $0f, $0f, $0f, $85, $6f, $7c, $ce, $98, $67, $7c, $e6, $03
 	db $f6, $98, $67, $7d, $ea, $d6, $c8, $7c, $ea, $d7, $c8, $cd, $7c, $5e, $cd, $8b
 	db $5e, $11, $0d, $2e, $21, $00, $90, $cd, $77, $15, $cd, $e3, $5f, $21, $d2, $c8
-	db $34, $c9, $cd, $7c, $5e, $cd, $c0, $5d, $21, $01, $0b, $d7, $21, $02, $0b, $d7
+	db $34, $c9
+
+;@ path: unused
+;@ Code that nothing calls: closes such a menu screen again (clears the tilemap buffer and copies
+;@ it to the BG map, reloads the field graphics and goes back to wTitleStep 0).
+UnusedMenuClose_15::
+	db $cd, $7c, $5e, $cd, $c0, $5d, $21, $01, $0b, $d7, $21, $02, $0b, $d7
 	db $cd, $18, $25, $cd, $f1, $25, $21, $eb, $c8, $cb, $8e, $af, $ea, $d2, $c8, $c9
 
-Call_15_5EFC::
+;@ def MovePagedListCursor_15(cur: hl, rows: b, count: c, marks: de)
+;@ path: menu/cursor
+;@ Cursor of a paged list of `count` entries, `rows` per page: cur[0] is the row (bit 7 set once
+;@ chosen), cur[1] the page. Left and Right turn the page (wrapping around; on the shorter last
+;@ page the row is pulled up), Up and Down move the row within the page (MoveMenuCursor_15),
+;@ A chooses. `marks` is the list's cursor table: the page number position, then the rows.
+;@ test: skip draws through helpers
+MovePagedListCursor_15::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> marks += 2                           # skip the page number position
 	inc de
 	inc de
+;>@turn if not wTextState and wJoyRepeat & 0x30:     # Left or Right: turn the page
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_015_5f63
+	jp nz, .noTurn
 
+;>     if wJoyRepeat & 0x20:            # Left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_015_5f29
+	jr z, .notLeft
 
+;>         page = (cur[1] - 1) & 0xFF
 	inc hl
 	ld a, [hl]
 	dec a
 	push af
+;>@pg1         pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@pg1
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:
+;>             page = pages - 1         # wrap to the last page
 	pop af
 	cp c
-	jr c, jr_015_5f47
+	jr c, .setPage
 
 	ld a, c
 	dec a
-	jr jr_015_5f47
+	jr .setPage
 
-jr_015_5f29:
+.notLeft
+;=@turn
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_015_5f63
+	jr z, .noTurn
 
+;>     else:                            # Right
+;>         page = (cur[1] + 1) & 0xFF
 	inc hl
 	ld a, [hl]
 	inc a
 	push af
+;>@pg2         pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@pg2
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:
+;>             page = 0                 # wrap to the first page
 	pop af
 	cp c
-	jr c, jr_015_5f47
+	jr c, .setPage
 
 	ld a, $00
 
-jr_015_5f47:
+.setPage
+;>     cur[1] = page
 	ld [hld], a
+;>     if page == pages - 1:            # the last page may be shorter
 	dec c
 	cp c
 	jr nz, jr_015_5fab
 
+;>@left         left = count % rows
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@left
 	call Divide8
 	pop bc
 	pop de
+;>         if left and cur[0] > left - 1:
 	or a
 	jr z, jr_015_5fab
 
@@ -4595,436 +6431,609 @@ jr_015_5f47:
 	cp [hl]
 	jr nc, jr_015_5fab
 
+;>             cur[0] = left - 1
 	ld [hl], a
+;>     return MenuCursorFinish_15(cur, marks)   # the end of MoveMenuCursor_15: blink, A, marks
 	jr jr_015_5fab
 
-Jump_015_5f63:
-jr_015_5f63:
+.noTurn
+;>@lpn DrawListPageNumber_15(cur, rows, count, marks)
 	push bc
 	push de
 	push hl
-	call Call_15_6047
+	call DrawListPageNumber_15
 	pop hl
 	pop de
+;=@lpn
 	pop bc
+;>@lp last_page, left = divmod(count - 1, rows)
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;> wListLastRows = left                 # rows on the last page - 1
 	ld [wListLastRows], a
+;=@lp
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;> if cur[1] == last_page:
 	inc hl
 	ld a, [hld]
 	cp c
-	jr nz, Call_15_5F85
+	jr nz, MoveMenuCursor_15
 
+;>     rows = wListLastRows + 1         # the rows on the last page
 	ld a, [wListLastRows]
 	inc a
+;> return MoveMenuCursor_15(cur, rows, marks)   # runs on into it
 	ld b, a
 
-Call_15_5F85::
+;@ def MoveMenuCursor_15(cur: hl, rows: b, marks: de)
+;@ path: menu/cursor
+;@ Moves a menu cursor (cur[0], bit 7 = chosen) with Up and Down through `rows` entries,
+;@ wrapping around, sets bit 7 when A is pressed and draws the cursor marks.
+;@ test: skip draws through helpers
+MoveMenuCursor_15::
+;> cur[0] &= 0x7F
 	res 7, [hl]
+;> if rows != 1:
 	ld a, b
 	cp $01
 	jr z, jr_015_5fb3
 
+;>     if wJoyRepeat & 0x40:            # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_015_5f9c
+	jr z, .notUp
 
+;>         c = cur[0] - 1
+;>         if c >= rows: c = rows - 1   # (also when it went below 0)
 	ld a, [hl]
 	dec a
 	cp b
-	jr c, jr_015_5faa
+	jr c, .set
 
 	dec b
 	ld a, b
-	jr jr_015_5faa
+;>@set         cur[0] = c; wTitleBlink = 0
+	jr .set
 
-jr_015_5f9c:
+.notUp
+;>     elif wJoyRepeat & 0x80:          # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_015_5fb3
 
+;>         c = cur[0] + 1
+;>         if c >= rows: c = 0
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_015_5faa
+	jr c, .set
 
 	ld a, $00
 
-jr_015_5faa:
+.set
+;>@set2         cur[0] = c; wTitleBlink = 0
 	ld [hl], a
 
 jr_015_5fab:
+;=@set2
 	xor a
-	ld [$c8d9], a
+	ld [wTitleBlink], a
 	push hl
 	push de
 	pop de
 	pop hl
 
 jr_015_5fb3:
+;> if wJoyPressed & A_BUTTON:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_015_5fbc
+	jr z, .draw
 
+;>     cur[0] |= 0x80
 	set 7, [hl]
 
-jr_015_5fbc:
+.draw
+;> MenuDrawCursorMarks_15(cur[0], marks)
 	ld a, [hl]
-	call Call_15_5FE8
+	call MenuDrawCursorMarks_15
 	ret
 
 
+;@ path: unused
+;@ Code that nothing reaches: a left/right variant of the cursor movement in MoveMenuCursor_15
+;@ (Left moves to the previous entry, Right to the next, wrapping to 0), jumping back into it.
+MoveMenuCursorSideways_15::
 	db $cb, $be, $fa, $47, $c8, $cb, $6f, $28, $09, $7e, $3d, $b8, $38, $db, $05, $78
 	db $18, $d7, $fa, $47, $c8, $cb, $67, $28, $d9, $7e, $3c, $b8, $38, $cb, $3e, $00
 	db $18, $c7
 
-Call_15_5FE3::
+;@ def MenuResetBlink_15()
+;@ path: menu/cursor
+;@ Restarts the cursor blink, so the cursor is drawn at once.
+MenuResetBlink_15::
+;> wTitleBlink = 0
 	xor a
-	ld [$c8d9], a
+	ld [wTitleBlink], a
 	ret
 
 
-Call_15_5FE8::
+;@ def MenuDrawCursorMarks_15(cursor: a, marks: de) -> a
+;@ path: menu/cursor
+;@ Draws the mark of every entry of a cursor table (u16 screen offsets, $FFFF ends) into the
+;@ BG map and wTilemapBuffer: the arrow $E8 at entry `cursor` (blinking: blank while
+;@ wTitleBlink bit 4 is set), $E9 when chosen (bit 7), blank $E0 at the others. A cursor not
+;@ chosen is only redrawn every 16 frames.
+;@ test: skip writes VRAM
+MenuDrawCursorMarks_15::
+;> if not cursor & 0x80:
 	ld c, a
 	bit 7, a
-	jr nz, jr_015_5ffd
+	jr nz, .draw
 
-	ld a, [$c8d9]
+;>     phase = wTitleBlink & 0x0F; wTitleBlink += 1
+	ld a, [wTitleBlink]
 	and $0f
 	push af
-	ld a, [$c8d9]
+	ld a, [wTitleBlink]
 	inc a
-	ld [$c8d9], a
+	ld [wTitleBlink], a
+;>     if phase:
+;>         return cursor
 	pop af
 	ld a, c
 	ret nz
 
-jr_015_5ffd:
+.draw
+;> i = 0
 	ld c, a
 	ld b, $00
 
-jr_015_6000:
+.loop
+;>@while while (pos := mem16[marks]) != 0xFFFF:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@while
 	and l
 	cp $ff
 	ret z
 
+;>@bg     bg = TitleBgAddrWrapped(pos); marks += 2
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
-	call Call_15_5D3C
+;=@bg
+	call TitleBgAddrWrapped
 	pop bc
 	pop de
+;>     tile = 0xE0
+;>     if i == cursor & 0x7F:
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_015_6030
+	jr nz, .write
 
+;>@sel         tile = 0xE9 if cursor & 0x80 else (0xE0 if wTitleBlink & 0x10 else 0xE8)
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_015_6030
+	jr nz, .write
 
-	ld a, [$c8d9]
+;=@sel
+	ld a, [wTitleBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_015_6030
+	jr nz, .write
 
+;=@sel
 	ld a, $e8
 
-jr_015_6030:
+.write
+;>     WriteVRAM(tile, bg)
 	call WriteVRAM
+;>@buf     mem[TilemapBufferAddr_15(pos)] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
+;>     i += 1
 	inc b
-	jr jr_015_6000
+	jr .loop
 
-Call_15_6047::
+;@ def DrawListPageNumber_15(cur: hl, rows: b, count: c, marks: de)
+;@ path: menu/cursor
+;@ When a list has more entries than one page holds, writes the page number (tile $F1 + page,
+;@ cur[1]) just left of the page arrow, whose position is the word before `marks`, into the
+;@ BG map and wTilemapBuffer.
+;@ test: skip writes VRAM
+DrawListPageNumber_15::
+;> if rows >= count:
+;>     return
 	ld a, b
 	cp c
 	ret nc
 
+;> page = cur[1]
 	inc hl
 	ld c, [hl]
+;>@pos pos = mem16[marks - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@pos
 	ld h, a
 	inc de
+;> if pos == 0xFFFF:
+;>     return
 	and l
 	cp $ff
 	ret z
 
+;> pos -= 1
 	dec hl
+;>@digit WriteVRAM(0xF1 + (page & 0x7F), TitleBgAddrWrapped(pos))
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
-	call Call_15_5D3C
+;=@digit
+	call TitleBgAddrWrapped
 	pop bc
 	pop de
 	ld a, c
 	and $7f
 	add $f1
+;=@digit
 	call WriteVRAM
+;>@buf mem[TilemapBufferAddr_15(pos)] = 0xF1 + (page & 0x7F)
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	ret
 
 
-Call_15_6080::
+;@ def MenuDrawListCursor_15(cur: hl, marks: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Draws a paged list's cursor into wTilemapBuffer: at the table's first position the page
+;@ arrow $E7 with the page number left of it when there are several pages (else the frame tile
+;@ $EE), then the row cursor (MenuDrawCursorAt_15, run on into).
+;@ test: skip draws through helpers
+MenuDrawListCursor_15::
+;> cursor = cur[0]; page = cur[1]
 	ld a, [hli]
 	push af
 	push hl
+;>@p p = TilemapBufferAddr_15(mem16[marks]); marks += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
 	ld h, a
+;=@p
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;>@mark mem[p] = 0xE7 if rows < count else 0xEE
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_015_6099
+	jr nc, .mark
 
 	ld a, $e7
 
-jr_015_6099:
+.mark
+;=@mark
 	ld [hld], a
+;> if rows < count:
+;>     mem[p - 1] = page + 0xF1
 	pop bc
-	jr nc, jr_015_60a1
+	jr nc, .one
 
 	ld a, [bc]
 	add $f1
 	ld [hl], a
 
-jr_015_60a1:
+.one
+;> MenuDrawCursorAt_15(cursor, marks)   # runs on into it
 	pop af
 
-Call_15_60A2::
+;@ def MenuDrawCursorAt_15(cursor: a, marks: de)
+;@ path: menu/cursor
+;@ Writes the cursor mark of entry `cursor` of a cursor table into wTilemapBuffer: $E9 when
+;@ chosen (bit 7), else the blinking arrow ($E8, blank $E0 while wTitleBlink bit 4 is set).
+;@ test: skip reads a table from ROM
+MenuDrawCursorAt_15::
+;>@pos pos = mem16[marks + 2 * cursor]
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@pos
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;>@bg TitleBgAddrWrapped(pos)              # (the result is not used)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
-	call Call_15_5D3C
+;=@bg
+	call TitleBgAddrWrapped
 	pop bc
 	pop de
+;>@sel tile = 0xE9 if cursor & 0x80 else (0xE0 if wTitleBlink & 0x10 else 0xE8)
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_015_60cd
+	jr nz, .write
 
-	ld a, [$c8d9]
+;=@sel
+	ld a, [wTitleBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_015_60cd
+	jr nz, .write
 
+;=@sel
 	ld a, $e8
 
-jr_015_60cd:
+.write
+;>@buf mem[TilemapBufferAddr_15(pos)] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	ret
 
 
-Call_15_60DF::
+;@ def CheckSaveChecksum()
+;@ path: save/check
+;@ Checks the battery RAM: when it holds no save, or its checksum (SRAMChecksum over
+;@ $A002-$BFFF) does not match sChecksum, the whole save area is cleared and the checksum of
+;@ the empty data is stored.
+;@ test: skip touches battery RAM
+CheckSaveChecksum::
+;> mem[0x0100] = 0x0A; ok = False       # battery RAM on
 	ld a, $0a
 	ld [$0100], a
+;> if sSaveValid:
 	ld a, [sSaveValid]
 	or a
-	jr z, jr_015_610a
+	jr z, .clear
 
+;>     sum = SRAMChecksum(sSaveValid, 0x1FFE)
 	ld hl, sSaveValid
 	ld bc, $1ffe
 	call SRAMChecksum
+;>     mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
+;>@same     ok = sChecksum == sum
 	ld a, [sChecksum]
 	ld l, a
-	ld a, [$a001]
+	ld a, [sChecksum + 1]
 	ld h, a
 	ld a, l
 	sub e
+;=@same
 	ld l, a
 	ld a, h
 	sbc d
 	ld h, a
 	ld a, h
 	or l
-	jr z, jr_015_6127
+;> if not ok:
+	jr z, .done
 
-jr_015_610a:
+.clear
+;>     ZeroBytes_15(sSaveValid, 0x1FFE)  # no valid save: clear it
 	ld hl, sSaveValid
 	ld bc, $1ffe
 	push hl
 	push bc
-	call Call_15_612D
+	call ZeroBytes_15
+;>     sum = SRAMChecksum(sSaveValid, 0x1FFE)
 	pop bc
 	pop hl
 	call SRAMChecksum
+;>     mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
+;>     sChecksum = sum
 	ld a, e
 	ld [sChecksum], a
 	ld a, d
-	ld [$a001], a
+	ld [sChecksum + 1], a
 
-jr_015_6127:
+.done
+;> mem[0x0100] = 0x00                   # battery RAM off
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
-Call_15_612D::
+;@ def ZeroBytes_15(dest: hl, count: bc)
+;@ path: system/memory
+;@ Clears `count` bytes from `dest` on.
+;@ test: hl = rand(0xC000, 0xC0FF)
+;@ test: bc = rand(1, 0x100)
+ZeroBytes_15::
+;>@fill fill(dest, count, 0)
 	xor a
 	ld [hli], a
 	dec bc
 	ld a, b
 	or c
-	jr nz, Call_15_612D
+;=@fill
+	jr nz, ZeroBytes_15
 
 	ret
 
 
-Call_15_6135::
+;@ def PrintTwoDigits_15(n: bc, dest: hl)
+;@ path: text/numbers
+;@ Writes `n` (0-99) as one or two digit tiles ($F0 + digit) at `dest` (through WriteVRAM, so
+;@ VRAM or RAM); no leading zero.
+;@ test: skip writes through WriteVRAM
+PrintTwoDigits_15::
+;> if n // 10:
 	ld de, $000a
 	push bc
-	call Call_15_6151
+	call DivideBCByDE_15
 	pop bc
 	or a
-	jr z, jr_015_614c
+	jr z, .ones
 
+;>     tens, n = DivideBCByDE_15(n, 10)
 	ld de, $000a
-	call Call_15_6151
-	call Call_15_6166
-	call Call_15_616C
+	call DivideBCByDE_15
+;>     WriteDigitTile_15(tens, dest)
+	call WriteDigitTile_15
+;>     dest = NextBgColumn2_15(dest)
+	call NextBgColumn2_15
 
-jr_015_614c:
+.ones
+;> WriteDigitTile_15(n, dest)
 	ld a, c
-	call Call_15_6166
+	call WriteDigitTile_15
 	ret
 
 
-Call_15_6151::
+;@ def DivideBCByDE_15(n: bc, d: de) -> (a, bc)
+;@ path: system/math
+;@ Divides `n` by `d` by repeated subtraction: returns the quotient (8-bit) and the remainder.
+;@ test: bc = rand(0, 0x3FF)
+;@ test: de = rand(1, 0x30)
+DivideBCByDE_15::
+;> q = -1
 	push hl
 	ld h, $ff
 
-jr_015_6154:
+.loop
+;> while True:
+;>     q += 1
 	inc h
+;>@sub     n -= d
 	ld a, c
 	sub e
 	ld c, a
 	ld a, b
 	sbc d
+;=@sub
 	ld b, a
-	jr nc, jr_015_6154
+;>     if n < 0:
+;>         break
+	jr nc, .loop
 
+;> n += d                               # undo the last step
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;> return q & 0xFF, n
 	ld a, h
 	pop hl
 	ret
 
 
-Call_15_6166::
+;@ def WriteDigitTile_15(digit: a, dest: hl)
+;@ path: text/numbers
+;@ Writes the digit tile $F0 + `digit` at `dest` through WriteVRAM.
+;@ test: skip writes through WriteVRAM
+WriteDigitTile_15::
+;> WriteVRAM(0xF0 + digit, dest)
 	add $f0
 	call WriteVRAM
 	ret
 
 
-Call_15_616C::
+;@ def NextBgColumn2_15(addr: hl) -> hl
+;@ path: gfx/tilemap
+;@ A copy of NextBgColumn_15: one column right, wrapping around within the 32-tile row.
+;@ test: hl = rand(0x9800, 0x9BFF)
+NextBgColumn2_15::
+;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@col
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@col
 	ret
 
 
+BreedCompatibility::
 	db $01, $01, $01, $01, $00, $01, $00, $00, $01, $01, $01, $01, $01, $01, $01, $01
 	db $00, $00, $01, $00, $01, $01, $01, $01, $00, $00, $00, $01, $01, $01, $01, $01
 	db $01, $01, $00, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
@@ -5070,10 +7079,16 @@ Call_15_616C::
 	db $00, $01, $00, $00, $00, $00, $00, $01, $01, $01, $01, $00, $01, $01, $01, $01
 	db $00, $00, $00, $01, $00, $01, $01, $01, $01, $01, $01, $01, $01, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-	db $01, $00, $01, $00, $01, $01, $00, $00, $00, $00, $00, $fa, $ef, $ef, $ef, $ef
+	db $01, $00, $01, $00, $01, $01, $00, $00, $00
+
+TitleWindowNoSave::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $31, $28, $3a, $e0, $2a, $24
 	db $30, $28, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $fd, $d9
+
+TitleWindowWithSave::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $26, $32, $31, $37, $2c, $31, $38, $28, $e0, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $31, $28, $3a
 	db $e0, $2a, $24, $30, $28, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -5114,9 +7129,13 @@ Call_15_616C::
 	db $66, $67, $68, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $32, $3b, $31, $e0, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0e, $01, $fa, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+BreedSaveYesNoWindow::
+	db $0e, $01, $fa, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+SaveInfoWindow::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $30, $24, $36, $37, $28, $35, $e4, $00, $01
 	db $02, $03, $e0, $e0, $e0, $e4, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
@@ -5124,30 +7143,51 @@ Call_15_616C::
 	db $04, $05, $06, $07, $e0, $db, $08, $09, $0a, $0b, $e0, $dc, $0c, $0d, $0e, $0f
 	db $ff, $d8, $fe, $e0, $65, $e4, $e0, $e0, $e0, $e0, $65, $e4, $e0, $e0, $e0, $e0
 	db $65, $e4, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+TitleListWindow::
+	db $00, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $3a, $2b, $32, $e0, $ff, $d8, $ec, $eb, $eb, $eb
 	db $eb, $eb, $ed, $d8, $fe, $e0, $10, $11, $12, $13, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $14, $15, $16, $17, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $18, $19, $1a, $1b, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $1c, $1d, $1e, $1f, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $cd, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $f1
+	db $ee, $ee, $fd, $d9
+
+VSTeamWindow::
+	db $cd, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $f1
 	db $04, $05, $06, $07, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $f2
 	db $08, $09, $0a, $0b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $f3
-	db $0c, $0d, $0e, $0f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00
+	db $0c, $0d, $0e, $0f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+InfoOkWindow::
+	db $0d, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $2c, $31, $29, $32, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $32, $2e, $e0, $e0, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $ae, $01, $fa, $ef, $ef, $ef, $ef, $fb
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+YesNoWindow_15::
+	db $ae, $01, $fa, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $0b, $00, $fa
+	db $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+VSReadyWindow::
+	db $0b, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $29, $2c, $2a, $2b, $37
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $33
 	db $35, $2c, $3d, $28, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $28, $3b, $2c, $37, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $0b, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $ee, $ee, $ee, $fd, $d9
+
+BreedMenuWindow::
+	db $0b, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $25, $35, $28, $28, $27, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $26, $2b, $28, $26, $2e, $e0, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $28, $3b, $2c, $37, $e0
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $40, $01, $fa
+	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+TitleNameWindow::
+	db $40, $01, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $00
 	db $01, $02, $03, $20, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $fd, $d9, $3f, $31, $3f, $8f, $ff, $8c, $fc, $8c, $fc, $8f, $ff, $8c, $fc

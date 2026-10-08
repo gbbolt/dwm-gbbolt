@@ -63,7 +63,7 @@ GetScriptWord_0C::
 ;@ def DrawScriptTiles_0C()
 ;@ path: event/script
 ;@ Script helper: the next word of the script points to a tile block, which is copied into
-;@ wBGTileBuffer and drawn on the background map with the screen's top left corner as its origin
+;@ wSavedTilemap and drawn on the background map with the screen's top left corner as its origin
 ;@ (hScrollX / hScrollY are rounded down to whole tiles first). A block is a 2-byte offset from
 ;@ that corner (row * 32 + column) and then tile numbers: $D8 starts the next row (under the
 ;@ block's first column), $D9 ends the block.
@@ -245,7 +245,7 @@ NextMapColumn_0C::
 
 ;@ def CopyBlockToTileBuffer_0C(block: bc)
 ;@ path: event/script
-;@ Copies the tile numbers of a tile block (see DrawScriptTiles_0C) into wBGTileBuffer, the
+;@ Copies the tile numbers of a tile block (see DrawScriptTiles_0C) into wSavedTilemap, the
 ;@ RAM copy of the background map; the block's offset is taken from the buffer's start.
 CopyBlockToTileBuffer_0C::
 ;> offset = mem16[block]; block += 2
@@ -255,7 +255,7 @@ CopyBlockToTileBuffer_0C::
 	ld a, [bc]
 	ld h, a
 	inc bc
-;> dest = wBGTileBuffer + offset
+;> dest = wSavedTilemap + offset
 	ld a, l
 	add $00
 	ld l, a
@@ -311,7 +311,7 @@ CopyBlockToTileBuffer_0C::
 ;@ def DrawScriptAttrs_0C()
 ;@ path: event/script
 ;@ Script helper: like DrawScriptTiles_0C, but the block holds palette attributes. They go into
-;@ wBGAttrBuffer (4 bits per cell) and, on a Game Boy Color, into the attribute map (VRAM bank 1)
+;@ wScreenMap (4 bits per cell) and, on a Game Boy Color, into the attribute map (VRAM bank 1)
 ;@ at the same place.
 DrawScriptAttrs_0C::
 ;> hScrollX &= 0xF8
@@ -395,7 +395,7 @@ DrawScriptAttrs_0C::
 
 ;@ def CopyBlockToAttrBuffer_0C(block: bc)
 ;@ path: event/script
-;@ Stores the values of an attribute block in wBGAttrBuffer (SetAttrNibble_0C); the block's
+;@ Stores the values of an attribute block in wScreenMap (SetAttrNibble_0C); the block's
 ;@ offset is the number of the first map cell.
 CopyBlockToAttrBuffer_0C::
 ;> cell = mem16[block]; block += 2
@@ -454,14 +454,14 @@ CopyBlockToAttrBuffer_0C::
 
 ;@ def SetAttrNibble_0C(cell: hl, value: a)
 ;@ path: event/script
-;@ Stores the 4-bit `value` for map cell `cell` (0-1023) in wBGAttrBuffer: two cells per byte,
+;@ Stores the 4-bit `value` for map cell `cell` (0-1023) in wScreenMap: two cells per byte,
 ;@ the even cell in the high nibble, the odd one in the low nibble.
 SetAttrNibble_0C::
 ;> odd = cell & 1
 	push hl
 	srl h
 	rr l
-;> addr = wBGAttrBuffer + cell // 2
+;> addr = wScreenMap + cell // 2
 	push af
 	ld a, l
 	add $00
@@ -497,6 +497,13 @@ SetAttrNibble_0C::
 	ret
 
 
+;@ path: event/script
+;@ The map scripts of maps 0-5: one pointer per map number to its list of scripts (one
+;@ pointer per wScriptId), then the lists and the scripts. A script is a run of 16-bit words
+;@ read by the interpreter in bank 4: $FFxx is command xx, other words are its arguments
+;@ (tile blocks, text numbers, positions); $FFFF ends the script. A tile block is a 2-byte
+;@ offset from the screen corner (row * 32 + column), then tile numbers, $D8 for the next
+;@ row, $D9 at the end.
 MapScripts_0C::
 	db $c6, $41, $fb, $55, $1d, $5e, $33, $66, $7f, $68, $cf, $71, $ee, $41, $ed, $50
 	db $ff, $50, $11, $51, $91, $51, $11, $52, $23, $52, $35, $52, $3d, $52, $47, $52

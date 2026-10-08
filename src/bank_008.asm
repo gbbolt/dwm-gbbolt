@@ -4,95 +4,130 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $008", ROMX[$4000], BANK[$8]
 
+;@ path: system/sgb
+;@ Bank number byte: RST $10 reads it to know which bank to switch back to.
 BankNumber_08::
 	db $08
 
+;@ path: system/sgb
+;@ Far-call entry points of bank 8, the Super Game Boy bank. Entries 3-9 are data the
+;@ SGB transfers take by far-table entry: the palette colours, the attribute files and
+;@ the two borders (tiles and map).
 FarTable_08::
 	dw SendSGBPacket
 	dw SGBSetFieldPalettes
 	dw SGBLoadPalettes
 	dw SGBPaletteColors
-	dw Data_08_449E
-	dw Data_08_44A5
-	dw Data_08_54A5
-	dw Data_08_64A5
-	dw Data_08_68DD
-	dw Data_08_78DD
+	dw SGBAttrFiles
+	dw SGBBorder0TilesLo
+	dw SGBBorder0TilesHi
+	dw SGBBorder0Map
+	dw SGBBorder1Tiles
+	dw SGBBorder1Map
 
+;@ def SendSGBPacket()
+;@ path: system/sgb
+;@ Sends a Super Game Boy command through the joypad port: packet wSGBPacketID from
+;@ SGBPacketTable, or the packet built in wSGBPacket when the ID is $FF. The low 3 bits
+;@ of the first byte give the number of 16-byte packets; each is sent as a reset pulse
+;@ followed by 128 bits (a 0 bit pulls P14 low, a 1 bit P15) and a stop bit.
+;@ test: skip talks to the joypad port
 SendSGBPacket::
+;> if not wOnSGB:
 	ld a, [wOnSGB]
 	or a
+;>     return
 	ret z
-
+;> if wSGBPacketID == 0xFF:
 	ld a, [wSGBPacketID]
 	cp $ff
-	jr nz, jr_008_4026
-
+	jr nz, .fromTable
+;>     p = wSGBPacket
 	ld hl, wSGBPacket
-	jr jr_008_4033
-
-jr_008_4026:
+	jr .send
+;> else:
+.fromTable
+;>@p     p = mem16[SGBPacketTable + wSGBPacketID * 2]
 	ld l, a
 	ld h, $00
 	add hl, hl
-	ld de, $4069
+	ld de, SGBPacketTable
 	add hl, de
 	ld e, [hl]
+;=@p
 	inc hl
 	ld d, [hl]
 	push de
 	pop hl
-
-jr_008_4033:
+.send
+;> count = mem[p] & 7
 	ld a, [hl]
 	and $07
+;> if count == 0:
+;>     return
 	ret z
-
+;>@k for k in range(count):
 	ld b, a
 	ld c, $00
-
-jr_008_403a:
+.packet
+;>     rP1 = 0x00                   # reset pulse
 	push bc
 	ld a, $00
 	ldh [c], a
+;>     rP1 = 0x30
 	ld a, $30
 	ldh [c], a
+;>@y     for i in range(16):
 	ld b, $10
-
-jr_008_4043:
+.byte
+;>         d = mem[p]
+;>         p += 1
 	ld e, $08
 	ld a, [hli]
 	ld d, a
-
-jr_008_4047:
+.bit
+;>@z         for j in range(8):         # low bit first
+;>             rP1 = 0x10 if d & 1 else 0x20
 	bit 0, d
 	ld a, $10
-	jr nz, jr_008_404f
-
+	jr nz, .one
 	ld a, $20
-
-jr_008_404f:
+.one
 	ldh [c], a
+;>             rP1 = 0x30
 	ld a, $30
 	ldh [c], a
+;>             d >>= 1
 	rr d
+;=@z
 	dec e
-	jr nz, jr_008_4047
-
+	jr nz, .bit
+;=@y
 	dec b
-	jr nz, jr_008_4043
-
+	jr nz, .byte
+;>     rP1 = 0x20                   # stop bit (0)
 	ld a, $20
 	ldh [c], a
+;>     rP1 = 0x30
 	ld a, $30
 	ldh [c], a
+;>     if k == count - 1:
 	pop bc
 	dec b
+;>         return
 	ret z
-
+;>     SGBPacketDelay()
 	call SGBPacketDelay
-	jr jr_008_403a
+;=@k
+	jr .packet
 
+;@ path: system/sgb
+;@ The game's fixed SGB packets: 21 pointers (by packet number) followed by the 16-byte
+;@ packets. The first byte of a packet is command * 8 + number of packets. 0: MASK_EN
+;@ freeze, 1: MASK_EN off, 2-9: DATA_SND (the standard patches written into the SNES
+;@ program at start-up), 10/11: MLT_REQ one/two players, 12: PAL_TRN, 13: ATTR_TRN,
+;@ 14: PAL_SET (palettes 0-3, attribute file 0), 15: PCT_TRN, 16/17: CHR_TRN tiles
+;@ $00-$7F / $80-$FF, 18: PAL_PRI, 19: ICON_EN, 20: MASK_EN black.
 SGBPacketTable::
 	db $13, $41, $23, $41, $93, $40, $a3, $40, $b3, $40, $c3, $40, $d3, $40, $e3, $40
 	db $f3, $40, $03, $41, $33, $41, $43, $41, $53, $41, $63, $41, $73, $41, $83, $41
@@ -119,104 +154,146 @@ SGBPacketTable::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $b9, $02, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 
+;@ def SGBSetFieldPalettes()
+;@ path: system/sgb
+;@ Sends a PAL_SET packet for palette set wSGBPalSet (4 palette numbers from
+;@ SGBPaletteSets, also kept in wSGBPalIds) with attribute file wSGBAttrSet (bit 7 =
+;@ apply it), and loads those palettes' colours for the fades.
+;@ test: skip sends SGB packets
 SGBSetFieldPalettes::
+;> if not wOnSGB:
 	ld a, [wOnSGB]
 	or a
+;>     return
 	ret z
-
+;> ClearSGBPacket()
 	call ClearSGBPacket
+;> wSGBPacket[0] = 0x51              # PAL_SET, 1 packet
 	ld a, $51
 	ld [wSGBPacket], a
+;>@s s = SGBPaletteSets + wSGBPalSet * 8
 	ld a, [wSGBPalSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
-	ld de, $427e
+;=@s
+	ld de, SGBPaletteSets
 	add hl, de
+;>@cp for i in range(8):
 	ld de, $c778
 	ld bc, wSGBPalIds
 	ld a, $08
 	ld [wNumberBackup], a
-
-jr_008_4208:
+.copy
+;>     wSGBPacket[1 + i] = mem[s + i]
+;>     wSGBPalIds[i] = mem[s + i]
 	ld a, [hli]
 	ld [de], a
 	ld [bc], a
 	inc de
 	inc bc
+;=@cp
 	ld a, [wNumberBackup]
 	dec a
 	ld [wNumberBackup], a
-	jr nz, jr_008_4208
-
+	jr nz, .copy
+;> wSGBPacket[9] = wSGBAttrSet | 0x80
 	ld a, [wSGBAttrSet]
 	or $80
 	ld [de], a
+;> SGBLoadPalettes()
 	call SGBLoadPalettes
+;> wSGBPacketID = 0xFF
 	ld a, $ff
 	ld [wSGBPacketID], a
+;> SendSGBPacket()
 	ld hl, far_SendSGBPacket
 	rst $10
+;> SGBPacketDelay()
 	call SGBPacketDelay
+;> return
 	ret
 
 
+;@ def SGBLoadPalettes()
+;@ path: system/sgb
+;@ Copies the colours of the four palettes in wSGBPalIds from SGBPaletteColors into
+;@ wSGBPalettes (8 bytes each), where the fade code works on them.
+;@ test: skip SGB only
 SGBLoadPalettes::
+;> if not wOnSGB:
 	ld a, [wOnSGB]
 	or a
+;>     return
 	ret z
-
+;> for i in range(4):
+;>@q     CopySGBPalette(mem16[wSGBPalIds + 2 * i], wSGBPalettes + 8 * i)
 	ld a, [wSGBPalIds]
 	ld l, a
 	ld a, [$c85c]
 	ld h, a
 	ld de, wSGBPalettes
 	call CopySGBPalette
+;=@q
 	ld de, $c7df
 	ld a, [$c85d]
 	ld l, a
 	ld a, [$c85e]
 	ld h, a
 	call CopySGBPalette
+;=@q
 	ld de, $c7e7
 	ld a, [$c85f]
 	ld l, a
 	ld a, [$c860]
 	ld h, a
 	call CopySGBPalette
+;=@q
 	ld de, $c7ef
 	ld a, [$c861]
 	ld l, a
 	ld a, [$c862]
 	ld h, a
 	call CopySGBPalette
+;> return
 	ret
 
 
+;@ def CopySGBPalette(n: hl, dest: de)
+;@ path: system/sgb
+;@ Copies the 4 colours (8 bytes, RGB555) of SGB palette n to dest.
+;@ test: n = rng.randrange(4)
+;@ test: dest = 0xC600
 CopySGBPalette::
+;>@a src = SGBPaletteColors + n * 8
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	ld a, l
-	add $7e
+	add LOW(SGBPaletteColors)
 	ld l, a
+;=@a
 	ld a, h
-	adc $44
+	adc HIGH(SGBPaletteColors)
 	ld h, a
+;> copy(dest, src, 8)
 	ld c, $08
-
-jr_008_4277:
+.copy
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec c
-	jr nz, jr_008_4277
-
+	jr nz, .copy
+;> return
 	ret
 
 
+;@ path: system/sgb
+;@ SGB palette sets for SGBSetFieldPalettes: 64 sets of 4 palette numbers (u16 each);
+;@ set n simply uses palettes 4n..4n+3.
+SGBPaletteSets::
 	db $00, $00, $01, $00, $02, $00, $03, $00, $04, $00, $05, $00, $06, $00, $07, $00
 	db $08, $00, $09, $00, $0a, $00, $0b, $00, $0c, $00, $0d, $00, $0e, $00, $0f, $00
 	db $10, $00, $11, $00, $12, $00, $13, $00, $14, $00, $15, $00, $16, $00, $17, $00
@@ -250,14 +327,22 @@ jr_008_4277:
 	db $f0, $00, $f1, $00, $f2, $00, $f3, $00, $f4, $00, $f5, $00, $f6, $00, $f7, $00
 	db $f8, $00, $f9, $00, $fa, $00, $fb, $00, $fc, $00, $fd, $00, $fe, $00, $ff, $00
 
+;@ path: system/sgb
+;@ SGB palette colours, 8 bytes (4 RGB555 colours) per palette; also the start of the
+;@ PAL_TRN transfer (far entry 3). The four palettes stored here are all the same:
+;@ white, light, dark, black.
 SGBPaletteColors::
 	db $de, $6f, $1f, $33, $3c, $12, $00, $00, $de, $6f, $1f, $33, $3c, $12, $00, $00
 	db $de, $6f, $1f, $33, $3c, $12, $00, $00, $de, $6f, $1f, $33, $3c, $12, $00, $00
 
-Data_08_449E::
+;@ path: system/sgb
+;@ SGB attribute files for ATTR_TRN, compressed (far entry 4).
+SGBAttrFiles::
 	db $5a, $00, $01, $01, $a0, $ff, $47
 
-Data_08_44A5::
+;@ path: system/sgb/border
+;@ Super Game Boy border 0, tiles $00-$7F: $1000 bytes of SNES 4bpp tiles for CHR_TRN.
+SGBBorder0TilesLo::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00
@@ -515,7 +600,9 @@ Data_08_44A5::
 	db $00, $ff, $00, $99, $00, $24, $00, $24, $00, $00, $00, $42, $00, $bd, $00, $c3
 	db $ff, $ff, $99, $99, $24, $24, $24, $24, $00, $00, $42, $42, $bd, $bd, $c3, $c3
 
-Data_08_54A5::
+;@ path: system/sgb/border
+;@ Super Game Boy border 0, tiles $80-$FF: $1000 bytes of SNES 4bpp tiles for CHR_TRN.
+SGBBorder0TilesHi::
 	db $0b, $00, $00, $0e, $3e, $01, $ef, $10, $80, $71, $00, $90, $30, $00, $30, $00
 	db $f4, $e4, $ff, $f1, $ff, $c0, $e1, $00, $8e, $0e, $6f, $6f, $cf, $c7, $cf, $c1
 	db $fd, $01, $ff, $03, $1a, $e3, $81, $1e, $ee, $01, $1b, $00, $08, $00, $1e, $00
@@ -773,7 +860,9 @@ Data_08_54A5::
 	db $c0, $c0, $e0, $60, $f0, $70, $fc, $3c, $fc, $1c, $ce, $06, $83, $01, $00, $00
 	db $3f, $00, $1f, $00, $0f, $00, $03, $00, $03, $00, $31, $30, $7c, $7c, $ff, $ff
 
-Data_08_64A5::
+;@ path: system/sgb/border
+;@ Super Game Boy border 0: map and border palettes for PCT_TRN, compressed.
+SGBBorder0Map::
 	db $80, $08, $20, $01, $10, $07, $10, $02, $20, $03, $03, $03, $10, $20, $00, $00
 	db $01, $10, $02, $10, $04, $20, $0f, $01, $07, $20, $0f, $01, $01, $20, $0b, $01
 	db $99, $14, $39, $14, $3a, $14, $01, $14, $bc, $14, $bd, $14, $be, $14, $4a, $d4
@@ -843,7 +932,9 @@ Data_08_64A5::
 	db $09, $0e, $42, $09, $bf, $03, $5d, $03, $8a, $20, $37, $81, $f3, $1d, $98, $12
 	db $ff, $47, $00, $7c, $20, $62, $8f, $09
 
-Data_08_68DD::
+;@ path: system/sgb/border
+;@ Super Game Boy border 1: $1000 bytes of SNES 4bpp tiles for CHR_TRN.
+SGBBorder1Tiles::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $7f, $ff, $0c, $83, $10, $8f, $00, $ff, $0c, $f3, $00, $fb, $00, $ff, $30, $ff
@@ -1101,7 +1192,9 @@ Data_08_68DD::
 	db $c0, $bf, $f0, $8f, $fc, $b3, $ff, $dc, $ff, $dd, $ff, $df, $ff, $1f, $1f, $e0
 	db $bf, $00, $8f, $00, $b3, $00, $dc, $00, $dd, $00, $df, $00, $1f, $00, $00, $e0
 
-Data_08_78DD::
+;@ path: system/sgb/border
+;@ Super Game Boy border 1: map and border palettes for PCT_TRN, compressed.
+SGBBorder1Map::
 	db $80, $08, $1b, $13, $54, $d0, $14, $d1, $14, $d2, $10, $d3, $10, $d4, $10, $d5
 	db $14, $12, $14, $13, $14, $14, $14, $11, $14, $13, $54, $12, $54, $14, $54, $11
 	db $14, $14, $54, $13, $14, $12, $54, $11, $1b, $0d, $0b, $0b, $50, $0a, $50, $09

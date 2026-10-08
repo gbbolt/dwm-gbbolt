@@ -4,183 +4,258 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $00d", ROMX[$4000], BANK[$d]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_0D::
 	db $0d
 
+;@ path: system/banks
+;@ Entry points of bank $0D for far calls (rst $10 with far_ constants). Banks $0C-$0F hold the
+;@ map scripts and the same three helpers; the script interpreter in bank 4 calls the copy in the
+;@ bank that holds the scripts of wScriptMap (maps 6-31 here).
 FarTable_0D::
 	dw GetScriptWord_0D
 	dw DrawScriptTiles_0D
 	dw DrawScriptAttrs_0D
 
+;@ def GetScriptWord_0D() -> (bc, hl)
+;@ path: event/script
+;@ Reads word number wScriptPos of the map script wScriptMap / wScriptId from this bank's
+;@ MapScripts_0D table. Returns the word in bc and its address in hl.
 GetScriptWord_0D::
+;> entry = MapScripts_0D + 2 * wScriptMap
 	ld a, [wScriptMap]
 	ld l, a
 	ld h, $00
 	add hl, hl
-	ld de, $41ba
+	ld de, MapScripts_0D
 	add hl, de
+;> scripts = mem16[entry]               # the map's list of scripts
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> entry = scripts + 2 * wScriptId
 	ld a, [wScriptId]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;> script = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> addr = script + 2 * wScriptPos
 	ld a, [wScriptPos]
 	ld l, a
-	ld a, [$d8d6]
+	ld a, [wScriptPos + 1]
 	ld h, a
 	add hl, hl
 	add hl, de
+;> word = mem16[addr]
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	dec hl
+;> return word, addr
 	ret
 
 
+;@ def DrawScriptTiles_0D()
+;@ path: event/script
+;@ Script helper: the next word of the script points to a tile block, which is copied into
+;@ wSavedTilemap and drawn on the background map with the screen's top left corner as its origin
+;@ (hScrollX / hScrollY are rounded down to whole tiles first). A block is a 2-byte offset from
+;@ that corner (row * 32 + column) and then tile numbers: $D8 starts the next row (under the
+;@ block's first column), $D9 ends the block.
 DrawScriptTiles_0D::
+;> hScrollX &= 0xF8
 	ld hl, hScrollX
 	ld a, [hl]
 	and $f8
 	ld [hl], a
+;> hScrollY &= 0xF8
 	ld hl, hScrollY
 	ld a, [hl]
 	and $f8
 	ld [hl], a
+;> row_offset = hScrollY * 4             # tile row * 32
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
+;> column = hScrollX >> 3
 	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
+;> corner = 0x9800 + row_offset + column
 	add l
 	ld l, a
 	ld a, h
 	adc $98
 	ld h, a
+;> corner = 0x9800 | (corner & 0x3FF)    # wrap inside the 32x32 map
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;> wScriptBlockPtr = corner
 	ld a, l
 	ld [wScriptBlockPtr], a
 	ld a, h
-	ld [$d8e8], a
+	ld [wScriptBlockPtr + 1], a
+;> wScriptPos += 1                       # the argument word
 	ld a, [wScriptPos]
 	add $01
 	ld [wScriptPos], a
-	ld a, [$d8d6]
+	ld a, [wScriptPos + 1]
 	adc $00
-	ld [$d8d6], a
+	ld [wScriptPos + 1], a
+;> block, addr = GetScriptWord_0D()
 	call GetScriptWord_0D
+;> CopyBlockToTileBuffer_0D(block)
 	push bc
 	call CopyBlockToTileBuffer_0D
 	pop bc
+;> WriteBlockToBGMap_0D(block)           # falls through
 
+;@ def WriteBlockToBGMap_0D(block: bc)
+;@ path: event/script
+;@ Writes the values of a tile block (see DrawScriptTiles_0D) into the background map at
+;@ wScriptBlockPtr plus the block's offset, each through WriteVRAM. Rows and columns wrap around
+;@ inside the 32x32 map. Used for the tile numbers and, with VRAM bank 1, for CGB attributes.
 WriteBlockToBGMap_0D::
+;> offset = mem16[block]; block += 2
 	ld a, [bc]
 	ld l, a
 	inc bc
 	ld a, [bc]
 	ld h, a
 	inc bc
+;> columns = offset & 0x1F
 	push bc
 	ld b, l
+;> row_part = offset & 0xFFE0
 	ld a, l
 	and $e0
 	ld l, a
+;> pos = wScriptBlockPtr + row_part
 	ld a, [wScriptBlockPtr]
 	add l
 	ld l, a
-	ld a, [$d8e8]
+	ld a, [wScriptBlockPtr + 1]
 	adc h
+;> pos = (wScriptBlockPtr & 0xFC00) | (pos & 0x3FF)   # stay inside the map
 	and $03
 	ld h, a
-	ld a, [$d8e8]
+	ld a, [wScriptBlockPtr + 1]
 	and $fc
 	or h
 	ld h, a
+;>@cols for i in range(columns):
 	ld a, b
 	and $1f
-	jr z, jr_00d_40a0
+	jr z, .rowStart
 
 	ld b, a
 
-jr_00d_409a:
+.column
+;>     pos = NextMapColumn_0D(pos)
 	call NextMapColumn_0D
+;=@cols
 	dec b
-	jr nz, jr_00d_409a
+	jr nz, .column
 
-jr_00d_40a0:
+.rowStart
+;> wScriptBlockPtr = pos                 # start of the block's first row
 	ld a, l
 	ld [wScriptBlockPtr], a
 	ld a, h
-	ld [$d8e8], a
+	ld [wScriptBlockPtr + 1], a
 	pop bc
 
-jr_00d_40a9:
+.next
+;>@loop while True:
+;>     c = mem[block]; block += 1
 	ld a, [bc]
 	inc bc
+;>     if c == 0xD9:                     # end of the block
+;>         return
 	cp $d9
 	ret z
 
+;>     if c == 0xD8:                     # next row
 	cp $d8
-	jr nz, jr_00d_40d2
+	jr nz, .value
 
+;>         pos = wScriptBlockPtr
 	ld a, [wScriptBlockPtr]
 	ld l, a
-	ld a, [$d8e8]
+	ld a, [wScriptBlockPtr + 1]
 	ld h, a
+;>         pos += 0x20
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;>         pos = 0x9800 | (pos & 0x3FF)
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;>         wScriptBlockPtr = pos
 	ld a, l
 	ld [wScriptBlockPtr], a
 	ld a, h
-	ld [$d8e8], a
-	jr jr_00d_40a9
+	ld [wScriptBlockPtr + 1], a
+;=@loop
+	jr .next
 
-jr_00d_40d2:
+.value
+;>     else:
+;>         WriteVRAM(c, pos)
 	call WriteVRAM
+;>         pos = NextMapColumn_0D(pos)
 	call NextMapColumn_0D
-	jr jr_00d_40a9
+;=@loop
+	jr .next
 
+;@ def NextMapColumn_0D(pos: hl) -> hl
+;@ path: event/script
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
 NextMapColumn_0D::
+;> column = (pos + 1) & 0x1F
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;> pos = (pos & 0xFFE0) | column
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;> return pos
 	ret
 
 
+;@ def CopyBlockToTileBuffer_0D(block: bc)
+;@ path: event/script
+;@ Copies the tile numbers of a tile block (see DrawScriptTiles_0D) into wSavedTilemap, the
+;@ RAM copy of the background map; the block's offset is taken from the buffer's start.
 CopyBlockToTileBuffer_0D::
+;> offset = mem16[block]; block += 2
 	ld a, [bc]
 	ld l, a
 	inc bc
 	ld a, [bc]
 	ld h, a
 	inc bc
+;> dest = wSavedTilemap + offset
 	ld a, l
 	add $00
 	ld l, a
@@ -188,96 +263,142 @@ CopyBlockToTileBuffer_0D::
 	adc $c3
 	ld h, a
 
-jr_00d_40f5:
+.row
+;>@rows while True:
+;>     line = dest
 	push hl
 
-jr_00d_40f6:
+.next
+;>@vals     while True:
+;>         c = mem[block]; block += 1
 	ld a, [bc]
 	inc bc
+;>         if c == 0xD9:
 	cp $d9
-	jr z, jr_00d_410e
+	jr z, .end
 
+;>@end             return
+;>         if c == 0xD8:
 	cp $d8
-	jr nz, jr_00d_410b
+	jr nz, .value
 
+;>             break
+;>@val         mem[dest] = c; dest += 1
+;>     dest = line
 	pop hl
+;>     dest += 0x20
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00d_40f5
+;=@rows
+	jr .row
 
-jr_00d_410b:
+.value
+;=@val
 	ld [hli], a
-	jr jr_00d_40f6
+;=@vals
+	jr .next
 
-jr_00d_410e:
+.end
+;=@end
 	pop hl
 	ret
 
 
+;@ def DrawScriptAttrs_0D()
+;@ path: event/script
+;@ Script helper: like DrawScriptTiles_0D, but the block holds palette attributes. They go into
+;@ wScreenMap (4 bits per cell) and, on a Game Boy Color, into the attribute map (VRAM bank 1)
+;@ at the same place.
 DrawScriptAttrs_0D::
+;> hScrollX &= 0xF8
 	ld hl, hScrollX
 	ld a, [hl]
 	and $f8
 	ld [hl], a
+;> hScrollY &= 0xF8
 	ld hl, hScrollY
 	ld a, [hl]
 	and $f8
 	ld [hl], a
+;> row_offset = hScrollY * 4
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
+;> column = hScrollX >> 3
 	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
+;> corner = 0x9800 + row_offset + column
 	add l
 	ld l, a
 	ld a, h
 	adc $98
 	ld h, a
+;> corner = 0x9800 | (corner & 0x3FF)
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;> wScriptBlockPtr = corner
 	ld a, l
 	ld [wScriptBlockPtr], a
 	ld a, h
-	ld [$d8e8], a
+	ld [wScriptBlockPtr + 1], a
+;> wScriptPos += 1
 	ld a, [wScriptPos]
 	add $01
 	ld [wScriptPos], a
-	ld a, [$d8d6]
+	ld a, [wScriptPos + 1]
 	adc $00
-	ld [$d8d6], a
+	ld [wScriptPos + 1], a
+;> block, addr = GetScriptWord_0D()
 	call GetScriptWord_0D
+;> CopyBlockToAttrBuffer_0D(block)
 	push bc
 	call CopyBlockToAttrBuffer_0D
 	pop bc
+;> if not wOnCGB:
+;>     return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> disable_interrupts()
 	di
+;> WaitVRAMAccess()
 	call WaitVRAMAccess
+;> rVBK = 1                              # the attribute map
 	ld a, $01
 	ldh [rVBK], a
+;> enable_interrupts()
 	ei
+;> WriteBlockToBGMap_0D(block)
 	call WriteBlockToBGMap_0D
+;> disable_interrupts()
 	di
+;> WaitVRAMAccess()
 	call WaitVRAMAccess
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
+;> enable_interrupts()
 	ei
 	ret
 
 
+;@ def CopyBlockToAttrBuffer_0D(block: bc)
+;@ path: event/script
+;@ Stores the values of an attribute block in wScreenMap (SetAttrNibble_0D); the block's
+;@ offset is the number of the first map cell.
 CopyBlockToAttrBuffer_0D::
+;> cell = mem16[block]; block += 2
 	ld a, [bc]
 	ld l, a
 	inc bc
@@ -285,71 +406,100 @@ CopyBlockToAttrBuffer_0D::
 	ld h, a
 	inc bc
 
-jr_00d_4177:
+.row
+;>@rows while True:
+;>     line = cell
 	push hl
 
-jr_00d_4178:
+.next
+;>@vals     while True:
+;>         c = mem[block]; block += 1
 	ld a, [bc]
 	inc bc
+;>         if c == 0xD9:
 	cp $d9
-	jr z, jr_00d_4193
+	jr z, .end
 
+;>@end             return
+;>         if c == 0xD8:
 	cp $d8
-	jr nz, jr_00d_418d
+	jr nz, .value
 
+;>             break
+;>@val         SetAttrNibble_0D(cell, c); cell += 1
+;>     cell = line
 	pop hl
+;>     cell += 0x20
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00d_4177
+;=@rows
+	jr .row
 
-jr_00d_418d:
+.value
+;=@val
 	call SetAttrNibble_0D
 	inc hl
-	jr jr_00d_4178
+;=@vals
+	jr .next
 
-jr_00d_4193:
+.end
+;=@end
 	pop hl
 	ret
 
 
+;@ def SetAttrNibble_0D(cell: hl, value: a)
+;@ path: event/script
+;@ Stores the 4-bit `value` for map cell `cell` (0-1023) in wScreenMap: two cells per byte,
+;@ the even cell in the high nibble, the odd one in the low nibble.
 SetAttrNibble_0D::
+;> odd = cell & 1
 	push hl
 	srl h
 	rr l
+;> addr = wScreenMap + cell // 2
 	push af
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c2
+;> if not odd:
 	ld h, a
 	pop af
-	jr c, jr_00d_41b0
+	jr c, .odd
 
+;>     mem[addr] = ((value << 4) & 0xF0) | (mem[addr] & 0x0F)
 	swap a
 	and $f0
 	ld d, a
 	ld a, [hl]
 	and $0f
-	jr jr_00d_41b6
+	jr .store
 
-jr_00d_41b0:
+.odd
+;> else:
+;>     mem[addr] = (value & 0x0F) | (mem[addr] & 0xF0)
 	and $0f
 	ld d, a
 	ld a, [hl]
 	and $f0
 
-jr_00d_41b6:
+.store
 	or d
 	ld [hl], a
+;> return
 	pop hl
 	ret
 
 
+;@ path: event/script
+;@ The map scripts of maps 6-$1F, in the same form as MapScripts_0C; the table is indexed by
+;@ the full map number, the entries of maps 0-5 point at a stand-in.
 MapScripts_0D::
 	db $3e, $7c, $3e, $7c, $3e, $7c, $3e, $7c, $3e, $7c, $3e, $7c, $fa, $41, $22, $4d
 	db $da, $56, $12, $5d, $e8, $61, $04, $62, $08, $62, $70, $62, $54, $64, $58, $64

@@ -4,15 +4,23 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $048", ROMX[$4000], BANK[$48]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_48::
 	db $48
 
+;@ path: text/dialogue
+;@ Entry points of text bank $48: the text routines, then one pointer per text group.
+;@ That tail (from $4007) is the group table the routines hand to StartText.
 FarTable_48::
 	dw StartText_48
 	dw CopyText_48
 	dw PrintText_48
 	dw TextGroup_48_0
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $48: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_48_0::
 	db $6b, $41, $d2, $41, $94, $42, $ff, $42, $5d, $43, $75, $43, $b1, $44, $fc, $45
 	db $36, $46, $55, $46, $7a, $46, $9a, $46, $7f, $47, $5f, $48, $b0, $48, $ea, $48
@@ -29,102 +37,146 @@ TextGroup_48_0::
 	db $c4, $6e, $f5, $6f, $4c, $70, $16, $71, $37, $71, $a2, $71, $28, $72, $bb, $72
 	db $19, $73, $7a, $73, $11, $74, $ad, $74
 
+;@ def StartText_48()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $48. Some text numbers of this bank are
+;@ kept in bank $1F: those are renumbered and handed to that bank.
+;@ test: skip runs the text code with this bank switched in
 StartText_48::
+;> if wTextGroup == 0x01:
 	ld a, [wTextGroup]
 	cp $01
 	jr nz, jr_048_40f2
 
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     return StartText_1F()                    # that bank holds these texts
 	ld hl, far_StartText_1F
 	rst $10
 	ret
 
 
 jr_048_40f2:
+;> if wTextIndex >= 0x6C:
 	ld a, [wTextIndex]
 	cp $6c
 	jr c, jr_048_4108
 
+;>     wTextIndex -= 0x6C
 	sub $6c
 	ld [wTextIndex], a
+;>     wTextGroup = 0x01
 	ld a, $01
 	ld [wTextGroup], a
+;>     return StartText_1F()                    # that bank holds these texts
 	ld hl, far_StartText_1F
 	rst $10
 	ret
 
 
 jr_048_4108:
-	ld de, $4007
+;> StartText(FarTable_48 + 6)
+	ld de, FarTable_48 + 6
 	call StartText
 	ret
 
 
+;@ def CopyText_48()
+;@ path: text/dialogue
+;@ Copies (to wTextCopyDest) text wTextGroup / wTextIndex of bank $48. Some text numbers of this bank are
+;@ kept in bank $1F: those are renumbered and handed to that bank.
+;@ test: skip runs the text code with this bank switched in
 CopyText_48::
+;> if wTextGroup == 0x01:
 	ld a, [wTextGroup]
 	cp $01
 	jr nz, jr_048_4120
 
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     return CopyText_1F()                    # that bank holds these texts
 	ld hl, far_CopyText_1F
 	rst $10
 	ret
 
 
 jr_048_4120:
+;> if wTextIndex >= 0x6C:
 	ld a, [wTextIndex]
 	cp $6c
 	jr c, jr_048_4136
 
+;>     wTextIndex -= 0x6C
 	sub $6c
 	ld [wTextIndex], a
+;>     wTextGroup = 0x01
 	ld a, $01
 	ld [wTextGroup], a
+;>     return CopyText_1F()                    # that bank holds these texts
 	ld hl, far_CopyText_1F
 	rst $10
 	ret
 
 
 jr_048_4136:
-	ld de, $4007
+;> CopyTextString(FarTable_48 + 6)
+	ld de, FarTable_48 + 6
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_48()
+;@ path: text/dialogue
+;@ Prints at once (and waits for the end of) text wTextGroup / wTextIndex of bank $48. Some text numbers of this bank are
+;@ kept in bank $1F: those are renumbered and handed to that bank.
+;@ test: skip runs the text code with this bank switched in
 PrintText_48::
+;> if wTextGroup == 0x01:
 	ld a, [wTextGroup]
 	cp $01
 	jr nz, jr_048_414e
 
+;>     wTextGroup = 0x02
 	ld a, $02
 	ld [wTextGroup], a
+;>     return PrintText_1F()                    # that bank holds these texts
 	ld hl, far_PrintText_1F
 	rst $10
 	ret
 
 
 jr_048_414e:
+;> if wTextIndex >= 0x6C:
 	ld a, [wTextIndex]
 	cp $6c
 	jr c, jr_048_4164
 
+;>     wTextIndex -= 0x6C
 	sub $6c
 	ld [wTextIndex], a
+;>     wTextGroup = 0x01
 	ld a, $01
 	ld [wTextGroup], a
+;>     return PrintText_1F()                    # that bank holds these texts
 	ld hl, far_PrintText_1F
 	rst $10
 	ret
 
 
 jr_048_4164:
+;> StartText_48()
 	call StartText_48
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $48, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
+Texts_48::
 	db $ea, $27, $52, $4f, $4f, $3e, $4b, $a3, $26, $4c, $4a, $42, $62, $4c, $4b, $ef
 	db $ee, $37, $42, $4f, $4f, $56, $63, $62, $29, $46, $44, $45, $51, $fa, $f7, $ef
 	db $ee, $51, $4c, $62, $56, $4c, $52, $4f, $62, $45, $42, $3e, $4f, $51, $68, $ef

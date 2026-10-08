@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $01b", ROMX[$4000], BANK[$1b]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_1B::
 	db $1b
 
+;@ path: text/dialogue
+;@ Entry points of text bank $1B: the text routines, then one pointer per text group.
+;@ That tail (from $4007) is the group table the routines hand to StartText.
 FarTable_1B::
 	dw StartText_1B
 	dw CopyText_1B
@@ -15,9 +20,15 @@ FarTable_1B::
 	dw TextGroup_1B_1
 	dw TextGroup_1B_2
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $1B: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_1B_0::
 	db $26, $41, $7b, $41, $ad, $41, $df, $41, $48, $42, $82, $42
 
+;@ path: text/dialogue
+;@ Text group 1 of bank $1B: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_1B_1::
 	db $0e, $43, $44, $43, $a2, $43, $17, $44, $4a, $44, $86, $44, $a7, $44, $e7, $44
 	db $55, $45, $c3, $45, $16, $46, $65, $46, $cf, $46, $54, $47, $99, $47, $2e, $48
@@ -29,6 +40,9 @@ TextGroup_1B_1::
 	db $24, $57, $6c, $57, $d1, $57, $3c, $58, $3f, $59, $97, $59, $fb, $59, $1e, $5a
 	db $37, $5a, $c0, $5a, $db, $5a, $f9, $5a
 
+;@ path: text/dialogue
+;@ Text group 2 of bank $1B: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_1B_2::
 	db $37, $5b, $78, $5b, $ed, $5b, $2b, $5c, $44, $5c, $5f, $5c, $9a, $5c, $fc, $5c
 	db $1d, $5d, $4c, $5d, $b6, $5d, $d7, $5d, $f9, $5d, $32, $5e, $46, $5e, $ab, $5e
@@ -38,24 +52,43 @@ TextGroup_1B_2::
 	db $6c, $6b, $01, $6c, $78, $6c, $91, $6c, $41, $6d, $f4, $6d, $a6, $6e, $55, $6f
 	db $05, $70, $b2, $70, $5d, $71, $0e, $72, $bc, $72, $6c, $73, $1b, $74, $cc, $74
 
+;@ def StartText_1B()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $1B.
+;@ test: skip runs the text code with this bank switched in
 StartText_1B::
-	ld de, $4007
+;> StartText(FarTable_1B + 6)                 # this bank's table of text groups
+	ld de, FarTable_1B + 6
 	call StartText
 	ret
 
 
+;@ def CopyText_1B()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $1B to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_1B::
-	ld de, $4007
+;> CopyTextString(FarTable_1B + 6)                 # this bank's table of text groups
+	ld de, FarTable_1B + 6
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_1B()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $1B at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_1B::
+;> StartText_1B()
 	call StartText_1B
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $1B, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
 Texts_1B::
 	db $eb, $9f, $a3, $27, $4c, $62, $56, $4c, $52, $62, $48, $4b, $4c, $54, $62, $51
 	db $45, $42, $ef, $ee, $4b, $3e, $4a, $42, $62, $4c, $43, $62, $51, $45, $42, $62

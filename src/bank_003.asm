@@ -4,9 +4,13 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $003", ROMX[$4000], BANK[$3]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_03::
 	db $03
 
+;@ path: system/banks
+;@ Entry points of bank 3 for far calls (rst $10 with far_ constants).
 FarTable_03::
 	dw SerialInterruptHandler
 	dw GetMonsterStats
@@ -18,624 +22,1052 @@ FarTable_03::
 	dw RemoveItemFromBag
 	dw MaybeUseUpItem
 
+;@ def SerialInterruptHandler()
+;@ path: link/serial
+;@ Called from the serial interrupt after every byte exchanged over the link cable. While
+;@ wSerialLock bit 7 is set the byte is only noted as missed (bit 6); otherwise the handler of
+;@ the current wLinkMode runs (0 the handshake, 1-3 a game mode played in lockstep).
+;@ test: skip runs the link protocol
 SerialInterruptHandler::
+;> if wSerialLock & 0x80:
 	ld a, [wSerialLock]
 	bit 7, a
-	jr z, jr_003_4020
+	jr z, .run
 
+;>     wSerialLock |= 0x40              # an interrupt was missed
 	set 6, a
 	ld [wSerialLock], a
+;>     return
 	ret
 
-
-jr_003_4020:
+;> return SerialModeTable[wLinkMode]()
+.run
 	ld a, [wLinkMode]
 	rst $00
 
+;@ path: link/serial
+;@ Serial interrupt handlers by wLinkMode.
 SerialModeTable::
 	dw LinkHandshake
 	dw LinkTickMode1
 	dw LinkTickMode2
 	dw LinkTickMode3
 
+;@ def LinkHandshake()
+;@ path: link/serial
+;@ Link mode 0: answers the other Game Boy's call. $F2 / $F3 mean "I start link mode 2 / 3 and
+;@ you follow": accepted when our own choice (wLinkChoice) is the same. $F0 / $F1 mean "I want
+;@ mode 2 / 3": accepted (and we drive the clock) only when we are in the link menu with a save
+;@ file and chose the same; otherwise the partner's wish is noted in wLinkPartnerChoice. A
+;@ mismatch of $F2/$F3 sets wLinkRefused. Every answer ends with LinkHandshakeReply.
+;@ test: skip waits for the serial transfer
 LinkHandshake::
+;> WaitSerialTransfer()
 	call WaitSerialTransfer
+;> b = rSB
 	ldh a, [rSB]
 	ld b, a
+;> if b == 0xF0 or b == 0xF1:
 	cp $f0
-	jr z, jr_003_4071
+	jr z, .partnerAsks
 
 	cp $f1
-	jr z, jr_003_4071
+	jr z, .partnerAsks
 
+;>@ask     return LinkHandshakePartnerAsks(b)
+;> if b == 0xF2:
 	cp $f2
-	jr nz, jr_003_4049
+	jr nz, .notF2
 
+;>     ok = wLinkChoice & 0x7F == 2
 	ld a, [wLinkChoice]
 	and $7f
 	cp $02
-	jr z, jr_003_405e
+	jr z, .follow
 
-	jr jr_003_4056
+	jr .refuse
 
-jr_003_4049:
+;> elif b == 0xF3:
+.notF2
 	cp $f3
-	jr nz, jr_003_4056
+	jr nz, .refuse
 
+;>     ok = wLinkChoice & 0x7F == 3
 	ld a, [wLinkChoice]
 	and $7f
 	cp $03
-	jr z, jr_003_405e
+	jr z, .follow
 
-jr_003_4056:
+;> if b not in (0xF2, 0xF3) or not ok:
+;>     wLinkRefused = 0xFF
+.refuse
 	ld a, $ff
 	ld [wLinkRefused], a
+;>     return LinkHandshakeReply()
 	jp LinkHandshakeReply
 
-
-jr_003_405e:
+;> wLinkFlags = (wLinkFlags | 0x01) & ~0x02   # connected, the partner drives the clock
+.follow
 	ld a, [wLinkFlags]
 	set 0, a
 	res 1, a
 	ld [wLinkFlags], a
+;> if b != 0xF2:
 	ld a, b
 	cp $f2
+;>     return StartLinkMode3()
 	jp nz, StartLinkMode3
 
+;> return StartLinkMode2()
 	jp StartLinkMode2
 
-
-jr_003_4071:
+;> def LinkHandshakePartnerAsks(b):
+;>@ask     if ReadSRAMByte(0xA002) == 0:   # no save file
+.partnerAsks
+;=@ask
 	ld hl, $a002
 	call ReadSRAMByte
 	or a
+;>         return LinkHandshakeReply()
 	jp z, LinkHandshakeReply
 
+;>     if wGameMode != 0:
 	ld a, [wGameMode]
 	or a
-	jr nz, jr_003_40b5
+;>         return LinkHandshakeReply()
+	jr nz, .reply
 
+;>     if wGameModeStep != 1:
 	ld a, [wGameModeStep]
 	cp $01
-	jr nz, jr_003_40b5
+;>         return LinkHandshakeReply()
+	jr nz, .reply
 
-	ld a, [$c8d2]
+;>     if mem[0xC8D2] != 1:             # not in the link menu
+	ld a, [wTitleStep]
 	cp $01
-	jr nz, jr_003_40b5
+;>         return LinkHandshakeReply()
+	jr nz, .reply
 
+;>     if b == 0xF0:
 	ld a, b
 	cp $f0
-	jr nz, jr_003_40a2
+	jr nz, .notF0
 
+;>         if wLinkChoice == 2:
 	ld a, [wLinkChoice]
 	cp $02
-	jr z, jr_003_40b8
+;>             return LinkHandshakeLead(b)
+	jr z, .lead
 
+;>         wLinkPartnerChoice = 2
 	ld a, $02
 	ld [wLinkPartnerChoice], a
-	jr jr_003_40b5
+;>         return LinkHandshakeReply()
+	jr .reply
 
-jr_003_40a2:
+;>     elif b == 0xF1:
+.notF0
 	ld a, b
 	cp $f1
-	jr nz, jr_003_40b5
+	jr nz, .reply
 
+;>         if wLinkChoice == 3:
 	ld a, [wLinkChoice]
 	cp $03
-	jr z, jr_003_40b8
+;>             return LinkHandshakeLead(b)
+	jr z, .lead
 
+;>         wLinkPartnerChoice = 3
 	ld a, $03
 	ld [wLinkPartnerChoice], a
-	jr jr_003_40b5
+	jr .reply
 
-jr_003_40b5:
+;>     return LinkHandshakeReply()
+.reply
 	jp LinkHandshakeReply
 
-
-jr_003_40b8:
+;> def LinkHandshakeLead(b):
+;>     wLinkFlags |= 0x03               # connected, we drive the clock
+.lead
 	ld a, [wLinkFlags]
 	set 0, a
 	set 1, a
 	ld [wLinkFlags], a
+;>     if b != 0xF0:
 	ld a, b
 	cp $f0
+;>         return StartLinkMode3()
 	jp nz, StartLinkMode3
 
+;>     return StartLinkMode2()             # falls through
+
+;@ def StartLinkMode2()
+;@ path: link/serial
+;@ Both Game Boys agreed on link mode 2: links up, loads the save data, heals all monsters and
+;@ switches to game mode 0 step 2; from now on the serial interrupt runs link mode 2.
+;@ test: skip touches battery RAM
 StartLinkMode2::
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> wJoy2Active = 0
 	ld a, $00
 	ld [wJoy2Active], a
+;> wLinkActive = 1
 	ld a, $01
 	ld [wLinkActive], a
+;> disable_interrupts(); LoadGame(); enable_interrupts()
 	di
 	call LoadGame
 	ei
+;> HealAllMonsters()
 	ld hl, far_HealAllMonsters
 	rst $10
+;> wGameMode = 0
 	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
+;> wGameModeStep = 2
 	ld a, $02
 	ld [hli], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 2
 	ld a, $02
 	ld [wLinkMode], a
+;> wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
+;> mem[0xC867] = 0
 	ld a, $00
 	ld [$c867], a
+;> mem[0xC86D] = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;> return LinkHandshakeReply()
 	jp LinkHandshakeReply
 
 
+;@ def StartLinkMode3()
+;@ path: link/serial
+;@ Both Game Boys agreed on link mode 3: links up, loads the save data and switches to game
+;@ mode 0 step 3; from now on the serial interrupt runs link mode 3.
+;@ test: skip touches battery RAM
 StartLinkMode3::
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> wJoy2Active = 0
 	ld a, $00
 	ld [wJoy2Active], a
+;> wLinkActive = 1
 	ld a, $01
 	ld [wLinkActive], a
+;> disable_interrupts(); LoadGame(); enable_interrupts()
 	di
 	call LoadGame
 	ei
+;> wGameMode = 0
 	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
+;> wGameModeStep = 3
 	ld a, $03
 	ld [hli], a
+;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 3
 	ld a, $03
 	ld [wLinkMode], a
+;> wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
+;> mem[0xC867] = 0
 	ld a, $00
 	ld [$c867], a
+;> mem[0xC86D] = 0
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
+;> return LinkHandshakeReply()
 	jp LinkHandshakeReply
 
 
+;@ def LinkHandshakeReply()
+;@ path: link/serial
+;@ Ends a handshake step: sets wSerialLock to 3 and prepares the answer byte $F8 for the
+;@ partner's clock.
+;@ test: skip starts a serial transfer
 LinkHandshakeReply::
+;> wSerialLock = 3
 	ld a, $03
 	ld [wSerialLock], a
+;> SerialSendSlave(0xF8)
 	ld a, $f8
 	call SerialSendSlave
 	ret
 
 
+;@ def LinkTickMode1()
+;@ path: link/serial
+;@ Link mode 1, per byte: when linked, runs the current transfer phase.
+;@ test: skip runs the link protocol
 LinkTickMode1::
+;> if wLinkActive and wLinkFlags & 0x01:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_003_415d
+	jr z, .done
 
 	ld a, [wLinkFlags]
 	bit 0, a
-	jr z, jr_003_415d
+	jr z, .done
 
+;>     LinkPhaseMode1()
 	call LinkPhaseMode1
 
-jr_003_415d:
+.done
 	ret
 
 
+;@ def LinkPhaseMode1()
+;@ path: link/serial
+;@ Link mode 1: send or receive phase.
+;@ test: skip runs the link protocol
 LinkPhaseMode1::
+;> return LinkPhaseTableMode1[wLinkPhase]()
 	ld a, [wLinkPhase]
 	rst $00
 
+;@ path: link/serial
+;@ Link mode 1 phases: send, receive.
 LinkPhaseTableMode1::
 	dw LinkSendMode1
 	dw LinkReceiveMode1
 
+;@ def LinkSendMode1()
+;@ path: link/serial
+;@ Link mode 1, send phase.
+;@ test: skip runs the link protocol
 LinkSendMode1::
+;> LinkSendPhase()
 	call LinkSendPhase
 	ret
 
 
+;@ def LinkReceiveMode1()
+;@ path: link/serial
+;@ Link mode 1, receive phase: takes the partner's byte, then (unless this exchange was a stall)
+;@ runs one frame of the game logic of mode 1 (Call_50_5E49) right here in the interrupt, so both
+;@ Game Boys advance in step.
+;@ test: skip runs the link protocol
 LinkReceiveMode1::
+;> LinkReceivePhase()
 	call LinkReceivePhase
+;> skip = wVBlankFlags & 0x80; wVBlankFlags &= ~0x80
 	ld hl, wVBlankFlags
 	bit 7, [hl]
 	res 7, [hl]
+;> if skip:
+;>     return
 	ret nz
 
+;> LinkFrameDone()
 	call LinkFrameDone
+;> Call_50_5E49()
 	ld hl, far_Call_50_5E49
 	rst $10
+;> wVBlankFlags &= ~0x02                # this exchange's frame has run
 	ld hl, wVBlankFlags
 	res 1, [hl]
 	ret
 
 
+;@ def LinkTickMode2()
+;@ path: link/serial
+;@ Link mode 2, per byte: when linked, runs the current transfer phase.
+;@ test: skip runs the link protocol
 LinkTickMode2::
+;> if wLinkActive and wLinkFlags & 0x01:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_003_4192
+	jr z, .done
 
 	ld a, [wLinkFlags]
 	bit 0, a
-	jr z, jr_003_4192
+	jr z, .done
 
+;>     LinkPhaseMode2()
 	call LinkPhaseMode2
 
-jr_003_4192:
+.done
 	ret
 
 
+;@ def LinkPhaseMode2()
+;@ path: link/serial
+;@ Link mode 2: send or receive phase.
+;@ test: skip runs the link protocol
 LinkPhaseMode2::
+;> return LinkPhaseTableMode2[wLinkPhase]()
 	ld a, [wLinkPhase]
 	rst $00
 
+;@ path: link/serial
+;@ Link mode 2 phases: send, receive.
 LinkPhaseTableMode2::
 	dw LinkSendMode2
 	dw LinkReceiveMode2
 
+;@ def LinkSendMode2()
+;@ path: link/serial
+;@ Link mode 2, send phase.
+;@ test: skip runs the link protocol
 LinkSendMode2::
+;> LinkSendPhase()
 	call LinkSendPhase
 	ret
 
 
+;@ def LinkReceiveMode2()
+;@ path: link/serial
+;@ Link mode 2, receive phase: takes the partner's byte, then (unless this exchange was a stall)
+;@ runs one frame of mode 2's game logic (VSLinkFrame) in the interrupt.
+;@ test: skip runs the link protocol
 LinkReceiveMode2::
+;> LinkReceivePhase()
 	call LinkReceivePhase
+;> skip = wVBlankFlags & 0x80; wVBlankFlags &= ~0x80
 	ld hl, wVBlankFlags
 	bit 7, [hl]
 	res 7, [hl]
+;> if skip:
+;>     return
 	ret nz
 
+;> LinkFrameDone()
 	call LinkFrameDone
-	ld hl, far_Call_15_46D7
+;> VSLinkFrame()
+	ld hl, far_VSLinkFrame
 	rst $10
+;> wVBlankFlags &= ~0x02
 	ld hl, wVBlankFlags
 	res 1, [hl]
 	ret
 
 
+;@ def LinkTickMode3()
+;@ path: link/serial
+;@ Link mode 3, per byte: when linked, runs the current transfer phase.
+;@ test: skip runs the link protocol
 LinkTickMode3::
+;> if wLinkActive and wLinkFlags & 0x01:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_003_41c7
+	jr z, .done
 
 	ld a, [wLinkFlags]
 	bit 0, a
-	jr z, jr_003_41c7
+	jr z, .done
 
+;>     LinkPhaseMode3()
 	call LinkPhaseMode3
 
-jr_003_41c7:
+.done
 	ret
 
 
+;@ def LinkPhaseMode3()
+;@ path: link/serial
+;@ Link mode 3: send or receive phase.
+;@ test: skip runs the link protocol
 LinkPhaseMode3::
+;> return LinkPhaseTableMode3[wLinkPhase]()
 	ld a, [wLinkPhase]
 	rst $00
 
+;@ path: link/serial
+;@ Link mode 3 phases: send, receive.
 LinkPhaseTableMode3::
 	dw LinkSendMode3
 	dw LinkReceiveMode3
 
+;@ def LinkSendMode3()
+;@ path: link/serial
+;@ Link mode 3, send phase.
+;@ test: skip runs the link protocol
 LinkSendMode3::
+;> LinkSendPhase()
 	call LinkSendPhase
 	ret
 
 
+;@ def LinkReceiveMode3()
+;@ path: link/serial
+;@ Link mode 3, receive phase: takes the partner's byte, then (unless this exchange was a stall)
+;@ runs one frame of mode 3's game logic (BreedLinkFrame) in the interrupt.
+;@ test: skip runs the link protocol
 LinkReceiveMode3::
+;> LinkReceivePhase()
 	call LinkReceivePhase
+;> skip = wVBlankFlags & 0x80; wVBlankFlags &= ~0x80
 	ld hl, wVBlankFlags
 	bit 7, [hl]
 	res 7, [hl]
+;> if skip:
+;>     return
 	ret nz
 
+;> LinkFrameDone()
 	call LinkFrameDone
-	ld hl, far_Call_15_547C
+;> BreedLinkFrame()
+	ld hl, far_BreedLinkFrame
 	rst $10
+;> wVBlankFlags &= ~0x02
 	ld hl, wVBlankFlags
 	res 1, [hl]
 	ret
 
 
+;@ def UnusedLinkSendPhase()
+;@ path: unused
+;@ An older send phase that nothing calls: like LinkSendPhase, but the partner's byte is taken
+;@ as its buttons (wJoy2Held) and our own buttons are sent back.
+;@ test: skip runs the link protocol
 UnusedLinkSendPhase::
-	db $fa, $63, $c8, $cb, $4f, $20, $0a, $3e, $01, $ea, $66, $c8, $3e, $f9, $c3, $75
-	db $12, $fa, $a2, $c8, $cb, $4f, $20, $22, $f0, $01, $ea, $6a, $c8, $fa, $44, $c8
-	db $ea, $45, $c8, $fa, $6a, $c8, $ea, $44, $c8, $cd, $ee, $12, $cd, $64, $13, $3e
-	db $01, $ea, $66, $c8, $fa, $42, $c8, $c3, $6b, $12
+;> if not wLinkFlags & 0x02:
+	ld a, [wLinkFlags]
+	bit 1, a
+	jr nz, .master
 
-LinkSendStall::
-	ld a, $20
-
-jr_003_4228:
-	dec a
-	jr nz, jr_003_4228
-
-	ld hl, wVBlankFlags
-	set 2, [hl]
+;>     wLinkPhase = 1
 	ld a, $01
 	ld [wLinkPhase], a
+;>     return SerialSendSlave(0xF9)
+	ld a, $f9
+	jp SerialSendSlave
+
+;> if wVBlankFlags & 0x02:
+.master
+	ld a, [wVBlankFlags]
+	bit 1, a
+;>     return LinkSendStall()
+	jr nz, LinkSendStall
+
+;> wLinkReceived = rSB
+	ldh a, [rSB]
+	ld [wLinkReceived], a
+;> wJoy2HeldLast = wJoy2Held
+	ld a, [wJoy2Held]
+	ld [wJoy2HeldLast], a
+;> wJoy2Held = wLinkReceived
+	ld a, [wLinkReceived]
+	ld [wJoy2Held], a
+;> ReadJoypad()
+	call ReadJoypad
+;> UpdateJoypadPresses()
+	call UpdateJoypadPresses
+;> wLinkPhase = 1
+	ld a, $01
+	ld [wLinkPhase], a
+;> return SerialSendMaster(wJoyHeld)
+	ld a, [wJoyHeld]
+	jp SerialSendMaster
+
+;@ def LinkSendStall()
+;@ path: link/serial
+;@ The game frame of the last exchange has not run yet: after a short delay, sends the stall
+;@ byte $F3 (the partner then skips its frame too) and notes it in wVBlankFlags bit 2.
+;@ test: skip starts a serial transfer
+LinkSendStall::
+;> for _ in range(0x20):
+;>     pass                             # a short delay
+	ld a, $20
+
+.delay
+	dec a
+	jr nz, .delay
+
+;> wVBlankFlags |= 0x04
+	ld hl, wVBlankFlags
+	set 2, [hl]
+;> wLinkPhase = 1
+	ld a, $01
+	ld [wLinkPhase], a
+;> return SerialSendMaster(0xF3)
 	ld a, $f3
 	jp SerialSendMaster
 
 
+;@ def UnusedLinkReceivePhase()
+;@ path: unused
+;@ An older receive phase that nothing calls: takes the partner's byte as its buttons and runs
+;@ LinkFrameDone itself.
+;@ test: skip runs the link protocol
 UnusedLinkReceivePhase::
-	db $fa, $63, $c8, $cb, $4f, $20, $65, $fa, $c7, $c8, $b7, $20, $0c, $f0, $01, $ea
-	db $6a, $c8, $fe, $f3, $ca, $79, $42, $18, $05, $f0, $01, $ea, $6a, $c8, $21, $a2
-	db $c8, $cb, $ce, $fa, $44, $c8, $ea, $45, $c8, $fa, $6a, $c8, $ea, $44, $c8, $cd
-	db $64, $13, $cd, $1b, $44, $af, $ea, $66, $c8, $21, $a2, $c8, $cb, $8e, $c9
+;> if wLinkFlags & 0x02:
+	ld a, [wLinkFlags]
+	bit 1, a
+;>     return UnusedLinkReceiveMaster()
+	jr nz, UnusedLinkReceiveMaster
 
+;> if wLinkNoEnd == 0:
+	ld a, [wLinkNoEnd]
+	or a
+	jr nz, .noCheck
+
+;>     wLinkReceived = rSB
+	ldh a, [rSB]
+	ld [wLinkReceived], a
+;>     if wLinkReceived == 0xF3:
+	cp $f3
+;>         return LinkPartnerStalled()
+	jp z, LinkPartnerStalled
+
+	jr .got
+
+;> else:
+;>     wLinkReceived = rSB
+.noCheck
+	ldh a, [rSB]
+	ld [wLinkReceived], a
+
+;> wVBlankFlags |= 0x02
+.got
+	ld hl, wVBlankFlags
+	set 1, [hl]
+;> wJoy2HeldLast = wJoy2Held
+	ld a, [wJoy2Held]
+	ld [wJoy2HeldLast], a
+;> wJoy2Held = wLinkReceived
+	ld a, [wLinkReceived]
+	ld [wJoy2Held], a
+;> UpdateJoypadPresses()
+	call UpdateJoypadPresses
+;> LinkFrameDone()
+	call LinkFrameDone
+;> wLinkPhase = 0
+	xor a
+	ld [wLinkPhase], a
+;> wVBlankFlags &= ~0x02
+	ld hl, wVBlankFlags
+	res 1, [hl]
+	ret
+
+;@ def LinkPartnerStalled()
+;@ path: link/serial
+;@ The partner sent the stall byte $F3: takes back our buttons and the send pointer as if this
+;@ exchange had not happened, and skips this exchange's game frame (wVBlankFlags bit 7).
 LinkPartnerStalled::
+;> wJoyHeld = wLinkJoyHeld
 	ld a, [wLinkJoyHeld]
 	ld [wJoyHeld], a
+;> wJoyHeldLast = wLinkJoyHeldLast
 	ld a, [wLinkJoyHeldLast]
 	ld [wJoyHeldLast], a
+;> if wLinkSendByte == 0xFF:
 	ld a, [wLinkSendByte]
 	cp $ff
-	jr nz, jr_003_429c
+	jr nz, .done
 
+;>     wLinkSendPtr -= 1                # send that byte again
 	ld a, [wLinkSendPtr]
 	sub $01
 	ld [wLinkSendPtr], a
-	ld a, [$c875]
+	ld a, [wLinkSendPtr + 1]
 	sbc $00
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
 
-jr_003_429c:
+;> wLinkPhase = 0
+.done
 	xor a
 	ld [wLinkPhase], a
+;> wVBlankFlags |= 0x80
 	ld hl, wVBlankFlags
 	set 7, [hl]
 	ret
 
 
+;@ def UnusedLinkReceiveMaster()
+;@ path: unused
+;@ The master's half of UnusedLinkReceivePhase (nothing calls it).
+;@ test: skip runs the link protocol
 UnusedLinkReceiveMaster::
-	db $21, $a2, $c8, $cb, $56, $20, $14, $cb, $ce, $af, $ea, $66, $c8, $3e, $fa, $cd
-	db $75, $12, $cd, $1b, $44, $21, $a2, $c8, $cb, $8e, $c9
+;> if wVBlankFlags & 0x04:
+	ld hl, wVBlankFlags
+	bit 2, [hl]
+;>     return LinkStallAnswered()
+	jr nz, LinkStallAnswered
 
+;> wVBlankFlags |= 0x02
+	set 1, [hl]
+;> wLinkPhase = 0
+	xor a
+	ld [wLinkPhase], a
+;> SerialSendSlave(0xFA)
+	ld a, $fa
+	call SerialSendSlave
+;> LinkFrameDone()
+	call LinkFrameDone
+;> wVBlankFlags &= ~0x02
+	ld hl, wVBlankFlags
+	res 1, [hl]
+	ret
+
+;@ def LinkStallAnswered()
+;@ path: link/serial
+;@ The master's receive phase after it sent a stall: clears the stall note, skips this exchange's
+;@ game frame and prepares $FB for the partner.
+;@ test: skip starts a serial transfer
 LinkStallAnswered::
+;> wVBlankFlags &= ~0x04
 	ld hl, wVBlankFlags
 	res 2, [hl]
+;> wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
+;> SerialSendSlave(0xFB)
 	ld a, $fb
 	call SerialSendSlave
+;> wVBlankFlags |= 0x80
 	ld hl, wVBlankFlags
 	set 7, [hl]
 	ret
 
 
+;@ def LinkSendPhase()
+;@ path: link/serial
+;@ Send phase of a linked game mode. The side without the clock just prepares $F9. The clock
+;@ side stalls if the last frame has not run yet; otherwise it takes the partner's byte, reads
+;@ its own pad and sends either the single byte wLinkSendByte, the next byte of the send buffer
+;@ (storing the received one in the receive buffer), or $F0 when there is nothing to send.
+;@ test: skip runs the link protocol
 LinkSendPhase::
+;> if not wLinkFlags & 0x02:
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_003_42e6
+	jr nz, .master
 
+;>     wLinkPhase = 1
 	ld a, $01
 	ld [wLinkPhase], a
+;>     return SerialSendSlave(0xF9)
 	ld a, $f9
 	jp SerialSendSlave
 
-
-jr_003_42e6:
+;> if wVBlankFlags & 0x02:
+.master
 	ld a, [wVBlankFlags]
 	bit 1, a
+;>     return LinkSendStall()
 	jp nz, LinkSendStall
 
+;> if wLinkSendByte != 0xFF:
 	ld a, [wLinkSendByte]
 	cp $ff
-	jr z, jr_003_4311
+	jr z, .buffer
 
+;>     wLinkReceived = rSB
 	ldh a, [rSB]
 	ld [wLinkReceived], a
+;>     wLinkReceivedLast = wLinkReceived
 	ld a, [wLinkReceived]
 	ld [wLinkReceivedLast], a
+;>     ReadJoypad()
 	call ReadJoypad
+;>     UpdateJoypadPresses()
 	call UpdateJoypadPresses
+;>     wLinkPhase = 1
 	ld a, $01
 	ld [wLinkPhase], a
+;>     return SerialSendMaster(wLinkSendByte)
 	ld a, [wLinkSendByte]
 	jp SerialSendMaster
 
-
-jr_003_4311:
+;> if wLinkSendLength != 0:
+.buffer
 	ld hl, wLinkSendLength
 	ld a, [hli]
 	or [hl]
-	jr z, jr_003_436c
+	jr z, .nothing
 
+;>     mem[wLinkRecvPtr] = rSB
 	ld a, [wLinkRecvPtr]
 	ld l, a
-	ld a, [$c870]
+	ld a, [wLinkRecvPtr + 1]
 	ld h, a
 	ldh a, [rSB]
 	ld [hl], a
+;>     ReadJoypad()
 	call ReadJoypad
+;>     UpdateJoypadPresses()
 	call UpdateJoypadPresses
+;>     wLinkRecvPtr += 1
 	ld a, [wLinkRecvPtr]
 	add $01
 	ld [wLinkRecvPtr], a
-	ld a, [$c870]
+	ld a, [wLinkRecvPtr + 1]
 	adc $00
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;>     wLinkSendLength -= 1
 	ld a, [wLinkSendLength]
 	sub $01
 	ld [wLinkSendLength], a
-	ld a, [$c872]
+	ld a, [wLinkSendLength + 1]
 	sbc $00
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;>     p = wLinkSendPtr
 	ld a, [wLinkSendPtr]
 	ld l, a
-	ld a, [$c875]
+	ld a, [wLinkSendPtr + 1]
 	ld h, a
 	push hl
+;>     wLinkSendPtr += 1
 	ld a, [wLinkSendPtr]
 	add $01
 	ld [wLinkSendPtr], a
-	ld a, [$c875]
+	ld a, [wLinkSendPtr + 1]
 	adc $00
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;>     wLinkPhase = 1
 	pop hl
 	ld a, $01
 	ld [wLinkPhase], a
+;>     return SerialSendMaster(mem[p])
 	ld a, [hl]
 	jp SerialSendMaster
 
-
-jr_003_436c:
+;> wLinkPhase = 1
+.nothing
 	ld a, $01
 	ld [wLinkPhase], a
+;> wLinkReceived = rSB
 	ldh a, [rSB]
 	ld [wLinkReceived], a
+;> wLinkReceivedLast = wLinkReceived
 	ld a, [wLinkReceived]
 	ld [wLinkReceivedLast], a
+;> ReadJoypad()
 	call ReadJoypad
+;> UpdateJoypadPresses()
 	call UpdateJoypadPresses
+;> return SerialSendMaster(0xF0)
 	ld a, $f0
 	jp SerialSendMaster
 
 
+;@ def LinkReceivePhase()
+;@ path: link/serial
+;@ Receive phase of a linked game mode. The side without the clock takes the partner's byte (a
+;@ stall byte $F3 makes it skip the frame), marks the frame as due (wVBlankFlags bit 1) and keeps
+;@ the byte as the last single byte or in the receive buffer. The clock side prepares $FA (or
+;@ answers its own stall).
+;@ test: skip runs the link protocol
 LinkReceivePhase::
+;> if wLinkFlags & 0x02:
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_003_4407
+	jr nz, .master
 
+;>@m1     if wVBlankFlags & 0x04:
+;>@m2         return LinkStallAnswered()
+;>@m3     wVBlankFlags |= 0x02
+;>@m4     wLinkPhase = 0
+;>@m5     SerialSendSlave(0xFA)
+;>@m6     return
+;> if wLinkNoEnd == 0:
 	ld a, [wLinkNoEnd]
 	or a
-	jr nz, jr_003_43a0
+	jr nz, .noCheck
 
+;>     wLinkReceived = rSB
 	ldh a, [rSB]
 	ld [wLinkReceived], a
+;>     if wLinkReceived == 0xF3:
 	cp $f3
+;>         return LinkPartnerStalled()
 	jp z, LinkPartnerStalled
 
-	jr jr_003_43a5
+	jr .got
 
-jr_003_43a0:
+;> else:
+;>     wLinkReceived = rSB
+.noCheck
 	ldh a, [rSB]
 	ld [wLinkReceived], a
 
-jr_003_43a5:
+;> wVBlankFlags |= 0x02                 # a game frame is due
+.got
 	ld hl, wVBlankFlags
 	set 1, [hl]
+;> if wLinkSendByte != 0xFF:
 	ld a, [wLinkSendByte]
 	cp $ff
-	jr z, jr_003_43bf
+	jr z, .buffer
 
+;>     wLinkReceivedLast = wLinkReceived
 	ld a, [wLinkReceived]
 	ld [wLinkReceivedLast], a
+;>     UpdateJoypadPresses()
 	call UpdateJoypadPresses
+;>     wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
+;>     return
 	ret
 
-
-jr_003_43bf:
+;> elif wLinkSendLength != 0:
+.buffer
 	ld hl, wLinkSendLength
 	ld a, [hli]
 	or [hl]
-	jr z, jr_003_43f9
+	jr z, .single
 
+;>     mem[wLinkRecvPtr] = rSB
 	ld a, [wLinkRecvPtr]
 	ld l, a
-	ld a, [$c870]
+	ld a, [wLinkRecvPtr + 1]
 	ld h, a
 	ldh a, [rSB]
 	ld [hl], a
+;>     UpdateJoypadPresses()
 	call UpdateJoypadPresses
+;>     wLinkRecvPtr += 1
 	ld a, [wLinkRecvPtr]
 	add $01
 	ld [wLinkRecvPtr], a
-	ld a, [$c870]
+	ld a, [wLinkRecvPtr + 1]
 	adc $00
-	ld [$c870], a
+	ld [wLinkRecvPtr + 1], a
+;>     wLinkSendLength -= 1
 	ld a, [wLinkSendLength]
 	sub $01
 	ld [wLinkSendLength], a
-	ld a, [$c872]
+	ld a, [wLinkSendLength + 1]
 	sbc $00
-	ld [$c872], a
+	ld [wLinkSendLength + 1], a
+;>     wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
 	ret
 
-
-jr_003_43f9:
+;> else:
+;>     wLinkReceivedLast = wLinkReceived
+.single
 	ld a, [wLinkReceived]
 	ld [wLinkReceivedLast], a
+;>     UpdateJoypadPresses()
 	call UpdateJoypadPresses
+;>     wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
 	ret
 
-
-jr_003_4407:
+.master
+;=@m1
 	ld hl, wVBlankFlags
 	bit 2, [hl]
+;=@m2
 	jp nz, LinkStallAnswered
 
+;=@m3
 	set 1, [hl]
+;=@m4
 	xor a
 	ld [wLinkPhase], a
+;=@m5
 	ld a, $fa
 	call SerialSendSlave
+;=@m6
 	ret
 
 
+;@ def LinkFrameDone()
+;@ path: link/serial
+;@ Housekeeping of a game frame run from the serial interrupt: text printer, palette fade, the
+;@ frame counter, and the link timeout is reset (the partner answered).
 LinkFrameDone::
+;> if wTextState != 0:
 	ld a, [wTextState]
 	or a
-	jr z, jr_003_4424
+	jr z, .fade
 
+;>     UpdateText()
 	call UpdateText
 
-jr_003_4424:
+;> UpdateFade()
+.fade
 	call UpdateFade
+;> wFrameCounter += 1
 	ld a, [wFrameCounter]
 	add $01
 	ld [wFrameCounter], a
-	ld a, [$c8a5]
+	ld a, [wFrameCounter + 1]
 	adc $00
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
+;> wLinkTimeout = 0
 	xor a
 	ld [wLinkTimeout], a
-	ld [$c8c9], a
+	ld [wLinkTimeout + 1], a
 	ret
 
 
+;@ def GetMonsterStats()
+;@ path: monster/stats
+;@ Copies the MonsterStats record of monster wMonSpecies to wMonStats.
 GetMonsterStats::
+;> CopyMonsterStats(wMonStats)
 	ld de, wMonStats
 	call CopyMonsterStats
 	ret
 
 
+;@ def CopyMonsterStats(dest: de)
+;@ path: monster/stats
+;@ Copies the 43-byte MonsterStats record of monster wMonSpecies to dest.
 CopyMonsterStats::
+;> p = wMonSpecies * 43
 	push de
 	ld a, [wMonSpecies]
 	ld c, $2b
 	call Multiply
+;> p += MonsterStats
 	ld a, l
-	add $61
+	add LOW(MonsterStats)
 	ld l, a
 	ld a, h
-	adc $44
+	adc HIGH(MonsterStats)
 	ld h, a
+;> count = 43
 	pop de
 	ld b, $2b
 
-jr_003_445a:
+;> copy(dest, p, count)
+.loop
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_003_445a
+	jr nz, .loop
 
 	ret
 
 
+;@ path: monster/stats
+;@ The monster table: one 43-byte record per monster number (221 records, number 0 first),
+;@ copied by CopyMonsterStats. Fields as far as this bank's code and the values show:
+;@ +0 family, +1 maximum level, +2 experience curve, +3 (always 2; sex ratio?), +4 and +5 flags,
+;@ +6..+8 the three skills it is born with, +9..+14 growth of HP, MP, attack, defense, agility,
+;@ intelligence, +15..+41 27 resistances (0-3 each), +42 a last value 3-6.
 MonsterStats::
 	db $00, $2d, $0d, $02, $00, $00, $43, $5c, $d5, $10, $0a, $0d, $08, $14, $10, $01
 	db $01, $01, $00, $00, $00, $02, $02, $02, $02, $02, $02, $02, $02, $03, $02, $02
@@ -1232,44 +1664,64 @@ MonsterStats::
 	db $00, $00, $00, $02, $02, $02, $02, $02, $02, $02, $02, $03, $01, $01, $02, $02
 	db $01, $01, $00, $03, $03, $02, $03, $02, $02, $01, $01, $02, $02, $00, $07
 
+;@ def GetItemData()
+;@ path: item/data
+;@ Copies the ItemData record of item wItemId to wItemData.
 GetItemData::
+;> CopyItemData(wItemData)
 	ld de, wItemData
 	call CopyItemData
 	ret
 
 
+;@ def CopyItemData(dest: de)
+;@ path: item/data
+;@ Copies the 12-byte ItemData record of item wItemId to dest.
 CopyItemData::
+;> p = wItemId * 12
 	push de
 	ld a, [wItemId]
 	ld c, $0c
 	call Multiply
+;> p += ItemData
 	ld a, l
-	add $da
+	add LOW(ItemData)
 	ld l, a
 	ld a, h
-	adc $71
+	adc HIGH(ItemData)
 	ld h, a
+;> count = 12
 	pop de
 	ld b, $0c
 
-jr_003_699b:
+;> copy(dest, p, count)
+.loop
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_003_699b
+	jr nz, .loop
 
 	ret
 
 
+;@ def CheckItemUsable()
+;@ path: item/use
+;@ Before an item is used: checks whether item wItemId would have any effect on party monster
+;@ wItemTarget (or where Terry is); if not, sets wItemId to $FF.
 CheckItemUsable::
+;> if wItemId == 0xFF:
 	ld a, [wItemId]
 	cp $ff
+;>     return
 	ret z
 
+;> return ItemCheckTable[wItemId]()
 	ld a, [wItemId]
 	rst $00
 
+;@ path: item/use
+;@ Usability checks by item number (0-43).
 ItemCheckTable::
 	dw ItemCheckNone
 	dw ItemCheckHealOne
@@ -1302,792 +1754,1106 @@ ItemCheckTable::
 	dw ItemCheckAlways
 	dw ItemCheckAlways
 	dw ItemCheckAlways
-	dw ItemCheckCB25Max
-	dw ItemCheckCB25Min
-	dw ItemCheckCB26Max
-	dw ItemCheckCB26Min
-	dw ItemCheckCB28Max
-	dw ItemCheckCB28Min
+	dw ItemCheckStat64Max
+	dw ItemCheckStat64Min
+	dw ItemCheckStat65Max
+	dw ItemCheckStat65Min
+	dw ItemCheckStat67Max
+	dw ItemCheckStat67Min
 	dw ItemCheckAlways2
 	dw ItemCheckDirection
 	dw ItemCheckInWorld
 	dw ItemCheckInWorldOnce
 	dw ItemCheckInWorld2
 	dw ItemCheckInWorld2
-	dw ItemCheckEscape
+	dw ItemCheckSaveAllowed
 
+;@ def ItemCheckNone()
+;@ path: item/use
+;@ Check for item 0 (no item): nothing to check.
 ItemCheckNone::
+;> return
 	ret
 
 
+;@ def ItemCheckHealOne()
+;@ path: item/use
+;@ Check for the HP healing items 1 and 2: the target must be alive and hurt.
 ItemCheckHealOne::
+;> if CheckTargetDead():
+;>     return
 	call CheckTargetDead
 	ret nz
 
+;> top = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;> hp = GetPartyMonsterWord(wItemTarget, wMonHP)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
+;> missing = u16(top - hp)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;> if missing != 0:
 	ld a, h
 	or l
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # already at full HP
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckHealParty()
+;@ path: item/use
+;@ Check for the party healing items 3 and 4: usable if any living party monster is hurt. Then
+;@ the names of all hurt ones go into wTextArgs (16 bytes apart) and wItemMessage becomes $26 +
+;@ their number.
 ItemCheckHealParty::
+;> hurt = False
+;> if wPartyCount > 0:
 	ld a, [wPartyCount]
 	or a
 	jp z, ItemCheckFails
 
+;>     if not GetPartyMonsterByte(0, wMonStatus) & 0x80:
 	ld a, $00
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
-	jr nz, jr_003_6a5b
+	jr nz, .slot1
 
+;>         top = GetPartyMonsterWord(0, wMonMaxHP)
 	ld a, $00
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;>         hp = GetPartyMonsterWord(0, wMonHP)
 	ld a, $00
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
+;>         diff = u16(top - hp)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;>         hurt = diff != 0
 	ld a, h
 	or l
-	jr nz, jr_003_6abf
+	jr nz, ItemCheckHealPartyHurt
 
-jr_003_6a5b:
+;> if not hurt and wPartyCount > 1:
+.slot1
 	ld a, [wPartyCount]
 	cp $01
-	jr z, jr_003_6ab9
+	jr z, ItemCheckFails
 
+;>     if not GetPartyMonsterByte(1, wMonStatus) & 0x80:
 	ld a, $01
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
-	jr nz, jr_003_6a8a
+	jr nz, .slot2
 
+;>         top = GetPartyMonsterWord(1, wMonMaxHP)
 	ld a, $01
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;>         hp = GetPartyMonsterWord(1, wMonHP)
 	ld a, $01
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
+;>         diff = u16(top - hp)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;>         hurt = diff != 0
 	ld a, h
 	or l
-	jr nz, jr_003_6abf
+	jr nz, ItemCheckHealPartyHurt
 
-jr_003_6a8a:
+;> if not hurt and wPartyCount > 2:
+.slot2
 	ld a, [wPartyCount]
 	cp $02
-	jr z, jr_003_6ab9
+	jr z, ItemCheckFails
 
+;>     if not GetPartyMonsterByte(2, wMonStatus) & 0x80:
 	ld a, $02
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
-	jr nz, jr_003_6ab9
+	jr nz, ItemCheckFails
 
+;>         top = GetPartyMonsterWord(2, wMonMaxHP)
 	ld a, $02
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;>         hp = GetPartyMonsterWord(2, wMonHP)
 	ld a, $02
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
+;>         diff = u16(top - hp)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;>         hurt = diff != 0
 	ld a, h
 	or l
-	jr nz, jr_003_6abf
+	jr nz, ItemCheckHealPartyHurt
 
+;> if not hurt:
+;>     wItemId = 0xFF                   # nobody needs it
 ItemCheckFails:
-jr_003_6ab9:
 	ld a, $ff
 	ld [wItemId], a
+;>     return
 	ret
 
-
-jr_003_6abf:
+;> n = 0
+ItemCheckHealPartyHurt:
 	ld d, $00
+;> n = AddHurtMonsterName(0, n)
 	ld a, $00
 	call AddHurtMonsterName
+;> n = AddHurtMonsterName(1, n)
 	ld a, $01
 	call AddHurtMonsterName
+;> n = AddHurtMonsterName(2, n)
 	ld a, $02
 	call AddHurtMonsterName
+;> wItemMessage = 0x26 + n
 	ld a, $26
 	add d
 	ld [wItemMessage], a
 	ret
 
 
+;@ def AddHurtMonsterName(slot: a, n: d) -> d
+;@ path: item/use
+;@ If party slot `slot` holds a living, hurt monster, copies its name to wTextArgs + 16 * n and
+;@ counts it (n + 1). Also leaves the slot in wItemTarget.
 AddHurtMonsterName::
+;> wItemTarget = slot
 	ld [wItemTarget], a
+;> if slot >= wPartyCount:
 	ld hl, wPartyCount
 	cp [hl]
+;>     return n
 	ret nc
 
+;> if GetPartyMonsterByte(slot, wMonStatus) & 0x80:
 	push de
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
 	pop de
+;>     return n                         # dead
 	ret nz
 
+;> top = GetPartyMonsterWord(slot, wMonMaxHP)
 	push de
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
+;> hp = GetPartyMonsterWord(slot, wMonHP)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
 	pop de
+;> diff = u16(top - hp)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;> if diff == 0:
 	ld a, h
 	or l
+;>     return n                         # not hurt
 	ret z
 
+;> dest = 16 * n
 	push de
 	ld a, d
 	swap a
+;> dest += wTextArgs
 	ld hl, wTextArgs
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> name = PartyMonsterField(slot, wMonName)
 	push hl
 	ld a, [wItemTarget]
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
 	ld d, h
+;> CopyName(dest, name)
 	pop hl
 	call CopyName
+;> return n + 1
 	pop de
 	inc d
 	ret
 
 
+;@ def ItemCheckRestoreMP()
+;@ path: item/use
+;@ Check for the MP items 5 and 6: the target must be alive and below its maximum MP.
 ItemCheckRestoreMP::
+;> if CheckTargetDead():
+;>     return
 	call CheckTargetDead
 	ret nz
 
+;> top = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxMP
 	call GetPartyMonsterWord
 	push bc
+;> mp = GetPartyMonsterWord(wItemTarget, wMonMP)
 	ld a, [wItemTarget]
 	ld hl, wMonMP
 	call GetPartyMonsterWord
 	pop hl
+;> missing = u16(top - mp)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;> if missing != 0:
 	ld a, h
 	or l
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # MP already full
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckStatus2()
+;@ path: item/use
+;@ Check for an item that cures status bit 2 (item 7): only usable on a living monster that has it.
 ItemCheckStatus2::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x04:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 2, a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckStatus3()
+;@ path: item/use
+;@ Check for an item that cures status bit 3 (item 8): only usable on a living monster that has it.
 ItemCheckStatus3::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x08:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 3, a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckStatus4()
+;@ path: item/use
+;@ Check for an item that cures status bit 4 (item 9): only usable on a living monster that has it.
 ItemCheckStatus4::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x10:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 4, a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckStatus0()
+;@ path: item/use
+;@ Check for an item that cures status bit 0 (item 10): only usable on a living monster that has it.
 ItemCheckStatus0::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x01:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 0, a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckStatus1()
+;@ path: item/use
+;@ Check for an item that cures status bit 1 (item 11): only usable on a living monster that has it.
 ItemCheckStatus1::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x02:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 1, a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckRevive()
+;@ path: item/use
+;@ Check for the revival item 12: only usable on a dead monster.
 ItemCheckRevive::
+;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it is alive
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckMaxHP()
+;@ path: item/use
+;@ Check for an item that raises maximum HP (item 13): only usable while it is below 999.
 ItemCheckMaxHP::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> value = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;> CheckStatRoom(value, 999)
 	ld hl, $03e7
 	call CheckStatRoom
 	ret
 
 
+;@ def ItemCheckMaxMP()
+;@ path: item/use
+;@ Check for an item that raises maximum MP (item 14): only usable while it is below 999.
 ItemCheckMaxMP::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> value = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxMP
 	call GetPartyMonsterWord
+;> CheckStatRoom(value, 999)
 	ld hl, $03e7
 	call CheckStatRoom
 	ret
 
 
+;@ def ItemCheckAttack()
+;@ path: item/use
+;@ Check for an item that raises attack (item 15): only usable while it is below 999.
 ItemCheckAttack::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> value = GetPartyMonsterWord(wItemTarget, wMonAttack)
 	ld a, [wItemTarget]
 	ld hl, wMonAttack
 	call GetPartyMonsterWord
+;> CheckStatRoom(value, 999)
 	ld hl, $03e7
 	call CheckStatRoom
 	ret
 
 
+;@ def ItemCheckDefense()
+;@ path: item/use
+;@ Check for an item that raises defense (item 16): only usable while it is below 999.
 ItemCheckDefense::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> value = GetPartyMonsterWord(wItemTarget, wMonDefense)
 	ld a, [wItemTarget]
 	ld hl, wMonDefense
 	call GetPartyMonsterWord
+;> CheckStatRoom(value, 999)
 	ld hl, $03e7
 	call CheckStatRoom
 	ret
 
 
+;@ def ItemCheckAgility()
+;@ path: item/use
+;@ Check for an item that raises agility (item 17): only usable while it is below 511.
 ItemCheckAgility::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> value = GetPartyMonsterWord(wItemTarget, wMonAgility)
 	ld a, [wItemTarget]
 	ld hl, wMonAgility
 	call GetPartyMonsterWord
+;> CheckStatRoom(value, 511)
 	ld hl, $01ff
 	call CheckStatRoom
 	ret
 
 
+;@ def ItemCheckIntelligence()
+;@ path: item/use
+;@ Check for an item that raises intelligence (item 18): only usable while it is below 255.
 ItemCheckIntelligence::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> value = GetPartyMonsterWord(wItemTarget, wMonIntelligence)
 	ld a, [wItemTarget]
 	ld hl, wMonIntelligence
 	call GetPartyMonsterWord
+;> CheckStatRoom(value, 255)
 	ld hl, $00ff
 	call CheckStatRoom
 	ret
 
 
+;@ def ItemCheckAlive()
+;@ path: item/use
+;@ Check for items 19-23: the target only has to be alive.
 ItemCheckAlive::
+;> if CheckTargetDead():
+;>     return
 	call CheckTargetDead
 	ret nz
 
+;> ItemCheckAlways()                    # falls through
+
+;@ def ItemCheckAlways()
+;@ path: item/use
+;@ Check for items 24-30: always usable.
 ItemCheckAlways::
+;> return
 	ret
 
 
-ItemCheckCB25Max::
+;@ def ItemCheckStat64Max()
+;@ path: item/use
+;@ Check for item 31: usable unless the monster's byte $64 is already $FF.
+ItemCheckStat64Max::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStat64) != 0xFF:
 	ld a, [wItemTarget]
 	ld hl, wMonStat64
 	call GetPartyMonsterByte
 	cp $ff
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
-ItemCheckCB25Min::
+;@ def ItemCheckStat64Min()
+;@ path: item/use
+;@ Check for item 32: usable unless the monster's byte $64 is already 0.
+ItemCheckStat64Min::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStat64) != 0:
 	ld a, [wItemTarget]
 	ld hl, wMonStat64
 	call GetPartyMonsterByte
 	or a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
-ItemCheckCB26Max::
+;@ def ItemCheckStat65Max()
+;@ path: item/use
+;@ Check for item 33: usable unless the monster's byte $65 is already $FF.
+ItemCheckStat65Max::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStat65) != 0xFF:
 	ld a, [wItemTarget]
 	ld hl, wMonStat65
 	call GetPartyMonsterByte
 	cp $ff
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
-ItemCheckCB26Min::
+;@ def ItemCheckStat65Min()
+;@ path: item/use
+;@ Check for item 34: usable unless the monster's byte $65 is already 0.
+ItemCheckStat65Min::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStat65) != 0:
 	ld a, [wItemTarget]
 	ld hl, wMonStat65
 	call GetPartyMonsterByte
 	or a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
-ItemCheckCB28Max::
+;@ def ItemCheckStat67Max()
+;@ path: item/use
+;@ Check for item 35: usable unless the monster's byte $67 is already $FF.
+ItemCheckStat67Max::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStat67) != 0xFF:
 	ld a, [wItemTarget]
 	ld hl, wMonStat67
 	call GetPartyMonsterByte
 	cp $ff
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
-ItemCheckCB28Min::
+;@ def ItemCheckStat67Min()
+;@ path: item/use
+;@ Check for item 36: usable unless the monster's byte $67 is already 0.
+ItemCheckStat67Min::
+;> if CheckTargetDead():
+;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-
+;> if GetPartyMonsterByte(wItemTarget, wMonStat67) != 0:
 	ld a, [wItemTarget]
 	ld hl, wMonStat67
 	call GetPartyMonsterByte
 	or a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # it would do nothing
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckAlways2()
+;@ path: item/use
+;@ Check for item 37: always usable.
 ItemCheckAlways2::
+;> return
 	ret
 
 
+;@ def ItemCheckDirection()
+;@ path: item/use
+;@ Check for item 38, which tells in which direction the floor's goal lies: builds that message
+;@ (system text $023A + v + h: v 0 none / 3 / 6 for the two north-south directions, h 0 none /
+;@ 1 / 2 for east-west) into wTextArgs. A small offset on one axis counts as none when the other
+;@ is far. Only usable on a gate floor.
 ItemCheckDirection::
+;> y = hPlayerY
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
+;> y &= 0xFFF0
 	ld a, l
 	and $f0
 	ld l, a
+;> gy = wGoalY
 	ld a, [wGoalY]
 	ld e, a
-	ld a, [$c967]
+	ld a, [wGoalY + 1]
 	ld d, a
+;> gy &= 0xFFF0
 	ld a, e
 	and $f0
 	ld e, a
+;> dy = u16(y - gy)
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
 	sbc d
 	ld h, a
-	jr nc, jr_003_6cf7
+;> if y < gy:
+	jr nc, .dyDone
 
+;>     dy = u16(0x10000 - dy)           # the distance, without sign
 	ld a, l
 	cpl
 	add $01
 	ld l, a
+;>     pass                             # (high byte, with the carry)
 	ld a, h
 	cpl
 	adc $00
 	ld h, a
 
-jr_003_6cf7:
+;> x = hPlayerX
+.dyDone
 	ldh a, [hPlayerX]
 	ld e, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld d, a
+;> x &= 0xFFF0
 	ld a, e
 	and $f0
 	ld e, a
+;> gx = wGoalX
 	ld a, [wGoalX]
 	ld c, a
-	ld a, [$c965]
+	ld a, [wGoalX + 1]
 	ld b, a
+;> gx &= 0xFFF0
 	ld a, c
 	and $f0
 	ld c, a
+;> dx = u16(x - gx)
 	ld a, e
 	sub c
 	ld e, a
 	ld a, d
 	sbc b
 	ld d, a
-	jr nc, jr_003_6d1f
+;> if x < gx:
+	jr nc, .dxDone
 
+;>     dx = u16(0x10000 - dx)
 	ld a, e
 	cpl
 	add $01
 	ld e, a
+;>     pass
 	ld a, d
 	cpl
 	adc $00
 	ld d, a
 
-jr_003_6d1f:
+;> v = None
+;> if dy < 0x100:
+.dxDone
 	push hl
 	push de
 	ld a, h
 	or a
-	jr nz, jr_003_6d44
+	jr nz, .vertical
 
+;>     if dx < 0x100:
 	ld a, d
 	or a
-	jr nz, jr_003_6d44
+	jr nz, .vertical
 
+;>         if dy == 0x20 and dx >= 0x50:
 	ld a, l
 	cp $20
-	jr nz, jr_003_6d37
+	jr nz, .dy10
 
 	ld a, e
 	cp $50
-	jr c, jr_003_6d44
+	jr c, .vertical
 
+;>             v = 0                    # mostly sideways: no north/south
 	ld b, $00
-	jr jr_003_6d64
+	jr .horizontal
 
-jr_003_6d37:
+;>         elif dy == 0x10 and dx >= 0x30:
+.dy10
 	cp $10
-	jr nz, jr_003_6d44
+	jr nz, .vertical
 
 	ld a, e
 	cp $30
-	jr c, jr_003_6d44
+	jr c, .vertical
 
+;>             v = 0
 	ld b, $00
-	jr jr_003_6d64
+	jr .horizontal
 
-jr_003_6d44:
+;> if v is None:
+;>     py = hPlayerY
+.vertical
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
+;>     g = wGoalY
 	ld a, [wGoalY]
 	ld e, a
-	ld a, [$c967]
+	ld a, [wGoalY + 1]
 	ld d, a
+;>     diff = u16(py - g)
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
 	sbc d
 	ld h, a
+;>     if py < g:
+;>         v = 6
 	ld b, $06
-	jr c, jr_003_6d64
+	jr c, .horizontal
 
+;>     elif diff != 0:
+;>         v = 3
 	ld a, h
 	or l
 	ld b, $03
-	jr nz, jr_003_6d64
+	jr nz, .horizontal
 
+;>     else:
+;>         v = 0
 	ld b, $00
 
-jr_003_6d64:
+;> h_ = None
+;> if dy < 0x100:
+.horizontal
 	pop de
 	pop hl
 	ld a, h
 	or a
-	jr nz, jr_003_6d89
+	jr nz, .sideways
 
+;>     if dx < 0x100:
 	ld a, d
 	or a
-	jr nz, jr_003_6d89
+	jr nz, .sideways
 
+;>         if dx == 0x20 and dy >= 0x50:
 	ld a, e
 	cp $20
-	jr nz, jr_003_6d7c
+	jr nz, .dx10
 
 	ld a, l
 	cp $50
-	jr c, jr_003_6d89
+	jr c, .sideways
 
+;>             h_ = 0                   # mostly north/south: no east/west
 	ld a, $00
-	jr jr_003_6da9
+	jr .message
 
-jr_003_6d7c:
+;>         elif dx == 0x10 and dy >= 0x30:
+.dx10
 	cp $10
-	jr nz, jr_003_6d89
+	jr nz, .sideways
 
 	ld a, l
 	cp $30
-	jr c, jr_003_6d89
+	jr c, .sideways
 
+;>             h_ = 0
 	ld a, $00
-	jr jr_003_6da9
+	jr .message
 
-jr_003_6d89:
+;> if h_ is None:
+;>     px = hPlayerX
+.sideways
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
+;>     g = wGoalX
 	ld a, [wGoalX]
 	ld e, a
-	ld a, [$c965]
+	ld a, [wGoalX + 1]
 	ld d, a
+;>     diff = u16(px - g)
 	ld a, l
 	sub e
 	ld l, a
 	ld a, h
 	sbc d
 	ld h, a
+;>     if px < g:
+;>         h_ = 2
 	ld a, $02
-	jr c, jr_003_6da9
+	jr c, .message
 
+;>     elif diff != 0:
+;>         h_ = 1
 	ld a, h
 	or l
 	ld a, $01
-	jr nz, jr_003_6da9
+	jr nz, .message
 
+;>     else:
+;>         h_ = 0
 	ld a, $00
 
-jr_003_6da9:
+;> CopySystemText(0x0200 + 0x3A + v + h_, wTextArgs)
+.message
 	add b
 	add $3a
 	ld l, a
 	ld h, $02
 	ld de, wTextArgs
 	call CopySystemText
+;> if wOnGateFloor != 0:
 	ld a, [wOnGateFloor]
 	or a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF                       # only on a gate floor
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckInWorld()
+;@ path: item/use
+;@ Check for item 39: only usable on a gate floor.
 ItemCheckInWorld::
+;> if wOnGateFloor != 0:
 	ld a, [wOnGateFloor]
 	or a
-	jr z, jr_003_6dc7
+	jr z, .fail
 
+;>     return
 	ret
 
-
-jr_003_6dc7:
+;> wItemId = 0xFF
+.fail
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckInWorldOnce()
+;@ path: item/use
+;@ Check for item 40: only usable on a gate floor, and only once per visit (wWorldFlags bit 1).
 ItemCheckInWorldOnce::
+;> if not wWorldFlags & 0x02:
 	ld a, [wWorldFlags]
 	bit 1, a
-	jr nz, jr_003_6dd9
+	jr nz, .fail
 
+;>     if wOnGateFloor != 0:
 	ld a, [wOnGateFloor]
 	or a
+;>         return
 	ret nz
 
-jr_003_6dd9:
+;> wItemId = 0xFF
+.fail
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def ItemCheckInWorld2()
+;@ path: item/use
+;@ Check for items 41 and 42: only usable on a gate floor.
 ItemCheckInWorld2::
+;> if wOnGateFloor != 0:
 	ld a, [wOnGateFloor]
 	or a
+;>     return
 	ret nz
 
+;> wItemId = 0xFF
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
-ItemCheckEscape::
+;@ def ItemCheckSaveAllowed()
+;@ path: item/use
+;@ Check for the saving item 43: usable on a gate floor, or on maps from $53 on except $5A-$5D
+;@ and $60.
+ItemCheckSaveAllowed::
+;> if wOnGateFloor != 0:
 	ld a, [wOnGateFloor]
 	or a
+;>     return
 	ret nz
 
+;> m = wMapId
 	ld a, [wMapId]
+;> if m >= 0x53 and m not in (0x5A, 0x5B):
 	cp $53
-	jr c, jr_003_6e0b
+	jr c, .fail
 
 	cp $5a
-	jr z, jr_003_6e0b
+	jr z, .fail
 
 	cp $5b
-	jr z, jr_003_6e0b
+	jr z, .fail
 
+;>     if m not in (0x5C, 0x5D, 0x60):
 	cp $5c
-	jr z, jr_003_6e0b
+	jr z, .fail
 
 	cp $5d
-	jr z, jr_003_6e0b
+	jr z, .fail
 
 	cp $60
-	jr z, jr_003_6e0b
+	jr z, .fail
 
+;>         return
 	ret
 
-
-jr_003_6e0b:
+;> wItemId = 0xFF
+.fail
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
 
+;@ def CheckTargetDead()
+;@ path: item/use
+;@ Returns with the Z flag clear (and wItemId set to $FF) if party monster wItemTarget is dead.
 CheckTargetDead::
+;> if not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
+;>     return False
 	ret z
 
+;> wItemId = 0xFF
 	ld a, $ff
 	ld [wItemId], a
+;> return True
 	or a
 	ret
 
 
+;@ def UseItem()
+;@ path: item/use
+;@ Uses item wItemId (if still usable) on party monster wItemTarget: loads its ItemData record and
+;@ runs its effect from ItemUseTable.
 UseItem::
+;> if wItemId == 0xFF:
 	ld a, [wItemId]
 	cp $ff
+;>     return
 	ret z
 
+;> GetItemData()
 	call GetItemData
+;> return ItemUseTable[wItemId]()
 	ld a, [wItemId]
 	rst $00
 
+;@ path: item/use
+;@ Item effects by item number (0-43).
 ItemUseTable::
 	dw ItemUseNone
 	dw ItemUseHealOne
@@ -2108,11 +2874,11 @@ ItemUseTable::
 	dw ItemUseRaiseDefense
 	dw ItemUseRaiseAgility
 	dw ItemUseRaiseIntelligence
-	dw ItemUseCall2379
-	dw ItemUseCall2379
-	dw ItemUseCall2379
-	dw ItemUseCall2379Status2
-	dw ItemUseCall2379B
+	dw ItemUseLowerWildness
+	dw ItemUseLowerWildness
+	dw ItemUseLowerWildness
+	dw ItemUseLowerWildnessStatus2
+	dw ItemUseLowerWildness2
 	dw ItemUseNothing24
 	dw ItemUseNothing25
 	dw ItemUseNothing26
@@ -2120,601 +2886,909 @@ ItemUseTable::
 	dw ItemUseNothing28
 	dw ItemUseOnlyUseUp
 	dw ItemUseNothing30
-	dw ItemUseRaiseCB25
-	dw ItemUseLowerCB25
-	dw ItemUseRaiseCB26
-	dw ItemUseLowerCB26
-	dw ItemUseRaiseCB28
-	dw ItemUseLowerCB28
+	dw ItemUseRaiseStat64
+	dw ItemUseLowerStat64
+	dw ItemUseRaiseStat65
+	dw ItemUseLowerStat65
+	dw ItemUseRaiseStat67
+	dw ItemUseLowerStat67
 	dw ItemUseNothing37
 	dw ItemUseDirection
 	dw ItemUseOnlyUseUp39
 	dw ItemUseSetWorldFlag
 	dw ItemUseEscape
 	dw ItemUseRevealFloors
-	dw ItemUseAskSave
+	dw ItemUseSaveGame
 
+;@ def ItemUseNone()
+;@ path: item/use
+;@ Item 0: no effect.
 ItemUseNone::
+;> return
 	ret
 
 
+;@ def ItemUseHealOne()
+;@ path: item/use
+;@ Items 1 and 2: heal the target by wItemPower + 0-10 HP.
 ItemUseHealOne::
+;> Random()
 	call Random
+;> r = wRandomHigh % 11
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
 	call Divide8
+;> amount = wItemPower + r
 	ld b, a
 	ld a, [wItemPower]
 	add b
 	ld l, a
 	ld h, $00
+;> HealPartyHP(wItemTarget, amount)
 	ld a, [wItemTarget]
 	call HealPartyHP
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseHealParty()
+;@ path: item/use
+;@ Item 3: heals each of the three party slots by wItemPower + 0-10 HP.
 ItemUseHealParty::
+;>@t for wItemTarget in range(3):
 	ld a, $00
 	ld [wItemTarget], a
+;>@b     HealTargetRandom()
 	call HealTargetRandom
+;=@t
 	ld a, $01
 	ld [wItemTarget], a
+;=@b
 	call HealTargetRandom
+;=@t
 	ld a, $02
 	ld [wItemTarget], a
+;=@b
 	call HealTargetRandom
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def HealTargetRandom()
+;@ path: item/use
+;@ Heals party monster wItemTarget by wItemPower + 0-10 HP.
 HealTargetRandom::
+;> Random()
 	call Random
+;> r = wRandomHigh % 11
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
 	call Divide8
+;> amount = wItemPower + r
 	ld b, a
 	ld a, [wItemPower]
 	add b
 	ld l, a
 	ld h, $00
+;> HealPartyHP(wItemTarget, amount)
 	ld a, [wItemTarget]
 	call HealPartyHP
 	ret
 
 
+;@ def ItemUseFullHealParty()
+;@ path: item/use
+;@ Item 4: restores every living party monster to full HP.
 ItemUseFullHealParty::
+;> FullHealMonster(0)
 	ld a, $00
 	call FullHealMonster
+;> FullHealMonster(1)
 	ld a, $01
 	call FullHealMonster
+;> FullHealMonster(2)
 	ld a, $02
 	call FullHealMonster
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def FullHealMonster(slot: a)
+;@ path: item/use
+;@ Sets the HP of party slot `slot` (if it holds a living monster) to its maximum.
 FullHealMonster::
+;> if slot >= wPartyCount:
 	ld hl, wPartyCount
 	cp [hl]
+;>     return
 	ret nc
 
+;> wItemTarget = slot
 	ld [wItemTarget], a
+;> if CheckTargetDead():
+;>     return
 	call CheckTargetDead
 	ret nz
 
+;> top = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;> SetPartyMonsterWord(wItemTarget, wMonHP, top)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
 	ret
 
 
+;@ def ItemUseRestoreMP()
+;@ path: item/use
+;@ Item 5: restores wItemPower + 0-10 MP.
 ItemUseRestoreMP::
+;> Random()
 	call Random
+;> r = wRandomHigh % 11
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
 	call Divide8
+;> amount = wItemPower + r
 	ld b, a
 	ld a, [wItemPower]
 	add b
 	ld l, a
 	ld h, $00
+;> RestorePartyMP(wItemTarget, amount)
 	ld a, [wItemTarget]
 	call RestorePartyMP
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseFullMP()
+;@ path: item/use
+;@ Item 6: restores the target's MP to its maximum.
 ItemUseFullMP::
+;> top = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxMP
 	call GetPartyMonsterWord
+;> SetPartyMonsterWord(wItemTarget, wMonMP, top)
 	ld a, [wItemTarget]
 	ld hl, wMonMP
 	call SetPartyMonsterWord
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseCureStatus2()
+;@ path: item/use
+;@ Use of an item that cures status bit 2.
 ItemUseCureStatus2::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x04
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	res 2, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseCureStatus3()
+;@ path: item/use
+;@ Use of an item that cures status bit 3.
 ItemUseCureStatus3::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x08
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	res 3, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseCureStatus4()
+;@ path: item/use
+;@ Use of an item that cures status bit 4.
 ItemUseCureStatus4::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x10
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	res 4, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseCureStatus0()
+;@ path: item/use
+;@ Use of an item that cures status bit 0.
 ItemUseCureStatus0::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x01
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	res 0, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseCureStatus1()
+;@ path: item/use
+;@ Use of an item that cures status bit 1.
 ItemUseCureStatus1::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x02
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	res 1, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRevive()
+;@ path: item/use
+;@ Item 12: brings the target back to life with full HP.
 ItemUseRevive::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	ld [hl], $00
+;> top = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;> SetPartyMonsterWord(wItemTarget, wMonHP, top)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRaiseMaxHP()
+;@ path: item/use
+;@ Item 13: raises the target's maximum HP by wItemPower.
 ItemUseRaiseMaxHP::
+;> RaisePartyMaxHP(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyMaxHP
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRaiseMaxMP()
+;@ path: item/use
+;@ Item 14: raises the target's maximum MP by wItemPower.
 ItemUseRaiseMaxMP::
+;> RaisePartyMaxMP(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyMaxMP
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRaiseAttack()
+;@ path: item/use
+;@ Item 15: raises the target's attack by wItemPower.
 ItemUseRaiseAttack::
+;> RaisePartyAttack(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyAttack
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRaiseDefense()
+;@ path: item/use
+;@ Item 16: raises the target's defense by wItemPower.
 ItemUseRaiseDefense::
+;> RaisePartyDefense(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyDefense
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRaiseAgility()
+;@ path: item/use
+;@ Item 17: raises the target's agility by wItemPower.
 ItemUseRaiseAgility::
+;> RaisePartyAgility(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyAgility
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRaiseIntelligence()
+;@ path: item/use
+;@ Item 18: raises the target's intelligence by wItemPower.
 ItemUseRaiseIntelligence::
+;> RaisePartyIntelligence(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyIntelligence
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseCall2379::
+;@ def ItemUseLowerWildness()
+;@ path: item/use
+;@ Items 19-21: lower the target's wildness by wItemPower.
+ItemUseLowerWildness::
+;> LowerPartyWildness(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyWildness
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseCall2379Status2::
+;@ def ItemUseLowerWildnessStatus2()
+;@ path: item/use
+;@ Item 22: lowers the target's wildness by wItemPower and sets its status bit 2.
+ItemUseLowerWildnessStatus2::
+;> LowerPartyWildness(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyWildness
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] |= 0x04
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	set 2, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseCall2379B::
+;@ def ItemUseLowerWildness2()
+;@ path: item/use
+;@ Item 23: lowers the target's wildness by wItemPower.
+ItemUseLowerWildness2::
+;> LowerPartyWildness(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyWildness
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseNothing24()
+;@ path: item/use
+;@ Item 24: no effect.
 ItemUseNothing24::
+;> return
 	ret
 
 
+;@ def ItemUseNothing25()
+;@ path: item/use
+;@ Item 25: no effect.
 ItemUseNothing25::
+;> return
 	ret
 
 
+;@ def ItemUseNothing26()
+;@ path: item/use
+;@ Item 26: no effect.
 ItemUseNothing26::
+;> return
 	ret
 
 
+;@ def ItemUseNothing27()
+;@ path: item/use
+;@ Item 27: no effect.
 ItemUseNothing27::
+;> return
 	ret
 
 
+;@ def ItemUseNothing28()
+;@ path: item/use
+;@ Item 28: no effect.
 ItemUseNothing28::
+;> return
 	ret
 
 
+;@ def ItemUseOnlyUseUp()
+;@ path: item/use
+;@ Item 29: no effect of its own; it may only be used up.
 ItemUseOnlyUseUp::
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseNothing30()
+;@ path: item/use
+;@ Item 30: no effect.
 ItemUseNothing30::
+;> return
 	ret
 
 
-ItemUseRaiseCB25::
+;@ def ItemUseRaiseStat64()
+;@ path: item/use
+;@ Item 31: raises the target's byte $64 by wItemPower.
+ItemUseRaiseStat64::
+;> RaisePartyStat64(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyStat64
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseLowerCB25::
+;@ def ItemUseLowerStat64()
+;@ path: item/use
+;@ Item 32: lowers the target's byte $64 by wItemPower.
+ItemUseLowerStat64::
+;> LowerPartyStat64(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyStat64
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseRaiseCB26::
+;@ def ItemUseRaiseStat65()
+;@ path: item/use
+;@ Item 33: raises the target's byte $65 by wItemPower.
+ItemUseRaiseStat65::
+;> RaisePartyStat65(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyStat65
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseLowerCB26::
+;@ def ItemUseLowerStat65()
+;@ path: item/use
+;@ Item 34: lowers the target's byte $65 by wItemPower.
+ItemUseLowerStat65::
+;> LowerPartyStat65(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyStat65
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseRaiseCB28::
+;@ def ItemUseRaiseStat67()
+;@ path: item/use
+;@ Item 35: raises the target's byte $67 by wItemPower.
+ItemUseRaiseStat67::
+;> RaisePartyStat67(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call RaisePartyStat67
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseLowerCB28::
+;@ def ItemUseLowerStat67()
+;@ path: item/use
+;@ Item 36: lowers the target's byte $67 by wItemPower.
+ItemUseLowerStat67::
+;> LowerPartyStat67(wItemTarget, wItemPower)
 	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyStat67
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseNothing37()
+;@ path: item/use
+;@ Item 37: no effect.
 ItemUseNothing37::
+;> return
 	ret
 
 
+;@ def ItemUseDirection()
+;@ path: item/use
+;@ Item 38: its work is done by ItemCheckDirection; here it may only be used up.
 ItemUseDirection::
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseOnlyUseUp39()
+;@ path: item/use
+;@ Item 39: no effect of its own; it may only be used up.
 ItemUseOnlyUseUp39::
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseSetWorldFlag()
+;@ path: item/use
+;@ Item 40: sets wWorldFlags bit 1 for the rest of this world visit.
 ItemUseSetWorldFlag::
+;> wWorldFlags |= 0x02
 	ld hl, wWorldFlags
 	set 1, [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseEscape()
+;@ path: item/use
+;@ Item 41: leaves the current place (sets wFieldFlags bit 6, resets wMenuStep and wBattleKind,
+;@ steps wStatusViewVars on).
 ItemUseEscape::
+;> RollEncounterGroup()
 	ld hl, far_RollEncounterGroup
 	rst $10
+;> wFieldFlags |= 0x40
 	ld hl, wFieldFlags
 	set 6, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> wBattleKind = 0
 	ld a, $00
 	ld [wBattleKind], a
+;> wStatusViewVars += 1
 	ld hl, wStatusViewVars
 	inc [hl]
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
+;@ def ItemUseRevealFloors()
+;@ path: item/use
+;@ Item 42: marks all 16 entries of wFloorsSeen.
 ItemUseRevealFloors::
+;> fill(wFloorsSeen, 1, 16)
 	ld hl, wFloorsSeen
 	ld bc, $0010
 	ld a, $01
 	call FillMemory
+;> MaybeUseUpItem()
 	call MaybeUseUpItem
 	ret
 
 
-ItemUseAskSave::
+;@ def ItemUseSaveGame()
+;@ path: item/use
+;@ Item 43: if the player answered yes, saves the game (with sound $59 and system text $0D2F).
+;@ test: skip writes battery RAM
+ItemUseSaveGame::
+;> if wTextChoice == 0:                 # yes
 	ld a, [wTextChoice]
 	or a
-	jr nz, jr_003_710f
+	jr nz, .done
 
+;>     MaybeUseUpItem()
 	call MaybeUseUpItem
+;>     disable_interrupts(); SaveGame(); enable_interrupts()
 	di
 	call SaveGame
 	ei
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     PrintSystemText(0x0D2F)
 	ld h, $0d
 	ld l, $2f
 	call PrintSystemText
 
-jr_003_710f:
+.done
 	ret
 
 
+;@ def CheckStatRoom(value: bc, limit: hl)
+;@ path: item/use
+;@ For the stat items: if value is already at limit the item is not usable (wItemId = $FF);
+;@ otherwise puts the gain it would give (wItemPower, at most what is left up to the limit) as
+;@ a number into wTextArgs.
 CheckStatRoom::
+;> room = u16(limit - value)
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
+;> if room == 0:
 	ld a, h
 	or l
-	jr z, jr_003_712e
+	jr z, .full
 
+;>@full     wItemId = 0xFF
+;>@full2     return
+;> gain = wItemPower
 	ld a, h
 	or a
 	ld a, [wItemPower]
-	jr nz, jr_003_7127
+;> if room < 0x100 and gain > room:
+	jr nz, .show
 
 	cp l
-	jr z, jr_003_7127
+	jr z, .show
 
-	jr c, jr_003_7127
+	jr c, .show
 
+;>     gain = room
 	ld a, l
 
-jr_003_7127:
+;> ByteToDecimal(gain, wTextArgs)
+.show
 	ld hl, wTextArgs
 	call ByteToDecimal
 	ret
 
-
-jr_003_712e:
+.full
+;=@full
 	ld a, $ff
 	ld [wItemId], a
+;=@full2
 	ret
 
 
+;@ def MaybeUseUpItem()
+;@ path: item/use
+;@ After an item worked: with a chance of wItemUseUpChance percent it is used up - wItemId
+;@ becomes $FF and its bag slot wItemBagSlot is emptied (the bag is then packed).
 MaybeUseUpItem::
+;> Random()
 	call Random
+;> r = (wRandomHigh | wRandomLow << 8) % 100
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
 	call Divide16
+;> if r >= wItemUseUpChance:
 	ld hl, wItemUseUpChance
 	cp [hl]
+;>     return
 	ret nc
 
+;> wItemId = 0xFF
 	ld a, $ff
 	ld [wItemId], a
+;> slot = wBagItems + wItemBagSlot
 	ld a, [wItemBagSlot]
 	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[slot] = 0xFF
 	ld h, a
 	ld [hl], $ff
+;> CompactBag()
 	call CompactBag
 	ret
 
 
+;@ def CompactBag()
+;@ path: item/bag
+;@ Packs the bag: copies its 20 slots aside (to wSceneObjects), empties it ($FF) and puts back
+;@ every slot that is not empty ($00 or $FF), in order.
 CompactBag::
+;> dst, src, n = wSceneObjects, wBagItems, 20
 	ld hl, wSceneObjects
 	ld de, wBagItems
 	ld b, $14
 
-jr_003_7168:
+;> copy(dst, src, n)
+.copy
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec b
-	jr nz, jr_003_7168
+	jr nz, .copy
 
+;> fill(wBagItems, 0xFF, 20)
 	ld hl, wBagItems
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> src, slot, n = wSceneObjects, wBagItems, 20
 	ld hl, wSceneObjects
 	ld de, wBagItems
 	ld b, $14
 
-jr_003_7181:
+;>@loop for item in src[0:n]:
+.pack
 	ld a, [hli]
+;>     if item != 0xFF and item != 0x00:
 	cp $ff
-	jr z, jr_003_718c
+	jr z, .next
 
 	cp $00
-	jr z, jr_003_718c
+	jr z, .next
 
+;>         mem[slot] = item; slot += 1
 	ld [de], a
 	inc de
 
-jr_003_718c:
+.next
+;=@loop
 	dec b
-	jr nz, jr_003_7181
+	jr nz, .pack
 
+;> return
 	ret
 
 
+;@ def AddItemToBag()
+;@ path: item/bag
+;@ Puts item wItemId into the first empty bag slot; if the bag is full, wItemId becomes $FF.
 AddItemToBag::
+;> if wItemId == 0x00 or wItemId == 0xFF:
 	ld a, [wItemId]
 	cp $00
+;>     return
 	ret z
 
 	cp $ff
 	ret z
 
+;>@for for slot in range(20):
 	ld hl, wBagItems
 	ld b, $14
 
-jr_003_719e:
+.find
+;>     if wBagItems[slot] in (0x00, 0xFF):
 	ld a, [hl]
 	cp $00
-	jr z, jr_003_71b1
+	jr z, .put
 
 	cp $ff
-	jr z, jr_003_71b1
+	jr z, .put
 
+;>@put         wBagItems[slot] = wItemId
+;>@put2         return
+;=@for
 	inc hl
 	dec b
-	jr nz, jr_003_719e
+	jr nz, .find
 
+;> wItemId = 0xFF                       # the bag is full
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
-
-jr_003_71b1:
+.put
+;=@put
 	ld a, [wItemId]
 	ld [hl], a
+;=@put2
 	ret
 
 
+;@ def RemoveItemFromBag()
+;@ path: item/bag
+;@ Takes item wItemId out of the bag (its first slot) and packs the bag; if it is not there,
+;@ wItemId becomes $FF.
 RemoveItemFromBag::
+;> if wItemId == 0x00 or wItemId == 0xFF:
 	ld a, [wItemId]
 	cp $00
+;>     return
 	ret z
 
 	cp $ff
 	ret z
 
+;>@for for slot in range(20):
 	ld hl, wBagItems
 	ld b, $14
 
-jr_003_71c4:
+.find
+;>     if wBagItems[slot] == wItemId:
 	ld a, [wItemId]
 	cp [hl]
-	jr z, jr_003_71d4
+	jr z, .found
 
+;>@found         wBagItems[slot] = 0xFF
+;>@found2         return CompactBag()
+;=@for
 	inc hl
 	dec b
-	jr nz, jr_003_71c4
+	jr nz, .find
 
+;> wItemId = 0xFF                       # not in the bag
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
-
-jr_003_71d4:
+.found
+;=@found
 	ld [hl], $ff
+;=@found2
 	call CompactBag
 	ret
 
 
+;@ path: item/data
+;@ The item table: one 12-byte record per item number (44 records, item 0 empty), copied by
+;@ CopyItemData. +0 kind (0 HP/MP restoring, 1 status cures and revival, 2-7 other groups),
+;@ +1..+2 price (16 bits), +3 chance in percent that using it uses it up (100 = always), +4..+7
+;@ where and on whom it can be used, +8 its message, +9 base amount (healing, stat gain), +10 the
+;@ upper amount shown, +11 flags.
 ItemData::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $08, $00, $64
 	db $00, $04, $00, $03, $04, $1e, $28, $00, $00, $50, $00, $64, $00, $04, $01, $03
@@ -2749,6 +3823,9 @@ ItemData::
 	db $07, $c8, $00, $64, $01, $01, $07, $1e, $2b, $00, $00, $00, $07, $b8, $0b, $00
 	db $01, $01, $07, $2c, $00, $00, $00, $04, $07, $46, $00, $64, $01, $01, $07, $1e
 	db $2d, $00, $00, $00, $07, $64, $00, $64, $01, $07, $07, $1e, $2e, $00, $00, $04
+;@ path: unused
+;@ Bytes nothing in the game refers to: code fragments that do not fit this ROM's routines (left
+;@ over from another build), then $FF padding up to the end of the bank.
 UnusedBank03Data::
 	db $af, $ea, $c7, $cd, $cd, $09, $74, $21, $c1, $cd, $06, $05, $2a, $3c, $c2, $c1
 	db $68, $05, $20, $f8, $3e, $40, $ea, $80, $cd, $3e, $12, $ea, $b4, $cc, $c9, $fa

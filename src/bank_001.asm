@@ -53,8 +53,8 @@ FieldInit::
 ;> wMapLoadState = 0
 	xor a
 	ld [wMapLoadState], a
-;> LoadSGBBorder(GetMapGfxSet())       # load the font / tile set this map needs
-	call GetMapGfxSet
+;> LoadSGBBorder(GetMapSGBBorder())       # load the font / tile set this map needs
+	call GetMapSGBBorder
 	call LoadSGBBorder
 ;> InitSGBPalettes()
 	call InitSGBPalettes
@@ -115,11 +115,11 @@ LoadMap::
 	call CompactMonsters
 ;> RefreshPartyGfx()
 	call RefreshPartyGfx
-;> Call_0B_40CE()
-	ld hl, far_Call_0B_40CE
+;> DrawMapScreen()
+	ld hl, far_DrawMapScreen
 	rst $10
-;> Call_0B_470F()
-	ld hl, far_Call_0B_470F
+;> SpawnMapObjects()
+	ld hl, far_SpawnMapObjects
 	rst $10
 ;> RunMapEntryEvent()
 	call RunMapEntryEvent
@@ -129,8 +129,8 @@ LoadMap::
 ;> wFieldTimer = 0                 # the map setup below sees timer 0
 	xor a
 	ld [wFieldTimer], a
-;> Call_06_4028()
-	ld hl, far_Call_06_4028
+;> UpdateAllActors()
+	ld hl, far_UpdateAllActors
 	rst $10
 ;> wFieldTimer = saved
 	pop af
@@ -247,8 +247,8 @@ FieldMapChange::
 	or a
 ;>         return                  # wait until the fade-out has finished
 	ret nz
-;>     if GetMapGfxSet() != wLoadedGfxSet:
-	call GetMapGfxSet
+;>     if GetMapSGBBorder() != wLoadedGfxSet:
+	call GetMapSGBBorder
 	ld b, a
 	ld a, [wLoadedGfxSet]
 	cp b
@@ -452,7 +452,7 @@ InitNewGameState::
 	ld [wScriptFlags], a
 ;> mem[0xC8EE] = 4
 	ld a, $04
-	ld [$c8ee], a
+	ld [wMessageSpeed], a
 ;> wStepTimer = 100
 	ld hl, $0064
 	ld a, l
@@ -568,8 +568,8 @@ LoadMapGfxAndSong::
 ;> mem[0xD9E9] = 0
 	xor a
 	ld [$d9e9], a
-;> Call_0B_4015()
-	ld hl, far_Call_0B_4015
+;> LoadMapTileset()
+	ld hl, far_LoadMapTileset
 	rst $10
 ;> song = GetMapSong()
 	ld a, [wMusic]
@@ -691,7 +691,7 @@ MapSongs::
 	db $34, $34, $61, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34, $61, $02, $02
 	db $1b, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34, $34
 
-;@ def GetMapGfxSet() -> a
+;@ def GetMapSGBBorder() -> a
 ;@ path: field/map
 ;@ Graphics set the map (or the pending warp's destination) needs: 0 on gate floors and
 ;@ maps from $30 on, 3 for maps below $30, 2 for map $2F, 1 for map $5D; map $5E keeps
@@ -699,8 +699,8 @@ MapSongs::
 ;@ test: wWarpPending = rng.choice([0, 1])
 ;@ test: wMapId = rng.choice([0x2F, 0x5D, 0x5E, 0x10, 0x40])
 ;@ test: wWarpMap = rng.choice([0x2F, 0x5D, 0x5E, 0x10, 0x40])
-GetMapGfxSet::
-;> hNumber = wMapId                # map to look at
+GetMapSGBBorder::
+;> hNumber[0] = wMapId                # map to look at
 	ld a, [wMapId]
 	ldh [hNumber], a
 ;> mem[0xFFD6] = wOnGateFloor
@@ -710,7 +710,7 @@ GetMapGfxSet::
 	ld a, [wWarpPending]
 	or a
 	jr z, .look
-;>     hNumber = wWarpMap
+;>     hNumber[0] = wWarpMap
 	ld a, [wWarpMap]
 	ldh [hNumber], a
 ;>     mem[0xFFD6] = wWarpOnGateFloor
@@ -728,12 +728,12 @@ GetMapGfxSet::
 
 
 .fixedMap
-;> if hNumber == 0x5E:
+;> if hNumber[0] == 0x5E:
 	ldh a, [hNumber]
 	cp $5e
 	jr z, .keep
 ;>@keep     return wLoadedGfxSet
-;> if hNumber == 0x5D:
+;> if hNumber[0] == 0x5D:
 	cp $5d
 	jr nz, .not5D
 ;>     return 1
@@ -742,7 +742,7 @@ GetMapGfxSet::
 
 
 .not5D
-;> if hNumber == 0x2F:
+;> if hNumber[0] == 0x2F:
 	ldh a, [hNumber]
 	cp $2f
 	jr nz, .not2F
@@ -752,7 +752,7 @@ GetMapGfxSet::
 
 
 .not2F
-;> if hNumber < 0x30:
+;> if hNumber[0] < 0x30:
 	ldh a, [hNumber]
 	cp $30
 ;>     return 3
@@ -838,7 +838,7 @@ PlacePlayerOnMap::
 ;>     hPlayerFlags = 0
 	ldh [hPlayerFlags], a
 ;>     mem[0xD7BD] = 0
-	ld [$d7bd], a
+	ld [wTouchedActor], a
 ;>@p     p = MapStartPositions + wMapId * 4
 	ld a, [wMapId]
 	ld l, a
@@ -2391,6 +2391,10 @@ UpdatePlayer::
 ;@ busy states.
 ;@ test: wScriptRunning = 0
 ;@ test: wFieldFlags = rng.choice([0, 0, 0, 4])
+;@ test: hPlayerX = rng.randrange(0x400)
+;@ test: hScrollX = rng.randrange(0x400)
+;@ test: hPlayerY = rng.randrange(0x400)
+;@ test: hScrollY = rng.randrange(0x400)
 CheckScreenEdge::
 ;>@bz if wScriptRunning or wFieldFlags & 0x9E:
 	ld a, [wScriptRunning]
@@ -2493,7 +2497,7 @@ CheckScreenEdge::
 ;> mem16[0xC91E] = 0                # scroll progress
 	xor a
 	ld [wScrollStep], a
-	ld [$c91f], a
+	ld [wScrollColumn], a
 .done
 ;> return
 	ret
@@ -3568,8 +3572,8 @@ ExitMapWest::
 	ldh [hPlayerX], a
 	ld a, $00
 	ldh [$ff93], a
-;> Call_0B_4488()                    # leave through the edge
-	ld hl, far_Call_0B_4488
+;> CheckEdgeWarp()                    # leave through the edge
+	ld hl, far_CheckEdgeWarp
 	rst $10
 ;> return
 	ret
@@ -3608,8 +3612,8 @@ ExitMapEast::
 	ldh [hPlayerX], a
 	ld a, h
 	ldh [$ff93], a
-;> Call_0B_4488()
-	ld hl, far_Call_0B_4488
+;> CheckEdgeWarp()
+	ld hl, far_CheckEdgeWarp
 	rst $10
 ;> return
 	ret
@@ -3636,8 +3640,8 @@ ExitMapNorth::
 	ldh [hPlayerY], a
 	ld a, $00
 	ldh [$ff96], a
-;> Call_0B_4488()
-	ld hl, far_Call_0B_4488
+;> CheckEdgeWarp()
+	ld hl, far_CheckEdgeWarp
 	rst $10
 ;> return
 	ret
@@ -3676,8 +3680,8 @@ ExitMapSouth::
 	ldh [hPlayerY], a
 	ld a, h
 	ldh [$ff96], a
-;> Call_0B_4488()
-	ld hl, far_Call_0B_4488
+;> CheckEdgeWarp()
+	ld hl, far_CheckEdgeWarp
 	rst $10
 ;> return
 	ret
@@ -3687,7 +3691,7 @@ ExitMapSouth::
 ;@ path: field/map
 ;@ Z set when the current map is one of the world maps where walking has effects on the
 ;@ party ($53-$59, $61-$64).
-;@ test: wMapId = rng.choice([0x53, 0x57, 0x61, 0x64, 0x10, 0x5A])
+;@ test: skip the test harness cannot compare a zero-flag result
 IsWorldMap::
 ;>@w return wMapId in (0x53, 0x61, 0x62, 0x63, 0x64, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59)
 	ld a, [wMapId]
@@ -4305,8 +4309,8 @@ SyncFollowerStep::
 ;@ down, up or left - whichever is free - or else right until he is clear.
 ;@ test: skip far calls into the actor code
 ResolvePlayerOverlap::
-;> Call_06_4B1F()                    # sets hPlayerFlags bit 5 when touching an actor
-	ld hl, far_Call_06_4B1F
+;> CheckActorOverlap()                    # sets hPlayerFlags bit 5 when touching an actor
+	ld hl, far_CheckActorOverlap
 	rst $10
 ;> CheckObjectOverlap()
 	call CheckObjectOverlap
@@ -4373,8 +4377,8 @@ ResolvePlayerOverlap::
 	ldh a, [hTestResult]
 	cp $ff
 	jr z, .tryBelow
-;>     Call_06_4B1F()
-	ld hl, far_Call_06_4B1F
+;>     CheckActorOverlap()
+	ld hl, far_CheckActorOverlap
 	rst $10
 ;>     if not hPlayerFlags & 0x20:
 	ldh a, [hPlayerFlags]
@@ -4427,8 +4431,8 @@ ResolvePlayerOverlap::
 ;=@yd
 	ld a, h
 	ldh [$ff96], a
-;>     Call_06_4B1F()
-	ld hl, far_Call_06_4B1F
+;>     CheckActorOverlap()
+	ld hl, far_CheckActorOverlap
 	rst $10
 ;>     if not hPlayerFlags & 0x20:
 	ldh a, [hPlayerFlags]
@@ -4498,8 +4502,8 @@ ResolvePlayerOverlap::
 ;=@uu
 	ld a, h
 	ldh [$ff96], a
-;>     Call_06_4B1F()
-	ld hl, far_Call_06_4B1F
+;>     CheckActorOverlap()
+	ld hl, far_CheckActorOverlap
 	rst $10
 ;>     if not hPlayerFlags & 0x20:
 	ldh a, [hPlayerFlags]
@@ -4569,8 +4573,8 @@ ResolvePlayerOverlap::
 ;=@xl
 	ld a, h
 	ldh [$ff93], a
-;>     Call_06_4B1F()
-	ld hl, far_Call_06_4B1F
+;>     CheckActorOverlap()
+	ld hl, far_CheckActorOverlap
 	rst $10
 ;>     if not hPlayerFlags & 0x20:
 	ldh a, [hPlayerFlags]
@@ -4613,8 +4617,8 @@ ResolvePlayerOverlap::
 ;=@x
 	ld a, h
 	ldh [$ff93], a
-;>     Call_06_4B1F()
-	ld hl, far_Call_06_4B1F
+;>     CheckActorOverlap()
+	ld hl, far_CheckActorOverlap
 	rst $10
 ;>     if not hPlayerFlags & 0x20:
 	ldh a, [hPlayerFlags]
@@ -4824,8 +4828,8 @@ CheckObjectOverlap::
 ;@ test: mem[0xC000] = rng.randrange(64)
 ;@ test: mem[0xC002] = rng.randrange(256)
 ;@ test: mem[0xC003] = rng.randrange(4)
-;@ test: hl = 0xC000
-;@ test: de = 0xC002
+;@ test: tile = 0xC000
+;@ test: pos = 0xC002
 TileDistance::
 ;>@c centre = mem[tile] * 16 + 8
 	ld a, [hl]
@@ -4861,7 +4865,7 @@ TileDistance::
 	adc $00
 	ld b, a
 .positive
-;>@r return d - 16
+;>@r return u16(d - 16)
 	ld a, c
 	sub $10
 	ld c, a
@@ -5543,14 +5547,14 @@ HandleConveyor::
 
 ;@ def CheckConveyorTile()
 ;@ path: field/conveyor
-;@ On the fixed maps (not world maps, not while busy): when the tile under Terry is a
+;@ On the world maps (see IsWorldMap; not while busy): when the tile under Terry is a
 ;@ conveyor (tile number / 4 = $0F right, $10 left, $11 down, $12 up) he is pushed at one
 ;@ pixel per frame in that direction.
 ;@ test: wOnGateFloor = 0
 ;@ test: wFadeState = 0
 ;@ test: wMapLoadState = 0
 ;@ test: wFieldFlags = 0
-;@ test: wMapId = 0x10
+;@ test: wMapId = rng.choice([0x10, 0x53, 0x61])
 ;@ test: hTestTile = rng.randrange(0x38, 0x50)
 CheckConveyorTile::
 ;> if wOnGateFloor:
@@ -5565,7 +5569,7 @@ CheckConveyorTile::
 	bit 7, a
 ;>     return
 	ret nz
-;>@b if wMapLoadState or wFieldFlags & 0x45 or IsWorldMap():
+;>@b if wMapLoadState or wFieldFlags & 0x45 or not IsWorldMap():
 	ld a, [wMapLoadState]
 	or a
 	ret nz
@@ -6393,7 +6397,7 @@ TileAnimMap08::
 	or a
 ;>     return TileAnimMap08AfterStar()
 	jr nz, TileAnimMap08AfterStar
-;>@b wBGP = Map08PaletteCycleA[(wFieldTimer >> 5) & 7]
+;>@b wBGP = mem[Map08PaletteCycleA + ((wFieldTimer >> 5) & 7)]
 	ld a, [wFieldTimer]
 	ld l, a
 	ld a, [$c8a7]
@@ -6446,7 +6450,7 @@ TileAnimMap08AfterStar::
 ;=@t
 	add hl, hl
 	add hl, bc
-;>@b wBGP = Map08PaletteCycleB[(t >> 5) & 0x1F]
+;>@b wBGP = mem[Map08PaletteCycleB + ((t >> 5) & 0x1F)]
 	srl h
 	rr l
 	srl h
@@ -8136,10 +8140,10 @@ PickWeighted::
 ;@ Adds the percentage of weight class mem[p] (WeightClasses) to the running sum s and
 ;@ stores the sum at out; advances both pointers.
 ;@ test: mem[0xC000] = rng.randrange(8)
-;@ test: hl = 0xC000
-;@ test: de = 0xC100
+;@ test: p = 0xC000
+;@ test: out = 0xC100
 AddWeightClass::
-;>@a s += WeightClasses[mem[p]]
+;>@a s = u8(s + mem[WeightClasses + mem[p]])
 	ld a, [hl]
 	push hl
 	ld hl, WeightClasses
@@ -8269,6 +8273,12 @@ GateWorldFloorSplits::
 	db $ff, $05, $09, $0d, $11, $ff, $06, $0b, $10, $15, $ff, $06, $0b, $10, $15, $1a
 	db $ff, $06, $0b, $15, $ff, $06, $0b, $15, $29, $3d, $51, $ff
 
+;@ path: field/gatefloor
+;@ Wild-monster tables of the gate floors: 128 records of 26 bytes, picked by
+;@ SelectFloorTable. +0 floor style (wFloorStyle), +1 unknown, +2..+4 weights of the
+;@ group sizes (one, two or three monsters, see WeightClasses), +5..+9 weights of the
+;@ five species, +$0A..+$13 the five species numbers (u16), +$14..+$18 per-species
+;@ limit (1 = only appears alone), +$19 the floor's music (wFloorMusic).
 FloorTables::
 	db $03, $01, $07, $00
 	db $00, $03, $05, $02, $00, $00, $02, $00, $04, $00, $03, $00, $00, $00, $00, $00
@@ -8480,6 +8490,9 @@ FloorTables::
 	db $00, $0f, $04, $03, $00, $00, $07, $03, $03, $02, $02, $00, $c5, $00, $c6, $00
 	db $1e, $00, $b5, $00, $00, $00, $03, $03, $03, $03, $00, $0f
 
+;@ path: unused
+;@ Not referenced anywhere: leftover bytes after the last table of the bank (they look
+;@ like code and tables of an earlier build).
 UnusedBank01Tail::
 	db $5a, $e7, $c9, $d7
 	db $c0, $3e, $07, $ea, $80, $c9, $3e, $06, $ea, $81, $c9, $c9, $f7, $fe, $e8, $62

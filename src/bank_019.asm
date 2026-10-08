@@ -55,7 +55,7 @@ jr_019_4015:
 	ld a, $f0
 	jr z, jr_019_4047
 
-	ld de, $c940
+	ld de, wFloorLayout
 	ld a, c
 	add e
 	ld e, a
@@ -178,7 +178,7 @@ jr_019_40e8:
 	ld [hli], a
 	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
-	ld a, [$c960]
+	ld a, [wStairsScreen]
 	ld hl, wFloorsSeen
 	add l
 	ld l, a
@@ -749,7 +749,7 @@ jr_019_442b:
 GateMapClose::
 	ld a, $ff
 	ldh [hWY], a
-	ld hl, far_Call_0B_40CE
+	ld hl, far_DrawMapScreen
 	rst $10
 	call DrawStatusBar
 	ld hl, wFieldFlags
@@ -821,7 +821,7 @@ DrawGateRoom::
 	ld l, a
 	ld h, $00
 	ld de, $4500
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_019_44a8
 

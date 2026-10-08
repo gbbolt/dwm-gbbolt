@@ -2119,7 +2119,7 @@ jr_053_4ee2:
 	db $6d, $6e, $71, $78, $7c, $7d, $d6, $d7, $d8, $d9, $da, $db, $dc, $ff
 
 Jump_53_4F32::
-	ld a, [$c8ee]
+	ld a, [wMessageSpeed]
 	add $03
 	ld [$db4c], a
 	ld hl, $d9ee

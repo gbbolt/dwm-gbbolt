@@ -295,7 +295,7 @@ jr_014_4264:
 	call MonsterField
 	pop af
 	ld [hl], a
-	ld hl, $cb29
+	ld hl, wMonResist
 	ld de, wMonResistances
 	ld b, $1b
 	call CopyToNewMon
@@ -706,7 +706,11 @@ Jump_014_4592:
 	ret
 
 
-	db $00, $1a, $80, $d6, $36, $49, $46, $3f, $f0, $f0, $f0, $f0, $2b, $3e, $49, $42
+FemaleChance::
+	db $00, $1a, $80, $d6
+
+FixedMonNames::
+	db $36, $49, $46, $3f, $f0, $f0, $f0, $f0, $2b, $3e, $49, $42
 	db $f0, $f0, $f0, $f0, $27, $4f, $3e, $4b, $f0, $f0, $f0, $f0, $2a, $4c, $49, $4a
 	db $f0, $f0, $f0, $f0, $2a, $46, $44, $f0, $f0, $f0, $f0, $f0, $29, $3e, $40, $42
 	db $f0, $f0, $f0, $f0, $33, $3e, $50, $45, $f0, $f0, $f0, $f0, $29, $3e, $4b, $44
@@ -1792,71 +1796,102 @@ jr_014_488f:
 	db $4e, $04, $00, $01, $01, $0e, $00, $14, $00, $0c, $00, $04, $00, $0c, $00, $0e
 	db $00, $c8, $00, $00, $c8, $33, $ff, $ff, $ff
 
+;@ def CheckFieldItemUse()
+;@ path: item/field
+;@ Before an item is used outside battle: sets wItemId to $FF when it would have no effect,
+;@ so it is not used up. Items $2B-$2D (heal one) need a living hurt target, $2E/$2F (heal
+;@ all) a living hurt party member, $30/$31 (revive) a dead target, $33 a poisoned and $36 a
+;@ paralyzed living target; $37 works once per world visit (wWorldFlags bit 0), $38 while a
+;@ room of the floor map is still missing, $7E only on a gate floor. Any other item: $FF.
+;@ test: skip reads the party records through helpers
 CheckFieldItemUse::
+;> if wItemId == 0xFF:
+;>     return
 	ld a, [wItemId]
 	cp $ff
 	ret z
 
+;> if wItemId in (0x2B, 0x2C, 0x2D):
+;>@h1     if not CheckItemTargetAlive() and GetPartyMonsterWord(wItemTarget, wMonHP) == GetPartyMonsterWord(wItemTarget, wMonMaxHP): wItemId = 0xFF
 	cp $2b
-	jp z, Jump_014_7bf4
+	jp z, .healOne
 
 	cp $2c
-	jp z, Jump_014_7bf4
+	jp z, .healOne
 
 	cp $2d
-	jp z, Jump_014_7bf4
+	jp z, .healOne
 
+;> elif wItemId in (0x2E, 0x2F):
+;>@ha     if not any(not CheckMonAlive(s) and GetPartyMonsterWord(s, wMonHP) != GetPartyMonsterWord(s, wMonMaxHP) for s in range(wPartyCount)): wItemId = 0xFF
 	cp $2e
-	jp z, Jump_014_7c1b
+	jp z, .healAll
 
 	cp $2f
-	jp z, Jump_014_7c1b
+	jp z, .healAll
 
+;> elif wItemId in (0x30, 0x31):
+;>@rv     if not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80: wItemId = 0xFF   # must be dead
 	cp $30
-	jp z, Jump_014_7c9b
+	jp z, .revive
 
 	cp $31
-	jp z, Jump_014_7c9b
+	jp z, .revive
 
+;> elif wItemId == 0x33:
+;>@po     if not CheckItemTargetAlive() and not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x04: wItemId = 0xFF
 	cp $33
-	jp z, Jump_014_7cad
+	jp z, .poison
 
+;> elif wItemId == 0x36:
+;>@pa     if not CheckItemTargetAlive() and not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x01: wItemId = 0xFF
 	cp $36
-	jp z, Jump_014_7cc3
+	jp z, .paralysis
 
+;> elif wItemId == 0x37:
+;>@wf     if wWorldFlags & 0x01: wItemId = 0xFF
 	cp $37
-	jp z, Jump_014_7cd9
+	jp z, .worldFlag
 
+;> elif wItemId == 0x38:
+;>@fm     if all(wFloorsSeen[r] for r in range(16)): wItemId = 0xFF
 	cp $38
-	jp z, Jump_014_7ce5
+	jp z, .floorMap
 
+;> elif wItemId == 0x7E:
+;>@gf     if not wOnGateFloor: wItemId = 0xFF
 	cp $7e
-	jp z, Jump_014_7cf5
+	jp z, .gateFloor
 
+;> else:
+;>     wItemId = 0xFF
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7bf4:
+.healOne
+;=@h1
 	call CheckItemTargetAlive
 	ret nz
 
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;=@h1
 	push bc
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
+;=@h1
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
 	ld a, h
+;=@h1
 	or l
 	ret nz
 
@@ -1864,28 +1899,31 @@ Jump_014_7bf4:
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7c1b:
+.healAll
+;=@ha
 	ld a, [wPartyCount]
 	or a
-	jr z, jr_014_7c95
+	jr z, .noneHurt
 
 	ld a, $00
 	call CheckMonAlive
-	jr nz, jr_014_7c4a
+	jr nz, .member1
 
+;=@ha
 	ld a, $00
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
 	ld a, $00
 	ld hl, wMonHP
+;=@ha
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
+;=@ha
 	sbc b
 	ld h, a
 	ld a, h
@@ -1893,66 +1931,76 @@ Jump_014_7c1b:
 	ret nz
 
 	ld a, [wPartyCount]
+;=@ha
 	cp $01
-	jr z, jr_014_7c95
+	jr z, .noneHurt
 
-jr_014_7c4a:
+.member1
+;=@ha
 	ld a, $01
 	call CheckMonAlive
-	jr nz, jr_014_7c73
+	jr nz, .member2
 
 	ld a, $01
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;=@ha
 	push bc
 	ld a, $01
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
+;=@ha
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
 	ld a, h
+;=@ha
 	or l
 	ret nz
 
 	ld a, [wPartyCount]
 	cp $02
-	jr z, jr_014_7c95
+	jr z, .noneHurt
 
-jr_014_7c73:
+.member2
+;=@ha
 	ld a, $02
 	call CheckMonAlive
-	jr nz, jr_014_7c95
+	jr nz, .noneHurt
 
 	ld a, $02
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;=@ha
 	push bc
 	ld a, $02
 	ld hl, wMonHP
 	call GetPartyMonsterWord
 	pop hl
 	ld a, l
+;=@ha
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
 	ld a, h
+;=@ha
 	or l
 	ret nz
 
-jr_014_7c95:
+.noneHurt
+;=@ha
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7c9b:
+.revive
+;=@rv
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -1960,11 +2008,12 @@ Jump_014_7c9b:
 	ret nz
 
 	ld a, $ff
+;=@rv
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7cad:
+.poison
+;=@po
 	call CheckItemTargetAlive
 	ret nz
 
@@ -1972,14 +2021,15 @@ Jump_014_7cad:
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 2, a
+;=@po
 	ret nz
 
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7cc3:
+.paralysis
+;=@pa
 	call CheckItemTargetAlive
 	ret nz
 
@@ -1987,14 +2037,15 @@ Jump_014_7cc3:
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 0, a
+;=@pa
 	ret nz
 
 	ld a, $ff
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7cd9:
+.worldFlag
+;=@wf
 	ld a, [wWorldFlags]
 	bit 0, a
 	ret z
@@ -2003,24 +2054,26 @@ Jump_014_7cd9:
 	ld [wItemId], a
 	ret
 
-
-Jump_014_7ce5:
+.floorMap
+;=@fm
 	ld b, $10
 	ld hl, wFloorsSeen
 
-jr_014_7cea:
+.room
+;=@fm
 	ld a, [hli]
 	ret z
 
 	dec b
-	jr nz, jr_014_7cea
+	jr nz, .room
 
 	ld a, $ff
 	ld [wItemId], a
+;=@fm
 	ret
 
-
-Jump_014_7cf5:
+.gateFloor
+;=@gf
 	ld a, [wOnGateFloor]
 	or a
 	ret nz
@@ -2030,130 +2083,192 @@ Jump_014_7cf5:
 	ret
 
 
+;@ def CheckItemTargetAlive() -> nz
+;@ path: item/field
+;@ CheckMonAlive for the item's target wItemTarget.
+;@ test: skip reads the party records through helpers
 CheckItemTargetAlive::
+;> slot = wItemTarget                    # falls through
 	ld a, [wItemTarget]
 
+;@ def CheckMonAlive(slot: a) -> nz
+;@ path: item/field
+;@ Returns NZ (True) and sets wItemId to $FF when party member `slot` is dead (status bit 7),
+;@ else Z.
+;@ test: skip reads the party records through helpers
 CheckMonAlive::
+;> if not GetPartyMonsterByte(slot, wMonStatus) & 0x80:
+;>     return False
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
 	ret z
 
+;> wItemId = 0xFF
 	ld a, $ff
 	ld [wItemId], a
+;> return True
 	ret
 
 
+;@ def UseFieldItem()
+;@ path: item/field
+;@ The effect of item wItemId used outside battle on wItemTarget (after CheckFieldItemUse):
+;@ $2B heals 30-40 HP, $2C 75-90 HP, $2D all HP; $2E heals each living party member by
+;@ 90-120 HP, $2F fully; $30 revives with half the HP (a 50% chance, else message $0E05),
+;@ $31 with all HP; $33 cures poison, $36 paralysis; $37 sets wWorldFlags bit 0; $38 marks
+;@ every room of the floor as seen; $7E starts a battle with a random encounter group.
+;@ test: skip changes the party through helpers
 UseFieldItem::
+;> if wItemId == 0xFF:
+;>     return
 	ld a, [wItemId]
 	cp $ff
 	ret z
 
+;> if wItemId == 0x2B:
+;>@i1     HealPartyHP(wItemTarget, 30 + wRandomHigh % 11)
 	cp $2b
-	jp z, Jump_014_7d55
+	jp z, .heal30
 
+;> elif wItemId == 0x2C:
+;>@i2     HealPartyHP(wItemTarget, 75 + wRandomHigh % 16)
 	cp $2c
-	jp z, Jump_014_7d6d
+	jp z, .heal75
 
+;> elif wItemId == 0x2D:
+;>@i3     SetPartyMonsterWord(wItemTarget, wMonHP, GetPartyMonsterWord(wItemTarget, wMonMaxHP))
 	cp $2d
-	jp z, Jump_014_7d85
+	jp z, .healFull
 
+;> elif wItemId == 0x2E:
+;>@i4     for s in range(3): wItemTarget = s; HealMonSomewhat(s)
 	cp $2e
-	jp z, Jump_014_7d98
+	jp z, .healAll
 
+;> elif wItemId == 0x2F:
+;>     UseItemFullHealParty()
 	cp $2f
-	jp z, Jump_014_7dd8
+	jp z, UseItemFullHealParty
 
+;> elif wItemId == 0x30:
+;>     UseItemReviveHalf()
 	cp $30
-	jp z, Jump_014_7e1e
+	jp z, UseItemReviveHalf
 
+;> elif wItemId == 0x31:
+;>     UseItemReviveFull()
 	cp $31
-	jp z, Jump_014_7e4e
+	jp z, UseItemReviveFull
 
+;> elif wItemId == 0x33:
+;>     UseItemCurePoison()
 	cp $33
-	jp z, Jump_014_7e6c
+	jp z, UseItemCurePoison
 
+;> elif wItemId == 0x36:
+;>     UseItemCureParalysis()
 	cp $36
-	jp z, Jump_014_7e78
+	jp z, UseItemCureParalysis
 
+;> elif wItemId == 0x37:
+;>     UseItemWorldFlag()
 	cp $37
-	jp z, Jump_014_7e84
+	jp z, UseItemWorldFlag
 
+;> elif wItemId == 0x38:
+;>     UseItemFloorMap()
 	cp $38
-	jp z, Jump_014_7e8a
+	jp z, UseItemFloorMap
 
+;> elif wItemId == 0x7E:
+;>     UseItemStartBattle()
 	cp $7e
-	jp z, Jump_014_7e96
+	jp z, UseItemStartBattle
 
 	ret
 
-
-Jump_014_7d55:
+.heal30
+;=@i1
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
 	call Divide8
 	add $1e
+;=@i1
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call HealPartyHP
 	ret
 
-
-Jump_014_7d6d:
+.heal75
+;=@i2
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $10
 	call Divide8
 	add $4b
+;=@i2
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
 	call HealPartyHP
 	ret
 
-
-Jump_014_7d85:
+.healFull
+;=@i3
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
+;=@i3
 	ret
 
-
-Jump_014_7d98:
+.healAll
+;=@i4
 	ld a, $00
 	ld [wItemTarget], a
 	ld a, $00
 	call HealMonSomewhat
 	ld a, $01
 	ld [wItemTarget], a
+;=@i4
 	ld a, $01
 	call HealMonSomewhat
 	ld a, $02
 	ld [wItemTarget], a
 	ld a, $02
 	call HealMonSomewhat
+;=@i4
 	ret
 
 
+;@ def HealMonSomewhat(slot: a)
+;@ path: item/field
+;@ Heals party member `slot` (also in wItemTarget) by 90-120 HP, unless it is dead.
+;@ test: skip changes the party through helpers
 HealMonSomewhat::
+;> if GetPartyMonsterByte(slot, wMonStatus) & 0x80:
+;>     return
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
 	ret nz
 
+;> Random()
 	call Random
+;> amount = 90 + wRandomHigh % 31
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $1f
 	call Divide8
 	add $5a
+;> HealPartyHP(wItemTarget, amount)
 	ld l, a
 	ld h, $00
 	ld a, [wItemTarget]
@@ -2161,11 +2276,18 @@ HealMonSomewhat::
 	ret
 
 
-Jump_014_7dd8:
+;@ def UseItemFullHealParty()
+;@ path: item/field
+;@ Item $2F: every living party member gets all its HP back.
+;@ test: skip changes the party through helpers
+UseItemFullHealParty::
+;>@slots for slot in range(3):
+;>     if not CheckMonAlive(slot):
 	ld a, $00
 	call CheckMonAlive
-	jr nz, jr_014_7def
+	jr nz, .member1
 
+;>         SetPartyMonsterWord(slot, wMonHP, GetPartyMonsterWord(slot, wMonMaxHP))
 	ld a, $00
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
@@ -2173,75 +2295,101 @@ Jump_014_7dd8:
 	ld hl, wMonHP
 	call SetPartyMonsterWord
 
-jr_014_7def:
+.member1
+;=@slots
 	ld a, $01
 	call CheckMonAlive
-	jr nz, jr_014_7e06
+	jr nz, .member2
 
 	ld a, $01
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;=@slots
 	ld a, $01
 	ld hl, wMonHP
 	call SetPartyMonsterWord
 
-jr_014_7e06:
+.member2
+;=@slots
 	ld a, $02
 	call CheckMonAlive
-	jr nz, jr_014_7e1d
+	jr nz, .done
 
 	ld a, $02
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;=@slots
 	ld a, $02
 	ld hl, wMonHP
 	call SetPartyMonsterWord
 
-jr_014_7e1d:
+.done
 	ret
 
 
-Jump_014_7e1e:
+;@ def UseItemReviveHalf()
+;@ path: item/field
+;@ Item $30: on an even random number the target comes back to life with half its HP;
+;@ otherwise message $0E05 (it failed).
+;@ test: skip changes the party through helpers
+UseItemReviveHalf::
+;> if wRandomHigh & 0x01:
+;>@fail     return PrintSystemText(0x0E05)
 	ld a, [wRandomHigh]
 	bit 0, a
-	jr nz, jr_014_7e47
+	jr nz, .failed
 
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	ld [hl], $00
+;> hp = GetPartyMonsterWord(wItemTarget, wMonMaxHP) >> 1
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	srl b
 	rr c
+;> SetPartyMonsterWord(wItemTarget, wMonHP, hp)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
 	ret
 
-
-jr_014_7e47:
+.failed
+;=@fail
 	ld hl, $0e05
 	call PrintSystemText
 	ret
 
 
-Jump_014_7e4e:
+;@ def UseItemReviveFull()
+;@ path: item/field
+;@ Item $31: the target comes back to life with all its HP.
+;@ test: skip changes the party through helpers
+UseItemReviveFull::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	ld [hl], $00
+;> max_hp = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
+;> SetPartyMonsterWord(wItemTarget, wMonHP, max_hp)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
 	ret
 
 
-Jump_014_7e6c:
+;@ def UseItemCurePoison()
+;@ path: item/field
+;@ Item $33: clears the target's poison (status bit 2).
+;@ test: skip changes the party through helpers
+UseItemCurePoison::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x04
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -2249,7 +2397,12 @@ Jump_014_7e6c:
 	ret
 
 
-Jump_014_7e78:
+;@ def UseItemCureParalysis()
+;@ path: item/field
+;@ Item $36: clears the target's paralysis (status bit 0).
+;@ test: skip changes the party through helpers
+UseItemCureParalysis::
+;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x01
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -2257,13 +2410,21 @@ Jump_014_7e78:
 	ret
 
 
-Jump_014_7e84:
+;@ def UseItemWorldFlag()
+;@ path: item/field
+;@ Item $37: sets wWorldFlags bit 0 for the rest of the world visit.
+UseItemWorldFlag::
+;> wWorldFlags |= 0x01
 	ld hl, wWorldFlags
 	set 0, [hl]
 	ret
 
 
-Jump_014_7e8a:
+;@ def UseItemFloorMap()
+;@ path: item/field
+;@ Item $38: marks all 16 rooms of the floor as seen, so the floor map shows them all.
+UseItemFloorMap::
+;> FillMemory(wFloorsSeen, 16, 1)
 	ld hl, wFloorsSeen
 	ld bc, $0010
 	ld a, $01
@@ -2271,19 +2432,27 @@ Jump_014_7e8a:
 	ret
 
 
-Jump_014_7e96:
+;@ def UseItemStartBattle()
+;@ path: item/field
+;@ Item $7E: rolls an encounter group and starts the battle wipe (wFieldFlags bit 6).
+;@ test: skip calls a routine in another bank
+UseItemStartBattle::
+;> RollEncounterGroup()
 	ld hl, far_RollEncounterGroup
 	rst $10
+;> wFieldFlags |= 0x40
 	ld hl, wFieldFlags
 	set 6, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> wBattleKind = 0
 	ld a, $00
 	ld [wBattleKind], a
+;> wStatusViewVars[0] += 1
 	ld hl, wStatusViewVars
 	inc [hl]
 	ret
-
 
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

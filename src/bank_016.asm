@@ -8,18 +8,18 @@ BankNumber_16::
 	db $16
 
 FarTable_16::
-	dw Call_16_4015
-	dw Call_16_485C
-	dw Call_16_456E
-	dw Call_16_45A3
-	dw Call_16_474A
-	dw Call_16_5B4E
-	dw Call_16_5FE4
-	dw Call_16_6DB0
-	dw Call_16_6F05
-	dw Call_16_7033
+	dw MakeOffspring
+	dw LookupBreedPair
+	dw BreedResult
+	dw BreedResultPreview
+	dw InitJoinedMonster
+	dw NextGateFloor
+	dw MakeGateFloor
+	dw RollFloorItems
+	dw CountEncounterSteps
+	dw GetFloorScreenMap
 
-Call_16_4015::
+MakeOffspring::
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
@@ -47,22 +47,22 @@ jr_016_402d:
 	ld [wCurPartyMember], a
 	ld [wLeaderSlot], a
 	ld hl, wMonsters
-	call Call_16_41B1
+	call OffspringField
 	ld bc, $0095
 	xor a
 	call FillMemory
 	ld hl, wMonSkills
-	call Call_16_41B1
+	call OffspringField
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
 	ld hl, wMonSkillList
-	call Call_16_41B1
+	call OffspringField
 	ld bc, $0019
 	ld a, $ff
 	call FillMemory
 	ld hl, wMonsters
-	call Call_16_41B1
+	call OffspringField
 	ld [hl], $01
 	ld a, [$d66e]
 	ld [wBreedQuery], a
@@ -72,9 +72,9 @@ jr_016_402d:
 	ld [wBreedSlot1], a
 	ld a, $15
 	ld [wBreedSlot2], a
-	call Call_16_456E
+	call BreedResult
 	ld hl, wMonRecSpecies
-	call Call_16_41B1
+	call OffspringField
 	ld a, [wBreedPair]
 	ld [hl], a
 	ld [wMonSpecies], a
@@ -84,13 +84,13 @@ jr_016_402d:
 	ld hl, wLibraryFlags
 	call SetFlag
 	ld hl, wMonFamily
-	call Call_16_41B1
+	call OffspringField
 	ld a, [wMonStats]
 	ld [hl], a
 	ld a, [wOffspringPlus]
 	push af
 	ld hl, wMonPlus
-	call Call_16_41B1
+	call OffspringField
 	pop af
 	cp $63
 	jr c, jr_016_40b3
@@ -100,7 +100,7 @@ jr_016_402d:
 jr_016_40b3:
 	ld [hl], a
 	ld hl, wMonPlus
-	call Call_16_41B1
+	call OffspringField
 	ld a, [hl]
 	ld l, a
 	ld h, $00
@@ -131,51 +131,51 @@ jr_016_40d7:
 jr_016_40d9:
 	push af
 	ld hl, wMonMaxLevel
-	call Call_16_41B1
+	call OffspringField
 	pop af
 	ld [hl], a
 	ld hl, wMonLevel
-	call Call_16_41B1
+	call OffspringField
 	ld [hl], $01
 	ld hl, wMonMaxHP
-	call Call_16_41B8
+	call InheritStat16
 	push bc
 	ld hl, wMonHP
-	call Call_16_41B1
+	call OffspringField
 	pop bc
 	ld a, c
 	ld [hli], a
 	ld [hl], b
 	ld hl, wMonMaxMP
-	call Call_16_41B8
+	call InheritStat16
 	push bc
 	ld hl, wMonMP
-	call Call_16_41B1
+	call OffspringField
 	pop bc
 	ld a, c
 	ld [hli], a
 	ld [hl], b
 	ld hl, wMonAttack
-	call Call_16_41B8
+	call InheritStat16
 	ld hl, wMonDefense
-	call Call_16_41B8
+	call InheritStat16
 	ld hl, wMonAgility
-	call Call_16_41B8
+	call InheritStat16
 	ld hl, wMonIntelligence
-	call Call_16_41B8
+	call InheritStat16
 	ld hl, wMonStat64
-	call Call_16_41FF
+	call InheritStat8
 	ld hl, wMonStat65
-	call Call_16_41FF
+	call InheritStat8
 	ld hl, wMonStat67
-	call Call_16_41FF
+	call InheritStat8
 	ld hl, wMonStat66
-	call Call_16_41FF
-	ld hl, $cb29
+	call InheritStat8
+	ld hl, wMonResist
 	ld de, wMonResistances
 	ld b, $1b
-	call Call_16_4227
-	call Call_16_4360
+	call CopyToOffspring
+	call InheritResistances
 	call Random
 	ld hl, $44cc
 	ld a, [$da36]
@@ -191,47 +191,47 @@ jr_016_40d9:
 	jr nc, jr_016_4169
 
 	ld hl, wMonGender
-	call Call_16_41B1
+	call OffspringField
 	ld [hl], $01
 
 jr_016_4169:
 	ld hl, wMonEgg
-	call Call_16_41B1
+	call OffspringField
 	ld [hl], $01
-	call Call_16_4238
+	call SetOffspringParents
 	ld de, $da39
 	ld b, $03
-	call Call_16_4496
+	call AddSkillsOfList
 	ld a, [$d66e]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
-	call Call_16_4496
+	call AddSkillsOfList
 	ld a, [$d703]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
-	call Call_16_4496
+	call AddSkillsOfList
 	ld de, $d68e
 	ld b, $08
-	call Call_16_4496
+	call AddSkillsOfList
 	ld de, $d723
 	ld b, $08
-	call Call_16_4496
+	call AddSkillsOfList
 	ret
 
 
-Call_16_41B1::
+OffspringField::
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
 
 
-Call_16_41B8::
+InheritStat16::
 	push hl
 	ld a, l
 	add $a4
@@ -260,12 +260,12 @@ Call_16_41B8::
 	rr c
 	pop hl
 	push bc
-	call Call_16_41B1
+	call OffspringField
 	pop bc
 	push hl
 	push bc
 	push bc
-	call Call_16_4313
+	call CountForeignMasters
 	pop bc
 	call Multiply24
 	ld a, $32
@@ -288,7 +288,7 @@ jr_016_41fa:
 	ret
 
 
-Call_16_41FF::
+InheritStat8::
 	push hl
 	ld a, l
 	add $a4
@@ -315,13 +315,13 @@ Call_16_41FF::
 	rr c
 	pop hl
 	push bc
-	call Call_16_41B1
+	call OffspringField
 	pop bc
 	ld [hl], c
 	ret
 
 
-Call_16_4227::
+CopyToOffspring::
 	push bc
 	push de
 	ld a, [wCurPartyMember]
@@ -339,50 +339,50 @@ jr_016_4231:
 	ret
 
 
-Call_16_4238::
+SetOffspringParents::
 	ld a, [$d670]
 	and $01
 	or a
 	jp nz, Jump_016_42aa
 
 	ld hl, wMonParent1
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d66e]
 	ld [hl], a
 	ld hl, wMonParent1Master
 	ld de, $d671
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, $cae0
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$ca4a]
 	ld [hl], a
 	ld hl, wMonParent1Name
 	ld de, $d666
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, wMonParent1Plus
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d6c7]
 	ld [hl], a
 	ld hl, wMonParent2
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d703]
 	ld [hl], a
 	ld hl, wMonParent2Master
 	ld de, $d706
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, $cae9
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$ca4a]
 	ld [hl], a
 	ld hl, wMonParent2Name
 	ld de, $d6fb
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, wMonParent2Plus
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d75c]
 	ld [hl], a
 	ret
@@ -390,75 +390,75 @@ Call_16_4238::
 
 Jump_016_42aa:
 	ld hl, wMonParent1
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d703]
 	ld [hl], a
 	ld hl, wMonParent1Master
 	ld de, $d706
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, $cae0
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$ca4a]
 	ld [hl], a
 	ld hl, wMonParent1Name
 	ld de, $d6fb
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, wMonParent1Plus
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d75c]
 	ld [hl], a
 	ld hl, wMonParent2
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d66e]
 	ld [hl], a
 	ld hl, wMonParent2Master
 	ld de, $d671
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, $cae9
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$ca4a]
 	ld [hl], a
 	ld hl, wMonParent2Name
 	ld de, $d666
 	ld b, $08
-	call Call_16_4227
+	call CopyToOffspring
 	ld hl, wMonParent2Plus
-	call Call_16_41B1
+	call OffspringField
 	ld a, [$d6c7]
 	ld [hl], a
 	ret
 
 
-Call_16_4313::
+CountForeignMasters::
 	ld c, $00
 	ld hl, $d671
-	call Call_16_434F
+	call CountIfNotPlayerName
 	ld a, [$d67a]
 	cp $ff
 	ld hl, $d6e8
-	call nz, Call_16_434F
+	call nz, CountIfNotPlayerName
 	ld a, [$d67b]
 	cp $ff
 	ld hl, $d6f1
-	call nz, Call_16_434F
+	call nz, CountIfNotPlayerName
 	ld hl, $d706
-	call Call_16_434F
+	call CountIfNotPlayerName
 	ld a, [$d70f]
 	cp $ff
 	ld hl, $d77d
-	call nz, Call_16_434F
+	call nz, CountIfNotPlayerName
 	ld a, [$d710]
 	cp $ff
 	ld hl, $d786
-	call nz, Call_16_434F
+	call nz, CountIfNotPlayerName
 	ld a, c
 	ret
 
 
-Call_16_434F::
+CountIfNotPlayerName::
 	ld de, wPlayerName
 	ld b, $09
 
@@ -480,15 +480,15 @@ jr_016_435a:
 	ret
 
 
-Call_16_4360::
+InheritResistances::
 	xor a
-	ld [$da72], a
+	ld [wBreedTemp], a
 	ld b, $1b
 
 jr_016_4366:
 	push bc
-	call Call_16_4373
-	ld hl, $da72
+	call InheritResistance
+	ld hl, wBreedTemp
 	inc [hl]
 	pop bc
 	dec b
@@ -497,15 +497,15 @@ jr_016_4366:
 	ret
 
 
-Call_16_4373::
-	ld a, [$da72]
-	ld hl, $cb29
+InheritResistance::
+	ld a, [wBreedTemp]
+	ld hl, wMonResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_16_41B1
+	call OffspringField
 	ld a, [hl]
 	cp $03
 	ret z
@@ -513,7 +513,7 @@ Call_16_4373::
 	cp $02
 	jp z, Jump_016_43fc
 
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	ld hl, $d6cd
 	add l
 	ld l, a
@@ -522,7 +522,7 @@ Call_16_4373::
 	ld h, a
 	ld a, [hl]
 	push af
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	ld hl, $d762
 	add l
 	ld l, a
@@ -534,63 +534,63 @@ Call_16_4373::
 	and $07
 	rst $00
 
-JumpTable_16_43AA::
-	dw Jump_16_43B8
-	dw Jump_16_43B8
-	dw Jump_16_43B8
-	dw Jump_16_43B9
-	dw Jump_16_43C6
-	dw Jump_16_43D3
-	dw Jump_16_43EC
+ResistanceGainTable::
+	dw ResistanceKeep
+	dw ResistanceKeep
+	dw ResistanceKeep
+	dw ResistanceGainPlus100
+	dw ResistanceGainPlus30
+	dw ResistanceGainPlus10And30
+	dw ResistanceGainAndPlus20
 
-Jump_16_43B8::
+ResistanceKeep::
 	ret
 
 
-Jump_16_43B9::
+ResistanceGainPlus100::
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $64
-	call Call_16_4444
-	call c, Call_16_4481
+	call PlusChance
+	call c, RaiseResistanceTo2
 	ret
 
 
-Jump_16_43C6::
+ResistanceGainPlus30::
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $1e
-	call Call_16_4444
-	call c, Call_16_4481
+	call PlusChance
+	call c, RaiseResistanceTo2
 	ret
 
 
-Jump_16_43D3::
+ResistanceGainPlus10And30::
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $0a
-	call Call_16_4444
-	call c, Call_16_4481
+	call PlusChance
+	call c, RaiseResistanceTo2
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $1e
-	call Call_16_4444
-	call c, Call_16_4481
+	call PlusChance
+	call c, RaiseResistanceTo2
 	ret
 
 
-Jump_16_43EC::
-	call Call_16_4481
+ResistanceGainAndPlus20::
+	call RaiseResistanceTo2
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $14
-	call Call_16_4444
-	call c, Call_16_4481
+	call PlusChance
+	call c, RaiseResistanceTo2
 	ret
 
 
 Jump_016_43fc:
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	ld hl, $d6cd
 	add l
 	ld l, a
@@ -599,7 +599,7 @@ Jump_016_43fc:
 	ld h, a
 	ld a, [hl]
 	push af
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	ld hl, $d762
 	add l
 	ld l, a
@@ -611,38 +611,38 @@ Jump_016_43fc:
 	and $07
 	rst $00
 
-JumpTable_16_441B::
-	dw Jump_16_4429
-	dw Jump_16_4429
-	dw Jump_16_4429
-	dw Jump_16_4429
-	dw Jump_16_4429
-	dw Jump_16_442A
-	dw Jump_16_4437
+ResistanceTopTable::
+	dw ResistanceTopKeep
+	dw ResistanceTopKeep
+	dw ResistanceTopKeep
+	dw ResistanceTopKeep
+	dw ResistanceTopKeep
+	dw ResistanceTopPlus200
+	dw ResistanceTopPlus40
 
-Jump_16_4429::
+ResistanceTopKeep::
 	ret
 
 
-Jump_16_442A::
+ResistanceTopPlus200::
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $c8
-	call Call_16_4444
-	call c, Call_16_446C
+	call PlusChance
+	call c, RaiseResistanceTo3
 	ret
 
 
-Jump_16_4437::
+ResistanceTopPlus40::
 	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $28
-	call Call_16_4444
-	call c, Call_16_446C
+	call PlusChance
+	call c, RaiseResistanceTo3
 	ret
 
 
-Call_16_4444::
+PlusChance::
 	push bc
 	push af
 	call Random
@@ -660,15 +660,15 @@ Call_16_4444::
 	db $fa, $72, $da, $21, $29, $cb, $85, $6f, $3e, $00, $8c, $67, $cd, $b1, $41, $7e
 	db $b7, $c8, $35, $c9
 
-Call_16_446C::
-	ld a, [$da72]
-	ld hl, $cb29
+RaiseResistanceTo3::
+	ld a, [wBreedTemp]
+	ld hl, wMonResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_16_41B1
+	call OffspringField
 	ld a, [hl]
 	cp $03
 	ret z
@@ -677,15 +677,15 @@ Call_16_446C::
 	ret
 
 
-Call_16_4481::
-	ld a, [$da72]
-	ld hl, $cb29
+RaiseResistanceTo2::
+	ld a, [wBreedTemp]
+	ld hl, wMonResist
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_16_41B1
+	call OffspringField
 	ld a, [hl]
 	cp $02
 	ret z
@@ -694,21 +694,21 @@ Call_16_4481::
 	ret
 
 
-Call_16_4496::
+AddSkillsOfList::
 	ld a, [de]
 	inc de
 	push bc
 	push de
-	call Call_16_44A3
+	call AddBaseSkill
 	pop de
 	pop bc
 	dec b
-	jr nz, Call_16_4496
+	jr nz, AddSkillsOfList
 
 	ret
 
 
-Call_16_44A3::
+AddBaseSkill::
 	cp $ff
 	ret z
 
@@ -724,7 +724,7 @@ Call_16_44A3::
 
 	push af
 	ld hl, wMonSkillList
-	call Call_16_41B1
+	call OffspringField
 	pop af
 	ld b, $19
 	ld c, a
@@ -749,15 +749,16 @@ jr_016_44c7:
 	ret
 
 
+SexChanceTable::
 	db $00, $1a, $80, $d6
 
-Call_16_44D0::
+ClearBreedCountUnlinked::
 	ld a, [wLinkActive]
 	or a
 	ret nz
 
 	xor a
-	ld [$d9e6], a
+	ld [wBreedCount], a
 	ret
 
 
@@ -772,24 +773,24 @@ Call_16_44D0::
 	db $78, $cd, $7e, $26, $d1, $c1, $28, $04, $79, $bb, $c8, $0c, $04, $78, $ba, $20
 	db $ea, $06, $ff, $c9
 
-Call_16_456E::
+BreedResult::
 	ld a, $ff
 	ld [wBreedPair], a
 	ld a, $ff
-	ld [$da72], a
+	ld [wBreedTemp], a
 	ld a, $ff
-	ld [$da73], a
+	ld [wBreedFamily1], a
 	ld a, $ff
-	ld [$da74], a
+	ld [wBreedFamily2], a
 	ld a, $ff
 	ld [wOffspringPlus], a
-	call Call_16_4653
+	call FindSpecialPair
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
-	call Call_16_45D5
-	call Call_16_44D0
+	call FindPairByFamily
+	call ClearBreedCountUnlinked
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
@@ -799,23 +800,23 @@ Call_16_456E::
 	ret
 
 
-Call_16_45A3::
+BreedResultPreview::
 	ld a, $ff
 	ld [wBreedPair], a
 	ld a, $ff
-	ld [$da72], a
+	ld [wBreedTemp], a
 	ld a, $ff
-	ld [$da73], a
+	ld [wBreedFamily1], a
 	ld a, $ff
-	ld [$da74], a
+	ld [wBreedFamily2], a
 	ld a, $ff
 	ld [wOffspringPlus], a
-	call Call_16_4653
+	call FindSpecialPair
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
-	call Call_16_45D5
+	call FindPairByFamily
 	ld a, [wBreedPair]
 	cp $ff
 	ret nz
@@ -825,14 +826,14 @@ Call_16_45A3::
 	ret
 
 
-Call_16_45D5::
+FindPairByFamily::
 	ld a, [wBreedSpecies2]
 	cp $f0
-	jr nc, Call_16_45FF
+	jr nc, FindPairInTable
 
 	ld a, [wBreedQuery]
 	push af
-	call Call_16_45FF
+	call FindPairInTable
 	pop af
 	ld [wBreedQuery], a
 	ld a, [wBreedPair]
@@ -847,7 +848,7 @@ Call_16_45D5::
 	add $f0
 	ld [wBreedSpecies2], a
 
-Call_16_45FF::
+FindPairInTable::
 	ld a, [wBreedQuery]
 	cp $f0
 	jr nc, jr_016_4615
@@ -857,7 +858,7 @@ Call_16_45FF::
 	rst $10
 	ld a, [wMonStats]
 	add $f0
-	ld [$da72], a
+	ld [wBreedTemp], a
 
 jr_016_4615:
 	ld hl, $4974
@@ -897,7 +898,7 @@ jr_016_463c:
 	cp b
 	jr z, jr_016_464e
 
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	cp b
 	jr nz, jr_016_464c
 
@@ -913,7 +914,7 @@ jr_016_464e:
 	ret
 
 
-Call_16_4653::
+FindSpecialPair::
 	ld a, [wBreedSlot1]
 	ld hl, wMonPlus
 	call MonsterField
@@ -992,7 +993,7 @@ jr_016_46c6:
 	rst $10
 	ld a, [wMonStats]
 	add $f0
-	ld [$da73], a
+	ld [wBreedFamily1], a
 
 jr_016_46dc:
 	ld a, [wBreedSpecies2]
@@ -1004,7 +1005,7 @@ jr_016_46dc:
 	rst $10
 	ld a, [wMonStats]
 	add $f0
-	ld [$da74], a
+	ld [wBreedFamily2], a
 
 jr_016_46f2:
 	ld hl, $4b30
@@ -1015,7 +1016,7 @@ jr_016_46f5:
 	jr z, jr_016_4710
 
 	push hl
-	call Call_16_471C
+	call CheckSpecialPair
 	pop hl
 	ld a, [wBreedPair]
 	cp $ff
@@ -1039,12 +1040,12 @@ jr_016_4710:
 	ret
 
 
-Call_16_471C::
+CheckSpecialPair::
 	ld a, [wBreedQuery]
 	cp [hl]
 	jr z, jr_016_4728
 
-	ld a, [$da73]
+	ld a, [wBreedFamily1]
 	cp [hl]
 	jr nz, jr_016_4749
 
@@ -1054,7 +1055,7 @@ jr_016_4728:
 	cp [hl]
 	jr z, jr_016_4735
 
-	ld a, [$da74]
+	ld a, [wBreedFamily2]
 	cp [hl]
 	jr nz, jr_016_4749
 
@@ -1076,18 +1077,18 @@ jr_016_4749:
 	ret
 
 
-Call_16_474A::
+InitJoinedMonster::
 	ld hl, wMonWildness
-	call Call_16_47E0
+	call CurMonField
 	xor a
 	ld [hli], a
 	ld [hl], a
 	ld hl, wMonMaster
 	ld de, wPlayerName
 	ld b, $08
-	call Call_16_47E7
+	call CopyToCurMon
 	ld hl, $cad5
-	call Call_16_47E0
+	call CurMonField
 	ld a, [$ca4a]
 	ld [hl], a
 	ld hl, wSceneObjects
@@ -1095,16 +1096,16 @@ Call_16_474A::
 	ld a, $ff
 	call FillMemory
 	ld hl, wMonRecSpecies
-	call Call_16_47E0
+	call CurMonField
 	ld a, [hl]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
-	call Call_16_47F8
+	call AddSkillsToScratch
 	ld hl, wMonParent1
-	call Call_16_47E0
+	call CurMonField
 	ld a, [hl]
 	cp $ff
 	jr z, jr_016_47b9
@@ -1114,26 +1115,26 @@ Call_16_474A::
 	rst $10
 	ld de, $da39
 	ld b, $03
-	call Call_16_47F8
+	call AddSkillsToScratch
 	ld hl, wMonParent2
-	call Call_16_47E0
+	call CurMonField
 	ld a, [hl]
 	ld [wMonSpecies], a
 	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
-	call Call_16_47F8
+	call AddSkillsToScratch
 
 jr_016_47b9:
 	ld hl, wMonSkillList
-	call Call_16_47E0
+	call CurMonField
 	ld e, l
 	ld d, h
 	ld b, $19
-	call Call_16_4805
+	call AddSkillsByChance
 	ld hl, wMonSkillList
-	call Call_16_47E0
+	call CurMonField
 	ld de, wSceneObjects
 	ld b, $19
 
@@ -1145,18 +1146,18 @@ jr_016_47d1:
 	jr nz, jr_016_47d1
 
 	ld hl, wMonEgg
-	call Call_16_47E0
+	call CurMonField
 	ld [hl], $00
 	ret
 
 
-Call_16_47E0::
+CurMonField::
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
 
 
-Call_16_47E7::
+CopyToCurMon::
 	push bc
 	push de
 	ld a, [wCurPartyMember]
@@ -1174,21 +1175,21 @@ jr_016_47f1:
 	ret
 
 
-Call_16_47F8::
+AddSkillsToScratch::
 	ld a, [de]
 	inc de
 	push bc
 	push de
-	call Call_16_4838
+	call AddSkillToScratch
 	pop de
 	pop bc
 	dec b
-	jr nz, Call_16_47F8
+	jr nz, AddSkillsToScratch
 
 	ret
 
 
-Call_16_4805::
+AddSkillsByChance::
 	push bc
 	push de
 	call Random
@@ -1201,7 +1202,7 @@ Call_16_4805::
 	ld b, a
 	push bc
 	ld hl, wMonPlus
-	call Call_16_47E0
+	call CurMonField
 	pop bc
 	ld a, [hl]
 	cp b
@@ -1216,16 +1217,16 @@ jr_016_482b:
 	inc de
 	push bc
 	push de
-	call Call_16_4838
+	call AddSkillToScratch
 	pop de
 	pop bc
 	dec b
-	jr nz, Call_16_4805
+	jr nz, AddSkillsByChance
 
 	ret
 
 
-Call_16_4838::
+AddSkillToScratch::
 	cp $ff
 	ret z
 
@@ -1263,7 +1264,7 @@ jr_016_4857:
 	ret
 
 
-Call_16_485C::
+LookupBreedPair::
 	ld a, [wBreedQuery]
 	ld l, a
 	ld h, $00
@@ -1277,10 +1278,11 @@ Call_16_485C::
 	ld a, [hli]
 	ld [wBreedPair], a
 	ld a, [hl]
-	ld [$da72], a
+	ld [wBreedTemp], a
 	ret
 
 
+SkillBaseTable::
 	db $00, $00, $00, $03, $03, $03, $06, $06, $06, $09, $09, $09, $0c, $0c, $0c, $0f
 	db $0f, $0f, $12, $12, $14, $15, $15, $17, $18, $19, $1a, $1a, $1c, $1c, $1e, $1e
 	db $20, $20, $22, $22, $24, $25, $26, $27, $27, $29, $2a, $2b, $2b, $2b, $2e, $2e
@@ -1297,6 +1299,7 @@ Call_16_485C::
 	db $ff, $ff, $ff, $ff, $ff, $d5, $d6, $d7, $d8, $d9, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
+BreedPairTable::
 	db $f0, $f1, $f0, $f2, $f0, $f3, $f0, $f4, $f0, $f5, $f0, $f6, $f0, $f7, $f0, $f8
 	db $ff, $ff, $f0, $5a, $f0, $2e, $f0, $c6, $f0, $bd, $f0, $33, $ff, $ff, $f0, $f9
 	db $f0, $b9, $10, $10, $11, $11, $12, $12, $f1, $f0, $f1, $f2, $f1, $f3, $f1, $f4
@@ -1324,7 +1327,10 @@ Call_16_485C::
 	db $b9, $83, $bd, $42, $f8, $07, $b7, $b7, $c3, $c3, $c4, $c4, $b4, $b4, $c1, $c0
 	db $ad, $25, $c8, $2c, $aa, $12, $99, $6c, $ca, $29, $c8, $cb, $9a, $2c, $ce, $42
 	db $cf, $13, $d0, $24, $cc, $43, $cd, $d0, $d3, $80, $d4, $d2, $d5, $6d, $ff, $ff
-	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $1b, $00, $0c
+	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00
+
+SpecialPairTable::
+	db $00, $1b, $00, $0c
 	db $00, $00, $24, $00, $0c, $00, $00, $25, $00, $0c, $00, $00, $2a, $00, $0c, $00
 	db $00, $2b, $00, $0c, $00, $05, $1b, $00, $0c, $00, $05, $24, $00, $0c, $00, $05
 	db $25, $00, $0c, $00, $05, $2a, $00, $0c, $00, $05, $2b, $00, $0c, $00, $0b, $1b
@@ -1584,7 +1590,7 @@ Call_16_485C::
 	db $f8, $3a, $00, $bd, $00, $f8, $41, $00, $bd, $00, $f8, $42, $00, $bd, $00, $f8
 	db $7f, $00, $c5, $00, $f8, $81, $00, $c5, $00, $ff
 
-Call_16_5B4E::
+NextGateFloor::
 	ld a, [wOnGateFloor]
 	or a
 	ret z
@@ -1620,11 +1626,11 @@ jr_016_5b72:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$c936], a
+	ld [wGateFloorSet], a
 	ld a, [hli]
-	ld [$c937], a
+	ld [wGateSpecialSet], a
 	ld a, [hli]
-	ld [$c938], a
+	ld [wGateClass], a
 	push hl
 	ld a, [hli]
 	ld [wGateFloors], a
@@ -1655,7 +1661,7 @@ jr_016_5b72:
 	jr z, jr_016_5c1c
 
 jr_016_5bbf:
-	ld a, [$c936]
+	ld a, [wGateFloorSet]
 	add a
 	add a
 	add a
@@ -1666,9 +1672,9 @@ jr_016_5bbf:
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_16_5FC0
-	ld [$c936], a
-	ld a, [$c936]
+	call PickByPercent
+	ld [wGateFloorSet], a
+	ld a, [wGateFloorSet]
 	ld [wMapId], a
 	ld a, $01
 	ld [wOnGateFloor], a
@@ -1712,7 +1718,7 @@ jr_016_5be1:
 
 
 jr_016_5c1c:
-	ld a, [$c937]
+	ld a, [wGateSpecialSet]
 	add a
 	add a
 	add a
@@ -1722,24 +1728,24 @@ jr_016_5c1c:
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_16_5FC0
-	ld [$c937], a
+	call PickByPercent
+	ld [wGateSpecialSet], a
 	rst $00
 
-JumpTable_16_5C32::
-	dw Jump_16_5C42
-	dw Jump_16_5CB9
-	dw Jump_16_5CCB
-	dw Jump_16_5CEC
-	dw Jump_16_5D0D
-	dw Jump_16_5D2E
-	dw Jump_16_5ED8
-	dw Jump_16_5F4C
+SpecialFloorTable::
+	dw SpecialFloorItems
+	dw SpecialFloorArenaItems
+	dw SpecialFloorRoom53
+	dw SpecialFloorRoom51
+	dw SpecialFloorRoom50
+	dw SpecialFloorTeams
+	dw SpecialFloorRooms57
+	dw SpecialFloorRooms54
 
-Jump_16_5C42::
-	call Call_16_6DB0
+SpecialFloorItems::
+	call RollFloorItems
 
-Call_16_5C45::
+WarpToRandomRoom5A::
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
@@ -1803,17 +1809,17 @@ jr_016_5c98:
 	ret
 
 
-Jump_16_5CB9::
+SpecialFloorArenaItems::
 	ld hl, wArenaWins
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
-	call Call_16_6DDB
-	call Call_16_5C45
+	call RollSpecialItem
+	call WarpToRandomRoom5A
 	ret
 
 
-Jump_16_5CCB::
+SpecialFloorRoom53::
 	ld a, $53
 	ld [wMapId], a
 	ld a, $00
@@ -1831,7 +1837,7 @@ Jump_16_5CCB::
 	ret
 
 
-Jump_16_5CEC::
+SpecialFloorRoom51::
 	ld a, $51
 	ld [wMapId], a
 	ld a, $00
@@ -1849,7 +1855,7 @@ Jump_16_5CEC::
 	ret
 
 
-Jump_16_5D0D::
+SpecialFloorRoom50::
 	ld a, $50
 	ld [wMapId], a
 	ld a, $00
@@ -1867,17 +1873,17 @@ Jump_16_5D0D::
 	ret
 
 
-Jump_16_5D2E::
+SpecialFloorTeams::
 	xor a
 	ld [wArenaWins], a
 	ld [wArenaPrize], a
-	call Call_16_5E38
+	call RollLevelEncounter
 	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
-	ld [$d9d1], a
+	ld [wArenaTeam1], a
 	ld a, h
 	ld [$d9d2], a
 	ld a, [$da05]
@@ -1896,13 +1902,13 @@ Jump_16_5D2E::
 	ld [$d9d5], a
 	ld a, h
 	ld [$d9d6], a
-	call Call_16_5E38
+	call RollLevelEncounter
 	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
-	ld [$d9d9], a
+	ld [wArenaTeam2], a
 	ld a, h
 	ld [$d9da], a
 	ld a, [$da05]
@@ -1921,9 +1927,9 @@ Jump_16_5D2E::
 	ld [$d9dd], a
 	ld a, h
 	ld [$d9de], a
-	call Call_16_5E38
+	call RollLevelEncounter
 	ld hl, wEncGfx
-	call Call_16_5DC6
+	call SetGateTeamGfx
 	ld a, $52
 	ld [wMapId], a
 	ld a, $00
@@ -1942,7 +1948,7 @@ Jump_16_5D2E::
 	ret
 
 
-Call_16_5DC6::
+SetGateTeamGfx::
 	push hl
 	ld a, $ff
 	ld [hli], a
@@ -1966,7 +1972,7 @@ Call_16_5DC6::
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	call Call_16_5E2E
+	call MonTemplateGfx
 	pop hl
 	ld [hli], a
 	ld a, $01
@@ -1984,7 +1990,7 @@ Call_16_5DC6::
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	call Call_16_5E2E
+	call MonTemplateGfx
 	pop hl
 	ld [hli], a
 	ld a, $01
@@ -2002,7 +2008,7 @@ Call_16_5DC6::
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	call Call_16_5E2E
+	call MonTemplateGfx
 	pop hl
 	ld [hli], a
 	ld a, $01
@@ -2010,7 +2016,7 @@ Call_16_5DC6::
 	ret
 
 
-Call_16_5E2E::
+MonTemplateGfx::
 	ld hl, far_LoadMonTemplate2
 	rst $10
 	ld a, [wNewMonNameText]
@@ -2018,15 +2024,15 @@ Call_16_5E2E::
 	ret
 
 
-Call_16_5E38::
+RollLevelEncounter::
 	ld hl, $0000
 	ld c, $00
 	ld a, [wParty]
-	call Call_16_5E91
+	call AddMonLevel
 	ld a, [$ca8f]
-	call Call_16_5E91
+	call AddMonLevel
 	ld a, [$ca90]
-	call Call_16_5E91
+	call AddMonLevel
 	ld a, c
 	call Divide16
 	ld a, l
@@ -2065,7 +2071,7 @@ Call_16_5E38::
 	ld hl, $b512
 	jr jr_016_5ea7
 
-Call_16_5E91::
+AddMonLevel::
 	cp $ff
 	ret z
 
@@ -2088,11 +2094,11 @@ Call_16_5E91::
 jr_016_5ea7:
 	ld a, $02
 	ld [wEncCount], a
-	call Call_16_5EC9
+	call RandomInRange
 	ld [wEncSpecies], a
-	call Call_16_5EC9
+	call RandomInRange
 	ld [$da05], a
-	call Call_16_5EC9
+	call RandomInRange
 	ld [$da07], a
 	xor a
 	ld [$da04], a
@@ -2101,7 +2107,7 @@ jr_016_5ea7:
 	ret
 
 
-Call_16_5EC9::
+RandomInRange::
 	push hl
 	call Random
 	ld a, [wRandomHigh]
@@ -2113,7 +2119,7 @@ Call_16_5EC9::
 	ret
 
 
-Jump_16_5ED8::
+SpecialFloorRooms57::
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
@@ -2177,7 +2183,7 @@ jr_016_5f2b:
 	ret
 
 
-Jump_16_5F4C::
+SpecialFloorRooms54::
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
@@ -2241,7 +2247,7 @@ jr_016_5f9f:
 	ret
 
 
-Call_16_5FC0::
+PickByPercent::
 	push hl
 	call Random
 	ld a, [wRandomHigh]
@@ -2272,17 +2278,17 @@ jr_016_5fe2:
 	ret
 
 
-Call_16_5FE4::
-	call Call_16_6E14
+MakeGateFloor::
+	call ResetEncounterCounter
 	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_016_6002
 
 	ld a, $ff
-	ld [$c926], a
+	ld [wFloorNpcScreen], a
 	xor a
-	ld [$c92b], a
-	ld [$c92c], a
+	ld [wFloorNpcKind], a
+	ld [wFloorNpcVariant], a
 	xor a
 	ld [wFloorEvent], a
 	xor a
@@ -2340,16 +2346,16 @@ jr_016_605b:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$c93f], a
+	ld [wFloorKind], a
 	ld hl, wFloorsSeen
 	ld bc, $0010
 	xor a
 	call FillMemory
-	ld hl, $c940
+	ld hl, wFloorLayout
 	ld bc, $0010
 	ld a, $ff
 	call FillMemory
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_016_60b9
 
@@ -2370,7 +2376,7 @@ jr_016_605b:
 	ld a, h
 	adc $77
 	ld h, a
-	ld de, $c940
+	ld de, wFloorLayout
 	ld b, $10
 
 jr_016_60b0:
@@ -2410,7 +2416,7 @@ jr_016_60d1:
 
 jr_016_60d8:
 	push bc
-	call Call_16_6800
+	call PickScreenShape
 	pop bc
 	cp $0f
 	jr z, jr_016_60d8
@@ -2418,7 +2424,7 @@ jr_016_60d8:
 	pop bc
 	push af
 	ld a, c
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -2435,19 +2441,19 @@ jr_016_60f2:
 	ld a, [hl]
 	ld c, a
 	push bc
-	call Call_16_6744
+	call GetScreenExits
 	ld a, b
 	or a
 	ld a, $ff
 	jr z, jr_016_6102
 
-	call Call_16_6800
+	call PickScreenShape
 
 jr_016_6102:
 	pop bc
 	push af
 	ld a, c
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -2471,7 +2477,7 @@ jr_016_611a:
 
 	ld c, a
 	push bc
-	call Call_16_6744
+	call GetScreenExits
 	ld a, b
 	or a
 	ld a, $0f
@@ -2480,13 +2486,13 @@ jr_016_611a:
 	ld a, b
 	xor $0f
 	ld c, a
-	call Call_16_6800
+	call PickScreenShape
 
 jr_016_6132:
 	pop bc
 	push af
 	ld a, c
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -2501,14 +2507,14 @@ jr_016_6140:
 	dec b
 	jr nz, jr_016_611a
 
-	ld hl, $c940
+	ld hl, wFloorLayout
 	ld b, $10
 
 jr_016_614a:
 	push bc
 	push hl
 	ld c, $0c
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $01
 	jr z, jr_016_6162
 
@@ -2531,17 +2537,17 @@ jr_016_6162:
 
 Jump_016_616c:
 	ld a, $40
-	ld [$c0a9], a
+	ld [wFloorTries], a
 
 jr_016_6171:
-	ld a, [$c0a9]
+	ld a, [wFloorTries]
 	dec a
-	ld [$c0a9], a
+	ld [wFloorTries], a
 	jp z, Jump_016_605b
 
-	call Call_16_66AE
+	call PickStairsSpot
 	ld a, [wMapScreen]
-	ld [$c960], a
+	ld [wStairsScreen], a
 	ldh a, [hTestX]
 	ld [$c0a5], a
 	ldh a, [$ffa6]
@@ -2550,7 +2556,7 @@ jr_016_6171:
 	ld [$c0a7], a
 	ldh a, [$ffa8]
 	ld [$c0a8], a
-	call Call_16_6AFB
+	call CheckStairsSpace
 	jr z, jr_016_6171
 
 	ld a, [$c0a7]
@@ -2580,10 +2586,10 @@ jr_016_6171:
 	ld d, $00
 	add hl, de
 	ld a, l
-	ld [$c962], a
+	ld [wStairsOffset], a
 	ld a, h
 	ld [$c963], a
-	ld a, [$c960]
+	ld a, [wStairsScreen]
 	add a
 	add a
 	ld hl, $2da7
@@ -2609,23 +2615,23 @@ jr_016_6171:
 	ld [$c967], a
 	inc hl
 	ld a, $40
-	ld [$c0a9], a
+	ld [wFloorTries], a
 
 jr_016_620a:
-	ld a, [$c0a9]
+	ld a, [wFloorTries]
 	dec a
-	ld [$c0a9], a
+	ld [wFloorTries], a
 	jp z, Jump_016_605b
 
-	call Call_16_6585
-	ld a, [$c960]
+	call PickNpcSpot
+	ld a, [wStairsScreen]
 	ld b, a
 	ld a, [wMapScreen]
 	cp b
 	jr z, jr_016_620a
 
 	ld a, [wMapScreen]
-	ld [$c926], a
+	ld [wFloorNpcScreen], a
 	add a
 	add a
 	ld hl, $2da7
@@ -2635,21 +2641,21 @@ jr_016_620a:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$c927], a
+	ld [wFloorNpcX], a
 	ld a, [hli]
 	ld [$c928], a
 	ld a, [hli]
-	ld [$c929], a
+	ld [wFloorNpcY], a
 	ld a, [hli]
 	ld [$c92a], a
-	ld hl, $c927
+	ld hl, wFloorNpcX
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
 	ld [hl], a
-	ld hl, $c929
+	ld hl, wFloorNpcY
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
@@ -2669,7 +2675,7 @@ jr_016_6262:
 
 jr_016_6266:
 	ld a, [wFloorEvent]
-	ld [$c92b], a
+	ld [wFloorNpcKind], a
 	cp $04
 	jr z, jr_016_627e
 
@@ -2694,7 +2700,7 @@ jr_016_627e:
 
 jr_016_628a:
 	call Random
-	ld a, [$c938]
+	ld a, [wGateClass]
 	ld hl, $7886
 	add l
 	ld l, a
@@ -2707,14 +2713,14 @@ jr_016_628a:
 
 jr_016_629f:
 	xor a
-	ld [$c92b], a
-	ld [$c92c], a
+	ld [wFloorNpcKind], a
+	ld [wFloorNpcVariant], a
 	xor a
 	ld [wFloorEvent], a
 	xor a
 	ld [wFloorSteps], a
 	ld a, $ff
-	ld [$c926], a
+	ld [wFloorNpcScreen], a
 	jr jr_016_62cf
 
 jr_016_62b5:
@@ -2723,40 +2729,40 @@ jr_016_62b5:
 	ld b, a
 	ld a, $05
 	call Divide8
-	ld [$c92c], a
+	ld [wFloorNpcVariant], a
 	call Random
 	ld a, [wRandomHigh]
 	and $03
-	ld [$c92b], a
+	ld [wFloorNpcKind], a
 
 jr_016_62cf:
 	xor a
 	ld [wFloorEvent], a
 	ld a, $40
-	ld [$c0a9], a
+	ld [wFloorTries], a
 
 Jump_016_62d8:
 jr_016_62d8:
-	ld a, [$c0a9]
+	ld a, [wFloorTries]
 	dec a
-	ld [$c0a9], a
+	ld [wFloorTries], a
 	jp z, Jump_016_605b
 
-	call Call_16_661B
-	ld hl, $c960
+	call PickArrivalSpot
+	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
 	jr nz, jr_016_62f1
 
-	call Call_16_661B
+	call PickArrivalSpot
 
 jr_016_62f1:
 	ld a, [wMapScreen]
-	ld [$c0af], a
-	call Call_16_68C6
+	ld [wArrivalScreen], a
+	call IsStairsSpot
 	jp z, Jump_016_62d8
 
-	ld a, [$c926]
+	ld a, [wFloorNpcScreen]
 	ld b, a
 	ld a, [wMapScreen]
 	cp b
@@ -2806,7 +2812,7 @@ jr_016_62f1:
 	ld bc, $0010
 	xor a
 	call FillMemory
-	ld a, [$c938]
+	ld a, [wGateClass]
 	ld hl, $732f
 	add a
 	add a
@@ -2832,7 +2838,7 @@ jr_016_62f1:
 	ld b, a
 	ld c, [hl]
 	push bc
-	ld hl, $c940
+	ld hl, wFloorLayout
 	ld b, $10
 	ld c, $00
 
@@ -2865,7 +2871,7 @@ jr_016_639b:
 jr_016_63a2:
 	push bc
 	ld [hl], $ff
-	call Call_16_6432
+	call PlaceFloorObject
 	pop bc
 	dec b
 	jr nz, jr_016_63a2
@@ -2875,7 +2881,7 @@ jr_016_63ac:
 	ret
 
 
-Call_16_63AF::
+PickFloorSpot::
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
@@ -2885,7 +2891,7 @@ jr_016_63b6:
 	ld a, b
 	and $0f
 	ld [wMapScreen], a
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -2896,7 +2902,7 @@ jr_016_63b6:
 	cp $f0
 	jr z, jr_016_63b6
 
-	ld hl, far_Call_0B_4239
+	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
@@ -2956,12 +2962,12 @@ jr_016_63e1:
 
 	jr jr_016_63e1
 
-Call_16_6432::
+PlaceFloorObject::
 	push hl
 	ld a, $10
-	ld [$c0a9], a
+	ld [wFloorTries], a
 	push bc
-	ld a, [$c938]
+	ld a, [wGateClass]
 	ld hl, $7326
 	add a
 	add a
@@ -2972,8 +2978,8 @@ Call_16_6432::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_16_5FC0
-	ld [$c0ae], a
+	call PickByPercent
+	ld [wFloorObjKind], a
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
@@ -2987,15 +2993,15 @@ Call_16_6432::
 
 	jr nc, jr_016_646d
 
-	ld a, [$c0ae]
+	ld a, [wFloorObjKind]
 	add $10
-	ld [$c0ae], a
+	ld [wFloorObjKind], a
 
 Jump_016_646d:
 jr_016_646d:
-	ld a, [$c0a9]
+	ld a, [wFloorTries]
 	dec a
-	ld [$c0a9], a
+	ld [wFloorTries], a
 	jr nz, jr_016_6478
 
 	pop hl
@@ -3003,23 +3009,23 @@ jr_016_646d:
 
 
 jr_016_6478:
-	call Call_16_63AF
+	call PickFloorSpot
 	ld a, [wMapScreen]
 	ld b, a
-	ld a, [$c960]
+	ld a, [wStairsScreen]
 	cp b
 	jr nz, jr_016_6488
 
-	call Call_16_63AF
+	call PickFloorSpot
 
 jr_016_6488:
 	ld a, [wMapScreen]
 	ld b, a
-	ld a, [$c0af]
+	ld a, [wArrivalScreen]
 	cp b
 	jr nz, jr_016_6495
 
-	call Call_16_63AF
+	call PickFloorSpot
 
 jr_016_6495:
 	ld a, [wMapScreen]
@@ -3033,7 +3039,7 @@ jr_016_6495:
 	or a
 	jr z, jr_016_64a8
 
-	call Call_16_63AF
+	call PickFloorSpot
 
 jr_016_64a8:
 	ldh a, [hTestX]
@@ -3044,7 +3050,7 @@ jr_016_64a8:
 	ld [$c0ac], a
 	ldh a, [$ffa8]
 	ld [$c0ad], a
-	call Call_16_6955
+	call CheckObjectSpace
 	jr z, jr_016_646d
 
 	ld a, [$c0aa]
@@ -3055,18 +3061,18 @@ jr_016_64a8:
 	ldh [hTestY], a
 	ld a, [$c0ad]
 	ldh [$ffa8], a
-	call Call_16_68C6
+	call IsStairsSpot
 	jr z, jr_016_646d
 
-	call Call_16_68EA
+	call IsArrivalSpot
 	jr z, jr_016_646d
 
-	call Call_16_690E
+	call IsObjectSpot
 	jr z, jr_016_646d
 
 	ld a, [wMapScreen]
 	ld b, a
-	ld a, [$c926]
+	ld a, [wFloorNpcScreen]
 	cp b
 	jp z, Jump_016_646d
 
@@ -3114,10 +3120,10 @@ jr_016_64a8:
 	adc [hl]
 	ld [hl], a
 	pop hl
-	ld a, [$c0ae]
+	ld a, [wFloorObjKind]
 	ld [hli], a
 	push hl
-	ld a, [$c0ae]
+	ld a, [wFloorObjKind]
 	and $0f
 	ld hl, $7426
 	add l
@@ -3129,7 +3135,7 @@ jr_016_64a8:
 	cp $01
 	jr nz, jr_016_6564
 
-	ld a, [$c938]
+	ld a, [wGateClass]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -3146,7 +3152,7 @@ jr_016_64a8:
 	ld a, h
 	adc $74
 	ld h, a
-	call Call_16_5FC0
+	call PickByPercent
 
 jr_016_6564:
 	pop hl
@@ -3172,7 +3178,7 @@ jr_016_6564:
 	ret
 
 
-Call_16_6585::
+PickNpcSpot::
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
@@ -3183,7 +3189,7 @@ jr_016_658c:
 	ld a, b
 	and $0f
 	ld [wMapScreen], a
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3194,7 +3200,7 @@ jr_016_658c:
 	cp $f0
 	jr z, jr_016_658c
 
-	ld hl, far_Call_0B_4239
+	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
@@ -3267,7 +3273,7 @@ jr_016_65bb:
 	jp Jump_016_658c
 
 
-Call_16_661B::
+PickArrivalSpot::
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
@@ -3278,7 +3284,7 @@ jr_016_6622:
 	ld a, b
 	and $0f
 	ld [wMapScreen], a
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3289,7 +3295,7 @@ jr_016_6622:
 	cp $f0
 	jr z, jr_016_6622
 
-	ld hl, far_Call_0B_4239
+	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
@@ -3359,7 +3365,7 @@ jr_016_6651:
 	jp Jump_016_6622
 
 
-Call_16_66AE::
+PickStairsSpot::
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
@@ -3370,7 +3376,7 @@ jr_016_66b5:
 	ld a, b
 	and $0f
 	ld [wMapScreen], a
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3381,7 +3387,7 @@ jr_016_66b5:
 	cp $f0
 	jr z, jr_016_66b5
 
-	ld hl, far_Call_0B_4239
+	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
@@ -3454,13 +3460,13 @@ jr_016_66e4:
 	jp Jump_016_66b5
 
 
-Call_16_6744::
+GetScreenExits::
 	ld bc, $0000
 	ld d, a
 	sub $04
 	jr c, jr_016_676f
 
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3497,7 +3503,7 @@ jr_016_6773:
 	cp $10
 	jr nc, jr_016_679d
 
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3535,7 +3541,7 @@ jr_016_67a1:
 
 	ld a, d
 	dec a
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3574,7 +3580,7 @@ jr_016_67cf:
 
 	ld a, d
 	inc a
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -3609,7 +3615,7 @@ jr_016_67ff:
 	ret
 
 
-Call_16_6800::
+PickScreenShape::
 	ld de, wTilemapBuffer
 	ld hl, $7055
 
@@ -3759,8 +3765,8 @@ jr_016_68c5:
 	ret
 
 
-Call_16_68C6::
-	ld hl, $c960
+IsStairsSpot::
+	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
@@ -3786,7 +3792,7 @@ Call_16_68C6::
 	ret
 
 
-Call_16_68EA::
+IsArrivalSpot::
 	ld hl, wNumberBackup
 	ld a, [wMapScreen]
 	cp [hl]
@@ -3813,7 +3819,7 @@ Call_16_68EA::
 	ret
 
 
-Call_16_690E::
+IsObjectSpot::
 	ld hl, wFloorObjects
 
 jr_016_6911:
@@ -3827,7 +3833,7 @@ jr_016_6911:
 
 jr_016_6918:
 	push hl
-	call Call_16_6924
+	call IsObjectAt
 	pop hl
 	ret z
 
@@ -3837,7 +3843,7 @@ jr_016_6918:
 	inc hl
 	jr jr_016_6911
 
-Call_16_6924::
+IsObjectAt::
 	inc hl
 	inc hl
 	ld b, [hl]
@@ -3871,8 +3877,8 @@ Call_16_6924::
 	ret
 
 
-Call_16_6955::
-	ld a, [$c0ae]
+CheckObjectSpace::
+	ld a, [wFloorObjKind]
 	and $f0
 	jp z, Jump_016_6d93
 
@@ -3904,9 +3910,9 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
-	ld [$c0b0], a
+	ld [wSpotAround], a
 	ld a, [$c0aa]
 	ld l, a
 	ld a, [$c0ab]
@@ -3929,7 +3935,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b1], a
 	ld a, [$c0aa]
@@ -3960,7 +3966,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b2], a
 	ld a, [$c0aa]
@@ -3985,7 +3991,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b3], a
 	ld a, [$c0aa]
@@ -4004,7 +4010,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b4], a
 	ld a, [$c0aa]
@@ -4029,7 +4035,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b5], a
 	ld a, [$c0aa]
@@ -4060,7 +4066,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b6], a
 	ld a, [$c0aa]
@@ -4085,7 +4091,7 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b7], a
 	ld a, [$c0aa]
@@ -4116,13 +4122,13 @@ Call_16_6955::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b8], a
 	jp Jump_016_6c96
 
 
-Call_16_6AFB::
+CheckStairsSpace::
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
@@ -4151,9 +4157,9 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
-	ld [$c0b0], a
+	ld [wSpotAround], a
 	ld a, [$c0a5]
 	ld l, a
 	ld a, [$c0a6]
@@ -4176,7 +4182,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b1], a
 	ld a, [$c0a5]
@@ -4207,7 +4213,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b2], a
 	ld a, [$c0a5]
@@ -4232,7 +4238,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b3], a
 	ld a, [$c0a5]
@@ -4251,7 +4257,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b4], a
 	ld a, [$c0a5]
@@ -4276,7 +4282,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b5], a
 	ld a, [$c0a5]
@@ -4307,7 +4313,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b6], a
 	ld a, [$c0a5]
@@ -4332,7 +4338,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b7], a
 	ld a, [$c0a5]
@@ -4363,7 +4369,7 @@ Call_16_6AFB::
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_16_6D99
+	call IsSpotFree
 	ld a, b
 	ld [$c0b8], a
 
@@ -4389,7 +4395,7 @@ jr_016_6cb1:
 	or a
 	jr z, jr_016_6ccc
 
-	ld a, [$c0b0]
+	ld a, [wSpotAround]
 	or a
 	jp nz, Jump_016_6d97
 
@@ -4423,7 +4429,7 @@ jr_016_6ce7:
 	or a
 	jr z, jr_016_6d02
 
-	ld a, [$c0b0]
+	ld a, [wSpotAround]
 	or a
 	jp nz, Jump_016_6d97
 
@@ -4436,7 +4442,7 @@ jr_016_6ce7:
 	jp nz, Jump_016_6d97
 
 jr_016_6d02:
-	ld a, [$c0b0]
+	ld a, [wSpotAround]
 	or a
 	jr z, jr_016_6d27
 
@@ -4471,7 +4477,7 @@ jr_016_6d27:
 	or a
 	jr nz, jr_016_6d39
 
-	ld a, [$c0b0]
+	ld a, [wSpotAround]
 	or a
 	jr nz, jr_016_6d97
 
@@ -4498,7 +4504,7 @@ jr_016_6d4b:
 	or a
 	jr nz, jr_016_6d5d
 
-	ld a, [$c0b0]
+	ld a, [wSpotAround]
 	or a
 	jr nz, jr_016_6d97
 
@@ -4539,7 +4545,7 @@ jr_016_6d81:
 	jr nz, jr_016_6d97
 
 jr_016_6d8d:
-	ld a, [$c0b0]
+	ld a, [wSpotAround]
 	or a
 	jr nz, jr_016_6d97
 
@@ -4556,7 +4562,7 @@ jr_016_6d97:
 	ret
 
 
-Call_16_6D99::
+IsSpotFree::
 	call GetCollisionAt
 	ld b, $00
 	ldh a, [hTestTile]
@@ -4575,14 +4581,14 @@ Call_16_6D99::
 	ret
 
 
-Call_16_6DB0::
+RollFloorItems::
 	ld hl, wArenaWins
 	ld b, $08
 
 jr_016_6db5:
 	push bc
 	push hl
-	call Call_16_6DC1
+	call RollFloorItem
 	pop hl
 	pop bc
 	ld [hli], a
@@ -4592,8 +4598,8 @@ jr_016_6db5:
 	ret
 
 
-Call_16_6DC1::
-	ld a, [$c938]
+RollFloorItem::
+	ld a, [wGateClass]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -4610,11 +4616,11 @@ Call_16_6DC1::
 	ld a, h
 	adc $74
 	ld h, a
-	call Call_16_5FC0
+	call PickByPercent
 	ret
 
 
-Call_16_6DDB::
+RollSpecialItem::
 	call Random
 	ld a, [wRandomHigh]
 	and $03
@@ -4642,9 +4648,10 @@ Call_16_6DDB::
 	ret
 
 
+SpecialItemTable::
 	db $03, $04, $06, $0c, $15, $17, $18, $19, $1a, $1b, $1c, $25, $1a, $1b, $1c, $25
 
-Call_16_6E14::
+ResetEncounterCounter::
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
@@ -4670,12 +4677,13 @@ jr_016_6e32:
 	inc hl
 	inc hl
 	ld a, [hli]
-	ld [$ca39], a
+	ld [wEncounterCounter], a
 	ld a, [hli]
 	ld [$ca3a], a
 	ret
 
 
+EncounterCounterTable::
 	db $02, $00, $4c, $04, $04, $00, $b0, $04, $06, $00, $14, $05, $08, $00, $78, $05
 	db $0a, $00, $dc, $05, $0c, $00, $40, $06, $0e, $00, $a4, $06, $10, $00, $08, $07
 	db $12, $00, $6c, $07, $14, $00, $d0, $07, $16, $00, $34, $08, $18, $00, $98, $08
@@ -4690,7 +4698,7 @@ jr_016_6e32:
 	db $5a, $00, $7c, $15, $5c, $00, $e0, $15, $5e, $00, $44, $16, $60, $00, $a8, $16
 	db $62, $00, $0c, $17, $ff, $00, $70, $17
 
-Call_16_6F05::
+CountEncounterSteps::
 	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
@@ -4780,7 +4788,7 @@ jr_016_6f62:
 	call Divide24
 	ld e, l
 	ld d, h
-	ld a, [$ca39]
+	ld a, [wEncounterCounter]
 	ld l, a
 	ld a, [$ca3a]
 	ld h, a
@@ -4805,12 +4813,13 @@ jr_016_6f62:
 
 jr_016_6fa2:
 	ld a, l
-	ld [$ca39], a
+	ld [wEncounterCounter], a
 	ld a, h
 	ld [$ca3a], a
 	ret
 
 
+EncounterRateTable::
 	db $8a, $00, $8a, $00, $8a, $00, $00, $00, $8a, $00, $8a, $00, $8a, $00, $00, $00
 	db $8a, $00, $96, $00, $8a, $00, $00, $00, $8a, $00, $8a, $00, $8c, $00, $00, $00
 	db $8a, $00, $8a, $00, $8a, $00, $00, $00, $8a, $00, $8a, $00, $8a, $00, $00, $00
@@ -4819,11 +4828,12 @@ jr_016_6fa2:
 	db $8a, $00, $8a, $00, $8a, $00, $00, $00, $64, $00, $b4, $00, $fa, $00, $00, $00
 	db $64, $00, $b4, $00, $b4, $00, $00, $00, $64, $00, $b4, $00, $fa, $00, $00, $00
 	db $64, $00, $b4, $00, $b4, $00, $00, $00, $96, $00, $b4, $00, $96, $00, $00, $00
+EncounterStyleFactor::
 	db $10, $15, $20, $40, $50, $60, $70, $80
 
-Call_16_7033::
+GetFloorScreenMap::
 	ld de, $7896
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, jr_016_7040
 
@@ -4831,7 +4841,7 @@ Call_16_7033::
 
 jr_016_7040:
 	ld a, [wMapScreen]
-	ld hl, $c940
+	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
@@ -4847,12 +4857,19 @@ jr_016_7040:
 	ret
 
 
+ScreenShapeTable::
 	db $0f, $00, $04, $00, $07, $01, $03, $00, $0b, $02, $03, $00, $0d, $03, $03, $00
 	db $0e, $04, $03, $00, $03, $05, $02, $00, $05, $06, $02, $00, $06, $07, $02, $00
 	db $09, $08, $02, $00, $0a, $09, $02, $00, $0c, $0a, $02, $00, $08, $0b, $01, $00
 	db $04, $0c, $01, $00, $02, $0d, $01, $00, $01, $0e, $01, $00, $00, $0f, $00, $00
-	db $ff, $05, $06, $0a, $09, $08, $04, $00, $01, $02, $03, $07, $0b, $0f, $0e, $0d
-	db $0c, $00, $00, $00, $05, $30, $07, $02, $01, $01, $01, $01, $05, $31, $01, $06
+	db $ff
+
+FloorFillOrder::
+	db $05, $06, $0a, $09, $08, $04, $00, $01, $02, $03, $07, $0b, $0f, $0e, $0d
+	db $0c
+
+GateWorldTable::
+	db $00, $00, $00, $05, $30, $07, $02, $01, $01, $01, $01, $05, $31, $01, $06
 	db $01, $01, $01, $02, $06, $32, $05, $01, $01, $02, $01, $02, $05, $33, $04, $06
 	db $01, $02, $02, $03, $06, $34, $00, $07, $01, $03, $02, $03, $09, $35, $01, $06
 	db $01, $03, $02, $04, $08, $36, $05, $01, $02, $03, $03, $04, $09, $37, $05, $07
@@ -4868,7 +4885,10 @@ jr_016_7040:
 	db $03, $0b, $0c, $0c, $1e, $4a, $09, $07, $03, $0b, $0d, $0d, $1e, $4b, $04, $07
 	db $03, $0c, $0d, $0d, $1e, $4c, $05, $05, $03, $0d, $0e, $0e, $1b, $4d, $05, $07
 	db $03, $0e, $0e, $0e, $1e, $4e, $08, $0c, $03, $0f, $0f, $0f, $63, $4f, $05, $06
-	db $03, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $64, $00
+	db $03
+
+FloorMapTables::
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $64, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $28, $00, $64, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $28, $00, $00, $00, $64, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $14, $00, $1e, $28, $64, $00
@@ -4884,7 +4904,10 @@ jr_016_7040:
 	db $64, $00, $0a, $00, $14, $1e, $00, $28, $00, $32, $3c, $46, $00, $50, $00, $5a
 	db $64, $00, $00, $0a, $14, $1e, $00, $28, $00, $32, $3c, $46, $00, $50, $00, $5a
 	db $64, $05, $0a, $00, $14, $1e, $00, $28, $00, $32, $3c, $46, $00, $50, $00, $5a
-	db $64, $14, $00, $00, $46, $64, $00, $00, $00, $00, $00, $00, $32, $64, $00, $00
+	db $64
+
+SpecialFloorChances::
+	db $14, $00, $00, $46, $64, $00, $00, $00, $00, $00, $00, $32, $64, $00, $00
 	db $00, $28, $00, $00, $46, $64, $00, $00, $00, $00, $00, $00, $1e, $3c, $00, $64
 	db $00, $00, $00, $28, $46, $64, $00, $00, $00, $00, $00, $00, $2d, $4b, $64, $00
 	db $00, $00, $00, $00, $1e, $3c, $00, $00, $64, $0f, $14, $1e, $3c, $5a, $64, $00
@@ -4892,7 +4915,10 @@ jr_016_7040:
 	db $64, $0a, $1e, $28, $37, $46, $50, $5a, $64, $05, $19, $28, $2d, $32, $3c, $50
 	db $64, $05, $1e, $28, $32, $37, $46, $50, $64, $05, $23, $32, $3c, $41, $50, $5a
 	db $64, $05, $23, $32, $46, $4b, $5a, $5f, $64, $05, $19, $23, $2d, $37, $50, $5a
-	db $64, $64, $00, $00, $00, $00, $00, $00, $00, $00, $02, $02, $00, $00, $00, $00
+	db $64
+
+FloorObjectTable::
+	db $64, $00, $00, $00, $00, $00, $00, $00, $00, $02, $02, $00, $00, $00, $00
 	db $00, $4b, $00, $00, $00, $00, $00, $00, $64, $00, $04, $02, $00, $00, $00, $00
 	db $00, $4b, $00, $00, $00, $00, $00, $00, $64, $00, $04, $02, $00, $00, $00, $00
 	db $00, $50, $00, $00, $00, $00, $00, $00, $64, $00, $04, $02, $00, $00, $00, $00
@@ -4908,8 +4934,14 @@ jr_016_7040:
 	db $00, $50, $00, $00, $00, $00, $00, $00, $5a, $64, $00, $04, $1e, $00, $00, $00
 	db $00, $50, $00, $00, $00, $00, $00, $00, $5a, $64, $00, $04, $1e, $00, $00, $00
 	db $00, $46, $00, $00, $00, $00, $00, $00, $5a, $64, $00, $02, $1e, $00, $00, $00
-	db $00, $01, $01, $01, $01, $01, $01, $01, $00, $ff, $01, $01, $01, $01, $01, $01
-	db $01, $00, $5d, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	db $00
+
+ObjectIsChestTable::
+	db $01, $01, $01, $01, $01, $01, $01, $00, $ff, $01, $01, $01, $01, $01, $01
+	db $01
+
+FloorItemTables::
+	db $00, $5d, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $62, $63
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $64, $00, $00, $00, $00
 	db $00, $00, $32, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $33, $00
@@ -4957,7 +4989,10 @@ jr_016_7040:
 	db $00, $00, $00, $0f, $00, $14, $00, $18, $1a, $1c, $1e, $20, $22, $23, $24, $25
 	db $26, $27, $28, $29, $00, $00, $45, $47, $4c, $00, $00, $4d, $00, $50, $54, $55
 	db $00, $00, $00, $00, $00, $00, $00, $00, $5d, $5f, $00, $64, $00, $00, $00, $00
-	db $00, $60, $10, $10, $70, $30, $00, $00, $40, $30, $00, $00, $40, $80, $20, $20
+	db $00
+
+PresetLayouts::
+	db $60, $10, $10, $70, $30, $00, $00, $40, $30, $00, $00, $40, $80, $20, $20
 	db $90, $60, $70, $60, $70, $30, $40, $30, $40, $30, $40, $30, $40, $80, $22, $23
 	db $90, $60, $70, $60, $70, $80, $0c, $0d, $90, $60, $0b, $0a, $70, $80, $90, $80
 	db $90, $60, $70, $60, $70, $30, $40, $33, $90, $30, $40, $31, $70, $80, $22, $23
@@ -4978,8 +5013,14 @@ jr_016_7040:
 	db $94, $e0, $71, $62, $d0, $61, $0a, $0b, $72, $b0, $33, $42, $b0, $e0, $91, $81
 	db $d0, $64, $71, $62, $74, $a0, $31, $41, $a0, $a0, $33, $42, $a0, $84, $91, $81
 	db $94, $64, $71, $62, $74, $b0, $a1, $a1, $b0, $62, $94, $84, $71, $81, $51, $52
-	db $91, $00, $0d, $0d, $0d, $0d, $0d, $1a, $1a, $1a, $1a, $1a, $26, $26, $26, $26
-	db $26, $10, $28, $11, $28, $12, $28, $13, $28, $14, $28, $15, $28, $00, $2b, $01
+	db $91
+
+FloorNpcChance::
+	db $00, $0d, $0d, $0d, $0d, $0d, $1a, $1a, $1a, $1a, $1a, $26, $26, $26, $26
+	db $26
+
+ScreenMapRefs::
+	db $10, $28, $11, $28, $12, $28, $13, $28, $14, $28, $15, $28, $00, $2b, $01
 	db $2b, $02, $2b, $03, $2b, $04, $2b, $05, $2b, $14, $2c, $10, $28, $10, $28, $10
 	db $28, $16, $28, $17, $28, $18, $28, $19, $28, $1a, $28, $1b, $28, $06, $2b, $07
 	db $2b, $08, $2b, $09, $2b, $0a, $2b, $0b, $2b, $15, $2c, $10, $28, $10, $28, $10
@@ -5011,7 +5052,10 @@ jr_016_7040:
 	db $2c, $10, $2c, $11, $2c, $12, $2c, $13, $2c, $22, $2c, $10, $28, $10, $28, $10
 	db $28, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e
 	db $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e, $27, $4e
-	db $27, $23, $2c, $24, $2c, $25, $2c, $26, $2c, $27, $2c, $28, $2c, $29, $2c, $2a
+	db $27
+
+PresetScreenMapRefs::
+	db $23, $2c, $24, $2c, $25, $2c, $26, $2c, $27, $2c, $28, $2c, $29, $2c, $2a
 	db $2c, $2b, $2c, $2c, $2c, $2d, $2c, $2e, $2c, $2f, $2c, $30, $2c, $23, $2c, $23
 	db $2c, $00, $3b, $01, $3b, $02, $3b, $03, $3b, $04, $3b, $05, $3b, $06, $3b, $23
 	db $2c, $23, $2c, $23, $2c, $23, $2c, $23, $2c, $23, $2c, $23, $2c, $23, $2c, $23

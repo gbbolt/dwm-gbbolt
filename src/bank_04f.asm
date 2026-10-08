@@ -4,15 +4,28 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $04f", ROMX[$4000], BANK[$4f]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_4F::
 	db $4f
 
+;@ path: text/dialogue
+;@ Entry points of bank $4F: the three text routines of the bank's texts. Nine unused zero
+;@ bytes follow up to the font.
 FarTable_4F::
 	dw StartText_4F
 	dw CopyText_4F
 	dw PrintText_4F
 
-	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $ff, $7c, $ff, $82, $ff, $82, $ff
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00
+
+;@ path: text/font
+;@ The font of the text printer: 256 characters of 8 x 8 pixels, 2 bits per pixel (16 bytes
+;@ each), character n at $4010 + 16 * n. $00-$09 are the digits, $24-$3D A-Z, $3E-$57 a-z,
+;@ $62 the space; the text format is described at TextGroup_1A_0.
+;@ asset: tiles bpp=2 length=$1000
+Font::
+	db $ff, $7c, $ff, $82, $ff, $82, $ff
 	db $82, $ff, $82, $ff, $82, $ff, $7c, $ff, $00, $ff, $10, $ff, $30, $ff, $10, $ff
 	db $10, $ff, $10, $ff, $10, $ff, $7c, $ff, $00, $ff, $7c, $ff, $82, $ff, $02, $ff
 	db $0c, $ff, $30, $ff, $40, $ff, $fe, $ff, $00, $ff, $7c, $ff, $82, $ff, $02, $ff
@@ -268,10 +281,28 @@ FarTable_4F::
 	db $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff
 	db $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff
 	db $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $ff
-	db $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $14, $50, $46, $50, $5b, $52, $b5
+	db $00, $ff, $00, $ff, $00, $ff, $00, $ff, $00
+
+;@ path: text/dialogue
+;@ The text group table of bank $4F (after the font, at $5010): one pointer per group
+;@ (wTextGroup); each group lists one pointer per text (wTextIndex).
+TextGroups_4F::
+	db $14, $50, $46, $50
+
+;@ path: text/dialogue
+;@ Text group 0 of bank $4F: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
+TextGroup_4F_0::
+	db $5b, $52, $b5
 	db $52, $36, $53, $c1, $53, $96, $54, $64, $55, $cf, $55, $be, $56, $be, $56, $be
 	db $56, $eb, $56, $19, $57, $4e, $57, $a5, $57, $ec, $57, $b8, $58, $e7, $58, $0c
-	db $5a, $a8, $5a, $d6, $5a, $2f, $5b, $4f, $5b, $bd, $5b, $e1, $5c, $8d, $5d, $80
+	db $5a, $a8, $5a, $d6, $5a, $2f, $5b, $4f, $5b, $bd, $5b, $e1, $5c, $8d, $5d
+
+;@ path: text/dialogue
+;@ Text group 1 of bank $4F: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
+TextGroup_4F_1::
+	db $80
 	db $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80
 	db $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80
 	db $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80, $5e, $80
@@ -305,24 +336,44 @@ FarTable_4F::
 	db $67, $f9, $67, $21, $68, $40, $68, $94, $68, $ad, $68, $be, $68, $fe, $68, $2e
 	db $69, $6f, $69, $b2, $69, $e3, $69, $0a, $6a, $6d, $6a, $db, $6a, $3b, $6b
 
+;@ def StartText_4F()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $4F.
+;@ test: skip runs the text code with this bank switched in
 StartText_4F::
-	ld de, $5010
+;> StartText(TextGroups_4F)                 # this bank's table of text groups
+	ld de, TextGroups_4F
 	call StartText
 	ret
 
 
+;@ def CopyText_4F()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $4F to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_4F::
-	ld de, $5010
+;> CopyTextString(TextGroups_4F)                 # this bank's table of text groups
+	ld de, TextGroups_4F
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_4F()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $4F at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_4F::
+;> StartText_4F()
 	call StartText_4F
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $4F, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
+Texts_4F::
 	db $ea, $9f, $a3, $2b, $42, $4f, $62, $30, $3e, $47, $42, $50, $51, $56, $ef, $ee
 	db $41, $42, $50, $46, $4f, $42, $50, $fa, $f7, $ef, $ee, $3e, $62, $2b, $4c, $4f
 	db $4b, $25, $42, $42, $51, $5f, $ef, $ee, $fa, $f7, $ef, $ee, $9f, $a3, $2c, $62

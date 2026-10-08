@@ -16,7 +16,7 @@ DEF hOAMCount EQU $FFCB ;@ u8 Number of shadow OAM slots used this frame (0-40)
 DEF hSpriteScreenY EQU $FFCD ;@ u16 Metasprite OAM Y origin (Y position on screen + 16)
 DEF hSpriteScreenX EQU $FFCF ;@ u16 Metasprite OAM X origin (X position on screen + 8)
 DEF hSpriteScreenXFlip EQU $FFD1 ;@ u16 Metasprite OAM X origin for mirrored sprites (hSpriteScreenX - 8)
-DEF hSpriteClip EQU $FFD3 ;@ u8 Metasprite clipping: 0 none, 1 hide left of X 52, 2 hide right of X 112; nonzero also hides sprites over background tiles >= hSpriteBGTile
+DEF hSpriteClip EQU $FFD3 ;@ u8 Hides sprites by OAM Y: 1 hides those above OAM line $34, 2 those from line $71 on, 0 none
 DEF hSpriteBGTile EQU $FFD4 ;@ u8 Background tiles from this number up cover sprites (when hSpriteClip is set)
 DEF hNumber EQU $FFD5 ;@ u8[3] 24-bit number being converted to decimal (little endian)
 DEF hDivisorHigh EQU $FFDB ;@ u8 High byte of the 24-bit divisor for DecimalDigit24
@@ -46,8 +46,8 @@ DEF wTextBank EQU $C824 ;@ u8 ROM bank of the text being printed
 DEF wTextState EQU $C825 ;@ u8 Text printer state: bit 0 printing, 1 no delay, 2 waiting for a button, 3 custom speed, 5 prompt arrow shown, 6 timed wait (skippable), 7 timed pause
 DEF wTextFlags EQU $C826 ;@ u8 Text printer flags: bit 0 beep per letter, 1 letter just printed, 7 a button sped it up
 DEF wTextTiles EQU $C827 ;@ u16 VRAM address of the text box's letter tiles
-DEF wTextBoxWidth EQU $C829 ;@ u8 Text box width in tiles
-DEF wTextBoxHeight EQU $C82A ;@ u8 Text box height in lines (two tiles each)
+DEF wTextBoxLines EQU $C829 ;@ u8 Number of text lines in the text box
+DEF wTextBoxLineLength EQU $C82A ;@ u8 Number of characters in one line of the text box
 DEF wTextCursor EQU $C82B ;@ u16 VRAM address where the next letter's tile is drawn
 DEF wTextPtr EQU $C82D ;@ u16 Read pointer into the text
 DEF wTextLineStart EQU $C82F ;@ u16 VRAM address of the start of the current text line
@@ -212,7 +212,7 @@ DEF wLinkPhase EQU $C866 ;@ u8 Link transfer phase: 0 send, 1 receive
 DEF wLinkReceived EQU $C86A ;@ u8 Last byte received over the link
 DEF wLinkReceivedLast EQU $C86E ;@ u8 Copy of the last single byte received
 DEF wLinkRecvPtr EQU $C86F ;@ u16 Write pointer into the link receive buffer
-DEF wLinkChoice EQU $C8DA ;@ u8 Link mode chosen in the menu (2 or 3; bit 7 extra flag)
+DEF wLinkChoice EQU $C8DA ;@ u8 Title menu cursor: 0 continue, 1 new game, 2 VS mode, 3 breeding (without a save only new game); bit 7 set once chosen
 DEF wLinkRefused EQU $C8DF ;@ u8 Set to $FF when the partner's handshake byte did not match
 DEF wLinkPartnerChoice EQU $C8E0 ;@ u8 Link mode the partner asked for (2 or 3) when ours differs
 DEF wLinkNoEnd EQU $C8C7 ;@ u8 Nonzero: the partner's end byte $F3 is not looked for
@@ -246,7 +246,7 @@ DEF wSGBPalSet EQU $C817 ;@ u8 Super Game Boy palette set of the field (4 palett
 DEF wSGBAttrSet EQU $C818 ;@ u8 Super Game Boy attribute file of the field
 DEF wSGBPalIds EQU $C85B ;@ u8[8] The 4 SGB palette numbers (u16 each) the fade works with
 DEF wFieldStackPtr EQU $DA7B ;@ u16 Stack pointer saved when the field mode starts
-DEF wLoadedGfxSet EQU $C81B ;@ u8 Graphics set now in VRAM (font and field tiles, see GetMapGfxSet; $FF none)
+DEF wLoadedGfxSet EQU $C81B ;@ u8 Graphics set now in VRAM (font and field tiles, see GetMapSGBBorder; $FF none)
 DEF wWarpOnGateFloor EQU $C96E ;@ u8 wOnGateFloor of the pending warp destination
 DEF hOAMDMA EQU $FF80 ;@ code[10] OAM DMA routine (copied here from OAMDMARoutine at start-up)
 DEF wHiddenSprites EQU $C8ED ;@ u8 Field sprites not drawn: bit 0 Terry, bits 1-3 the three party followers
@@ -453,3 +453,44 @@ DEF wLevelGains EQU $C8CA ;@ u8[6] Stat gains of a level-up: HP, MP, attack, def
 DEF wOverLevelLimit EQU $C8D0 ;@ u8 Nonzero when the monster is past its level limit (smaller gains)
 DEF wBaseGain EQU $C8D1 ;@ u8 Stat gain before the plus bonuses are added
 DEF wCGBBGPalettes EQU $C797 ;@ u8[64] CGB background palettes, 8 x 4 RGB555 colors (fades and uploads work from here)
+DEF wFloorNpcScreen EQU $C926 ;@ u8 Gate floor: screen where the floor's special character stands ($FF none)
+DEF wFloorNpcX EQU $C927 ;@ u16 Gate floor: X of that character
+DEF wFloorNpcY EQU $C929 ;@ u16 Gate floor: Y of that character
+DEF wFloorNpcKind EQU $C92B ;@ u8 Gate floor: which character it is (object list of GateFloorNpcLists)
+DEF wFloorLayout EQU $C940 ;@ u8[16] Gate floor: the 4 x 4 screens of the floor ($Fx = no screen there)
+DEF wStairsScreen EQU $C960 ;@ u8 Gate floor: screen with the stairs to the next floor
+DEF wStairsOffset EQU $C962 ;@ u16 Gate floor: offset of the stairs in the screen's tilemap
+DEF wActorGfxSlots EQU $D7BE ;@ u8[12] Actor sprite graphics loaded in VRAM: 6 slots of (graphics number, source), $FF free
+DEF wTitleStep EQU $C8D2 ;@ u8 Step of the title menu, and of the link modes run from it (VS battle, breeding)
+DEF wTitleSubStep EQU $C8D3 ;@ u8 Sub-step within the current title menu step
+DEF wTitleBgMap EQU $C8D6 ;@ u16 BG map address of the screen's top left corner (where the tilemap buffer is copied)
+DEF wTitleBlink EQU $C8D9 ;@ u8 Menu cursor blink counter of the title and link menus (bit 4 hides the cursor)
+DEF wLinkCommand EQU $C86D ;@ u8 Byte the title menu sends to the partner once ($F0 VS mode, $F1 breeding; 0 none)
+DEF wMessageSpeed EQU $C8EE ;@ u8 Message speed setting (0-7, a new game starts with 4)
+DEF wTitleListCount EQU $C8D8 ;@ u8 Number of monsters in the title-mode monster list (VS team, prize, breeding)
+DEF wVSTeam EQU $C0EC ;@ u8[3] Monster slots chosen for the VS battle team ($FF = not chosen yet)
+DEF wLinkPrizeSlot EQU $C8BA ;@ u8 Monster slot offered as the VS prize ($14 = none, $FF after the battle starts without one)
+DEF wVSTeamCount EQU $C8C3 ;@ u8 Number of monsters in the VS team
+DEF wVSTeamSlots EQU $C8C4 ;@ u8[3] Monster slots the VS team came from (they are copied to slots 0-2 for the battle)
+DEF wTouchedActor EQU $D7BD ;@ u8 Number of the actor Terry overlaps (set by CheckActorOverlap)
+DEF wScrollColumn EQU $C91F ;@ u8 Column or row counter of the screen-to-screen scroll
+DEF wEventBoxMap EQU $C919 ;@ u16 BG map address of the field event's text box
+DEF wArenaTeam1 EQU $D9D1 ;@ u8[6] Species (3 x u16) of the second team of the tournament class being fought
+DEF wArenaTeam2 EQU $D9D9 ;@ u8[6] Species (3 x u16) of the third team of the tournament class being fought
+DEF sStashedParty EQU $A1F3 ;@ u8[4] Saved game: wSavedParty, the party count and slots a script put aside
+DEF sLibraryFlags EQU $A1CE ;@ u8[32] Saved game: wLibraryFlags (monster library entries)
+DEF wBreedTemp EQU $DA72 ;@ u8 Breeding scratch: family + $F0 of the pedigree parent; resistance index while resistances are inherited
+DEF wBreedFamily1 EQU $DA73 ;@ u8 Breeding: family + $F0 of the pedigree parent (special pairs)
+DEF wBreedFamily2 EQU $DA74 ;@ u8 Breeding: family + $F0 of the mate (special pairs)
+DEF wBreedCount EQU $D9E6 ;@ u8 Breeding counter of an unused rule (cleared after each breeding outside link mode)
+DEF wGateFloorSet EQU $C936 ;@ u8 Gate world: which FloorMapTables entry picks the floor maps
+DEF wGateSpecialSet EQU $C937 ;@ u8 Gate world: which SpecialFloorChances entry picks special floors (then the special floor kind)
+DEF wGateClass EQU $C938 ;@ u8 Gate world: item, object and character class of its floors
+DEF wFloorKind EQU $C93F ;@ u8 Kind of the floor layout: 0 random screens, 1 random screens without variants, 2 a preset layout
+DEF wFloorNpcVariant EQU $C92C ;@ u8 Gate floor: variant (0-4) of the floor's special character
+DEF wEncounterCounter EQU $CA39 ;@ u16 Counts down with each step on a gate floor; a random battle starts when it runs out
+DEF wFloorTries EQU $C0A9 ;@ u8 Floor generator: tries left before the whole floor is made again
+DEF wFloorObjKind EQU $C0AE ;@ u8 Floor generator: kind of the object being placed (+ $10 for an open chest)
+DEF wArrivalScreen EQU $C0AF ;@ u8 Floor generator: screen where Terry arrives
+DEF wSpotAround EQU $C0B0 ;@ u8[9] Floor generator: 3 x 3 spots around a place, 1 blocked / 0 free
+DEF wMonResist EQU $CB29 ;@ u8[27] Party monster record field: the 27 resistances (0-3)

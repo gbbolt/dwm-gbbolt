@@ -3485,9 +3485,9 @@ jr_050_556a:
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -3506,9 +3506,9 @@ jr_050_55a0:
 
 jr_050_55a3:
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -3522,9 +3522,9 @@ jr_050_55a3:
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	pop hl
 	ld a, [$db4e]
 	or a
@@ -6287,7 +6287,7 @@ jr_050_65f9:
 	ld de, $c8bb
 	ld b, $08
 	call Call_50_66CC
-	ld a, [$c8ba]
+	ld a, [wLinkPrizeSlot]
 	cp $ff
 	jr z, jr_050_6663
 
@@ -6301,13 +6301,13 @@ jr_050_65f9:
 	ld bc, $0ba4
 	call Call_50_66B9
 	ei
-	ld a, [$c8ba]
+	ld a, [wLinkPrizeSlot]
 	ld hl, wMonsters
 	call MonsterField
 	ld de, wBreedParent1
 	ld b, $95
 	call Call_50_66CC
-	ld a, [$c8ba]
+	ld a, [wLinkPrizeSlot]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
@@ -6329,7 +6329,7 @@ jr_050_65f9:
 	ld a, $02
 	call Call_50_669F
 	ld a, $14
-	ld [$c8ba], a
+	ld [wLinkPrizeSlot], a
 
 jr_050_6663:
 	ld a, $04
@@ -6357,13 +6357,13 @@ jr_050_6663:
 	xor a
 	ld [wLinkSendByte], a
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
 	ret
 
 
 Call_50_669F::
 	ld c, a
-	ld hl, $c8c4
+	ld hl, wVSTeamSlots
 	add l
 	ld l, a
 	ld a, $00
@@ -6373,7 +6373,7 @@ Call_50_669F::
 	cp [hl]
 	ret z
 
-	ld a, [$c8ba]
+	ld a, [wLinkPrizeSlot]
 	cp [hl]
 	jr z, jr_050_66b6
 
@@ -6537,7 +6537,7 @@ Call_50_67AE::
 	ld [wArenaRound], a
 	ld a, $02
 	ld [wEncCount], a
-	ld a, [$d9d1]
+	ld a, [wArenaTeam1]
 	ld l, a
 	ld a, [$d9d2]
 	ld h, a
@@ -6592,7 +6592,7 @@ jr_050_682d:
 	ld [wArenaRound], a
 	ld a, $02
 	ld [wEncCount], a
-	ld a, [$d9d9]
+	ld a, [wArenaTeam2]
 	ld l, a
 	ld a, [$d9da]
 	ld h, a
@@ -7935,9 +7935,9 @@ Call_50_76C7::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -7945,9 +7945,9 @@ Call_50_76C7::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, far_PrintText_41
 	rst $10
 	pop de
@@ -7957,9 +7957,9 @@ Call_50_76C7::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -7973,9 +7973,9 @@ Call_50_7700::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -7984,9 +7984,9 @@ Call_50_7700::
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -8000,9 +8000,9 @@ Call_50_7700::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 

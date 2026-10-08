@@ -4,90 +4,125 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $005", ROMX[$4000], BANK[$5]
 
+;@ path: gfx/sprites
+;@ Bank number byte: RST $10 reads it to know which bank to switch back to.
 BankNumber_05::
 	db $05
 
+;@ path: gfx/sprites
+;@ Far-call entry points of bank 5, the character sprites (Terry and the people of the
+;@ maps).
 FarTable_05::
-	dw Call_05_4005
-	dw Call_05_400F
+	dw DrawCharacterSprite
+	dw DrawCharacterSpriteOnScreen
 
-Call_05_4005::
-	call Call_05_406E
-	ld de, $407f
+;@ def DrawCharacterSprite()
+;@ path: gfx/sprites
+;@ Draws character sprite set hSpriteSet, frame hSpriteFrame, at map position hSpriteX/Y
+;@ with DrawMetasprite (scrolled, clipped), its palette added to hSpriteAttr.
+;@ test: skip writes OAM through DrawMetasprite
+DrawCharacterSprite::
+;> AddCharacterPalette()
+	call AddCharacterPalette
+;> DrawMetasprite(CharacterMetasprites)
+	ld de, CharacterMetasprites
 	call DrawMetasprite
+;> return
 	ret
 
 
-Call_05_400F::
-	call Call_05_406E
-	ld de, $407f
+;@ def DrawCharacterSpriteOnScreen()
+;@ path: gfx/sprites
+;@ Like DrawCharacterSprite, but hSpriteX/Y are screen positions: no scrolling, flipping or
+;@ clipping, entries go straight into the shadow OAM until 40 sprites are used.
+;@ test: skip writes OAM entries through pointer tables
+DrawCharacterSpriteOnScreen::
+;> AddCharacterPalette()
+	call AddCharacterPalette
+;> table = CharacterMetasprites      # (all registers are kept)
+	ld de, CharacterMetasprites
 	push af
 	push bc
 	push de
 	push hl
+;> if hOAMCount < 40:
 	ldh a, [hOAMCount]
 	cp $28
-	jr nc, jr_005_4069
-
+	jr nc, .done
+;>@f     frames = mem16[table + hSpriteSet * 2]
 	ldh a, [hSpriteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
 	ld e, [hl]
+;=@f
 	inc hl
 	ld d, [hl]
+;>@e     entry = mem16[frames + hSpriteFrame * 2]
 	ldh a, [hSpriteFrame]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
 	ld e, [hl]
+;=@e
 	inc hl
 	ld d, [hl]
+;>@o     oam = wShadowOAM + hOAMCount * 4
 	ldh a, [hOAMCount]
 	sla a
 	sla a
 	ld l, a
 	ld h, $c0
 
-jr_005_403c:
+.entry
+;>@w     while mem[entry] != 0x80:
 	ld a, [de]
 	inc de
 	cp $80
-	jr z, jr_005_4069
-
+	jr z, .done
+;>         mem[oam] = hSpriteY + mem[entry] + 16
 	ld b, a
 	ldh a, [hSpriteY]
 	add b
 	add $10
 	ld [hli], a
+;>@x         mem[oam + 1] = hSpriteX + mem[entry + 1] + 8
 	ld a, [de]
 	inc de
 	ld b, a
 	ldh a, [hSpriteX]
 	add b
 	add $08
+;=@x
 	ld [hli], a
+;>         mem[oam + 2] = hSpriteTileBase + mem[entry + 2]
 	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [de]
 	inc de
 	add b
 	ld [hli], a
+;>         mem[oam + 3] = hSpriteAttr ^ mem[entry + 3]
 	ld a, [de]
 	inc de
 	ld b, a
 	ldh a, [hSpriteAttr]
 	xor b
 	ld [hli], a
+;>         hOAMCount += 1
 	ldh a, [hOAMCount]
 	inc a
 	ldh [hOAMCount], a
+;>         if hOAMCount >= 40:
+;>             break
 	cp $28
-	jr c, jr_005_403c
+;=@w
+	jr c, .entry
 
-jr_005_4069:
+.done
+;> return
 	pop hl
 	pop de
 	pop bc
@@ -95,20 +130,35 @@ jr_005_4069:
 	ret
 
 
-Call_05_406E::
+;@ def AddCharacterPalette()
+;@ path: gfx/sprites
+;@ Adds the palette of character sprite set hSpriteSet (CharacterPalettes) to
+;@ hSpriteAttr.
+;@ test: skip reads HRAM sprite state
+AddCharacterPalette::
+;>@p hSpriteAttr |= CharacterPalettes[hSpriteSet]
 	ldh a, [hSpriteSet]
-	ld hl, $4152
+	ld hl, CharacterPalettes
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p
 	ld h, a
 	ldh a, [hSpriteAttr]
 	or [hl]
 	ldh [hSpriteAttr], a
+;> return
 	ret
 
 
+;@ path: gfx/sprites
+;@ Character sprite sets: one pointer per set (hSpriteSet) to its list of frame pointers
+;@ (hSpriteFrame; usually 6: walking down, up and sideways, two steps each, the other
+;@ side by X flip). A frame is a list of 4-byte entries ended by $80: Y offset, X offset,
+;@ tile, attributes (see DrawMetasprite). The last set's frame list and frame follow
+;@ the table.
+CharacterMetasprites::
 	db $b2, $41, $24, $42, $96, $42, $08, $43, $7a, $43, $ec, $43, $5e, $44, $d0, $44
 	db $42, $45, $b4, $45, $26, $46, $98, $46, $0a, $47, $7c, $47, $ee, $47, $60, $48
 	db $d2, $48, $44, $49, $b6, $49, $28, $4a, $9a, $4a, $0c, $4b, $ae, $4b, $20, $4c
@@ -122,7 +172,14 @@ Call_05_406E::
 	db $09, $6e, $1c, $6e, $2f, $6e, $68, $6e, $6f, $6e, $c1, $6e, $66, $6f, $d8, $6f
 	db $09, $6e, $09, $6e, $09, $6e, $09, $6e, $09, $6e, $09, $6e, $12, $70, $3f, $41
 	db $41, $41, $f0, $f8, $00, $10, $f0, $00, $01, $10, $f8, $f8, $02, $10, $f8, $00
-	db $03, $10, $80, $01, $06, $02, $04, $00, $02, $01, $07, $05, $05, $00, $00, $06
+	db $03, $10, $80
+
+;@ path: gfx/sprites
+;@ Sprite palette (0-7, ORed into the OAM attributes) of each character sprite set,
+;@ one byte per set; the frame lists and frames of all sets follow, to the end of the
+;@ bank's data.
+CharacterPalettes::
+	db $01, $06, $02, $04, $00, $02, $01, $07, $05, $05, $00, $00, $06
 	db $00, $04, $01, $04, $02, $02, $06, $03, $05, $02, $02, $03, $07, $03, $02, $01
 	db $07, $02, $07, $07, $02, $02, $01, $01, $07, $00, $06, $03, $04, $03, $05, $05
 	db $04, $04, $02, $04, $06, $01, $03, $01, $01, $04, $04, $06, $05, $02, $03, $06

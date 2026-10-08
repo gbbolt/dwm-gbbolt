@@ -4,15 +4,23 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $021", ROMX[$4000], BANK[$21]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_21::
 	db $21
 
+;@ path: text/dialogue
+;@ Entry points of text bank $21: the text routines, then one pointer per text group.
+;@ That tail (from $4007) is the group table the routines hand to StartText.
 FarTable_21::
 	dw StartText_21
 	dw CopyText_21
 	dw PrintText_21
 	dw TextGroup_21_0
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $21: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_21_0::
 	db $06, $41, $0f, $42, $48, $42, $e8, $42, $49, $43, $d8, $43, $11, $44, $a2, $44
 	db $cc, $44, $53, $45, $2c, $46, $ff, $46, $d9, $47, $0e, $48, $3b, $48, $9e, $48
@@ -30,24 +38,43 @@ TextGroup_21_0::
 	db $46, $73, $4d, $74, $20, $75, $b6, $75, $d3, $76, $09, $77, $49, $78, $7c, $78
 	db $e1, $78, $14, $79, $4e, $7a, $4d, $7b
 
+;@ def StartText_21()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $21.
+;@ test: skip runs the text code with this bank switched in
 StartText_21::
-	ld de, $4007
+;> StartText(FarTable_21 + 6)                 # this bank's table of text groups
+	ld de, FarTable_21 + 6
 	call StartText
 	ret
 
 
+;@ def CopyText_21()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $21 to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_21::
-	ld de, $4007
+;> CopyTextString(FarTable_21 + 6)                 # this bank's table of text groups
+	ld de, FarTable_21 + 6
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_21()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $21 at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_21::
+;> StartText_21()
 	call StartText_21
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $21, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
 Texts_21::
 	db $ea, $9f, $a3, $2c, $62, $45, $42, $3e, $4f, $41, $62, $3e, $62, $4f, $52, $4a
 	db $4c, $4f, $ef, $ee, $51, $45, $3e, $51, $62, $3e, $62, $51, $42, $4f, $4f, $46

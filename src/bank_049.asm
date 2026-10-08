@@ -4,15 +4,23 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $049", ROMX[$4000], BANK[$49]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_49::
 	db $49
 
+;@ path: text/dialogue
+;@ Entry points of text bank $49: the text routines, then one pointer per text group.
+;@ That tail (from $4007) is the group table the routines hand to StartText.
 FarTable_49::
 	dw StartText_49
 	dw CopyText_49
 	dw PrintText_49
 	dw TextGroup_49_0
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $49: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_49_0::
 	db $9c, $41, $60, $42, $cb, $42, $f7, $42, $22, $43, $3a, $43, $5b, $43, $77, $43
 	db $ac, $43, $fa, $43, $30, $44, $6e, $44, $b1, $44, $cc, $44, $fe, $44, $2b, $45
@@ -35,66 +43,101 @@ TextGroup_49_0::
 	db $c0, $76, $30, $77, $0f, $78, $e6, $78, $6d, $79, $09, $7a, $47, $7a, $8e, $7a
 	db $c2, $7a, $f2, $7a, $39, $7b, $54, $7b, $91, $7b, $ef, $7b
 
+;@ def StartText_49()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $49. Some text numbers of this bank are
+;@ kept in bank $567F: those are renumbered and handed to that bank.
+;@ test: skip runs the text code with this bank switched in
 StartText_49::
+;> if wTextIndex >= 0x9E:
 	ld a, [wTextIndex]
 	cp $9e
 	jr c, jr_049_415b
 
+;>     wTextIndex -= 0x9E
 	sub $9e
 	ld [wTextIndex], a
+;>     wTextGroup = 0x00
 	ld a, $00
 	ld [wTextGroup], a
+;>     return Call_18_567F()                    # that bank holds these texts
 	ld hl, far_Call_18_567F
 	rst $10
 	ret
 
 
 jr_049_415b:
-	ld de, $4007
+;> StartText(FarTable_49 + 6)
+	ld de, FarTable_49 + 6
 	call StartText
 	ret
 
 
+;@ def CopyText_49()
+;@ path: text/dialogue
+;@ Copies (to wTextCopyDest) text wTextGroup / wTextIndex of bank $49. Some text numbers of this bank are
+;@ kept in bank $5686: those are renumbered and handed to that bank.
+;@ test: skip runs the text code with this bank switched in
 CopyText_49::
+;> if wTextIndex >= 0x9E:
 	ld a, [wTextIndex]
 	cp $9e
 	jr c, jr_049_4178
 
+;>     wTextIndex -= 0x9E
 	sub $9e
 	ld [wTextIndex], a
+;>     wTextGroup = 0x00
 	ld a, $00
 	ld [wTextGroup], a
+;>     return Call_18_5686()                    # that bank holds these texts
 	ld hl, far_Call_18_5686
 	rst $10
 	ret
 
 
 jr_049_4178:
-	ld de, $4007
+;> CopyTextString(FarTable_49 + 6)
+	ld de, FarTable_49 + 6
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_49()
+;@ path: text/dialogue
+;@ Prints at once (and waits for the end of) text wTextGroup / wTextIndex of bank $49. Some text numbers of this bank are
+;@ kept in bank $568D: those are renumbered and handed to that bank.
+;@ test: skip runs the text code with this bank switched in
 PrintText_49::
+;> if wTextIndex >= 0x9E:
 	ld a, [wTextIndex]
 	cp $9e
 	jr c, jr_049_4195
 
+;>     wTextIndex -= 0x9E
 	sub $9e
 	ld [wTextIndex], a
+;>     wTextGroup = 0x00
 	ld a, $00
 	ld [wTextGroup], a
+;>     return Call_18_568D()                    # that bank holds these texts
 	ld hl, far_Call_18_568D
 	rst $10
 	ret
 
 
 jr_049_4195:
+;> StartText_49()
 	call StartText_49
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $49, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
+Texts_49::
 	db $eb, $30, $46, $49, $3e, $56, $4c, $52, $a3, $3c, $42, $50, $5e, $62, $46, $51
 	db $ef, $ee, $43, $42, $42, $49, $50, $62, $49, $46, $48, $42, $62, $51, $45, $42
 	db $fa, $f7, $ef, $ee, $43, $46, $44, $45, $51, $62, $54, $3e, $50, $62, $4f, $42

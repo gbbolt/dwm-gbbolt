@@ -118,8 +118,8 @@ TimerOverflowInterrupt::
 ;@ of an older VBlank handler that nothing reaches.
 ;@ test: skip interrupt vector
 SerialTransferCompleteInterrupt::
-;> return Jump_000_2edd()
-	jp Jump_000_2edd
+;> return SerialInterruptEntry()
+	jp SerialInterruptEntry
 
 
 	db $d9, $ff, $ff, $ff, $ff, $d9, $f3, $f5, $c5, $d5, $e5, $21, $40, $ff, $cb, $86
@@ -293,7 +293,7 @@ SoftReset::
 	ld bc, $1c00
 	xor a
 	call FillMemory
-;> fill(wGameMode, 0, 4)                  # mode, step and two mode variables
+;> fill(addr(wGameMode), 0, 4)                  # mode, step and two mode variables
 	ld hl, wGameMode
 	xor a
 	ld [hli], a
@@ -302,7 +302,7 @@ SoftReset::
 	ld [hl], a
 ;> mem[0xC8EE] = 4
 	ld a, $04
-	ld [$c8ee], a
+	ld [wMessageSpeed], a
 ;> wGameMode = 0
 	ld a, $00
 	ld [wGameMode], a
@@ -483,10 +483,10 @@ SoftReset::
 	ld [wLinkReceived], a
 ;>     wTextState = 0
 	ld [wTextState], a
-;>     wTextBoxWidth = 0
-	ld [wTextBoxWidth], a
-;>     wTextBoxHeight = 0
-	ld [wTextBoxHeight], a
+;>     wTextBoxLines = 0
+	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = 0
+	ld [wTextBoxLineLength], a
 ;>     wLinkTimeout = 0
 	ld [wLinkTimeout], a
 	ld [wLinkTimeout + 1], a
@@ -515,7 +515,7 @@ SoftReset::
 	ld [wSoundBusy], a
 ;>     wDecompressBusy = 0
 	ld [wDecompressBusy], a
-;>     fill(wShakeY, 0, 4)                # no screen shake
+;>     fill(addr(wShakeY), 0, 4)                # no screen shake
 	ld hl, wShakeY
 	ld [hli], a
 	ld [hli], a
@@ -603,8 +603,8 @@ GameModeInitTable::
 ;@ Starts game mode $00 (bank $15).
 ;@ test: skip calls a routine in another bank
 InitGameMode00::
-;> Call_15_4009()
-	ld hl, far_Call_15_4009
+;> TitleModeInit()
+	ld hl, far_TitleModeInit
 	rst $10
 	ret
 
@@ -1326,6 +1326,7 @@ UpdateScreenShake::
 
 
 ;@ def VBlankMapUpdate()
+;@ test: skip CopyMapUpdate writes VRAM bank 1
 ;@ path: gfx/tilemap
 ;@ Copies the queued background row or column (CopyMapUpdate) when one is on.
 VBlankMapUpdate::
@@ -1393,6 +1394,7 @@ StartText::
 
 
 ;@ def CopyTextString(table: de)
+;@ test: skip reads the switched-in bank
 ;@ path: text/printer
 ;@ Copies text number wTextGroup/wTextIndex from the pointer table `table`, up
 ;@ to and including its $F0 end mark, to the buffer at wTextCopyDest.
@@ -1671,17 +1673,17 @@ TextPrinterStep::
 	push hl
 
 .col
-;>                         WriteVRAM(addr, mem[src])     # addr starts at row_addr, src at wTilemapBuffer
+;>                         WriteVRAM(pos, mem[src])     # pos starts at row_addr, src at wTilemapBuffer
 	ld a, [de]
 	call WriteVRAM
-;>                         next_col = (addr + 1) & 0x1F
+;>                         next_col = (pos + 1) & 0x1F
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
-;>                         addr = (addr & ~0x1F) | next_col   # wraps within the map row
+;>                         pos = (pos & ~0x1F) | next_col   # wraps within the map row
 	ld l, a
 	pop af
 	or l
@@ -2254,7 +2256,7 @@ CopySystemText::
 ;@ def SetUpTextBox(tiles: hl, lines: e, line_length: d)
 ;@ path: text/printer
 ;@ Sets the VRAM tiles the text box draws its letters into (`lines` lines of
-;@ `line_length` tiles; wTextBoxWidth holds the line count, wTextBoxHeight the line length) and clears them.
+;@ `line_length` tiles; wTextBoxLines holds the line count, wTextBoxLineLength the line length) and clears them.
 ;@ test: skip calls a routine in another bank
 SetUpTextBox::
 ;> wTextTiles = tiles
@@ -2262,12 +2264,12 @@ SetUpTextBox::
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
-;> wTextBoxWidth = lines
+;> wTextBoxLines = lines
 	ld a, e
-	ld [wTextBoxWidth], a
-;> wTextBoxHeight = line_length
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = line_length
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 ;> Call_56_4485()                         # clear the tiles
 	ld hl, far_Call_56_4485
 	rst $10
@@ -2312,6 +2314,7 @@ ByteToDecimal::
 
 
 ;@ def DecimalDigit(value: a, divisor: e, dest: hl) -> (a, hl)
+;@ test: divisor = rand(1, 255)
 ;@ path: text/numbers
 ;@ Writes the digit value // divisor to `dest` and returns the remainder and
 ;@ the next address.
@@ -3144,9 +3147,10 @@ CopyName::
 
 
 ;@ def DrawTextBoxTiles(box: hl)
+;@ test: skip waits for the LCD
 ;@ path: text/box
 ;@ Fills the text box's area of the BG map at `box` with the box's letter tiles
-;@ (numbered from wTextTiles / 16 on): wTextBoxWidth lines of wTextBoxHeight
+;@ (numbered from wTextTiles / 16 on): wTextBoxLines lines of wTextBoxLineLength
 ;@ tiles (those two names are the wrong way round: $C829 is the line count,
 ;@ $C82A the line length). Every line after the first is placed at the same
 ;@ address, two map rows below the box's top.
@@ -3171,13 +3175,13 @@ DrawTextBoxTiles::
 	rr e
 	srl d
 	rr e
-;> lines = wTextBoxWidth
-	ld a, [wTextBoxWidth]
+;> lines = wTextBoxLines
+	ld a, [wTextBoxLines]
 	ld c, a
-;> per_line = wTextBoxHeight
-	ld a, [wTextBoxHeight]
+;> per_line = wTextBoxLineLength
+	ld a, [wTextBoxLineLength]
 	ld b, a
-;> addr = wTextBoxMap
+;> pos = wTextBoxMap
 	ld a, [wTextBoxMap]
 	ld l, a
 	ld a, [wTextBoxMap + 1]
@@ -3189,10 +3193,10 @@ DrawTextBoxTiles::
 
 .tile
 ;>@tile     for _ in range(per_line):
-;>         WriteVRAM(addr, lo(tile))
+;>         WriteVRAM(pos, lo(tile))
 	ld a, e
 	call WriteVRAM
-;>         addr = MapNextTile(addr)
+;>         pos = MapNextTile(pos)
 	call MapNextTile
 ;>         tile += 1
 	inc e
@@ -3200,7 +3204,7 @@ DrawTextBoxTiles::
 	dec b
 	jr nz, .tile
 
-;>     addr = TextBoxMapAddress(0x40)     # two map rows below the box's top
+;>     pos = TextBoxMapAddress(0x40)     # two map rows below the box's top
 	pop bc
 	ld hl, $0040
 	call TextBoxMapAddress
@@ -3211,39 +3215,39 @@ DrawTextBoxTiles::
 	ret
 
 
-;@ def MapAdvanceTiles(addr: hl, count: b) -> hl
+;@ def MapAdvanceTiles(pos: hl, count: b) -> hl
 ;@ path: gfx/tilemap
 ;@ Moves a BG map address `count` tiles to the right, wrapping within the row.
 MapAdvanceTiles::
 ;> for _ in range(count):
-;>     addr = MapNextTile(addr)
+;>     pos = MapNextTile(pos)
 	call MapNextTile
 	dec b
 	jr nz, MapAdvanceTiles
 
-;> return addr
+;> return pos
 	ret
 
 
-;@ def MapNextTile(addr: hl) -> hl
+;@ def MapNextTile(pos: hl) -> hl
 ;@ path: gfx/tilemap
-;@ The BG map address one tile to the right of `addr`, wrapping from column 31
+;@ The BG map address one tile to the right of `pos`, wrapping from column 31
 ;@ back to column 0 of the same row. Keeps a.
 MapNextTile::
-;> col = (lo(addr) + 1) & 0x1F
+;> col = (lo(pos) + 1) & 0x1F
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
-;> addr = (addr & 0xFFE0) | col
+;> pos = (pos & 0xFFE0) | col
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
-;> return addr
+;> return pos
 	pop af
 	ret
 
@@ -3311,22 +3315,22 @@ ScreenMapAddress::
 	ret
 
 
-;@ def ClearMapTiles(addr: hl, count: b) -> hl
+;@ def ClearMapTiles(pos: hl, count: b) -> hl
 ;@ path: gfx/tilemap
-;@ Writes `count` blank tiles ($E0) into the BG map from `addr` to the right,
+;@ Writes `count` blank tiles ($E0) into the BG map from `pos` to the right,
 ;@ wrapping within the row.
 ;@ test: skip waits for the LCD
 ClearMapTiles::
 ;> for _ in range(count):
-;>     WriteVRAM(addr, 0xE0)
+;>     WriteVRAM(pos, 0xE0)
 	ld a, $e0
 	call WriteVRAM
-;>     addr = MapNextTile(addr)
+;>     pos = MapNextTile(pos)
 	call MapNextTile
 	dec b
 	jr nz, ClearMapTiles
 
-;> return addr
+;> return pos
 	ret
 
 
@@ -3386,9 +3390,9 @@ CopyGlyph::
 	ret
 
 
-;@ def ReadTextBankByte(addr: hl) -> a
+;@ def ReadTextBankByte(pos: hl) -> a
 ;@ path: text/printer
-;@ Reads the byte at `addr` in the text's bank (wTextBank).
+;@ Reads the byte at `pos` in the text's bank (wTextBank).
 ;@ test: skip switches banks
 ReadTextBankByte::
 ;> saved = rom_bank()
@@ -3397,7 +3401,7 @@ ReadTextBankByte::
 ;> set_rom_bank(wTextBank)
 	ld a, [wTextBank]
 	ld [$2100], a
-;> value = mem[addr]
+;> value = mem[pos]
 	ld a, [hl]
 	ld b, a
 ;> set_rom_bank(saved)
@@ -4120,7 +4124,7 @@ SpriteInFrontOfBG::
 	add b
 	sub $0c
 	and $f8
-;> addr = row * 4                         # 32 tiles per row of 8 pixels
+;> pos = row * 4                         # 32 tiles per row of 8 pixels
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -4136,7 +4140,7 @@ SpriteInFrontOfBG::
 	rrca
 	rrca
 	rrca
-;> addr = 0x9800 + ((addr + col) & 0x3FF)
+;> pos = 0x9800 + ((pos + col) & 0x3FF)
 	add l
 	ld l, a
 	ld a, h
@@ -4156,7 +4160,7 @@ SpriteInFrontOfBG::
 	bit 1, a
 	jr nz, .wait
 
-;> tile = mem[addr]
+;> tile = mem[pos]
 	ld a, [hl]
 ;> enable_interrupts()
 	ei
@@ -5232,7 +5236,7 @@ InitPalettes::
 ;@ here, four more by running on into Clear4Bytes.
 ;@ test: skip falls through into Clear4Bytes
 ClearScroll::
-;> fill(hScrollX, 0, 8)
+;> fill(addr(hScrollX), 0, 8)
 	xor a
 	ld hl, hScrollX
 	call Clear4Bytes
@@ -5265,6 +5269,7 @@ ClearShadowOAM::
 
 
 ;@ def HideUnusedSprites()
+;@ test: hOAMCount = rand(0, 40)
 ;@ path: gfx/oam
 ;@ Hides the shadow OAM slots from hOAMCount to 39 (Y = 0).
 HideUnusedSprites::
@@ -5967,7 +5972,7 @@ InitFade::
 	jr .clear
 
 .clear
-;>@f fill(wFadeLevel, 0, 5)                 # level, speed, timer, colour offset
+;>@f fill(addr(wFadeLevel), 0, 5)                 # level, speed, timer, colour offset
 	xor a
 	ld hl, wFadeLevel
 	ld [hli], a
@@ -6516,6 +6521,7 @@ FadeNextColor::
 	ld [wFadeColorOffset], a
 
 ;@ def FadeColor()
+;@ test: wFadeLevel = rand(0, 32)
 ;@ path: gfx/fade
 ;@ Fades one SGB colour (RGB555, offset wFadeColorOffset): each 5-bit part of
 ;@ the target colour goes through FadeComponent; the result is stored in
@@ -6590,6 +6596,7 @@ FadeColor::
 
 
 ;@ def FadeComponent(value: a, level: b) -> a
+;@ test: level = rand(0, 32)
 ;@ path: gfx/fade
 ;@ One 5-bit colour part at fade level `level`: towards white (31) or, when
 ;@ wFadeType bit 7 is set, towards black (0).
@@ -6720,21 +6727,21 @@ UpdateFadeDMG::
 ;@ wFadePalettes value lightened by wFadeLevel shades.
 FadeDMGToWhite::
 ;> if wFadeType & 0x01:
-;>     FadeDMGPaletteToWhite(wFadePalettes[0], wBGP)
+;>     FadeDMGPaletteToWhite(wFadePalettes[0], addr(wBGP))
 	ld a, [wFadeType]
 	bit 0, a
 	ld a, [wFadePalettes]
 	ld hl, wBGP
 	call nz, FadeDMGPaletteToWhite
 ;> if wFadeType & 0x02:
-;>     FadeDMGPaletteToWhite(wFadePalettes[1], wOBP0)
+;>     FadeDMGPaletteToWhite(wFadePalettes[1], addr(wOBP0))
 	ld a, [wFadeType]
 	bit 1, a
 	ld a, [wFadePalettes + 1]
 	inc hl
 	call nz, FadeDMGPaletteToWhite
 ;> if wFadeType & 0x04:
-;>     FadeDMGPaletteToWhite(wFadePalettes[2], wOBP1)
+;>     FadeDMGPaletteToWhite(wFadePalettes[2], addr(wOBP1))
 	ld a, [wFadeType]
 	bit 2, a
 	ld a, [wFadePalettes + 2]
@@ -6759,7 +6766,7 @@ FadeDMGPaletteToWhite::
 	ld a, d
 	call FadeDMGShadeToWhite
 ;>@sh for _ in range(3):                  # ... and shades 1-3
-;>     out = FadeDMGShadeToWhiteNext(...)
+;>     palette = ((palette >> 2) | (palette << 6)) & 0xFF; out = FadeDMGShadeToWhite(palette, level, out)   # (FadeDMGShadeToWhiteNext)
 	call FadeDMGShadeToWhiteNext
 ;=@sh
 	call FadeDMGShadeToWhiteNext
@@ -6776,7 +6783,7 @@ FadeDMGPaletteToWhite::
 ;@ FadeDMGShadeToWhite).
 ;@ test: skip runs on into FadeDMGShadeToWhite
 FadeDMGShadeToWhiteNext::
-;> palette = rotate_right(palette, 2)
+;> palette = ((palette >> 2) | (palette << 6)) & 0xFF   # rotate right by 2
 	rrc d
 	rrc d
 	ld a, d
@@ -6795,7 +6802,7 @@ FadeDMGShadeToWhite::
 	xor a
 
 .put
-;> out = rotate_right(out | value, 2)
+;> return (((out | value) >> 2) | ((out | value) << 6)) & 0xFF   # out | value, rotated right by 2
 	or c
 	ld c, a
 	rrc c
@@ -6880,21 +6887,21 @@ UpdateFadeDMGBlack::
 ;@ wFadePalettes value darkened by wFadeLevel shades.
 FadeDMGToBlack::
 ;> if wFadeType & 0x01:
-;>     FadeDMGPaletteToBlack(wFadePalettes[0], wBGP)
+;>     FadeDMGPaletteToBlack(wFadePalettes[0], addr(wBGP))
 	ld a, [wFadeType]
 	bit 0, a
 	ld a, [wFadePalettes]
 	ld hl, wBGP
 	call nz, FadeDMGPaletteToBlack
 ;> if wFadeType & 0x02:
-;>     FadeDMGPaletteToBlack(wFadePalettes[1], wOBP0)
+;>     FadeDMGPaletteToBlack(wFadePalettes[1], addr(wOBP0))
 	ld a, [wFadeType]
 	bit 1, a
 	ld a, [wFadePalettes + 1]
 	inc hl
 	call nz, FadeDMGPaletteToBlack
 ;> if wFadeType & 0x04:
-;>     FadeDMGPaletteToBlack(wFadePalettes[2], wOBP1)
+;>     FadeDMGPaletteToBlack(wFadePalettes[2], addr(wOBP1))
 	ld a, [wFadeType]
 	bit 2, a
 	ld a, [wFadePalettes + 2]
@@ -6919,7 +6926,7 @@ FadeDMGPaletteToBlack::
 	ld a, d
 	call FadeDMGShadeToBlack
 ;>@sh for _ in range(3):                  # ... and shades 1-3
-;>     out = FadeDMGShadeToBlackNext(...)
+;>     palette = ((palette >> 2) | (palette << 6)) & 0xFF; out = FadeDMGShadeToBlack(palette, level, out)   # (FadeDMGShadeToBlackNext)
 	call FadeDMGShadeToBlackNext
 ;=@sh
 	call FadeDMGShadeToBlackNext
@@ -6936,7 +6943,7 @@ FadeDMGPaletteToBlack::
 ;@ FadeDMGShadeToBlack).
 ;@ test: skip runs on into FadeDMGShadeToBlack
 FadeDMGShadeToBlackNext::
-;> palette = rotate_right(palette, 2)
+;> palette = ((palette >> 2) | (palette << 6)) & 0xFF   # rotate right by 2
 	rrc d
 	rrc d
 	ld a, d
@@ -6955,7 +6962,7 @@ FadeDMGShadeToBlack::
 	ld a, $03
 
 .put
-;> out = rotate_right(out | value, 2)
+;> return (((out | value) >> 2) | ((out | value) << 6)) & 0xFF   # out | value, rotated right by 2
 	or c
 	ld c, a
 	rrc c
@@ -6986,9 +6993,9 @@ WaitVRAMAccess::
 
 	jr WaitVRAMAccess
 
-;@ def WriteVRAM(value: a, addr: hl)
+;@ def WriteVRAM(value: a, pos: hl)
 ;@ path: system/lcd
-;@ Writes `value` to VRAM at `addr` as soon as VRAM is accessible (interrupts
+;@ Writes `value` to VRAM at `pos` as soon as VRAM is accessible (interrupts
 ;@ off meanwhile, so the moment is not missed).
 ;@ test: skip polls the LCD
 WriteVRAM::
@@ -7003,7 +7010,7 @@ WriteVRAM::
 	bit 1, a
 	jr nz, .wait
 
-;> mem[addr] = value
+;> mem[pos] = value
 	pop af
 	ld [hl], a
 ;> enable_interrupts()
@@ -7011,7 +7018,7 @@ WriteVRAM::
 	ret
 
 
-;@ def WriteVRAMInc(value: a, addr: hl) -> hl
+;@ def WriteVRAMInc(value: a, pos: hl) -> hl
 ;@ path: system/lcd
 ;@ WriteVRAM, returning the next address.
 ;@ test: skip polls the LCD
@@ -7027,19 +7034,19 @@ WriteVRAMInc::
 	bit 1, a
 	jr nz, .wait
 
-;> mem[addr] = value
+;> mem[pos] = value
 	pop af
 	ld [hli], a
 ;> enable_interrupts()
 	ei
-;> return addr + 1
+;> return pos + 1
 	ret
 
 
-;@ def WriteVRAMAttr(value: a, addr: hl)
+;@ def WriteVRAMAttr(value: a, pos: hl)
 ;@ path: system/lcd
 ;@ On a Game Boy Color, writes the BG map attribute `value` (VRAM bank 1) at
-;@ `addr` once VRAM is accessible; does nothing on other models.
+;@ `pos` once VRAM is accessible; does nothing on other models.
 ;@ test: skip polls the LCD
 WriteVRAMAttr::
 ;> if not wOnCGB:
@@ -7067,7 +7074,7 @@ WriteVRAMAttr::
 ;> rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
-;> mem[addr] = value
+;> mem[pos] = value
 	pop af
 	ld [hl], a
 ;> rVBK = 0
@@ -7355,484 +7362,696 @@ PlayQueuedSounds::
 
 	db $c9
 
+;@ def StartMusicFadeOut(delay: a)
+;@ path: sound/fade
+;@ Starts fading the music out: every `delay` frames (half as many on a plain
+;@ Game Boy or Game Boy Color) the master volume drops one step, for at most 8
+;@ steps. Nothing starts (and a running fade is cancelled) while a new map
+;@ loads, for a delay of 0 or >= $80, or when the master volume is already 0
+;@ or uses the cartridge's Vin input.
 StartMusicFadeOut::
+;> if wMapLoadState or delay & 0x80 or delay == 0:
 	ld b, a
 	ld a, [wMapLoadState]
 	or a
-	jr nz, jr_000_1c13
+	jr nz, .cancel
 
+;>@cancel     wMusicFadeDelay = 0
+;>@cancel     return
 	ld a, b
 	bit 7, a
-	jr nz, jr_000_1c13
+	jr nz, .cancel
 
 	or a
-	jr z, jr_000_1c13
+	jr z, .cancel
 
+;> wMusicFadeDelay = delay
 	ld [wMusicFadeDelay], a
+;> if not wOnSGB:
 	ld a, [wOnSGB]
 	or a
-	jr nz, jr_000_1bf5
+	jr nz, .checkVolume
 
+;>     wMusicFadeDelay >>= 1             # (sra; the delay is below $80)
 	ld a, [wMusicFadeDelay]
 	sra a
 	ld [wMusicFadeDelay], a
 
-jr_000_1bf5:
+.checkVolume
+;> vol = rNR50
 	ldh a, [rNR50]
+;> if vol & 0x80 or vol & 0x08 or vol == 0:
 	bit 7, a
-	jr nz, jr_000_1c13
+	jr nz, .cancel
 
 	bit 3, a
-	jr nz, jr_000_1c13
+	jr nz, .cancel
 
+;>@cancel     wMusicFadeDelay = 0
+;>@cancel     return
 	or a
-	jr z, jr_000_1c13
+	jr z, .cancel
 
+;> wMusicFadeTimer = wMusicFadeDelay
 	ld a, [wMusicFadeDelay]
 	ld [wMusicFadeTimer], a
+;> wMusicFadeSteps = 8
 	ld a, $08
 	ld [wMusicFadeSteps], a
+;> wMusicFadeVolume = rNR50
 	ldh a, [rNR50]
 	ld [wMusicFadeVolume], a
 	ret
 
 
-jr_000_1c13:
+.cancel
+;=@cancel
 	xor a
 	ld [wMusicFadeDelay], a
 	ret
 
 
+;@ def UpdateMusicFadeOut()
+;@ path: sound/fade
+;@ Runs the music fade-out once per frame: counts the frames down, then lowers
+;@ both master volumes (left and right, 0-7 each) by one. When the volume
+;@ reaches 0 the sound engine is reset (not during a link session); after the
+;@ last step, or if the fade was cancelled, wMusicFadeDelay goes back to 0.
 UpdateMusicFadeOut::
+;> if wMapLoadState or wMusicFadeDelay & 0x80:
 	ld a, [wMapLoadState]
 	or a
-	jr nz, jr_000_1c84
+	jr nz, .stop
 
 	ld a, [wMusicFadeDelay]
 	bit 7, a
-	jr nz, jr_000_1c84
+;>@stop     wMusicFadeDelay = 0
+;>@stop     return
+	jr nz, .stop
 
+;> if wMusicFadeDelay == 0:
+;>     return                             # no fade running
 	or a
 	ret z
 
+;> if wMusicFadeTimer:
 	ld a, [wMusicFadeTimer]
 	or a
-	jr z, jr_000_1c32
+	jr z, .step
 
+;>     wMusicFadeTimer -= 1
+;>     return
 	dec a
 	ld [wMusicFadeTimer], a
 	ret
 
 
-jr_000_1c32:
+.step
+;> vol = rNR50
 	ldh a, [rNR50]
+;> if vol & 0x88 == 0x88 or wMusicFadeVolume == 0:
 	and $88
 	cp $88
-	jr z, jr_000_1c84
+	jr z, .stop
 
 	ld a, [wMusicFadeVolume]
 	or a
-	jr z, jr_000_1c84
+;>@stop     wMusicFadeDelay = 0
+;>@stop     return
+	jr z, .stop
 
+;> right = wMusicFadeVolume & 0x0F
 	ld b, a
 	and $0f
 	ld d, a
+;> left = wMusicFadeVolume >> 4
 	ld a, b
 	swap a
 	and $0f
 	ld c, a
+;> if not left & 0x08 and left:
 	bit 3, c
-	jr nz, jr_000_1c53
+	jr nz, .leftDone
 
 	ld a, c
 	or a
-	jr z, jr_000_1c53
+	jr z, .leftDone
 
+;>     left -= 1
 	dec c
 
-jr_000_1c53:
+.leftDone
+;> if not right & 0x08 and right:
 	bit 3, d
-	jr nz, jr_000_1c5c
+	jr nz, .rightDone
 
 	ld a, d
 	or a
-	jr z, jr_000_1c5c
+	jr z, .rightDone
 
+;>     right -= 1
 	dec d
 
-jr_000_1c5c:
+.rightDone
+;> vol = left << 4 | right
 	ld a, c
 	swap a
 	or d
+;> rNR50 = vol
 	ldh [rNR50], a
+;> wMusicFadeVolume = vol
 	ld [wMusicFadeVolume], a
+;> if vol and wMusicFadeSteps:
 	or a
-	jr z, jr_000_1c79
+	jr z, .silent
 
 	ld a, [wMusicFadeSteps]
 	or a
-	jr z, jr_000_1c84
+	jr z, .stop
 
+;>     wMusicFadeSteps -= 1
 	dec a
 	ld [wMusicFadeSteps], a
+;>     wMusicFadeTimer = wMusicFadeDelay
+;>     return
 	ld a, [wMusicFadeDelay]
 	ld [wMusicFadeTimer], a
 	ret
 
 
-jr_000_1c79:
+.silent
+;> if vol == 0 and not wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_000_1c84
+	jr nz, .stop
 
+;>     disable_interrupts()
 	di
+;>     InitSound()                        # the music is off: reset the sound engine
 	call InitSound
+;>     enable_interrupts()
 	ei
 
-jr_000_1c84:
+.stop
+;=@stop
+;> wMusicFadeDelay = 0
 	xor a
 	ld [wMusicFadeDelay], a
 	ret
 
 
+;@ def LoadSGBBorder(border: a)
+;@ path: system/sgb
+;@ Sends one of the four Super Game Boy borders (unless it is already the one in
+;@ wLoadedGfxSet): two halves of $1000 bytes of border tiles (CHR_TRN, packets
+;@ $10 and $11) and the compressed border map and colors (PCT_TRN, packet $0F).
+;@ The data is named by bank and far-table entry: border 0 = 08:05, 08:06, 08:07;
+;@ 1 = 08:08, 2C:00, 08:09; 2 = 2C:01, 32:11, 32:12; 3 = 2E:24, 2E:25, 32:13.
+;@ On other hardware the transfers do nothing. The bytes after it are an unused
+;@ copy of SetSyncedBankSwitch.
+;@ test: skip talks to the Super Game Boy
 LoadSGBBorder::
+;> if border == wLoadedGfxSet:
+;>     return
 	ld hl, wLoadedGfxSet
 	cp [hl]
 	ret z
 
+;> wLoadedGfxSet = border
 	ld [hl], a
+;> if border == 0:
 	cp $00
-	jr nz, jr_000_1cb9
+	jr nz, .not0
 
+;>     SGBTransfer(0x10, 0x0805, 0x1000)  # border tiles, first half
 	ld a, $10
 	ld de, $0805
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransfer(0x11, 0x0806, 0x1000)  # second half
 	ld a, $11
 	ld de, $0806
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransferCompressed(0x0F, 0x0807)   # map and colors
 	ld a, $0f
 	ld de, $0807
 	call SGBTransferCompressed
-	jr jr_000_1d37
+	jr .done
 
-jr_000_1cb9:
+.not0
+;> elif border == 1:
 	cp $01
-	jr nz, jr_000_1ce3
+	jr nz, .not1
 
+;>     SGBTransfer(0x10, 0x0808, 0x1000)
 	ld a, $10
 	ld de, $0808
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransfer(0x11, 0x2C00, 0x1000)
 	ld a, $11
 	ld de, $2c00
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransferCompressed(0x0F, 0x0809)
 	ld a, $0f
 	ld de, $0809
 	call SGBTransferCompressed
-	jr jr_000_1d37
+	jr .done
 
-jr_000_1ce3:
+.not1
+;> elif border == 2:
 	cp $02
-	jr nz, jr_000_1d0d
+	jr nz, .not2
 
+;>     SGBTransfer(0x10, 0x2C01, 0x1000)
 	ld a, $10
 	ld de, $2c01
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransfer(0x11, 0x3211, 0x1000)
 	ld a, $11
 	ld de, $3211
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransferCompressed(0x0F, 0x3212)
 	ld a, $0f
 	ld de, $3212
 	call SGBTransferCompressed
-	jr jr_000_1d37
+	jr .done
 
-jr_000_1d0d:
+.not2
+;> elif border == 3:
 	cp $03
-	jr nz, jr_000_1d37
+	jr nz, .done
 
+;>     SGBTransfer(0x10, 0x2E24, 0x1000)
 	ld a, $10
 	ld de, $2e24
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransfer(0x11, 0x2E25, 0x1000)
 	ld a, $11
 	ld de, $2e25
 	ld bc, $1000
 	call SGBTransfer
+;>     SGBPacketDelay()
 	call SGBPacketDelay
+;>     SGBTransferCompressed(0x0F, 0x3213)
 	ld a, $0f
 	ld de, $3213
 	call SGBTransferCompressed
-	jr jr_000_1d37
+	jr .done
 
-jr_000_1d37:
+.done
 	ret
 
 
 	db $78, $ea, $26, $de, $79, $ea, $27, $de, $af, $ea, $28, $de, $c9
 
+;@ def CloseLink()
+;@ path: link/serial
+;@ Ends a link cable session: with only the serial interrupt enabled, both
+;@ Game Boys exchange the closing byte $F5 (the one that does not drive the
+;@ clock waits a moment first, and the byte is sent again if the answer was not
+;@ $F5); the clock-driving side then sends $F8. Afterwards the link transfer
+;@ phase and all pad variables ($C842-$C84F) are cleared, also without a link.
+;@ test: skip talks over the link cable
 CloseLink::
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_000_1d94
+	jr z, .clear
 
+;>     SetInterrupts(0x08)                # serial only
 	ld a, $08
 	call SetInterrupts
+;>     wSerialLock = (wSerialLock | 0x80) & ~0x40
 	ld a, [wSerialLock]
 	set 7, a
 	res 6, a
 	ld [wSerialLock], a
+;>     if not wLinkFlags & 0x02:
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_000_1d69
+	jr nz, .send
 
+;>@wait         for _ in range(0x6000):     # a short pause
 	ld hl, $6000
 
-jr_000_1d64:
+.wait
+;>             pass
 	dec hl
 	ld a, h
 	or l
-	jr nz, jr_000_1d64
+;=@wait
+	jr nz, .wait
 
-jr_000_1d69:
+.send
+;>     enable_interrupts()
 	ei
+;>     LinkSendCloseByte()
 	call LinkSendCloseByte
+;>     wait_serial()
 	call WaitSerialTransfer
+;>     if rSB != 0xF5:
+;>         LinkSendCloseByte()
 	ldh a, [rSB]
 	cp $f5
 	call nz, LinkSendCloseByte
+;>     disable_interrupts()
 	di
+;>     wSerialLock &= ~0x80
 	ld a, [wSerialLock]
 	res 7, a
 	ld [wSerialLock], a
+;>     wSerialLock &= ~0x03
 	ld a, [wSerialLock]
 	res 0, a
 	res 1, a
 	ld [wSerialLock], a
+;>     if wLinkFlags & 0x02:
+;>         SerialSendSlave(0xF8)
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, $f8
 	call nz, SerialSendSlave
 
-jr_000_1d94:
+.clear
+;> wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
+;> fill(wJoyHeld, 0, 14)                  # all pad state
 	ld hl, wJoyHeld
 	ld b, $0e
 
-jr_000_1d9d:
+.fill
 	ld [hli], a
 	dec b
-	jr nz, jr_000_1d9d
+	jr nz, .fill
 
 	ret
 
 
+;@ def LinkSendCloseByte()
+;@ path: link/serial
+;@ Sends $F5 over the link cable (waiting for the partner's clock when wLinkFlags
+;@ bit 1 is set, else driving it) and waits until the serial interrupt has
+;@ answered (wSerialLock bit 6).
+;@ test: skip talks over the link cable
 LinkSendCloseByte::
+;> if wLinkFlags & 0x02:
+;>     SerialSendSlave(0xF5)
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, $f5
 	call nz, SerialSendSlave
+;> else:
+;>     SerialSendMaster(0xF5)
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, $f5
 	call z, SerialSendMaster
 
-jr_000_1db6:
+.wait
+;> while not wSerialLock & 0x40:
+;>     wait_serial()
 	ld a, [wSerialLock]
 	bit 6, a
-	jr z, jr_000_1db6
+	jr z, .wait
 
 	ret
 
 
+;@ def Multiply(x: a, y: c) -> hl
+;@ path: system/math
+;@ 8 x 8 bit multiplication: returns x * y in hl (shift and add, four bits here
+;@ and four more by running on into MultiplyNibble).
 Multiply::
+;> return x * y
 	ld b, $00
 	ld h, b
 	ld l, b
 	call MultiplyNibble
 
+;@ def MultiplyNibble(x: a, y: bc, product: hl) -> hl
+;@ path: system/math
+;@ One half of Multiply: for the low four bits of x adds y to product, doubling
+;@ y each time; x comes back rotated right by four.
 MultiplyNibble::
+;>@bits for i in range(4):
+;>     if x >> i & 1:
 	rrca
-	jr nc, jr_000_1dc9
+	jr nc, .bit1
 
+;>         product = u16(product + (y << i))
 	add hl, bc
 
-jr_000_1dc9:
+.bit1
+;=@bits
 	sla c
 	rl b
 	rrca
-	jr nc, jr_000_1dd1
+	jr nc, .bit2
 
+;=@bits
 	add hl, bc
 
-jr_000_1dd1:
+.bit2
+;=@bits
 	sla c
 	rl b
 	rrca
-	jr nc, jr_000_1dd9
+	jr nc, .bit3
 
+;=@bits
 	add hl, bc
 
-jr_000_1dd9:
+.bit3
+;=@bits
 	sla c
 	rl b
 	rrca
-	jr nc, jr_000_1de1
+	jr nc, .bit4
 
+;=@bits
 	add hl, bc
 
-jr_000_1de1:
+.bit4
+;=@bits
 	sla c
 	rl b
+;> return product
 	ret
 
 
+;@ def Multiply24(x: a, y: bc) -> (e, hl)
+;@ path: system/math
+;@ 8 x 16 bit multiplication: x * y as a 24-bit number, high byte in e, low
+;@ word in hl.
 Multiply24::
+;> high = Multiply(x, hi(y))
 	push af
 	push bc
 	ld c, b
 	call Multiply
+;> low = Multiply(x, lo(y))
 	pop bc
 	pop af
 	push hl
 	call Multiply
+;> product = (high << 8) + low
 	pop bc
 	ld a, c
 	add h
 	ld h, a
 	ld a, b
 	adc $00
+;> return product >> 16, product & 0xFFFF
 	ld e, a
 	ret
 
 
+;@ def Divide8(n: b, d: a) -> (b, a)
+;@ path: system/math
+;@ 8-bit division: returns n // d in b and the remainder in a (bit by bit).
+;@ test: a = rng.randint(1, 255)
 Divide8::
+;>@q return n // d, n % d
 	ld d, $08
 	ld e, a
 	xor a
 
-jr_000_1dff:
+.loop
+;=@q
 	sla b
 	rla
-	jr c, jr_000_1e07
+	jr c, .sub
 
 	cp e
-	jr c, jr_000_1e09
+	jr c, .next
 
-jr_000_1e07:
+.sub
+;=@q
 	sub e
 	inc b
 
-jr_000_1e09:
+.next
+;=@q
 	dec d
-	jr nz, jr_000_1dff
+	jr nz, .loop
 
 	ret
 
 
+;@ def Divide16(n: hl, d: a) -> (hl, a)
+;@ path: system/math
+;@ 16 by 8 bit division: returns n // d in hl and the remainder in a.
+;@ test: a = rng.randint(1, 255)
 Divide16::
+;>@q return n // d, n % d
 	ld d, $10
 	ld e, a
 	xor a
 
-jr_000_1e11:
+.loop
+;=@q
 	add hl, hl
 	rla
-	jr c, jr_000_1e18
+	jr c, .sub
 
 	cp e
-	jr c, jr_000_1e1a
+	jr c, .next
 
-jr_000_1e18:
+.sub
+;=@q
 	sub e
 	inc l
 
-jr_000_1e1a:
+.next
+;=@q
 	dec d
-	jr nz, jr_000_1e11
+	jr nz, .loop
 
 	ret
 
 
+;@ def Divide24(n_high: e, n: hl, d: a) -> (e, hl, a)
+;@ path: system/math
+;@ 24 by 8 bit division of e:hl: returns the quotient in e:hl and the
+;@ remainder in a.
+;@ test: a = rng.randint(1, 255)
 Divide24::
+;>@q q, r = divmod(n_high << 16 | n, d)
 	ld d, $18
 	ld b, a
 	xor a
 
-jr_000_1e22:
+.loop
+;=@q
 	add hl, hl
 	rl e
 	rla
-	jr c, jr_000_1e2b
+	jr c, .sub
 
 	cp b
-	jr c, jr_000_1e2d
+	jr c, .next
 
-jr_000_1e2b:
+.sub
+;=@q
 	sub b
 	inc l
 
-jr_000_1e2d:
+.next
+;=@q
 	dec d
-	jr nz, jr_000_1e22
+	jr nz, .loop
 
+;> return q >> 16, q & 0xFFFF, r
 	ret
 
 
+;@ def GetCollisionAt()
+;@ path: field/collision
+;@ Tests the map spot hTestX, hTestY: hTestResult = $FF (walkable) when it lies
+;@ outside the map, else $0F (solid) while the screen scrolls or when the spot
+;@ is not on the visible screen. On screen the BG tile there is looked up in
+;@ wSavedTilemap (the tile goes to hTestTile): tiles from the map's first solid
+;@ tile on (byte 6 of its MapInfo / GateFloorMapInfo record) are solid. Leaves
+;@ hTestX, hTestY relative to the screen.
 GetCollisionAt::
+;> hTestResult = 0xFF
 	ld a, $ff
 	ldh [hTestResult], a
-	ldh a, [$ffa6]
+;> if hTestX & 0x8000 or hTestY & 0x8000:
+;>     return                             # left of / above the map
+	ldh a, [hTestX + 1]
 	bit 7, a
 	ret nz
 
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	bit 7, a
 	ret nz
 
+;>@w if hTestX >= hMapWidth:
+;>     return
 	ld hl, hMapWidth
 	ldh a, [hTestX]
 	sub [hl]
 	inc hl
-	ldh a, [$ffa6]
+;=@w
+	ldh a, [hTestX + 1]
 	sbc [hl]
 	ret nc
 
+;>@h if hTestY >= hMapHeight:
+;>     return
 	ld hl, hMapHeight
 	ldh a, [hTestY]
 	sub [hl]
 	inc hl
-	ldh a, [$ffa8]
+;=@h
+	ldh a, [hTestY + 1]
 	sbc [hl]
 	ret nc
 
+;> hTestResult = 0x0F
 	ld a, $0f
 	ldh [hTestResult], a
+;> if wFieldFlags & 0x04:
+;>     return                             # the screen is scrolling
 	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
 
+;>@sx hTestX = u16(hTestX - hScrollX)     # from here on relative to the screen
 	ld hl, hScrollX
 	ldh a, [hTestX]
 	sub [hl]
 	ldh [hTestX], a
 	ld b, a
+;=@sx
 	inc hl
-	ldh a, [$ffa6]
+	ldh a, [hTestX + 1]
 	sbc [hl]
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
+;> if hTestX >= 160:
+;>     return
 	or a
 	ret nz
 
@@ -7840,15 +8059,19 @@ GetCollisionAt::
 	cp $a0
 	ret nc
 
+;>@sy hTestY = u16(hTestY - hScrollY)
 	ld hl, hScrollY
 	ldh a, [hTestY]
 	sub [hl]
 	ldh [hTestY], a
 	ld b, a
+;=@sy
 	inc hl
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	sbc [hl]
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
+;> if hTestY >= 128:
+;>     return
 	or a
 	ret nz
 
@@ -7856,75 +8079,96 @@ GetCollisionAt::
 	cp $80
 	ret nc
 
+;>@c cell = wSavedTilemap + (hTestY >> 3) * 32
 	ldh a, [hTestY]
 	and $f8
 	ld l, a
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	sla l
 	rla
+;=@c
 	sla l
 	rla
 	ld h, a
 	ld de, wSavedTilemap
 	add hl, de
-	ldh a, [$ffa6]
+;>@x cell += (hTestX >> 3) & 0x1F
+	ldh a, [hTestX + 1]
 	ld d, a
 	ldh a, [hTestX]
 	srl d
 	rra
+;=@x
 	srl d
 	rra
 	srl d
 	rra
 	and $1f
 	ld e, a
+;=@x
 	ld d, $00
 	add hl, de
+;> hTestTile = mem[cell]
 	ld c, [hl]
 	ld a, [hl]
 	ldh [hTestTile], a
-	ld de, $26e3
+;> info = GateFloorMapInfo if wOnGateFloor else MapInfo
+	ld de, MapInfo + 6
 	ld a, [wOnGateFloor]
 	or a
-	jr z, jr_000_1ebf
+	jr z, .gotTable
 
-	ld de, $2a63
+	ld de, GateFloorMapInfo + 6
 
-jr_000_1ebf:
+.gotTable
+;>@f first_solid = mem[info + 8 * wMapId + 6]
 	ld a, [wMapId]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@f
 	add hl, de
+;> result = 0xFF if hTestTile < first_solid else 0x0F
 	ld a, c
 	ld b, $ff
 	cp [hl]
-	jr c, jr_000_1ed1
+	jr c, .store
 
 	ld b, $0f
 
-jr_000_1ed1:
+.store
+;> hTestResult = result
 	ld a, b
 	ldh [hTestResult], a
 	ret
 
 
+;@ def SGBAttrBlkBegin()
+;@ path: system/sgb
+;@ Starts a Super Game Boy ATTR_BLK packet (palettes for screen rectangles) in
+;@ wSGBPacket: cleared, command $20, no blocks yet, write pointer after the
+;@ count. The bytes after it are an unused variant of SGBAttrBlkAdd that always
+;@ uses control byte 2 (color only the block's border).
 SGBAttrBlkBegin::
+;> fill(wSGBPacket, 0, 32)
 	ld hl, wSGBPacket
 	ld bc, $0020
 	xor a
 	call FillMemory
+;> wSGBPacket[0] = 0x20                   # ATTR_BLK, packet count added when sent
 	ld a, $20
 	ld [wSGBPacket], a
+;> wSGBPacket[1] = 0                      # number of blocks
 	ld a, $00
-	ld [$c778], a
-	ld hl, $c779
+	ld [wSGBPacket + 1], a
+;> wSGBPacketPtr = wSGBPacket + 2
+	ld hl, wSGBPacket + 2
 	ld a, l
 	ld [wSGBPacketPtr], a
 	ld a, h
-	ld [$c776], a
+	ld [wSGBPacketPtr + 1], a
 	ret
 
 
@@ -7933,466 +8177,744 @@ SGBAttrBlkBegin::
 	db $13, $7d, $81, $12, $13, $7b, $ea, $75, $c7, $7a, $ea, $76, $c7, $21, $78, $c7
 	db $34, $c9
 
+;@ def SGBAttrBlkAdd(palette: a, control: d, x: h, y: l, width: b, height: c)
+;@ path: system/sgb
+;@ Adds one rectangle to the ATTR_BLK packet: control byte (bit 0 color the
+;@ inside, 1 the border, 2 the outside), palette `palette` for all three,
+;@ corners (x, y) and (x + width, y + height) in tiles.
 SGBAttrBlkAdd::
+;>@p pals = palette << 4 | palette << 2 | palette
 	ld e, a
 	add a
 	add a
 	or e
 	add a
 	add a
+;=@p
 	or e
+;> p = wSGBPacketPtr
 	push af
 	push de
 	ld a, [wSGBPacketPtr]
 	ld e, a
-	ld a, [$c776]
+	ld a, [wSGBPacketPtr + 1]
 	ld d, a
+;> mem[p] = control
 	pop af
 	ld [de], a
 	inc de
+;> mem[p + 1] = pals
 	pop af
 	ld [de], a
 	inc de
+;> mem[p + 2] = x
 	ld a, h
 	ld [de], a
 	inc de
+;> mem[p + 3] = y
 	ld a, l
 	ld [de], a
 	inc de
+;> mem[p + 4] = u8(x + width)
 	ld a, h
 	add b
 	ld [de], a
 	inc de
+;> mem[p + 5] = u8(y + height)
 	ld a, l
 	add c
 	ld [de], a
 	inc de
+;> wSGBPacketPtr = p + 6
 	ld a, e
 	ld [wSGBPacketPtr], a
 	ld a, d
-	ld [$c776], a
-	ld hl, $c778
+	ld [wSGBPacketPtr + 1], a
+;> wSGBPacket[1] = u8(wSGBPacket[1] + 1)
+	ld hl, wSGBPacket + 1
 	inc [hl]
 	ret
 
 
+;@ def SGBAttrBlkSend()
+;@ path: system/sgb
+;@ Sends the ATTR_BLK packet built by SGBAttrBlkAdd (if it has a block): the
+;@ command byte gets the number of 16-byte packets the blocks need.
+;@ test: skip far call
 SGBAttrBlkSend::
-	ld a, [$c778]
+;> if wSGBPacket[1] == 0:
+;>     return
+	ld a, [wSGBPacket + 1]
 	or a
 	ret z
 
+;>@u used = wSGBPacketPtr - wSGBPacket
 	ld a, [wSGBPacketPtr]
 	ld l, a
-	ld a, [$c776]
+	ld a, [wSGBPacketPtr + 1]
 	ld h, a
 	ld a, l
-	sub $77
+	sub LOW(wSGBPacket)
+;=@u
 	ld l, a
 	ld a, h
-	sbc $c7
+	sbc HIGH(wSGBPacket)
 	ld h, a
+;>@n wSGBPacket[0] = 0x21 + (used >> 4 & 7)   # ATTR_BLK + number of packets
 	srl h
 	rr l
 	srl h
 	rr l
 	srl h
 	rr l
+;=@n
 	srl h
 	rr l
 	ld a, l
 	and $07
 	add $21
 	ld [wSGBPacket], a
+;> wSGBPacketID = 0xFF                    # send wSGBPacket
 	ld a, $ff
 	ld [wSGBPacketID], a
+;> SendSGBPacket()
 	ld hl, far_SendSGBPacket
 	rst $10
 	ret
 
 
+;@ def PrintNumber7(dest: hl)
+;@ path: text/numbers
+;@ Draws the 24-bit number in hNumber as 7 digits from `dest` on (digit tiles
+;@ $F0-$F9), leading zeros as blanks ($E0); each tile goes to the next column of
+;@ the 32-tile row. hNumber is used up.
+;@ test: skip writes through WriteVRAM
 PrintNumber7::
+;> hDivisorHigh = 0x0F
 	ld a, $0f
 	ldh [hDivisorHigh], a
+;> digit = PeekDigit24(0x4240)            # millions ($0F4240)
 	ld e, $40
 	ld d, $42
 	call PeekDigit24
+;> if digit:
+;>     return PrintNumber7Zeros(dest)
 	or a
 	jp nz, PrintNumber7Zeros
 
+;> DrawBlankTile(dest)
 	call DrawBlankTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber6(dest)              # runs on into it
 	call NextTileColumn
 
+;@ def PrintNumber6(dest: hl)
+;@ path: text/numbers
+;@ Like PrintNumber7 with 6 digits.
+;@ test: skip writes through WriteVRAM
 PrintNumber6::
+;> hDivisorHigh = 0x01
 	ld a, $01
 	ldh [hDivisorHigh], a
+;> digit = PeekDigit24(0x86A0)            # hundred thousands ($0186A0)
 	ld e, $a0
 	ld d, $86
 	call PeekDigit24
+;> if digit:
+;>     return PrintNumber6Zeros(dest)
 	or a
 	jr nz, PrintNumber6Zeros
 
+;> DrawBlankTile(dest)
 	call DrawBlankTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber5(dest)
 	call NextTileColumn
 
+;@ def PrintNumber5(dest: hl)
+;@ path: text/numbers
+;@ Like PrintNumber7 with 5 digits (the last four from the low 16 bits).
+;@ test: skip writes through WriteVRAM
 PrintNumber5::
+;> hDivisorHigh = 0x00
 	ld a, $00
 	ldh [hDivisorHigh], a
+;> digit = PeekDigit24(0x2710)            # ten thousands
 	ld e, $10
 	ld d, $27
 	call PeekDigit24
+;> if digit:
+;>     return PrintNumber5Zeros(dest)
 	or a
 	jr nz, PrintNumber5Zeros
 
+;> DrawBlankTile(dest)
 	call DrawBlankTile
+;> dest = NextTileColumn(dest)
 	call NextTileColumn
+;> return PrintNumber4(dest, hNumber[0] | hNumber[1] << 8)
 	ldh a, [hNumber]
 	ld c, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld b, a
 	jp PrintNumber4
 
 
+;@ def PrintNumber7Zeros(dest: hl)
+;@ path: text/numbers
+;@ Draws the 24-bit number in hNumber as 7 digits with leading zeros.
+;@ test: skip writes through WriteVRAM
 PrintNumber7Zeros::
+;> hDivisorHigh = 0x0F
 	ld a, $0f
 	ldh [hDivisorHigh], a
+;> digit = NextDigit24(0x4240)
 	ld e, $40
 	ld d, $42
 	call NextDigit24
+;> DrawDigitTile(digit, dest)
 	call DrawDigitTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber6Zeros(dest)
 	call NextTileColumn
 
+;@ def PrintNumber6Zeros(dest: hl)
+;@ path: text/numbers
+;@ Draws hNumber as 6 digits with leading zeros.
+;@ test: skip writes through WriteVRAM
 PrintNumber6Zeros::
+;> hDivisorHigh = 0x01
 	ld a, $01
 	ldh [hDivisorHigh], a
+;> digit = NextDigit24(0x86A0)
 	ld e, $a0
 	ld d, $86
 	call NextDigit24
+;> DrawDigitTile(digit, dest)
 	call DrawDigitTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber5Zeros(dest)
 	call NextTileColumn
 
+;@ def PrintNumber5Zeros(dest: hl)
+;@ path: text/numbers
+;@ Draws hNumber as 5 digits with leading zeros.
+;@ test: skip writes through WriteVRAM
 PrintNumber5Zeros::
+;> hDivisorHigh = 0x00
 	ld a, $00
 	ldh [hDivisorHigh], a
+;> digit = NextDigit24(0x2710)
 	ld e, $10
 	ld d, $27
 	call NextDigit24
+;> DrawDigitTile(digit, dest)
 	call DrawDigitTile
+;> dest = NextTileColumn(dest)
 	call NextTileColumn
+;> return PrintNumber4Zeros(dest, hNumber[0] | hNumber[1] << 8)
 	ldh a, [hNumber]
 	ld c, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld b, a
 	jp PrintNumber4Zeros
 
 
+;@ def PeekDigit24(unit: de) -> a
+;@ path: text/numbers
+;@ NextDigit24 without using up hNumber: the digit of the 24-bit number for
+;@ the unit hDivisorHigh:unit (hNumber is kept in wNumberBackup meanwhile).
+;@ test: hDivisorHigh = rng.randint(1, 15)
 PeekDigit24::
+;> copy(wNumberBackup, hNumber, 3)
 	ldh a, [hNumber]
 	ld [wNumberBackup], a
-	ldh a, [$ffd6]
-	ld [$c0a1], a
-	ldh a, [$ffd7]
-	ld [$c0a2], a
+	ldh a, [hNumber + 1]
+	ld [wNumberBackup + 1], a
+	ldh a, [hNumber + 2]
+	ld [wNumberBackup + 2], a
+;> digit = NextDigit24(unit)
 	call NextDigit24
 	push af
+;> copy(hNumber, wNumberBackup, 3)
 	ld a, [wNumberBackup]
 	ldh [hNumber], a
-	ld a, [$c0a1]
-	ldh [$ffd6], a
-	ld a, [$c0a2]
-	ldh [$ffd7], a
+	ld a, [wNumberBackup + 1]
+	ldh [hNumber + 1], a
+	ld a, [wNumberBackup + 2]
+	ldh [hNumber + 2], a
+;> return digit
 	pop af
 	ret
 
 
+;@ def NextDigit24(unit: de) -> a
+;@ path: text/numbers
+;@ One decimal digit of the 24-bit number in hNumber: how often the unit
+;@ hDivisorHigh:unit fits (counted by subtracting); hNumber keeps the rest.
+;@ test: hDivisorHigh = rng.randint(1, 15)
 NextDigit24::
+;> n = hNumber[0] | hNumber[1] << 8 | hNumber[2] << 16
+;> d = hDivisorHigh << 16 | unit
 	push hl
 	ldh a, [hDivisorHigh]
 	ld l, a
 	ld h, $ff
 
-jr_000_203c:
+.loop
+;>@q digit, n = divmod(n, d)
 	inc h
 	ldh a, [hNumber]
 	sub e
 	ldh [hNumber], a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	sbc d
-	ldh [$ffd6], a
-	ldh a, [$ffd7]
+;=@q
+	ldh [hNumber + 1], a
+	ldh a, [hNumber + 2]
 	sbc l
-	ldh [$ffd7], a
-	jr nc, jr_000_203c
+	ldh [hNumber + 2], a
+	jr nc, .loop
 
+;> hNumber[0] = n & 0xFF
 	ldh a, [hNumber]
 	add e
 	ldh [hNumber], a
-	ldh a, [$ffd6]
+;> hNumber[1] = n >> 8 & 0xFF
+	ldh a, [hNumber + 1]
 	adc d
-	ldh [$ffd6], a
-	ldh a, [$ffd7]
+	ldh [hNumber + 1], a
+;> hNumber[2] = n >> 16
+	ldh a, [hNumber + 2]
 	adc l
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;> return u8(digit)
 	ld a, h
 	pop hl
 	ret
 
 
+;@ def PrintNumber4(dest: hl, n: bc)
+;@ path: text/numbers
+;@ Draws the 16-bit number n as 4 digits (leading zeros blank) from `dest` on.
+;@ test: skip writes through WriteVRAM
 PrintNumber4::
+;> digit, _ = NextDigit16(n, 1000)
 	ld de, $03e8
 	push bc
 	call NextDigit16
 	pop bc
+;> if digit:
+;>     return PrintNumber4Zeros(dest, n)
 	or a
-	jr nz, jr_000_2095
+	jr nz, PrintNumber4Zeros
 
+;> DrawBlankTile(dest)
 	call DrawBlankTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber3(dest, n)
 	call NextTileColumn
 
+;@ def PrintNumber3(dest: hl, n: bc)
+;@ path: text/numbers
+;@ Draws n (below 1000) as 3 digits, leading zeros blank.
+;@ test: skip writes through WriteVRAM
 PrintNumber3::
+;> digit, _ = NextDigit16(n, 100)
 	ld de, $0064
 	push bc
 	call NextDigit16
 	pop bc
+;> if digit:
+;>     return PrintNumber3Zeros(dest, n)
 	or a
 	jr nz, PrintNumber3Zeros
 
+;> DrawBlankTile(dest)
 	call DrawBlankTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber2(dest, n)
 	call NextTileColumn
 
+;@ def PrintNumber2(dest: hl, n: bc)
+;@ path: text/numbers
+;@ Draws n (below 100) as 2 digits, a leading zero blank.
+;@ test: skip writes through WriteVRAM
 PrintNumber2::
+;> digit, _ = NextDigit16(n, 10)
 	ld de, $000a
 	push bc
 	call NextDigit16
 	pop bc
+;> if digit:
+;>     return PrintNumber2Zeros(dest, n)
 	or a
 	jr nz, PrintNumber2Zeros
 
+;> DrawBlankTile(dest)
 	call DrawBlankTile
+;> dest = NextTileColumn(dest)
 	call NextTileColumn
+;> DrawDigitTile(n, dest)                 # the ones (shared tail of PrintNumber2Zeros)
 	jr jr_000_20b9
 
+;@ def PrintNumber4Zeros(dest: hl, n: bc)
+;@ path: text/numbers
+;@ Draws n as 4 digits with leading zeros.
+;@ test: skip writes through WriteVRAM
 PrintNumber4Zeros::
-jr_000_2095:
+;> digit, n = NextDigit16(n, 1000)
 	ld de, $03e8
 	call NextDigit16
+;> DrawDigitTile(digit, dest)
 	call DrawDigitTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber3Zeros(dest, n)
 	call NextTileColumn
 
+;@ def PrintNumber3Zeros(dest: hl, n: bc)
+;@ path: text/numbers
+;@ Draws n (below 1000) as 3 digits with leading zeros.
+;@ test: skip writes through WriteVRAM
 PrintNumber3Zeros::
+;> digit, n = NextDigit16(n, 100)
 	ld de, $0064
 	call NextDigit16
+;> DrawDigitTile(digit, dest)
 	call DrawDigitTile
+;> dest = NextTileColumn(dest)
+;> return PrintNumber2Zeros(dest, n)
 	call NextTileColumn
 
+;@ def PrintNumber2Zeros(dest: hl, n: bc)
+;@ path: text/numbers
+;@ Draws n (below 100) as 2 digits with a leading zero.
+;@ test: skip writes through WriteVRAM
 PrintNumber2Zeros::
+;> digit, n = NextDigit16(n, 10)
 	ld de, $000a
 	call NextDigit16
+;> DrawDigitTile(digit, dest)
 	call DrawDigitTile
+;> dest = NextTileColumn(dest)
 	call NextTileColumn
 
 jr_000_20b9:
+;> DrawDigitTile(n, dest)                 # the ones
 	ld a, c
 	call DrawDigitTile
 	ret
 
 
+;@ def NextDigit16(n: bc, unit: de) -> (a, bc)
+;@ path: text/numbers
+;@ One decimal digit of n: how often `unit` fits (counted by subtracting), and
+;@ the rest.
+;@ test: de = rng.randint(1, 0xFFFF)
+;@ test: bc = rng.randint(0, 0xFFFF) % (de * 200 + 1)
 NextDigit16::
+;>@q return u8(n // unit), n % unit
 	push hl
 	ld h, $ff
 
-jr_000_20c1:
+.loop
+;=@q
 	inc h
 	ld a, c
 	sub e
 	ld c, a
 	ld a, b
 	sbc d
+;=@q
 	ld b, a
-	jr nc, jr_000_20c1
+	jr nc, .loop
 
+;=@q
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;=@q
 	ld a, h
 	pop hl
 	ret
 
 
+;@ def DrawDigitTile(digit: a, dest: hl)
+;@ path: text/numbers
+;@ Writes the tile of a decimal digit ($F0 + digit) to `dest`.
+;@ test: skip writes through WriteVRAM
 DrawDigitTile::
+;> WriteVRAM(0xF0 + digit, dest)
 	add $f0
 	call WriteVRAM
 	ret
 
 
+;@ def DrawBlankTile(dest: hl)
+;@ path: text/numbers
+;@ Writes the blank tile $E0 to `dest`.
+;@ test: skip writes through WriteVRAM
 DrawBlankTile::
+;> WriteVRAM(0xE0, dest)
 	ld a, $e0
 	call WriteVRAM
 	ret
 
 
+;@ def NextTileColumn(pos: hl) -> hl
+;@ path: gfx/tilemap
+;@ Moves a BG map address one column to the right, wrapping within its
+;@ 32-tile row.
 NextTileColumn::
+;>@n return (pos & 0xFFE0) | ((pos + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@n
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@n
 	ret
 
 
+;@ def ReadSRAMByte(addr: hl) -> a
+;@ path: save/sram
+;@ Reads one byte of the battery RAM (enabling it around the read).
+;@ test: skip switches the cartridge RAM on and off
 ReadSRAMByte::
+;> disable_interrupts()
 	di
+;> mem[0x0100] = 0x0A                     # cartridge RAM on
 	ld a, $0a
 	ld [$0100], a
+;> value = mem[addr]
 	ld a, [hl]
 	push af
+;> mem[0x0100] = 0x00                     # and off again
 	ld a, $00
 	ld [$0100], a
+;> enable_interrupts()
 	pop af
 	ei
+;> return value
 	ret
 
 
+;@ def WriteSRAMByte(addr: hl, value: a)
+;@ path: save/sram
+;@ Writes one byte of the battery RAM (enabling it around the write).
+;@ test: skip switches the cartridge RAM on and off
 WriteSRAMByte::
+;> disable_interrupts()
 	di
+;> mem[0x0100] = 0x0A
 	push af
 	ld a, $0a
 	ld [$0100], a
+;> mem[addr] = value
 	pop af
 	ld [hl], a
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
+;> enable_interrupts()
 	ei
 	ret
 
 
+;@ def SRAMChecksum(start: hl, count: bc) -> de
+;@ path: save/sram
+;@ Checksum of `count` bytes of the battery RAM: $4638 plus the sum of the
+;@ bytes, 16 bits.
+;@ test: skip switches the cartridge RAM on and off
 SRAMChecksum::
+;> mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
+;> total = 0x4638
 	ld de, $4638
 
-jr_000_2116:
+.loop
+;>@sum for i in range(count):
+;>     total = u16(total + mem[start + i])
 	ld a, [hli]
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;=@sum
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_000_2116
+	jr nz, .loop
 
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
+;> return total
 	ret
 
 
+;@ def SaveGame()
+;@ path: save/game
+;@ Saves the game to the battery RAM: the player's HRAM state ($FF8A-$FFAA),
+;@ the whole game state $C8EA-$D9E9, the current screen's tiles and map data;
+;@ then FinishSave marks the save valid and writes the checksum.
+;@ test: skip switches the cartridge RAM on and off
 SaveGame::
+;> CopyToSRAM(hPlayerGfx, sSavedHRAM, 0x21)
 	ld hl, hPlayerGfx
 	ld de, sSavedHRAM
 	ld bc, $0021
 	call CopyToSRAM
+;> CopyToSRAM(wGameStarted, sSavedWRAM, 0x1100)
 	ld hl, wGameStarted
 	ld de, sSavedWRAM
 	ld bc, $1100
 	call CopyToSRAM
+;> CopyToSRAM(wSavedTilemap, sSavedScreenTiles, 0x200)
 	ld hl, wSavedTilemap
 	ld de, sSavedScreenTiles
 	ld bc, $0200
 	call CopyToSRAM
+;> CopyToSRAM(wScreenMap, sSavedScreenMap, 0x100)
+;> FinishSave()                           # runs on into it
 	ld hl, wScreenMap
 	ld de, sSavedScreenMap
 	ld bc, $0100
 	call CopyToSRAM
 
+;@ def FinishSave()
+;@ path: save/game
+;@ Ends a save: sSaveValid = 1, and sChecksum = SRAMChecksum over
+;@ $A002-$BFFF.
+;@ test: skip switches the cartridge RAM on and off
 FinishSave::
+;> mem[0x0100] = 0x0A
 	ld hl, sSaveValid
 	ld a, $01
 	push af
 	ld a, $0a
 	ld [$0100], a
+;> sSaveValid = 1
 	pop af
 	ld [hl], a
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
+;> checksum = SRAMChecksum(sSaveValid, 0x1FFE)
 	ld hl, sSaveValid
 	ld bc, $1ffe
 	call SRAMChecksum
+;> mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
+;> sChecksum = checksum
 	ld hl, sChecksum
 	ld [hl], e
 	inc hl
 	ld [hl], d
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def CopyToSRAM(src: hl, dest: de, count: bc)
+;@ path: save/sram
+;@ Copies `count` bytes into the battery RAM (count 0 copies 65536).
+;@ test: skip switches the cartridge RAM on and off
 CopyToSRAM::
+;> mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
 
-jr_000_2189:
+.loop
+;>@c copy(dest, src, count)
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_000_2189
+;=@c
+	jr nz, .loop
 
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def SaveMonsters()
+;@ path: save/game
+;@ Saves only the monsters (all $95-byte records) and the party (count and
+;@ slots), then marks the save valid with a new checksum.
+;@ test: skip switches the cartridge RAM on and off
 SaveMonsters::
+;> CopyToSRAM(wMonsters, sMonsters, 0xBA4)
 	ld hl, wMonsters
 	ld de, sMonsters
 	ld bc, $0ba4
 	call CopyToSRAM
+;> CopyToSRAM(wPartyCount, sPartyCount, 7)
 	ld hl, wPartyCount
 	ld de, sPartyCount
 	ld bc, $0007
 	call CopyToSRAM
+;> FinishSave()
 	jp FinishSave
 
 
+;@ def LoadGame()
+;@ path: save/game
+;@ Loads a saved game (if sSaveValid is set): the same four blocks SaveGame
+;@ writes are copied back.
+;@ test: skip switches the cartridge RAM on and off
 LoadGame::
+;> mem[0x0100] = 0x0A
 	ld hl, sSaveValid
 	ld a, $0a
 	ld [$0100], a
+;> valid = sSaveValid
 	ld a, [hl]
 	push af
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
+;> if not valid:
+;>     return
 	pop af
 	or a
 	ret z
 
+;> CopyFromSRAM(hPlayerGfx, sSavedHRAM, 0x21)
 	ld hl, hPlayerGfx
 	ld de, sSavedHRAM
 	ld bc, $0021
 	call CopyFromSRAM
+;> CopyFromSRAM(wGameStarted, sSavedWRAM, 0x1100)
 	ld hl, wGameStarted
 	ld de, sSavedWRAM
 	ld bc, $1100
 	call CopyFromSRAM
+;> CopyFromSRAM(wSavedTilemap, sSavedScreenTiles, 0x200)
 	ld hl, wSavedTilemap
 	ld de, sSavedScreenTiles
 	ld bc, $0200
 	call CopyFromSRAM
+;> CopyFromSRAM(wScreenMap, sSavedScreenMap, 0x100)
 	ld hl, wScreenMap
 	ld de, sSavedScreenMap
 	ld bc, $0100
@@ -8400,47 +8922,65 @@ LoadGame::
 	ret
 
 
+;@ def CopyFromSRAM(dest: hl, src: de, count: bc)
+;@ path: save/sram
+;@ Copies `count` bytes out of the battery RAM.
+;@ test: skip switches the cartridge RAM on and off
 CopyFromSRAM::
+;> mem[0x0100] = 0x0A
 	ld a, $0a
 	ld [$0100], a
 
-jr_000_21fa:
+.loop
+;>@c copy(dest, src, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_000_21fa
+;=@c
+	jr nz, .loop
 
+;> mem[0x0100] = 0x00
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def GetPartySlot(pos: a) -> a
+;@ path: monster/party
+;@ Monster slot (index into wMonsters) of party position `pos` (bit 7
+;@ ignored). In game mode 2 over the link cable the number already is a slot
+;@ and comes back unchanged.
 GetPartySlot::
+;>@l if wLinkActive and wGameMode == 2:
 	push bc
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_000_221a
+	jr z, .party
 
+;=@l
 	ld a, [wGameMode]
 	cp $02
-	jr nz, jr_000_221a
+	jr nz, .party
 
+;>     return pos
 	ld a, b
 	pop bc
 	ret
 
 
-jr_000_221a:
+.party
+;>@p return wParty[pos & 0x7F]
 	ld a, b
 	pop bc
 	ld hl, wParty
 	and $7f
 	add l
 	ld l, a
+;=@p
 	ld a, $00
 	adc h
 	ld h, a
@@ -8448,29 +8988,43 @@ jr_000_221a:
 	ret
 
 
+;@ def PartyMonsterField(pos: a, field: hl) -> hl
+;@ path: monster/party
+;@ Address of a field of the monster at party position `pos`: `field` is the
+;@ field's address in the first record (e.g. wMonHP), records are $95 bytes.
+;@ Keeps all other registers.
 PartyMonsterField::
+;> slot = GetPartySlot(pos)
 	push af
 	push bc
 	push de
 	push hl
 	call GetPartySlot
+;>@r return u16(field + Multiply(slot, 0x95))
 	ld c, $95
 	call Multiply
 	pop bc
 	add hl, bc
 	pop de
 	pop bc
+;=@r
 	pop af
 	ret
 
 
+;@ def MonsterField(slot: a, field: hl) -> hl
+;@ path: monster/party
+;@ Address of a field of monster record `slot` (bit 7 ignored): field +
+;@ slot * $95.
 MonsterField::
+;>@r return u16(field + (slot & 0x7F) * 0x95)
 	push bc
 	push de
 	push hl
 	ld c, $95
 	and $7f
 	call Multiply
+;=@r
 	pop bc
 	add hl, bc
 	pop de
@@ -8478,13 +9032,22 @@ MonsterField::
 	ret
 
 
+;@ def GetPartyMonsterByte(pos: a, field: hl) -> a
+;@ path: monster/party
+;@ Reads a byte field of the monster at party position `pos`.
 GetPartyMonsterByte::
+;> return mem[PartyMonsterField(pos, field)]
 	call PartyMonsterField
 	ld a, [hl]
 	ret
 
 
+;@ def GetPartyMonsterWord(pos: a, field: hl) -> bc
+;@ path: monster/party
+;@ Reads a 16-bit field of the monster at party position `pos`. (The bytes after
+;@ it are an unused byte setter.)
 GetPartyMonsterWord::
+;> return mem16[PartyMonsterField(pos, field)]
 	call PartyMonsterField
 	ld a, [hli]
 	ld b, [hl]
@@ -8494,47 +9057,70 @@ GetPartyMonsterWord::
 
 	db $c5, $cd, $29, $22, $c1, $71, $c9
 
+;@ def SetPartyMonsterWord(pos: a, field: hl, value: bc)
+;@ path: monster/party
+;@ Writes a 16-bit field of the monster at party position `pos`.
 SetPartyMonsterWord::
+;> p = PartyMonsterField(pos, field)
 	push bc
 	call PartyMonsterField
 	pop bc
+;> mem16[p] = value
 	ld a, c
 	ld [hli], a
 	ld [hl], b
 	ret
 
 
+;@ def CurMonsterField(field: hl) -> hl
+;@ path: monster/party
+;@ Address of a field of the party monster wCurPartyMember (no link special
+;@ case). Keeps all other registers.
 CurMonsterField::
+;>@s slot = wParty[wCurPartyMember & 0x7F]
 	push af
 	push bc
 	push de
 	push hl
 	ld hl, wParty
 	ld a, [wCurPartyMember]
+;=@s
 	and $7f
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@s
 	ld a, [hl]
+;>@r return u16(field + Multiply(slot, 0x95))
 	ld c, $95
 	call Multiply
 	pop bc
 	add hl, bc
 	pop de
 	pop bc
+;=@r
 	pop af
 	ret
 
 
+;@ def GetCurMonsterByte(field: hl) -> a
+;@ path: monster/party
+;@ Reads a byte field of the party monster wCurPartyMember.
 GetCurMonsterByte::
+;> return mem[CurMonsterField(field)]
 	call CurMonsterField
 	ld a, [hl]
 	ret
 
 
+;@ def GetCurMonsterWord(field: hl) -> bc
+;@ path: monster/party
+;@ Reads a 16-bit field of the party monster wCurPartyMember. (The bytes after
+;@ it are unused setters for a byte and a word field.)
 GetCurMonsterWord::
+;> return mem16[CurMonsterField(field)]
 	call CurMonsterField
 	ld a, [hli]
 	ld b, [hl]
@@ -8544,68 +9130,106 @@ GetCurMonsterWord::
 
 	db $c5, $cd, $66, $22, $c1, $71, $c9, $c5, $cd, $66, $22, $c1, $79, $22, $70, $c9
 
+;@ def HealPartyHP(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Gives the monster at party position `pos` `amount` HP, at most up to its
+;@ maximum HP.
 HealPartyHP::
+;> slot = GetPartySlot(pos)
 	push hl
 	call GetPartySlot
 	pop hl
+;> cap = mem16[MonsterField(slot, wMonMaxHP)]
 	push hl
 	push af
 	ld hl, wMonMaxHP
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
+;=@c
 	ld l, a
+;>@c AddWordCapped(MonsterField(slot, wMonHP), amount, cap)
 	pop af
 	push hl
 	ld hl, wMonHP
 	call MonsterField
 	pop bc
 	pop de
+;=@c
 	call AddWordCapped
 	ret
 
 
+;@ def DamagePartyHP(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Takes `amount` HP from the monster at party position `pos` (not below 0).
 DamagePartyHP::
+;> slot = GetPartySlot(pos)
 	push hl
 	call GetPartySlot
 	pop hl
+;> hp = MonsterField(slot, wMonHP)
 	push hl
 	ld hl, wMonHP
 	call MonsterField
+;> SubWordFloored(hp, amount, 0)
 	pop de
 	ld bc, $0000
 	call SubWordFloored
 	ret
 
 
+;@ def RestorePartyMP(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Gives the monster at party position `pos` `amount` MP, at most up to its
+;@ maximum MP. The bytes after it are LosePartyMP (takes MP, not below 0),
+;@ called from code in bank 1 that is not traced yet.
 RestorePartyMP::
+;> slot = GetPartySlot(pos)
 	push hl
 	call GetPartySlot
 	pop hl
+;> cap = mem16[MonsterField(slot, wMonMaxMP)]
 	push hl
 	push af
 	ld hl, wMonMaxMP
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
+;=@c
 	ld l, a
+;>@c AddWordCapped(MonsterField(slot, wMonMP), amount, cap)
 	pop af
 	push hl
 	ld hl, wMonMP
 	call MonsterField
 	pop bc
 	pop de
+;=@c
 	call AddWordCapped
 	ret
 
 
+LosePartyMP::
 	db $e5, $cd, $08, $22, $e1, $e5, $21, $15, $cb, $cd, $3b, $22, $d1, $01, $00, $00
 	db $cd, $96, $24, $c9
 
+;@ def RaisePartyAttack(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the attack of the monster at party position `pos` by `amount`, up to
+;@ 999.
 RaisePartyAttack::
+;> slot = GetPartySlotForRaise(pos)
+;> RaiseMonsterAttack(slot, amount)       # runs on into it
 	call GetPartySlotForRaise
 
+;@ def RaiseMonsterAttack(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the attack of monster record `slot` by `amount`, up to 999. (The
+;@ three bytes after it, `call GetPartySlotForLower`, are an unused party
+;@ entry to LowerMonsterAttack.)
 RaiseMonsterAttack::
+;> RaiseMonsterWord(slot, wMonAttack, amount, 999)
 	ld de, wMonAttack
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -8614,17 +9238,30 @@ RaiseMonsterAttack::
 
 	db $cd, $62, $24
 
+;@ def LowerMonsterAttack(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the attack of monster record `slot` by `amount`, not below 1.
 LowerMonsterAttack::
+;> LowerMonsterWord(slot, wMonAttack, amount, 1)
 	ld de, wMonAttack
 	ld bc, $0001
 	call LowerMonsterWord
 	ret
 
 
+;@ def RaisePartyDefense(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the defense of the monster at party position `pos`, up to 999.
 RaisePartyDefense::
+;> slot = GetPartySlotForRaise(pos)
+;> RaiseMonsterDefense(slot, amount)      # runs on into it
 	call GetPartySlotForRaise
 
+;@ def RaiseMonsterDefense(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the defense of monster record `slot` by `amount`, up to 999.
 RaiseMonsterDefense::
+;> RaiseMonsterWord(slot, wMonDefense, amount, 999)
 	ld de, wMonDefense
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -8633,17 +9270,30 @@ RaiseMonsterDefense::
 
 	db $cd, $62, $24
 
+;@ def LowerMonsterDefense(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the defense of monster record `slot` by `amount`, not below 1.
 LowerMonsterDefense::
+;> LowerMonsterWord(slot, wMonDefense, amount, 1)
 	ld de, wMonDefense
 	ld bc, $0001
 	call LowerMonsterWord
 	ret
 
 
+;@ def RaisePartyAgility(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the agility of the monster at party position `pos`, up to 511.
 RaisePartyAgility::
+;> slot = GetPartySlotForRaise(pos)
+;> RaiseMonsterAgility(slot, amount)      # runs on into it
 	call GetPartySlotForRaise
 
+;@ def RaiseMonsterAgility(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the agility of monster record `slot` by `amount`, up to 511.
 RaiseMonsterAgility::
+;> RaiseMonsterWord(slot, wMonAgility, amount, 511)
 	ld de, wMonAgility
 	ld bc, $01ff
 	call RaiseMonsterWord
@@ -8652,17 +9302,31 @@ RaiseMonsterAgility::
 
 	db $cd, $62, $24
 
+;@ def LowerMonsterAgility(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the agility of monster record `slot` by `amount`, not below 1.
 LowerMonsterAgility::
+;> LowerMonsterWord(slot, wMonAgility, amount, 1)
 	ld de, wMonAgility
 	ld bc, $0001
 	call LowerMonsterWord
 	ret
 
 
+;@ def RaisePartyIntelligence(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the intelligence of the monster at party position `pos`, up to 255.
 RaisePartyIntelligence::
+;> slot = GetPartySlotForRaise(pos)
+;> RaiseMonsterIntelligence(slot, amount)   # runs on into it
 	call GetPartySlotForRaise
 
+;@ def RaiseMonsterIntelligence(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the intelligence of monster record `slot` by `amount`, up to 255.
+;@ (The bytes after it: an unused RaisePartyWildness, up to 255.)
 RaiseMonsterIntelligence::
+;> RaiseMonsterWord(slot, wMonIntelligence, amount, 255)
 	ld de, wMonIntelligence
 	ld bc, $00ff
 	call RaiseMonsterWord
@@ -8671,7 +9335,11 @@ RaiseMonsterIntelligence::
 
 	db $cd, $62, $24
 
+;@ def LowerMonsterIntelligence(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the intelligence of monster record `slot` by `amount`, not below 1.
 LowerMonsterIntelligence::
+;> LowerMonsterWord(slot, wMonIntelligence, amount, 1)
 	ld de, wMonIntelligence
 	ld bc, $0001
 	call LowerMonsterWord
@@ -8680,40 +9348,68 @@ LowerMonsterIntelligence::
 
 	db $cd, $42, $24, $11, $21, $cb, $01, $ff, $00, $cd, $48, $24, $c9
 
+;@ def LowerPartyWildness(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the wildness of the monster at party position `pos` by `amount`, not
+;@ below 0.
 LowerPartyWildness::
+;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
+;> LowerMonsterWord(slot, wMonWildness, amount, 0)
 	ld de, wMonWildness
 	ld bc, $0000
 	call LowerMonsterWord
 	ret
 
 
+;@ def RaisePartyStat64(pos: a, amount: l)
+;@ path: monster/stats
+;@ Raises the byte field +$64 of the monster at party position `pos`, up to 255.
 RaisePartyStat64::
+;> slot = GetPartySlotForRaise(pos)
 	call GetPartySlotForRaise
+;> RaiseMonsterByte(slot, wMonStat64, amount, 255)
 	ld de, wMonStat64
 	ld c, $ff
 	call RaiseMonsterByte
 	ret
 
 
+;@ def LowerPartyStat64(pos: a, amount: l)
+;@ path: monster/stats
+;@ Lowers the byte field +$64 of the monster at party position `pos`, not
+;@ below 0.
 LowerPartyStat64::
+;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
+;> LowerMonsterByte(slot, wMonStat64, amount, 0)
 	ld de, wMonStat64
 	ld c, $00
 	call LowerMonsterByte
 	ret
 
 
+;@ def RaisePartyStat67(pos: a, amount: l)
+;@ path: monster/stats
+;@ Raises the byte field +$67 of the monster at party position `pos`, up to 255.
 RaisePartyStat67::
+;> slot = GetPartySlotForRaise(pos)
 	call GetPartySlotForRaise
+;> RaiseMonsterByte(slot, wMonStat67, amount, 255)
 	ld de, wMonStat67
 	ld c, $ff
 	call RaiseMonsterByte
 	ret
 
 
+;@ def LowerPartyStat67(pos: a, amount: l)
+;@ path: monster/stats
+;@ Lowers the byte field +$67 of the monster at party position `pos`, not
+;@ below 0. (The bytes after it: unused raise / lower functions for field +$66.)
 LowerPartyStat67::
+;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
+;> LowerMonsterByte(slot, wMonStat67, amount, 0)
 	ld de, wMonStat67
 	ld c, $00
 	call LowerMonsterByte
@@ -8723,26 +9419,46 @@ LowerPartyStat67::
 	db $cd, $42, $24, $11, $27, $cb, $0e, $ff, $cd, $55, $24, $c9, $cd, $62, $24, $11
 	db $27, $cb, $0e, $00, $cd, $75, $24, $c9
 
+;@ def RaisePartyStat65(pos: a, amount: l)
+;@ path: monster/stats
+;@ Raises the byte field +$65 of the monster at party position `pos`, up to 255.
 RaisePartyStat65::
+;> slot = GetPartySlotForRaise(pos)
 	call GetPartySlotForRaise
+;> RaiseMonsterByte(slot, wMonStat65, amount, 255)
 	ld de, wMonStat65
 	ld c, $ff
 	call RaiseMonsterByte
 	ret
 
 
+;@ def LowerPartyStat65(pos: a, amount: l)
+;@ path: monster/stats
+;@ Lowers the byte field +$65 of the monster at party position `pos`, not
+;@ below 0.
 LowerPartyStat65::
+;> slot = GetPartySlotForLower(pos)
 	call GetPartySlotForLower
+;> LowerMonsterByte(slot, wMonStat65, amount, 0)
 	ld de, wMonStat65
 	ld c, $00
 	call LowerMonsterByte
 	ret
 
 
+;@ def RaisePartyMaxHP(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the maximum HP of the monster at party position `pos`, up to 999.
 RaisePartyMaxHP::
+;> slot = GetPartySlotForRaise(pos)
+;> RaiseMonsterMaxHP(slot, amount)        # runs on into it
 	call GetPartySlotForRaise
 
+;@ def RaiseMonsterMaxHP(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the maximum HP of monster record `slot` by `amount`, up to 999.
 RaiseMonsterMaxHP::
+;> RaiseMonsterWord(slot, wMonMaxHP, amount, 999)
 	ld de, wMonMaxHP
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -8751,17 +9467,30 @@ RaiseMonsterMaxHP::
 
 	db $cd, $62, $24
 
+;@ def LowerMonsterMaxHP(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the maximum HP of monster record `slot` by `amount`, not below 1.
 LowerMonsterMaxHP::
+;> LowerMonsterWord(slot, wMonMaxHP, amount, 1)
 	ld de, wMonMaxHP
 	ld bc, $0001
 	call LowerMonsterWord
 	ret
 
 
+;@ def RaisePartyMaxMP(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the maximum MP of the monster at party position `pos`, up to 999.
 RaisePartyMaxMP::
+;> slot = GetPartySlotForRaise(pos)
+;> RaiseMonsterMaxMP(slot, amount)        # runs on into it
 	call GetPartySlotForRaise
 
+;@ def RaiseMonsterMaxMP(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Raises the maximum MP of monster record `slot` by `amount`, up to 999.
 RaiseMonsterMaxMP::
+;> RaiseMonsterWord(slot, wMonMaxMP, amount, 999)
 	ld de, wMonMaxMP
 	ld bc, $03e7
 	call RaiseMonsterWord
@@ -8770,14 +9499,22 @@ RaiseMonsterMaxMP::
 
 	db $cd, $62, $24
 
+;@ def LowerMonsterMaxMP(slot: a, amount: hl)
+;@ path: monster/stats
+;@ Lowers the maximum MP of monster record `slot` by `amount`, not below 1.
 LowerMonsterMaxMP::
+;> LowerMonsterWord(slot, wMonMaxMP, amount, 1)
 	ld de, wMonMaxMP
 	ld bc, $0001
 	call LowerMonsterWord
 	ret
 
 
+;@ def AddGold(amount_high: e, amount: hl)
+;@ path: item/gold
+;@ Adds the 24-bit amount e:hl to the gold carried (at most 99999).
 AddGold::
+;> AddGoldCapped(wGold, amount_high << 16 | amount)
 	ld c, e
 	ld d, h
 	ld e, l
@@ -8786,7 +9523,11 @@ AddGold::
 	ret
 
 
+;@ def SpendGold(amount_high: e, amount: hl)
+;@ path: item/gold
+;@ Takes the 24-bit amount e:hl from the gold carried (not below 0).
 SpendGold::
+;> Sub24Floored(wGold, amount_high << 16 | amount)
 	ld c, e
 	ld d, h
 	ld e, l
@@ -8795,7 +9536,11 @@ SpendGold::
 	ret
 
 
+;@ def AddBankGold(amount_high: e, amount: hl)
+;@ path: item/gold
+;@ Adds the 24-bit amount e:hl to the gold kept in the bank (at most 999999).
 AddBankGold::
+;> AddBankGoldCapped(wBankedGold, amount_high << 16 | amount)
 	ld c, e
 	ld d, h
 	ld e, l
@@ -8804,7 +9549,11 @@ AddBankGold::
 	ret
 
 
+;@ def TakeBankGold(amount_high: e, amount: hl)
+;@ path: item/gold
+;@ Takes the 24-bit amount e:hl from the gold kept in the bank (not below 0).
 TakeBankGold::
+;> Sub24Floored(wBankedGold, amount_high << 16 | amount)
 	ld c, e
 	ld d, h
 	ld e, l
@@ -8813,87 +9562,127 @@ TakeBankGold::
 	ret
 
 
+;@ def GetPartySlotForRaise(pos: a) -> a
+;@ path: monster/stats
+;@ GetPartySlot keeping hl (the amount), for the Raise... functions.
 GetPartySlotForRaise::
+;> return GetPartySlot(pos)
 	push hl
 	call GetPartySlot
 	pop hl
 	ret
 
 
+;@ def RaiseMonsterWord(slot: a, field: de, amount: hl, cap: bc)
+;@ path: monster/stats
+;@ Adds `amount` to a 16-bit field of monster record `slot`, at most `cap`.
 RaiseMonsterWord::
+;> p = MonsterField(slot, field)
 	push bc
 	push hl
 	ld l, e
 	ld h, d
 	call MonsterField
+;> AddWordCapped(p, amount, cap)
 	pop de
 	pop bc
 	call AddWordCapped
 	ret
 
 
+;@ def RaiseMonsterByte(slot: a, field: de, amount: l, cap: c)
+;@ path: monster/stats
+;@ Adds `amount` to a byte field of monster record `slot`, at most `cap`.
 RaiseMonsterByte::
+;> p = MonsterField(slot, field)
 	push bc
 	push hl
 	ld l, e
 	ld h, d
 	call MonsterField
+;> AddByteCapped(p, amount, cap)
 	pop de
 	pop bc
 	call AddByteCapped
 	ret
 
 
+;@ def GetPartySlotForLower(pos: a) -> a
+;@ path: monster/stats
+;@ GetPartySlot keeping hl (the amount), for the Lower... functions.
 GetPartySlotForLower::
+;> return GetPartySlot(pos)
 	push hl
 	call GetPartySlot
 	pop hl
 	ret
 
 
+;@ def LowerMonsterWord(slot: a, field: de, amount: hl, floor: bc)
+;@ path: monster/stats
+;@ Takes `amount` from a 16-bit field of monster record `slot`, not below
+;@ `floor`.
 LowerMonsterWord::
+;> p = MonsterField(slot, field)
 	push bc
 	push hl
 	ld l, e
 	ld h, d
 	call MonsterField
+;> SubWordFloored(p, amount, floor)
 	pop de
 	pop bc
 	call SubWordFloored
 	ret
 
 
+;@ def LowerMonsterByte(slot: a, field: de, amount: l, floor: c)
+;@ path: monster/stats
+;@ Takes `amount` from a byte field of monster record `slot`, not below
+;@ `floor`.
 LowerMonsterByte::
+;> p = MonsterField(slot, field)
 	push bc
 	push hl
 	ld l, e
 	ld h, d
 	call MonsterField
+;> SubByteFloored(p, amount, floor)
 	pop de
 	pop bc
 	call SubByteFloored
 	ret
 
 
+;@ def AddWordCapped(p: hl, amount: de, cap: bc)
+;@ path: system/math
+;@ mem16[p] += amount, limited to `cap`. (A sum past $FFFF is stored
+;@ wrapped, not capped.)
 AddWordCapped::
+;> total = mem16[p] + amount
 	push hl
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	add hl, de
-	jr c, jr_000_248f
+;> if total <= 0xFFFF and total >= cap:
+	jr c, .keep
 
 	ld a, l
 	sub c
 	ld a, h
 	sbc b
-	jr nc, jr_000_2491
+;>     total = cap
+	jr nc, .store
 
-jr_000_248f:
+.keep
+;> else:
+;>     total = u16(total)
 	ld c, l
 	ld b, h
 
-jr_000_2491:
+.store
+;> mem16[p] = u16(total)
 	pop hl
 	ld a, c
 	ld [hli], a
@@ -8901,29 +9690,37 @@ jr_000_2491:
 	ret
 
 
+;@ def SubWordFloored(p: hl, amount: de, floor: bc)
+;@ path: system/math
+;@ mem16[p] -= amount, not below `floor` (and `floor` when it would go below 0).
 SubWordFloored::
+;>@d left = mem16[p] - amount
 	push hl
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, l
 	sub e
+;=@d
 	ld l, a
 	ld a, h
 	sbc d
 	ld h, a
-	jr c, jr_000_24aa
+;> if left >= 0 and left >= floor:
+	jr c, .store
 
 	ld a, l
 	sub c
 	ld a, h
 	sbc b
-	jr c, jr_000_24aa
+	jr c, .store
 
+;>     floor = left
 	ld c, l
 	ld b, h
 
-jr_000_24aa:
+.store
+;> mem16[p] = floor
 	pop hl
 	ld a, c
 	ld [hli], a
@@ -8931,124 +9728,181 @@ jr_000_24aa:
 	ret
 
 
+;@ def AddByteCapped(p: hl, amount: e, cap: c)
+;@ path: system/math
+;@ mem[p] += amount, limited to `cap` (and 255).
 AddByteCapped::
+;> total = mem[p] + amount
 	ld a, [hl]
 	add e
-	jr c, jr_000_24b6
+;> if total > 0xFF or total >= cap:
+	jr c, .cap
 
 	cp c
-	jr c, jr_000_24b7
+	jr c, .store
 
-jr_000_24b6:
+.cap
+;>     total = cap
 	ld a, c
 
-jr_000_24b7:
+.store
+;> mem[p] = total
 	ld [hl], a
 	ret
 
 
+;@ def SubByteFloored(p: hl, amount: e, floor: c)
+;@ path: system/math
+;@ mem[p] -= amount, not below `floor` (and 0).
 SubByteFloored::
+;> left = mem[p] - amount
 	ld a, [hl]
 	sub e
-	jr c, jr_000_24c0
+;> if left < 0 or left < floor:
+	jr c, .floor
 
 	cp c
-	jr nc, jr_000_24c1
+	jr nc, .store
 
-jr_000_24c0:
+.floor
+;>     left = floor
 	ld a, c
 
-jr_000_24c1:
+.store
+;> mem[p] = left
 	ld [hl], a
 	ret
 
 
+;@ def AddGoldCapped(p: hl, amount: cde)
+;@ path: item/gold
+;@ Adds a 24-bit amount (c high, d, e low) to the 24-bit number at p, at most
+;@ 99999.
+;@ test: skip 24-bit register pair
 AddGoldCapped::
+;>@s total = (mem[p] | mem[p + 1] << 8 | mem[p + 2] << 16) + amount & 0xFFFFFF
 	push hl
 	ld a, [hli]
 	add e
 	ld e, a
 	ld a, [hli]
 	adc d
+;=@s
 	ld d, a
 	ld a, [hl]
 	adc c
 	ld c, a
+;> if total >= 99999:
 	ld a, e
 	sub $9f
 	ld a, d
 	sbc $86
 	ld a, c
 	sbc $01
-	jr c, jr_000_24dd
+;=@m
+	jr c, .store
 
+;>@m     total = 99999
 	ld de, $869f
 	ld c, $01
 
-jr_000_24dd:
+.store
+;> mem[p] = total & 0xFF
 	pop hl
 	ld a, e
 	ld [hli], a
+;> mem[p + 1] = total >> 8 & 0xFF
 	ld a, d
 	ld [hli], a
+;> mem[p + 2] = total >> 16
 	ld [hl], c
 	ret
 
 
+;@ def AddBankGoldCapped(p: hl, amount: cde)
+;@ path: item/gold
+;@ Like AddGoldCapped with the bank's limit 999999 (shares its store).
+;@ test: skip 24-bit register pair
 AddBankGoldCapped::
+;>@s total = (mem[p] | mem[p + 1] << 8 | mem[p + 2] << 16) + amount & 0xFFFFFF
 	push hl
 	ld a, [hli]
 	add e
 	ld e, a
 	ld a, [hli]
 	adc d
+;=@s
 	ld d, a
 	ld a, [hl]
 	adc c
 	ld c, a
+;> if total >= 999999:
 	ld a, e
 	sub $3f
 	ld a, d
 	sbc $42
 	ld a, c
 	sbc $0f
-	jr c, jr_000_24dd
+;=@m
+	jr c, AddGoldCapped.store
 
+;>@m     total = 999999
 	ld de, $423f
 	ld c, $0f
-	jr jr_000_24dd
+;> mem[p] = total & 0xFF; mem[p + 1] = total >> 8 & 0xFF; mem[p + 2] = total >> 16   # AddGoldCapped's store
+	jr AddGoldCapped.store
 
+;@ def Sub24Floored(p: hl, amount: cde)
+;@ path: item/gold
+;@ Takes a 24-bit amount (c high, d, e low) from the 24-bit number at p, not
+;@ below 0.
+;@ test: skip 24-bit register pair
 Sub24Floored::
+;>@s left = (mem[p] | mem[p + 1] << 8 | mem[p + 2] << 16) - amount
 	push hl
 	ld a, [hli]
 	sub e
 	ld e, a
 	ld a, [hli]
 	sbc d
+;=@s
 	ld d, a
 	ld a, [hl]
 	sbc c
 	ld c, a
-	jr nc, jr_000_2511
+;> if left < 0:
+;>     left = 0
+	jr nc, .store
 
 	ld de, $0000
 	ld c, $00
 
-jr_000_2511:
+.store
+;> mem[p] = left & 0xFF
 	pop hl
 	ld a, e
 	ld [hli], a
+;> mem[p + 1] = left >> 8 & 0xFF
 	ld a, d
 	ld [hli], a
+;> mem[p + 2] = left >> 16
 	ld [hl], c
 	ret
 
 
+;@ def BuildStatusBar()
+;@ path: menu/statusbar
+;@ Builds the party status bar in wPartyBarTiles (2 rows of 32 tiles, 7 columns
+;@ per party monster): all tile $DC without a party, else blanks and one entry
+;@ per monster (BuildStatusBarEntry).
 BuildStatusBar::
+;> if wPartyCount == 0:
 	ld a, [wPartyCount]
 	or a
-	jr nz, jr_000_252a
+	jr nz, .party
 
+;>     FillMemory(wPartyBarTiles, 0x40, 0xDC)
+;>     return
 	ld hl, wPartyBarTiles
 	ld bc, $0040
 	ld a, $dc
@@ -9056,243 +9910,334 @@ BuildStatusBar::
 	ret
 
 
-jr_000_252a:
+.party
+;> FillMemory(wPartyBarTiles, 0x40, 0xE0)
 	ld hl, wPartyBarTiles
 	ld bc, $0040
 	ld a, $e0
 	call FillMemory
+;> if wPartyCount == 0:
+;>     return
 	ld a, [wPartyCount]
 	or a
 	ret z
 
+;> BuildStatusBarEntry(0, wPartyBarTiles)
 	ld hl, wPartyBarTiles
 	ld a, $00
 	call BuildStatusBarEntry
+;> if wPartyCount == 1:
+;>     return
 	ld a, [wPartyCount]
 	cp $01
 	ret z
 
-	ld hl, $c1c7
+;> BuildStatusBarEntry(1, wPartyBarTiles + 7)
+	ld hl, wPartyBarTiles + 7
 	ld a, $01
 	call BuildStatusBarEntry
+;> if wPartyCount == 2:
+;>     return
 	ld a, [wPartyCount]
 	cp $02
 	ret z
 
-	ld hl, $c1ce
+;> BuildStatusBarEntry(2, wPartyBarTiles + 14)
+	ld hl, wPartyBarTiles + 14
 	ld a, $02
 	call BuildStatusBarEntry
 	ret
 
 
+;@ def BuildStatusBarEntry(pos: a, dest: hl)
+;@ path: menu/statusbar
+;@ One party monster's entry in the status bar buffer. With wStatusBarMode 0:
+;@ the monster's number (tile $DA + pos), $E1 $E3 and its HP, and below $E2 $E3
+;@ and its MP (3 digits each). Else: number, $DE $DF $E4 and its level (2
+;@ digits), and below status icons $D7 (status bit 0), $D8 (bit 2) and $D9
+;@ (bit 7) two columns apart.
+;@ test: skip writes through WriteVRAM
 BuildStatusBarEntry::
+;> hNumber[0] = pos
 	ldh [hNumber], a
+;> if wStatusBarMode == 0:
 	ld a, [wStatusBarMode]
 	or a
-	jr nz, jr_000_25a0
+	jr nz, .level
 
+;>     mem[dest] = 0xDA + pos
 	push hl
 	ldh a, [hNumber]
 	add $da
 	ld [hli], a
+;>     mem[dest + 1] = 0xE1
 	ld a, $e1
 	ld [hli], a
+;>     mem[dest + 2] = 0xE3
 	ld a, $e3
 	ld [hli], a
+;>     hp = GetPartyMonsterWord(pos, wMonHP)
 	push hl
 	ld hl, wMonHP
 	ldh a, [hNumber]
 	call GetPartyMonsterWord
+;>     PrintNumber3(dest + 3, hp)
 	pop hl
 	call PrintNumber3
+;>@r2     row2 = dest + 0x20
 	pop hl
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
+;=@r2
 	ld h, a
+;>     mem[row2] = 0xE0
 	ld a, $e0
 	ld [hli], a
+;>     mem[row2 + 1] = 0xE2
 	ld a, $e2
 	ld [hli], a
+;>     mem[row2 + 2] = 0xE3
 	ld a, $e3
 	ld [hli], a
+;>     mp = GetPartyMonsterWord(pos, wMonMP)
 	push hl
 	ld hl, wMonMP
 	ldh a, [hNumber]
 	call GetPartyMonsterWord
+;>     PrintNumber3(row2 + 3, mp)
 	pop hl
 	call PrintNumber3
 	ret
 
 
-jr_000_25a0:
+.level
+;> else:
+;>     mem[dest] = 0xDA + pos
 	push hl
 	ldh a, [hNumber]
 	add $da
 	ld [hli], a
+;>     mem[dest + 1] = 0xDE
 	ld a, $de
 	ld [hli], a
+;>     mem[dest + 2] = 0xDF
 	ld a, $df
 	ld [hli], a
+;>     mem[dest + 3] = 0xE4
 	ld a, $e4
 	ld [hli], a
+;>     level = GetPartyMonsterByte(pos, wMonLevel)
 	push hl
 	ld hl, wMonLevel
 	ldh a, [hNumber]
 	call GetPartyMonsterByte
+;>     PrintNumber2(dest + 4, level)
 	pop hl
 	ld c, a
 	ld b, $00
 	call PrintNumber2
+;>@ic     icons = dest + 0x21
 	pop hl
 	ld a, l
 	add $21
 	ld l, a
 	ld a, h
 	adc $00
+;=@ic
 	ld h, a
+;>     status = GetPartyMonsterByte(pos, wMonStatus)
 	push hl
 	ld hl, wMonStatus
 	ldh a, [hNumber]
 	call GetPartyMonsterByte
 	ld b, a
 	pop hl
+;>     mem[icons] = 0xD7 if status & 0x01 else 0xE0
 	bit 0, b
 	ld a, $e0
-	jr z, jr_000_25db
+	jr z, .icon1
 
 	ld a, $d7
 
-jr_000_25db:
+.icon1
+;>     mem[icons + 2] = 0xD8 if status & 0x04 else 0xE0
 	ld [hli], a
 	inc hl
 	bit 2, b
 	ld a, $e0
-	jr z, jr_000_25e5
+	jr z, .icon2
 
 	ld a, $d8
 
-jr_000_25e5:
+.icon2
+;>@i3     mem[icons + 4] = 0xD9 if status & 0x80 else 0xE0
 	ld [hli], a
 	inc hl
 	bit 7, b
 	ld a, $e0
-	jr z, jr_000_25ef
+	jr z, .icon3
 
 	ld a, $d9
 
-jr_000_25ef:
+.icon3
+;=@i3
 	ld [hl], a
 	ret
 
 
+;@ def DrawStatusBar()
+;@ path: menu/statusbar
+;@ Copies the status bar buffer (2 rows of 20 tiles from wPartyBarTiles) to
+;@ the BG map rows that are the bottom two of the screen (16 rows below the
+;@ scroll position), with CGB palette 7.
+;@ test: skip writes through WriteVRAM
 DrawStatusBar::
+;>@a row = (hScrollY >> 3) + 16
 	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
 	sla l
 	rla
+;=@a
 	sla l
 	rla
 	ld h, $98
 	add h
 	ld h, a
+;>@b dest = 0x9800 + (row * 32 + (hScrollX >> 3) & 0x3FF)   # wraps within the map
 	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
 	and $1f
 	add l
+;=@b
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, l
 	add $00
+;=@b
 	ld l, a
 	ld a, h
 	adc $02
 	ld h, a
 	res 2, h
+;> src = wPartyBarTiles
 	ld de, wPartyBarTiles
+;>@rows for _ in range(2):
 	ld c, $02
 
-jr_000_261d:
+.row
+;>     line_start = dest
+;>@cols     for col in range(20):
 	ld b, $14
 	push hl
 
-jr_000_2620:
+.col
+;>         WriteVRAM(mem[src], dest)
 	ld a, [de]
 	call WriteVRAM
+;>         WriteVRAMAttr(7, dest)
 	ld a, $07
 	call WriteVRAMAttr
+;>@nc         dest = NextTileColumn(dest)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@nc
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>         src += 1
 	inc de
+;=@cols
 	dec b
-	jr nz, jr_000_2620
+	jr nz, .col
 
+;>@s12     src += 12                      # to the next 32-tile row
 	pop hl
 	ld a, e
 	add $0c
 	ld e, a
 	ld a, d
 	adc $00
+;=@s12
 	ld d, a
+;>@dn     dest = 0x9800 | (line_start + 0x20) & 0x3FF
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
 	or $98
+;=@dn
 	ld h, a
+;=@rows
 	pop bc
 	dec c
-	jr nz, jr_000_261d
+	jr nz, .row
 
 	ret
 
 
+;@ def IsInGateWorld() -> a
+;@ path: field/map
+;@ 1 (flags nz) on a gate floor and on the maps from $30 on (the worlds),
+;@ except maps $5D and $5E; 0 (z) on the maps of the town and the castle.
 IsInGateWorld::
+;> if wOnGateFloor:
+;>@y     return 1
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_000_266c
+	jr nz, .yes
 
+;> if wMapId == 0x5D or wMapId == 0x5E:
+;>@n     return 0
 	ld a, [wMapId]
 	cp $5d
-	jr z, jr_000_266a
+	jr z, .no
 
 	cp $5e
-	jr z, jr_000_266a
+	jr z, .no
 
+;> if wMapId >= 0x30:
+;>@y     return 1
 	ld a, [wMapId]
 	cp $30
-	jr nc, jr_000_266c
+	jr nc, .yes
 
-jr_000_266a:
+.no
+;=@n
+;> return 0
 	xor a
 	ret
 
 
-jr_000_266c:
+.yes
+;=@y
 	ld a, $01
 	or a
 	ret
 
 
+;@ def SetFlag(index: a, flags: hl)
+;@ path: system/flags
+;@ Sets bit `index` of the bit field at `flags` (bit 7 of the first byte is
+;@ flag 0). The bytes after it are an unused ClearFlag.
 SetFlag::
+;> p, mask = FlagMask(index, flags)
 	call FlagMask
+;> mem[p] |= mask
 	or [hl]
 	ld [hl], a
 	ret
@@ -9300,78 +10245,116 @@ SetFlag::
 
 	db $cd, $83, $26, $ee, $ff, $a6, $77, $c9
 
+;@ def TestFlag(index: a, flags: hl) -> a
+;@ path: system/flags
+;@ Nonzero (flags nz) when bit `index` of the bit field at `flags` is set.
 TestFlag::
+;> p, mask = FlagMask(index, flags)
 	call FlagMask
+;> return mem[p] & mask
 	and [hl]
 	ret
 
 
+;@ def FlagMask(index: a, flags: hl) -> (hl, a)
+;@ path: system/flags
+;@ Byte and bit mask of flag `index` in a bit field: flags + index / 8 and
+;@ BitMasks[index % 8].
 FlagMask::
+;>@p p = u16(flags + (index >> 3))
 	push af
 	srl a
 	srl a
 	srl a
 	add l
 	ld l, a
+;=@p
 	ld a, $00
 	adc h
 	ld h, a
+;> mask = BitMasks[index & 7]
 	pop af
 	push hl
-	ld hl, $26d5
+	ld hl, BitMasks
 	and $07
 	add l
 	ld l, a
+;=@m
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@m return p, mask
 	pop hl
 	ret
 
 
+;@ def SetEventFlag(index: bc)
+;@ path: event/flags
+;@ Sets story / event flag `index` in wEventFlags.
 SetEventFlag::
+;> p, mask = EventFlagMask(index)
 	call EventFlagMask
+;> mem[p] |= mask
 	or [hl]
 	ld [hl], a
 	ret
 
 
+;@ def ClearEventFlag(index: bc)
+;@ path: event/flags
+;@ Clears story / event flag `index` in wEventFlags.
 ClearEventFlag::
+;> p, mask = EventFlagMask(index)
 	call EventFlagMask
+;> mem[p] &= ~mask & 0xFF
 	xor $ff
 	and [hl]
 	ld [hl], a
 	ret
 
 
+;@ def TestEventFlag(index: bc) -> a
+;@ path: event/flags
+;@ Nonzero (flags nz) when story / event flag `index` is set.
 TestEventFlag::
+;> p, mask = EventFlagMask(index)
 	call EventFlagMask
+;> return mem[p] & mask
 	and [hl]
 	ret
 
 
+;@ def EventFlagMask(index: bc) -> (hl, a)
+;@ path: event/flags
+;@ Byte and bit mask of event flag `index`: wEventFlags + index / 8 and
+;@ BitMasks[index % 8].
 EventFlagMask::
+;>@p p = wEventFlags + (index >> 3)
 	push bc
 	srl b
 	rr c
 	srl b
 	rr c
 	srl b
+;=@p
 	rr c
 	ld hl, wEventFlags
 	add hl, bc
 	pop bc
+;> mask = BitMasks[index & 7]
 	push hl
-	ld hl, $26d5
+	ld hl, BitMasks
 	ld a, c
 	and $07
 	add l
 	ld l, a
+;=@m
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@m return p, mask
 	pop hl
 	ret
 
@@ -9436,7 +10419,10 @@ MapInfo::
 	db $12, $24, $a0, $00, $80, $00, $50, $00, $12, $24, $a0, $00, $80, $00, $50, $00
 	db $12, $24, $a0, $00, $80, $00, $50, $00, $12, $24, $a0, $00, $80, $00, $50, $00
 	db $12, $24, $a0, $00, $80, $00, $50, $00, $12, $24, $a0, $00, $80, $00, $50, $00
-	db $12, $24, $a0, $00, $80, $00, $50, $00, $00, $28, $80, $02, $00, $02, $30, $00
+	db $12, $24, $a0, $00, $80, $00, $50, $00
+
+GateFloorMapInfo::
+	db $00, $28, $80, $02, $00, $02, $30, $00
 	db $01, $28, $80, $02, $00, $02, $30, $00, $02, $28, $80, $02, $00, $02, $30, $00
 	db $03, $28, $80, $02, $00, $02, $30, $00, $04, $28, $80, $02, $00, $02, $30, $00
 	db $05, $28, $80, $02, $00, $02, $30, $00, $06, $28, $80, $02, $00, $02, $30, $00
@@ -9444,7 +10430,13 @@ MapInfo::
 	db $09, $28, $80, $02, $00, $02, $30, $00, $0a, $28, $80, $02, $00, $02, $30, $00
 	db $0b, $28, $80, $02, $00, $02, $30, $00, $0c, $28, $80, $02, $00, $02, $30, $00
 	db $0d, $28, $80, $02, $00, $02, $30, $00, $0e, $28, $80, $02, $00, $02, $30, $00
-	db $0f, $28, $80, $02, $00, $02, $30, $00, $00, $00, $00, $31, $01, $31, $02, $31
+	db $0f, $28, $80, $02, $00, $02, $30, $00
+
+FieldSGBSettings::
+	db $00, $00
+
+ActorGfx::
+	db $00, $31, $01, $31, $02, $31
 	db $03, $31, $04, $31, $05, $31, $06, $31, $07, $31, $08, $31, $09, $31, $0a, $31
 	db $0b, $31, $0c, $31, $0d, $31, $0e, $31, $0f, $31, $10, $31, $11, $31, $12, $31
 	db $13, $31, $14, $31, $15, $31, $16, $31, $17, $31, $18, $31, $19, $31, $1a, $31
@@ -9489,13 +10481,22 @@ MapInfo::
 	db $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32
 	db $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32
 	db $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32
-	db $0f, $32, $00, $00, $00, $00, $a0, $00, $00, $00, $40, $01, $00, $00, $e0, $01
+	db $0f, $32
+
+ScreenOrigins::
+	db $00, $00, $00, $00, $a0, $00, $00, $00, $40, $01, $00, $00, $e0, $01
 	db $00, $00, $00, $00, $80, $00, $a0, $00, $80, $00, $40, $01, $80, $00, $e0, $01
 	db $80, $00, $00, $00, $00, $01, $a0, $00, $00, $01, $40, $01, $00, $01, $e0, $01
 	db $00, $01, $00, $00, $80, $01, $a0, $00, $80, $01, $40, $01, $80, $01, $e0, $01
-	db $80, $01, $00, $00, $0a, $00, $14, $00, $1e, $00, $00, $08, $0a, $08, $14, $08
+	db $80, $01
+
+ScreenTileOrigins::
+	db $00, $00, $0a, $00, $14, $00, $1e, $00, $00, $08, $0a, $08, $14, $08
 	db $1e, $08, $00, $10, $0a, $10, $14, $10, $1e, $10, $00, $18, $0a, $18, $14, $18
-	db $1e, $18, $a0, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $1e, $18, $a0, $01
+
+NamePlateWindows::
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $b0, $b1, $b2, $b3, $b4, $b5
 	db $b6, $b7, $b8, $b9, $ba, $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -9510,7 +10511,7 @@ MapInfo::
 	db $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
-Jump_000_2edd:
+SerialInterruptEntry::
 	push af
 	push bc
 	push de
@@ -9983,10 +10984,16 @@ jr_000_30fe:
 	db $21, $07, $5f, $d7, $fa, $81, $da, $fe, $ff, $c8, $21, $9b, $c8, $23, $3e, $d0
 	db $22, $3e, $e0, $77, $21, $41, $31, $fa, $81, $da, $85, $6f, $3e, $00, $8c, $67
 	db $7e, $ea, $9c, $c8, $fa, $81, $da, $fe, $0e, $38, $09, $fe, $21, $38, $0a, $21
-	db $01, $5e, $d7, $c9, $21, $01, $5c, $d7, $c9, $21, $01, $5d, $d7, $c9, $e0, $e0
+	db $01, $5e, $d7, $c9, $21, $01, $5c, $d7, $c9, $21, $01, $5d, $d7, $c9
+
+SkillAnimOBP0::
+	db $e0, $e0
 	db $e0, $e0, $e0, $e0, $d0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $d0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $d0, $00, $01, $12, $35, $8a
+	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $d0
+
+WavePatterns::
+	db $00, $01, $12, $35, $8a
 	db $cd, $ee, $ff, $ff, $fe, $ed, $ca, $85, $32, $11, $00, $01, $23, $45, $67, $89
 	db $ab, $cd, $ef, $fe, $dc, $ba, $98, $76, $54, $32, $10, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $00, $00, $00, $00, $00, $00, $00, $00, $ff, $ee, $dd, $cc, $bb
@@ -10002,7 +11009,10 @@ jr_000_30fe:
 	db $55, $77, $99, $55, $99, $aa, $bb, $cc, $dd, $ee, $ff, $fc, $dc, $ba, $90, $70
 	db $50, $30, $15, $15, $15, $15, $22, $55, $77, $aa, $cc, $ee, $ee, $cd, $ac, $35
 	db $23, $11, $11, $11, $11, $32, $53, $ca, $dc, $ee, $ee, $dd, $dd, $dd, $dd, $dd
-	db $dd, $dd, $dd, $22, $22, $22, $22, $22, $22, $22, $22, $70, $32, $f1, $d0, $b0
+	db $dd, $dd, $dd, $22, $22, $22, $22, $22, $22, $22, $22
+
+InstrumentTable::
+	db $70, $32, $f1, $d0, $b0
 	db $90, $70, $50, $30, $15, $15, $15, $15, $15, $15, $15, $15, $15, $f3, $d0, $b0
 	db $90, $70, $50, $30, $10, $51, $40, $30, $20, $15, $15, $15, $15, $89, $98, $a8
 	db $b8, $c8, $d8, $e8, $f5, $f5, $f5, $f5, $f5, $f5, $f5, $f5, $f5, $b9, $c8, $d8
@@ -10243,6 +11253,7 @@ jr_000_3430:
 	ret
 
 
+SoundBanks::
 	db $00, $01, $40, $1c, $21, $01, $40, $1d, $37, $01, $40, $1e, $ff
 
 UpdateSound::
@@ -10901,6 +11912,7 @@ jr_000_37c1:
 	jp Jump_000_35f8
 
 
+NoiseNotes::
 	db $00, $01, $11, $12, $14, $23, $07, $15, $17, $32, $33, $60, $61, $45, $53, $62
 
 jr_000_37d5:
@@ -11405,9 +12417,11 @@ SkipIfChannelClaimed::
 	ret
 
 
+NoteFrequencies::
 	db $d4, $07, $64, $07, $f9, $06, $95, $06, $37, $06, $dd, $05, $89, $05, $3a, $05
 	db $f0, $04, $a8, $04, $65, $04, $26, $04, $9c, $07, $2e, $07, $c7, $06, $66, $06
 	db $0a, $06, $b3, $05, $61, $05, $15, $05, $cc, $04, $86, $04, $45, $04, $08, $04
+InstrumentVolumes::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $10, $10, $10, $10, $10, $10, $10, $10
 	db $00, $00, $00, $00, $10, $10, $10, $10, $10, $10, $10, $10, $20, $20, $20, $20
@@ -11424,6 +12438,7 @@ SkipIfChannelClaimed::
 	db $00, $10, $20, $30, $30, $40, $50, $60, $70, $80, $90, $a0, $a0, $b0, $c0, $d0
 	db $00, $10, $20, $30, $40, $50, $60, $70, $70, $80, $90, $a0, $b0, $c0, $d0, $e0
 	db $00, $10, $20, $30, $40, $50, $60, $70, $80, $90, $a0, $b0, $c0, $d0, $e0, $f0
+VibratoTables::
 	db $00, $00, $01, $01, $00, $00, $ff, $ff, $00, $00, $01, $01, $00, $00, $ff, $ff
 	db $00, $00, $00, $00, $01, $01, $01, $01, $00, $00, $00, $00, $ff, $ff, $ff, $ff
 	db $00, $01, $02, $01, $00, $ff, $fe, $ff, $00, $01, $02, $01, $00, $ff, $fe, $ff
@@ -11461,6 +12476,7 @@ jr_000_3c1e:
 	ret
 
 
+LeftoverCode::
 	db $fa, $ff, $cd, $3d, $fe, $f7, $30, $08, $7e, $f6, $7f, $2f, $77, $cb, $7e, $c9
 	db $af, $77, $c9, $cd, $4b, $00, $43, $3c, $4a, $3c, $83, $3c, $c6, $3c, $cd, $ab
 	db $3d, $c0, $c3, $e8, $3c, $16, $c1, $cd, $c1, $07, $21, $b0, $53, $cd, $57, $09

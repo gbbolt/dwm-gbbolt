@@ -4,15 +4,25 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $012", ROMX[$4000], BANK[$12]
 
+;@ path: system/banks
+;@ Bank number byte at the start of the bank (read by the far-call routine to know which bank is mapped).
 BankNumber_12::
 	db $12
 
+;@ def FarTable_12()
+;@ path: menu/script
+;@ Far-call table of bank $12 with a single entry, the routine right behind it: runs one frame of the menu a script opened (wScriptMenu): the farm keeper (3), the
+;@ monster library (8), choosing one of the player's own monsters (9) or the item collector (10).
+;@ The other menu numbers are handled in other banks; here they do nothing.
+;@ test: skip jumps through a table to routines that call other banks
 FarTable_12::
-	db $03, $40
-
+	dw FarTable_12 + 2
+;> return ScriptMenuTable[wScriptMenu]()
 	ld a, [wScriptMenu]
 	rst $00
 
+;@ path: menu/script
+;@ Routine of each script menu number ($00-$0F) that bank $12 runs; unused numbers point at ScriptMenuNone.
 ScriptMenuTable::
 	dw ScriptMenuNone
 	dw ScriptMenuNone
@@ -31,32 +41,50 @@ ScriptMenuTable::
 	dw ScriptMenuNone
 	dw ScriptMenuNone
 
+;@ def ScriptMenuNone()
+;@ path: menu/script
+;@ Placeholder for script menus this bank does not run.
 ScriptMenuNone::
+;> return
 	ret
 
 
+;@ def SnapToTile(coord: hl)
+;@ path: menu/window
+;@ Rounds the 16-bit position at `coord` (a scroll position) to the nearest multiple of 8,
+;@ so menu windows line up with the background tiles.
+;@ test: hl = rand(0xC000, 0xDFFE)
 SnapToTile::
+;> value = mem16[coord] + 4
 	ld a, [hl]
 	add $04
 	ld [hli], a
 	ld a, [hl]
 	adc $00
 	ld [hld], a
+;> mem16[coord] = value & 0xFFF8
 	ld a, [hl]
 	and $f8
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def NextBgColumn(addr: hl) -> hl
+;@ path: menu/window
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
 NextBgColumn::
+;> row = addr & 0xFFE0
 	push af
 	ld a, l
 	and $e0
 	push af
+;> column = (addr + 1) & 0x1F
 	ld a, l
 	inc a
 	and $1f
 	ld l, a
+;> return row | column
 	pop af
 	or l
 	ld l, a
@@ -64,695 +92,1020 @@ NextBgColumn::
 	ret
 
 
+;@ def WindowBgAddr(offset: hl) -> hl
+;@ path: menu/window
+;@ BG map address of a window offset (row * 32 + column) measured from the screen's top
+;@ left corner (wWindowBgMap), wrapping around inside the 1 KiB BG map.
 WindowBgAddr::
+;> addr = wWindowBgMap + offset
 	ld a, [wWindowBgMap]
 	add l
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	adc h
+;> addr &= 0x03FF
 	and $03
 	ld h, a
-	ld a, [$c90a]
+;> return (wWindowBgMap & 0xFC00) | addr
+	ld a, [wWindowBgMap + 1]
 	and $fc
 	or h
 	ld h, a
 	ret
 
 
+;@ def TilemapBufferAddr(offset: hl) -> hl
+;@ path: menu/window
+;@ Address of a window offset (row * 32 + column) in wTilemapBuffer.
 TilemapBufferAddr::
+;> addr = wTilemapBuffer + offset
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
+;> return addr
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
 	ret
 
 
+;@ def WindowBgAddrWrapped(offset: hl) -> hl
+;@ path: menu/window
+;@ Like WindowBgAddr, but the column also wraps around inside its BG map row, so a window
+;@ near the right edge of the 32-tile map continues at its left edge.
 WindowBgAddrWrapped::
+;> addr = WindowBgAddr(offset & 0xFFE0)              # start of the row
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
 	call WindowBgAddr
+;> for _ in range(offset & 0x1F):
 	ld a, b
 	and $1f
-	jr z, jr_012_4076
-
+	jr z, .done
 	ld b, a
-
-jr_012_4070:
+.column
+;>     addr = NextBgColumn(addr)
 	call NextBgColumn
 	dec b
-	jr nz, jr_012_4070
-
-jr_012_4076:
+	jr nz, .column
+.done
+;> return addr
 	pop bc
 	ret
 
 
+;@ def DrawLayoutToVram(layout: de)
+;@ path: unused
+;@ Unused: draws a window layout (format see DrawWindowLayout) straight into the BG map
+;@ instead of into wTilemapBuffer, wrapping rows and columns inside the map.
+;@ test: skip writes to VRAM with the LCD-safe write
 DrawLayoutToVram::
-	db $1a, $6f, $13, $1a, $67, $13, $cd, $61, $40, $7d, $e0, $d5, $7c, $e0, $d6, $1a
-	db $13, $fe, $d9, $c8, $fe, $d8, $20, $1c, $f0, $d5, $6f, $f0, $d6, $67, $7d, $c6
-	db $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67, $7d, $e0, $d5, $7c
-	db $e0, $d6, $18, $db, $cd, $ad, $1a, $cd, $35, $40, $18, $d3
-
-DrawWindowLayout::
+;> offset = mem16[layout]
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call TilemapBufferAddr
+;> addr = row = WindowBgAddrWrapped(offset)         # row is kept in hNumber
+	call WindowBgAddrWrapped
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
-
-jr_012_40c3:
+	ldh [hNumber + 1], a
+.loop
+;>@loop for b in layout_bytes(layout + 2):
 	ld a, [de]
 	inc de
+;>     if b == 0xD9: return                             # end of the layout
 	cp $d9
 	ret z
-
+;>     if b == 0xD8:                                    # next row
 	cp $d8
-	jr nz, jr_012_40e2
-
+	jr nz, .tile
+;>         row += 32                                   # row is kept in hNumber
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;>         row = 0x9800 | (row & 0x03FF)               # wrap inside the BG map
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+	ld a, h
+	and $03
+;>         addr = row
+	or $98
+	ld h, a
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
-	jr jr_012_40c3
+	ldh [hNumber + 1], a
+;=@loop
+	jr .loop
+.tile
+;>     else:
+;>         WriteVRAM(addr, b)
+	call WriteVRAM
+;>         addr = NextBgColumn(addr)
+	call NextBgColumn
+;=@loop
+	jr .loop
 
-jr_012_40e2:
+;@ def DrawWindowLayout(layout: de)
+;@ path: menu/window
+;@ Draws a window layout into wTilemapBuffer. A layout is a u16 offset (row * 32 + column
+;@ in the 32-wide buffer) followed by tile numbers; $D8 starts the next row below the
+;@ first tile of the current one, $D9 ends the layout. Window tiles: $FA/$EF/$FB top
+;@ frame, $FE/$FF left and right sides, $FC/$EE/$FD bottom frame, $E0 blank.
+;@ test: skip reads a layout from ROM
+DrawWindowLayout::
+;> offset = mem16[layout]
+	ld a, [de]
+	ld l, a
+	inc de
+	ld a, [de]
+	ld h, a
+	inc de
+;> addr = row = TilemapBufferAddr(offset)            # row is kept in hNumber
+	call TilemapBufferAddr
+	ld a, l
+	ldh [hNumber], a
+	ld a, h
+	ldh [hNumber + 1], a
+.loop
+;>@loop for b in layout_bytes(layout + 2):
+	ld a, [de]
+	inc de
+;>     if b == 0xD9: return                             # end of the layout
+	cp $d9
+	ret z
+;>     if b == 0xD8:                                    # next row
+	cp $d8
+	jr nz, .tile
+;>@add         row += 32
+	ldh a, [hNumber]
+	ld l, a
+	ldh a, [hNumber + 1]
+	ld h, a
+	ld a, l
+	add $20
+;=@add
+	ld l, a
+	ld a, h
+	adc $00
+	ld h, a
+;>         addr = row
+	ld a, l
+	ldh [hNumber], a
+	ld a, h
+	ldh [hNumber + 1], a
+;=@loop
+	jr .loop
+.tile
+;>     else:
+;>         mem[addr] = b; addr += 1
 	ld [hli], a
-	jr jr_012_40c3
+;=@loop
+	jr .loop
 
+;@ def CopyTilemapBufferToVram()
+;@ path: menu/window
+;@ Copies the whole wTilemapBuffer (18 rows of 32 tiles) into the BG map at wWindowBgMap,
+;@ wrapping rows and columns inside the 32 x 32 map.
+;@ test: skip writes to VRAM with the LCD-safe write
 CopyTilemapBufferToVram::
+;> row = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> src = wTilemapBuffer
 	ld de, wTilemapBuffer
+;> for _ in range(18):
 	ld c, $12
-
-jr_012_40f2:
+.row
+;>     addr = row
 	ld b, $20
 	push hl
-
-jr_012_40f5:
+.column
+;>     for _ in range(32):
+;>         WriteVRAM(addr, mem[src])
 	ld a, [de]
 	call WriteVRAM
+;>@nc         addr = NextBgColumn(addr)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@nc
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>         src += 1
 	inc de
 	dec b
-	jr nz, jr_012_40f5
-
+	jr nz, .column
+;>@wrap     row = 0x9800 | ((row + 32) & 0x03FF)
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@wrap
 	or $98
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_012_40f2
-
+	jr nz, .row
+;> return
 	ret
 
 
+;@ def DrawTextTiles(dest: hl, size: de)
+;@ path: menu/window
+;@ Renders text number wTextGroup:wTextIndex into letter tiles at VRAM address `dest`
+;@ (e = number of lines, d = characters per line for the printer in bank $41), keeping the
+;@ settings of the text box that is open.
+;@ test: skip calls bank $41
 DrawTextTiles::
+;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)    # on the stack
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
+;=@save
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = dest
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = lo(size)
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = hi(size)
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@restore restore(saved)                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@restore
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawNameTiles(dest: hl, name: de)
+;@ path: menu/window
+;@ Copies a 4-letter monster name into wTextArg0 and renders it (text $0200, the
+;@ argument string) into letter tiles at VRAM address `dest`.
+;@ test: skip calls bank $41
 DrawNameTiles::
+;> CopyName(wTextArg0, name)
 	push hl
 	ld hl, wTextArg0
 	call CopyName
 	pop hl
+;>@save2 saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)    # on the stack
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
+;=@save2
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = dest
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0401
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 4
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0                                   # text $0200: the string in wTextArg0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@restore2 restore(saved)                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@restore2
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawCharTile(char: a, dest: hl)
+;@ path: unused
+;@ Unused: renders a single character (followed by the end code $F0) into a letter tile at
+;@ VRAM address `dest`, like DrawNameTiles does for a name.
+;@ test: skip calls bank $41
 DrawCharTile::
-	db $ea, $80, $c1, $3e, $f0, $ea, $81, $c1, $fa, $27, $c8, $4f, $fa, $28, $c8, $47
-	db $c5, $fa, $29, $c8, $4f, $fa, $2a, $c8, $47, $c5, $7d, $ea, $27, $c8, $7c, $ea
-	db $28, $c8, $11, $01, $01, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $3e, $02, $ea
-	db $22, $c8, $3e, $00, $ea, $23, $c8, $21, $02, $41, $d7, $d1, $e1, $7d, $ea, $27
-	db $c8, $7c, $ea, $28, $c8, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $c9
+;> wTextArg0[0] = char
+	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0                              # end of the string
+	ld a, $f0
+	ld [wTextArg0 + 1], a
+;>@save3 saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)    # on the stack
+	ld a, [wTextTiles]
+	ld c, a
+	ld a, [wTextTiles + 1]
+	ld b, a
+	push bc
+	ld a, [wTextBoxLines]
+;=@save3
+	ld c, a
+	ld a, [wTextBoxLineLength]
+	ld b, a
+	push bc
+;> wTextTiles = dest
+	ld a, l
+	ld [wTextTiles], a
+	ld a, h
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
+	ld de, $0101
+	ld a, e
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
+	ld a, d
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
+	ld a, $02
+	ld [wTextGroup], a
+;> wTextIndex = 0                                   # text $0200: the string in wTextArg0
+	ld a, $00
+	ld [wTextIndex], a
+;> PrintText_41()
+	ld hl, far_PrintText_41
+	rst $10
+;>@restore3 restore(saved)                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
+	pop de
+	pop hl
+	ld a, l
+	ld [wTextTiles], a
+	ld a, h
+	ld [wTextTiles + 1], a
+;=@restore3
+	ld a, e
+	ld [wTextBoxLines], a
+	ld a, d
+	ld [wTextBoxLineLength], a
+	ret
 
+;@ def RestoreTilemapBuffer()
+;@ path: menu/window
+;@ Rebuilds wTilemapBuffer from the background saved when the menu opened
+;@ (wSavedTilemap, rows 0-15) and the party bar (wPartyBarTiles, rows 16-17), which
+;@ removes all windows drawn into it.
 RestoreTilemapBuffer::
+;>@cp copy(wTilemapBuffer, wSavedTilemap, 0x200)
 	ld hl, wTilemapBuffer
 	ld de, wSavedTilemap
 	ld bc, $0200
-
-jr_012_41f8:
+.copy
 	ld a, [de]
 	inc de
 	ld [hli], a
+;=@cp
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_012_41f8
-
+	jr nz, .copy
+;> for row in range(2):
 	ld de, wPartyBarTiles
 	ld c, $02
-
-jr_012_4205:
+.row
+;>@rows     copy(wTilemapBuffer + 0x200 + row * 32, wPartyBarTiles + row * 32, 20)
 	ld b, $14
-
-jr_012_4207:
+.tile
 	ld a, [de]
 	inc de
 	ld [hli], a
 	dec b
-	jr nz, jr_012_4207
-
+	jr nz, .tile
+;=@rows
 	ld a, e
 	add $0c
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@rows
 	ld a, l
 	add $0c
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@rows
 	dec c
-	jr nz, jr_012_4205
-
+	jr nz, .row
 	ret
 
 
+;@ def ClearTilemapBuffer()
+;@ path: menu/window
+;@ Fills all of wTilemapBuffer (18 rows of 32) with the blank tile $E0.
 ClearTilemapBuffer::
+;>@fill fill(wTilemapBuffer, 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
-
-jr_012_4227:
+.loop
 	ld a, $e0
 	ld [hli], a
 	dec bc
 	ld a, b
+;=@fill
 	or c
-	jr nz, jr_012_4227
-
+	jr nz, .loop
 	ret
 
 
+;@ def ClearBgMap()
+;@ path: unused
+;@ Unused: fills the whole BG map at $9800 (32 x 32 tiles) with the blank tile $E0.
+;@ test: skip writes to VRAM with the LCD-safe write
 ClearBgMap::
-	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
-	db $c9
+;> for addr in range(0x9800, 0x9C00):
+	ld hl, $9800
+	ld bc, $0400
+.loop
+;>     WriteVRAMInc(addr, 0xE0)
+	ld a, $e0
+	call WriteVRAMInc
+	dec bc
+	ld a, b
+	or c
+	jr nz, .loop
+;> return
+	ret
 
+;@ def UpdatePagedList(cursor: hl, rows: b, count: c, table: de)
+;@ path: menu/cursor
+;@ Handles a list of `count` entries shown `rows` at a time. mem[cursor] is the row of
+;@ the cursor (bit 7 = chosen), mem[cursor + 1] the page. Left/Right turn the page (with
+;@ wrap-around; on a short last page the cursor is pulled up onto its last entry). Without
+;@ a page turn, Up/Down/A are handled by UpdateMenuCursor on the rows of the current page.
+;@ `table` is a cursor table whose first entry is where the page number is shown.
+;@ test: skip draws into VRAM
 UpdatePagedList::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> rows_table = table + 2                             # skip the page number position
 	inc de
 	inc de
+;> if wTextState == 0 and wJoyRepeat & 0x20:          # Left: previous page
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_012_42a8
-
+	jp nz, .rows
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_012_426e
-
+	jr z, .notLeft
+;>     page = u8(mem[cursor + 1] - 1)
 	inc hl
 	ld a, [hl]
 	dec a
 	push af
+;>@p1     pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@p1
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>     if page >= pages: page = pages - 1                # wrap from the first page to the last
 	pop af
 	cp c
-	jr c, jr_012_428c
-
+	jr c, .setPage
 	ld a, c
 	dec a
-	jr jr_012_428c
-
-jr_012_426e:
+	jr .setPage
+.notLeft
+;> elif wJoyRepeat & 0x10:                            # Right: next page
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_012_42a8
-
+	jr z, .rows
+;>     page = mem[cursor + 1] + 1
 	inc hl
 	ld a, [hl]
 	inc a
 	push af
+;>@p2     pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@p2
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>     if page >= pages: page = 0
 	pop af
 	cp c
-	jr c, jr_012_428c
-
+	jr c, .setPage
 	ld a, $00
-
-jr_012_428c:
+;>@else else:                                         # no page turn
+;>@pn     DrawPageNumber(cursor, rows, count, rows_table)
+;>@ret     return UpdateMenuCursor(cursor, rows if mem[cursor + 1] != (count - 1) // rows else (count - 1) % rows + 1, rows_table)
+.setPage
+;> mem[cursor + 1] = page
 	ld [hld], a
+;> if page == pages - 1:                              # turned to the last page
 	dec c
 	cp c
 	jr nz, MenuCursorMoved
-
+;>@lr     last_rows = count % rows
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@lr
 	call Divide8
 	pop bc
 	pop de
+;>     if last_rows != 0 and last_rows - 1 < mem[cursor]:
 	or a
 	jr z, MenuCursorMoved
-
 	dec a
 	cp [hl]
 	jr nc, MenuCursorMoved
-
+;>         mem[cursor] = last_rows - 1                  # pull the cursor onto the last entry
 	ld [hl], a
+;> return MenuCursorMoved(cursor, rows_table)
 	jr MenuCursorMoved
-
-Jump_012_42a8:
-jr_012_42a8:
+.rows
+;=@pn
 	push bc
 	push de
 	push hl
 	call DrawPageNumber
+;=@pn
 	pop hl
 	pop de
 	pop bc
+;=@ret
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
-	ld [wListLastRows], a
+;=@ret
+	ld [wListLastRows], a                               ; rows on the last page - 1
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;=@ret
 	inc hl
 	ld a, [hld]
 	cp c
 	jr nz, UpdateMenuCursor
-
 	ld a, [wListLastRows]
 	inc a
+;=@ret
 	ld b, a
 
+;@ def UpdateMenuCursor(cursor: hl, n: b, table: de)
+;@ path: menu/cursor
+;@ Moves a menu cursor over `n` entries: Up/Down (with auto-repeat) move it with
+;@ wrap-around, A marks it chosen (bit 7); then the cursor is drawn at its position from
+;@ `table` (u16 window offsets, $FFFF ends the table).
+;@ test: skip draws into VRAM
 UpdateMenuCursor::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:                              # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_012_42dc
-
+	jr z, .notUp
+;>     row = u8(mem[cursor] - 1)
 	ld a, [hl]
 	dec a
+;>     if row >= n: row = n - 1                         # wrap to the bottom
 	cp b
-	jr c, jr_012_42ea
-
+	jr c, .move
 	dec b
 	ld a, b
-	jr jr_012_42ea
-
-jr_012_42dc:
+	jr .move
+.notUp
+;> elif wJoyRepeat & 0x80:                            # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, MenuCursorCheckA
-
+;>     row = mem[cursor] + 1
 	ld a, [hl]
 	inc a
+;>     if row >= n: row = 0                             # wrap to the top
 	cp b
-	jr c, jr_012_42ea
-
+	jr c, .move
 	ld a, $00
-
-jr_012_42ea:
+;> else:
+;>     return MenuCursorCheckA(cursor, table)
+.move
+;> mem[cursor] = row
 	ld [hl], a
+;> return MenuCursorMoved(cursor, table)
 
+;@ def MenuCursorMoved(cursor: hl, table: de)
+;@ path: menu/cursor
+;@ Restarts the cursor blink after the cursor moved, then goes on like MenuCursorCheckA.
+;@ test: skip draws into VRAM
 MenuCursorMoved::
+;> wCursorBlink = 0                                   # show the cursor at once
 	xor a
 	ld [wCursorBlink], a
 	push hl
 	push de
 	pop de
 	pop hl
+;> return MenuCursorCheckA(cursor, table)
 
+;@ def MenuCursorCheckA(cursor: hl, table: de)
+;@ path: menu/cursor
+;@ Marks the cursor chosen (bit 7) when A was pressed and draws it.
+;@ test: skip draws into VRAM
 MenuCursorCheckA::
+;> if wJoyPressed & 0x01:                             # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_012_42fc
-
+	jr z, .draw
+;>     mem[cursor] |= 0x80
 	set 7, [hl]
-
-jr_012_42fc:
+.draw
+;> DrawMenuCursor(mem[cursor], table)
 	ld a, [hl]
 	call DrawMenuCursor
 	ret
 
 
+;@ path: unused
+;@ Unused code fragment: a Left/Right version of the cursor movement of UpdateMenuCursor
+;@ (res 7,[hl]; Left = previous, Right = next entry), which jumps back into that routine's
+;@ store / draw part with relative jumps. Nothing calls it.
 UpdateMenuCursorLeftRight::
 	db $cb, $be, $fa, $47, $c8, $cb, $6f, $28, $09, $7e, $3d, $b8, $38, $db, $05, $78
 	db $18, $d7, $fa, $47, $c8, $cb, $67, $28, $d9, $7e, $3c, $b8, $38, $cb, $3e, $00
 	db $18, $c7
 
+;@ def ResetCursorBlink()
+;@ path: menu/cursor
+;@ Restarts the cursor blink so the cursor is drawn at once.
 ResetCursorBlink::
+;> wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
 	ret
 
 
+;@ def DrawMenuCursor(cursor: a, table: de)
+;@ path: menu/cursor
+;@ Draws the cursor tiles of a menu into the BG map and wTilemapBuffer: at every
+;@ position of `table` (u16 window offsets up to $FFFF) a blank ($E0), except at
+;@ entry cursor & $7F: $E9 when chosen (bit 7), else the blinking arrow $E8 (blank
+;@ while wCursorBlink bit 4 is set). Unless chosen this only happens every 16th call.
+;@ test: skip writes to VRAM with the LCD-safe write
 DrawMenuCursor::
+;> if not cursor & 0x80:
 	ld c, a
 	bit 7, a
-	jr nz, jr_012_433d
-
+	jr nz, .draw
+;>     t = wCursorBlink & 0x0F
 	ld a, [wCursorBlink]
 	and $0f
 	push af
+;>     wCursorBlink += 1
 	ld a, [wCursorBlink]
 	inc a
 	ld [wCursorBlink], a
+;>     if t != 0: return
 	pop af
 	ld a, c
 	ret nz
-
-jr_012_433d:
+.draw
+;> for i in range(0x100):
 	ld c, a
 	ld b, $00
-
-jr_012_4340:
+.loop
+;>@loop     offset = mem16[table + 2 * i]
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;>     if offset == 0xFFFF: return
 	and l
 	cp $ff
 	ret z
-
+;>@addr     addr = WindowBgAddrWrapped(offset)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@addr
 	call WindowBgAddrWrapped
 	pop bc
 	pop de
+;>     tile = 0xE0
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_012_4370
-
+	jr nz, .put
+;>     if i == cursor & 0x7F:
+;>@tile         tile = 0xE9 if cursor & 0x80 else 0xE0 if wCursorBlink & 0x10 else 0xE8
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_012_4370
-
+	jr nz, .put
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_012_4370
-
+;=@tile
+	jr nz, .put
 	ld a, $e8
-
-jr_012_4370:
+.put
+;>     WriteVRAM(addr, tile)
 	call WriteVRAM
+;>@buf     mem[TilemapBufferAddr(offset)] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
-	add $00
+;=@buf
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	inc b
-	jr jr_012_4340
+;=@loop
+	jr .loop
 
+;@ def DrawPageNumber(cursor: hl, rows: b, count: c, table: de)
+;@ path: menu/cursor
+;@ When a list does not fit on one page (rows < count), draws the page number
+;@ (tile $F1 + page, i.e. 1, 2, ...) one tile left of the page position, the u16 entry
+;@ just before `table`; mem[cursor + 1] is the page.
+;@ test: skip writes to VRAM with the LCD-safe write
 DrawPageNumber::
+;> if rows >= count: return
 	ld a, b
 	cp c
 	ret nc
-
+;> page = mem[cursor + 1]
 	inc hl
 	ld c, [hl]
+;>@off offset = mem16[table - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@off
 	ld h, a
 	inc de
+;> if offset == 0xFFFF: return
 	and l
 	cp $ff
 	ret z
-
+;>@addr addr = WindowBgAddrWrapped(offset - 1)
 	dec hl
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
+;=@addr
 	push bc
 	call WindowBgAddrWrapped
 	pop bc
 	pop de
+;> WriteVRAM(addr, 0xF1 + (page & 0x7F))
 	ld a, c
 	and $7f
 	add $f1
 	call WriteVRAM
+;>@buf mem[TilemapBufferAddr(offset - 1)] = 0xF1 + (page & 0x7F)
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
-	add $00
+;=@buf
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	ret
 
 
+;@ def DrawListFrame(cursor: hl, table: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Draws the page mark of a list window into wTilemapBuffer at the first entry of
+;@ `table`: when the list has more entries than rows, the "more" mark $E7 with the page
+;@ number ($F1 + page) left of it, else the plain bottom frame $EE. Then draws the cursor
+;@ (DrawCursorAt) at row mem[cursor] using the rest of the table.
+;@ test: skip writes to VRAM with the LCD-safe write
 DrawListFrame::
+;> row = mem[cursor]
 	ld a, [hli]
 	push af
 	push hl
+;>@pos pos = TilemapBufferAddr(mem16[table])
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
 	ld h, a
+;=@pos
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
+;> mem[pos] = 0xE7 if rows < count else 0xEE
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_012_43d9
-
+	jr nc, .mark
 	ld a, $e7
-
-jr_012_43d9:
+.mark
 	ld [hld], a
+;> if rows < count:
 	pop bc
-	jr nc, jr_012_43e1
-
+	jr nc, .done
+;>     mem[pos - 1] = 0xF1 + mem[cursor + 1]          # page number
 	ld a, [bc]
 	add $f1
 	ld [hl], a
-
-jr_012_43e1:
+.done
+;> return DrawCursorAt(row, table + 2)
 	pop af
 
+;@ def DrawCursorAt(cursor: a, table: de)
+;@ path: menu/cursor
+;@ Draws the cursor tile into wTilemapBuffer at entry cursor & $7F of `table`:
+;@ $E9 when chosen (bit 7), else the arrow $E8 or a blank while wCursorBlink bit 4 is set.
+;@ The other entries are left as they are.
+;@ test: skip calls a routine that works on the VRAM address of the cursor
 DrawCursorAt::
+;>@off offset = mem16[table + 2 * cursor]            # (bit 7 doubles away)
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@off
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;>@wb WindowBgAddrWrapped(offset)                      # its result is not used
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@wb
 	call WindowBgAddrWrapped
 	pop bc
 	pop de
+;>@tile2 tile = 0xE9 if cursor & 0x80 else 0xE0 if wCursorBlink & 0x10 else 0xE8
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_012_440d
-
+	jr nz, .put
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_012_440d
-
+;=@tile2
+	jr nz, .put
 	ld a, $e8
-
-jr_012_440d:
+.put
+;>@buf2 mem[TilemapBufferAddr(offset)] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
-	add $00
+;=@buf2
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
 	pop af
+;=@buf2
 	ld [hl], a
 	ret
 
 
+;@ def PrintMenuText(n: hl)
+;@ path: menu/script
+;@ Prints message number wScriptMenuText + n (the open script menu's n-th message).
+;@ test: skip prints a message
 PrintMenuText::
+;>@pm PrintMessage(wScriptMenuText + n)
 	ld a, [wScriptMenuText]
 	add l
 	ld l, a
-	ld a, [$c8f1]
+	ld a, [wScriptMenuText + 1]
 	adc h
 	ld h, a
+;=@pm
 	call PrintMessage
 	ret
 
 
+;@ def FarmKeeperMenu()
+;@ path: menu/farm
+;@ Script menu 3, the farm keeper: runs the current step (wMenuStep) of the farm menu.
+;@ test: skip jumps through a table to routines that call other banks
 FarmKeeperMenu::
+;> return FarmKeeperSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: menu/farm
+;@ Steps of the farm keeper menu: set up, open the menu, choose an option, run it, close.
 FarmKeeperSteps::
 	dw FarmKeeperInit
 	dw FarmKeeperOpenMenu
@@ -760,141 +1113,204 @@ FarmKeeperSteps::
 	dw FarmRunOption
 	dw FarmKeeperClose
 
+;@ def FarmKeeperInit()
+;@ path: menu/farm
+;@ Sets the farm menu up: lines the scroll position up with the tiles so the windows sit
+;@ on the background grid, clears the menu cursors, loads the menu font and renders the
+;@ menu words into letter tiles.
+;@ test: skip decompresses graphics into VRAM
 FarmKeeperInit::
+;> SnapToTile(hScrollX)
 	ld hl, hScrollX
 	call SnapToTile
+;> SnapToTile(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile
+;> fill(wLinkChoice, 0, 8)                            # wLinkChoice .. wListLastRows: the menu cursors
 	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>@bg wWindowBgMap = 0x9800 + ((lo(hScrollY) * 4 + lo(hScrollX) // 8) & 0x03FF)    # top left corner of the screen
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@bg
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@bg
 	adc $98
 	ld h, a
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@bg
 	ld a, l
 	ld [wWindowBgMap], a
 	ld a, h
-	ld [$c90a], a
+	ld [wWindowBgMap + 1], a
+;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x44
 	ld a, $44
 	ld [wTextIndex], a
+;> DrawTextTiles(0x9600, 0x0501)
 	ld hl, $9600
 	ld de, $0501
 	call DrawTextTiles
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> ResetCursorBlink()
 	call ResetCursorBlink
+;> hSpriteBGTile = 0x60                               # window tiles cover the sprites
 	ld a, $60
 	ldh [hSpriteBGTile], a
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
+;@ def FarmKeeperOpenMenu()
+;@ path: menu/farm
+;@ Once the keeper's greeting is printed, draws the farm menu.
+;@ test: skip draws into VRAM
 FarmKeeperOpenMenu::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
+;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;> DrawFarmMainMenu()
 	call DrawFarmMainMenu
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
 	ret
 
 
+;@ def DrawFarmMainMenu()
+;@ path: menu/farm
+;@ Draws the farm menu window (six options) and the message window into wTilemapBuffer,
+;@ with the cursor on the option in wLinkChoice (the menu choice byte).
 DrawFarmMainMenu::
-	ld de, $710c
+;> DrawWindowLayout(FarmMainMenuWindow)
+	ld de, FarmMainMenuWindow
 	call DrawWindowLayout
+;> DrawWindowLayout(0x2E07)                           # message window (home bank)
 	ld de, $2e07
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $4532
+;> DrawCursorAt(wLinkChoice, FarmMainMenuCursorPos)
+	ld de, FarmMainMenuCursorPos
 	ld a, [wLinkChoice]
 	call DrawCursorAt
 	ret
 
 
+;@ def FarmMainMenuInput()
+;@ path: menu/farm
+;@ Farm menu: moves the cursor over the six options. B or Start closes the menu, A runs
+;@ the option (after clearing the cursors the options use).
+;@ test: skip draws into VRAM
 FarmMainMenuInput::
-	ld de, $4532
+;> UpdateMenuCursor(wLinkChoice, 6, FarmMainMenuCursorPos)
+	ld de, FarmMainMenuCursorPos
 	ld hl, wLinkChoice
 	ld b, $06
 	call UpdateMenuCursor
+;> if wJoyPressed & 0x0A:                             # B or Start: close
 	ld a, [wJoyPressed]
 	and $0a
-	jr z, jr_012_4500
-
+	jr z, .notB
+;>     wMenuStep += 2
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wMenuStep
 	inc [hl]
-	jr jr_012_4531
-
-jr_012_4500:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A: run the option
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_012_4531
-
+	jr z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wLinkChoice |= 0x80                              # shown as chosen
 	ld hl, wLinkChoice
 	set 7, [hl]
+;>     fill(wMenuChoice2, 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
+;>     fill(wListCursor, 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-	jr jr_012_4531
-
-jr_012_4531:
+	jr .done
+.done
 	ret
 
 
+;@ path: menu/farm
+;@ Cursor positions of the six farm menu options: u16 window offsets (row * 32 + column), $FFFF ends.
 FarmMainMenuCursorPos::
-	db $21, $00, $61, $00, $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
+	dw $0021, $0061, $00a1, $00e1, $0121, $0161, $ffff
 
+;@ def FarmRunOption()
+;@ path: menu/farm
+;@ Runs the chosen farm menu option.
+;@ test: skip jumps through a table to routines that call other banks
 FarmRunOption::
+;> return FarmOptionTable[wLinkChoice]()             # bit 7 doubles away in the table index
 	ld a, [wLinkChoice]
 	rst $00
 
+;@ path: menu/farm
+;@ The farm menu options: leave a monster, take one out, look at the farm, send one away,
+;@ switch to the other pen, and quit.
 FarmOptionTable::
 	dw FarmDepositOption
 	dw FarmWithdrawOption
@@ -903,44 +1319,70 @@ FarmOptionTable::
 	dw FarmSwitchOption
 	dw FarmKeeperClose
 
+;@ def FarmKeeperClose()
+;@ path: menu/farm
+;@ Closes the farm menu: removes its windows, rebuilds the party bar (copying its two
+;@ rows into the field's party bar buffer at $C13C/$C150) and ends the script menu.
+;@ test: skip draws into VRAM
 FarmKeeperClose::
+;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;> DrawWindowLayout(0x2E07)                           # message window (home bank)
 	ld de, $2e07
 	call DrawWindowLayout
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> BuildStatusBar()
 	call BuildStatusBar
+;> CopyPartyBarRow(0xC13C, wPartyBarTiles)
 	ld hl, $c13c
 	ld de, wPartyBarTiles
 	call CopyPartyBarRow
+;> CopyPartyBarRow(0xC150, wPartyBarTiles + 32)
 	ld hl, $c150
-	ld de, $c1e0
+	ld de, wPartyBarTiles + 32
 	call CopyPartyBarRow
+;> hSpriteClip = 0x80
 	ld a, $80
 	ldh [hSpriteClip], a
+;> wFieldFlags &= ~0x10                               # the script menu is closed
 	ld hl, wFieldFlags
 	res 4, [hl]
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 	ret
 
 
+;@ def CopyPartyBarRow(dest: hl, src: de)
+;@ path: menu/farm
+;@ Copies one 20-tile row.
+;@ test: hl = rand(0xC000, 0xC100); de = rand(0xC200, 0xC300)
 CopyPartyBarRow::
+;>@cp copy(dest, src, 20)
 	ld b, $14
-
-jr_012_4581:
+.loop
 	ld a, [de]
 	ld [hli], a
 	inc de
+;=@cp
 	dec b
-	jr nz, jr_012_4581
-
+	jr nz, .loop
 	ret
 
 
+;@ def FarmDepositOption()
+;@ path: menu/farm/deposit
+;@ Farm option "leave a monster": runs the current step (wMenuSubStep).
+;@ test: skip jumps through a table to routines that call other banks
 FarmDepositOption::
+;> return FarmDepositSteps[wMenuSubStep]()
 	ld a, [wMenuSubStep]
 	rst $00
 
+;@ path: menu/farm/deposit
+;@ Steps of leaving a monster at the farm: 0-9 choose a party monster and leave it; 10-22
+;@ with only one monster in the party: exchange it for a farm monster instead.
 FarmDepositSteps::
 	dw FarmDepositStart
 	dw FarmDepositShowParty
@@ -966,124 +1408,179 @@ FarmDepositSteps::
 	dw FarmSwapViewStatus
 	dw FarmSwapStatusReturn
 
+;@ def FarmDepositStart()
+;@ path: menu/farm/deposit
+;@ Deposit, step 0: without monsters there is nothing to leave. With a single party
+;@ monster it can only be exchanged (message 4; offers the exchange when the farm has
+;@ monsters, else ends); otherwise asks which monster to leave (message 3).
+;@ test: skip prints a message
 FarmDepositStart::
+;> if wPartyCount == 0: return FarmNoMonsters()
 	ld a, [wPartyCount]
 	cp $00
-	jr z, jr_012_45ec
-
+	jr z, FarmNoMonsters
+;> if wPartyCount == 1:
 	cp $01
-	jr nz, jr_012_45e1
-
+	jr nz, .several
+;>     PrintMenuText(4)
 	ld hl, $0004
 	call PrintMenuText
+;>     if CountFarmMonsters() == 0:
 	call CountFarmMonsters
 	or a
-	jr nz, jr_012_45d7
-
+	jr nz, .canSwap
+;>         wMenuSubStep = 7                               # nothing to exchange with
 	ld a, $07
 	ld [wMenuSubStep], a
 	ret
-
-
-jr_012_45d7:
+.canSwap
+;>     else:
+;>         wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
+;>         wMenuSubStep = 10                              # offer the exchange
 	ld a, $0a
 	ld [wMenuSubStep], a
 	ret
-
-
-jr_012_45e1:
+.several
+;> else:
+;>     PrintMenuText(3)
 	ld hl, $0003
 	call PrintMenuText
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmNoMonsters()
+;@ path: menu/farm
+;@ The player has no monster: prints message $06E1 and goes back to the farm menu.
+;@ test: skip draws letter tiles
 FarmNoMonsters::
-jr_012_45ec:
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> PrintMessage(0x06E1)
 	ld hl, $06e1
 	call PrintMessage
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def FarmDepositShowParty()
+;@ path: menu/farm/deposit
+;@ Deposit, step 1: once the question is printed, shows the party list window with the
+;@ selected monster's name, sex and level.
+;@ test: skip draws into VRAM
 FarmDepositShowParty::
+;> if wTextState: return                              # wait for the message
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> ShowSelectedPartyMonster()
 	call ShowSelectedPartyMonster
+;> LoadPartyNameTiles()
 	call LoadPartyNameTiles
+;> DrawFarmPartyWindow()
 	call DrawFarmPartyWindow
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawFarmPartyWindow()
+;@ path: menu/farm
+;@ Draws the farm menu with the party list window and the level window of the
+;@ selected party monster into wTilemapBuffer, with the cursor on wMenuChoice2.
+;@ test: skip draws letter tiles
 DrawFarmPartyWindow::
+;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;> DrawFarmMainMenu()
 	call DrawFarmMainMenu
-	ld de, $71aa
+;> DrawWindowLayout(FarmPartyWindow)
+	ld de, FarmPartyWindow
 	call DrawWindowLayout
-	ld de, $759a
+;> DrawWindowLayout(LevelWindow)
+	ld de, LevelWindow
 	call DrawWindowLayout
+;> DrawSelectedPartyLevel()
 	call DrawSelectedPartyLevel
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $47af
+;> DrawCursorAt(wMenuChoice2, PartyListCursorPos)
+	ld de, PartyListCursorPos
 	ld a, [wMenuChoice2]
 	call DrawCursorAt
 	ret
 
 
+;@ def LoadPartyNameTiles()
+;@ path: menu/farm
+;@ Renders the names of the three party slots into the letter tiles at $8800, $8840 and
+;@ $8880 (empty slots get blank tiles) for the party list window.
+;@ test: skip draws letter tiles
 LoadPartyNameTiles::
+;> LoadPartyNameSlot(0x8800, 1)
 	ld hl, $8800
 	ld a, $01
 	call LoadPartyNameSlot
+;> LoadPartyNameSlot(0x8840, 2)
 	ld hl, $8840
 	ld a, $02
 	call LoadPartyNameSlot
+;> LoadPartyNameSlot(0x8880, 3)
 	ld hl, $8880
 	ld a, $03
 	call LoadPartyNameSlot
 	ret
 
 
+;@ def LoadPartyNameSlot(dest: hl, slot: a)
+;@ path: menu/farm
+;@ Renders the name of party member `slot` (1-3) into 4 letter tiles at `dest`, or
+;@ blanks the 4 tiles ($FF/$00 rows: white) when the party has fewer monsters.
+;@ test: skip draws letter tiles
 LoadPartyNameSlot::
+;> if wPartyCount < slot:
 	ld b, a
 	ld a, [wPartyCount]
 	cp b
-	jr nc, jr_012_4672
-
+	jr nc, .name
+;>     for _ in range(0x20):                            # 4 tiles of 8 rows
 	ld b, $20
-
-jr_012_4665:
+.blank
+;>         WriteVRAMInc(dest, 0xFF); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
+;>         WriteVRAMInc(dest, 0x00); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_012_4665
-
+	jr nz, .blank
+;>     return
 	ret
-
-
-jr_012_4672:
+.name
+;> name = PartyMonsterField(slot - 1, wMonName)
 	push hl
 	ld a, b
 	dec a
 	ld hl, wMonName
 	call PartyMonsterField
+;> DrawNameTiles(dest, name)
 	ld e, l
 	ld d, h
 	pop hl
@@ -1091,114 +1588,158 @@ jr_012_4672:
 	ret
 
 
+;@ def ShowSelectedPartyMonster()
+;@ path: menu/farm
+;@ Shows name and sex of the party monster under the cursor (wMenuChoice2).
+;@ test: skip draws letter tiles
 ShowSelectedPartyMonster::
+;>@mon return DrawMonsterNameAndSex(wParty[wMenuChoice2 & 0x7F])
 	ld a, [wMenuChoice2]
 	and $7f
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
+;=@mon
 	adc h
 	ld h, a
 	ld a, [hl]
 
+;@ def DrawMonsterNameAndSex(mon: a)
+;@ path: menu/farm
+;@ Renders the name of monster record `mon` into the letter tiles at $9650 and its sex
+;@ mark (tile $A7 male / $A8 female) into the tile at $9690.
+;@ test: skip draws letter tiles
 DrawMonsterNameAndSex::
+;>@dn DrawNameTiles(0x9650, MonsterField(mon, wMonName))
 	push af
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9650
+;=@dn
 	call DrawNameTiles
 	pop af
+;> sex = mem[MonsterField(mon, wMonGender)] & 1
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $9690
 	and $01
+;> wTextArg0[0] = 0xA7 + sex                          # sex mark
 	add $a7
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)    # on the stack
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
+;=@save
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x9690
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0                                     # text $0200: the string in wTextArg0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@restore restore(saved)                             # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@restore
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawSelectedPartyLevel()
+;@ path: menu/farm
+;@ Fills the level window for the party monster under the cursor (wMenuChoice2).
+;@ test: skip calls a routine that writes with the LCD-safe write
 DrawSelectedPartyLevel::
+;>@mon return DrawMonsterLevel(wParty[wMenuChoice2 & 0x7F])
 	ld a, [wMenuChoice2]
 	and $7f
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
+;=@mon
 	adc h
 	ld h, a
 	ld a, [hl]
 
+;@ def DrawMonsterLevel(mon: a)
+;@ path: menu/farm
+;@ Writes "Lv" (tile $DE) and the level of monster record `mon` into the level window of
+;@ wTilemapBuffer (row 11, column 10), plus the party mark $E3 at column 18 when the
+;@ monster is in the party (blank otherwise).
+;@ test: skip calls a routine that writes with the LCD-safe write
 DrawMonsterLevel::
+;> level = mem[MonsterField(mon, wMonLevel)]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> pos = TilemapBufferAddr(0x016A)
 	ld hl, $016a
 	call TilemapBufferAddr
+;> mem[pos] = 0xDE                                    # "Lv"
 	ld a, $de
 	ld [hli], a
+;> mem[pos + 1] = mem[pos + 2] = 0xE0
 	ld a, $e0
 	ld [hli], a
 	ld a, $e0
 	ld [hld], a
+;> DrawTwoDigits(level, pos + 1)
 	call DrawTwoDigits
+;> if mem[MonsterField(mon, wMonsters)] == 2:          # in the party
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	cp $02
-	jr nz, jr_012_473e
-
+	jr nz, .notInParty
+;>     mem[TilemapBufferAddr(0x0172)] = 0xE3
 	ld hl, $0172
 	call TilemapBufferAddr
 	ld a, $e3
 	ld [hl], a
 	ret
-
-
-jr_012_473e:
+.notInParty
+;> else:
+;>     mem[TilemapBufferAddr(0x0172)] = 0xE0
 	ld hl, $0172
 	call TilemapBufferAddr
 	ld a, $e0
@@ -1206,689 +1747,997 @@ jr_012_473e:
 	ret
 
 
+;@ def FarmDepositPartyInput()
+;@ path: menu/farm/deposit
+;@ Deposit, step 2: moves the cursor over the party list (updating name, sex and level
+;@ when it moves). B goes back to the farm menu, A asks to confirm the chosen monster.
+;@ test: skip draws into VRAM
 FarmDepositPartyInput::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
-	ld de, $47af
+;> old = wMenuChoice2
+	ld de, PartyListCursorPos
 	ld hl, wMenuChoice2
 	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
+;> UpdateMenuCursor(wMenuChoice2, wPartyCount, PartyListCursorPos)
 	call UpdateMenuCursor
+;> if wMenuChoice2 != old:
 	pop af
 	ld hl, wMenuChoice2
 	cp [hl]
-	jr z, jr_012_4772
-
+	jr z, .keys
+;>     ShowSelectedPartyMonster()
 	call ShowSelectedPartyMonster
-	ld de, $759a
+;>     DrawWindowLayout(LevelWindow)
+	ld de, LevelWindow
 	call DrawWindowLayout
+;>     DrawSelectedPartyLevel()
 	call DrawSelectedPartyLevel
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
-
-jr_012_4772:
+.keys
+;> if wJoyPressed & 0x02:                             # B: back to the farm menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4799
-
+	jr z, .notB
+;>     wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;>     wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;>     DrawTextTiles(0x8AA0, 0x0601)                    # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;>     PrintMenuText(1)
 	ld hl, $0001
 	call PrintMenuText
+;>     wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_012_47ae
-
-jr_012_4799:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_47ae
-
+	jp z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
-
-Jump_012_47ae:
-jr_012_47ae:
+.done
 	ret
 
 
+;@ path: menu/farm
+;@ Cursor positions of the party list window: 3 u16 window offsets (row * 32 + column), $FFFF ends.
 PartyListCursorPos::
-	db $6e, $00, $ae, $00, $ee, $00, $ff, $ff
+	dw $006e, $00ae, $00ee, $ffff
 
+;@ def FarmDepositAskConfirm()
+;@ path: menu/farm/deposit
+;@ Deposit, step 3: prints the farm keeper's question about the chosen monster (message 5).
+;@ test: skip prints a message
 FarmDepositAskConfirm::
+;> PrintMenuText(5)
 	ld hl, $0005
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmDepositShowChoice()
+;@ path: menu/farm/deposit
+;@ Deposit, step 4: once the question is printed, opens the two-choice window (look at the
+;@ monster's status / leave it).
+;@ test: skip draws into VRAM
 FarmDepositShowChoice::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawDepositChoice()
 	call DrawDepositChoice
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawDepositChoice()
+;@ path: menu/farm/deposit
+;@ Draws the two-choice window of the deposit with the cursor on wConfirmChoice.
 DrawDepositChoice::
-	ld de, $7b42
+;> DrawWindowLayout(StatusOrOkWindow)
+	ld de, StatusOrOkWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $483b
+;> DrawCursorAt(wConfirmChoice, DepositChoiceCursorPos)
+	ld de, DepositChoiceCursorPos
 	ld a, [wConfirmChoice]
 	call DrawCursorAt
 	ret
 
 
+;@ def FarmDepositChoiceInput()
+;@ path: menu/farm/deposit
+;@ Deposit, step 5: B closes the window and goes back to the party list; the first
+;@ choice opens the monster's status screen (step 8), the second leaves it at the farm (step 6).
+;@ test: skip draws into VRAM
 FarmDepositChoiceInput::
-	ld de, $483b
+;> UpdateMenuCursor(wConfirmChoice, 2, DepositChoiceCursorPos)
+	ld de, DepositChoiceCursorPos
 	ld hl, wConfirmChoice
 	ld b, $02
 	call UpdateMenuCursor
+;> if wJoyPressed & 0x02:                             # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4813
-
+	jr z, .notB
+;>     Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;>     DrawFarmPartyWindow()
 	call DrawFarmPartyWindow
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;>     PrintMenuText(3)
 	ld hl, $0003
 	call PrintMenuText
+;>     wMenuSubStep = 2
 	ld a, $02
 	ld [wMenuSubStep], a
-	jr jr_012_483a
-
-jr_012_4813:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_483a
-
+	jp z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice != 0x81:                       # first choice: status screen
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_012_4836
-
+	jr z, .second
+;>         wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>         wMenuSubStep = 8
 	ld a, $08
 	ld [wMenuSubStep], a
-	jp Jump_012_483a
-
-
-jr_012_4836:
+	jp .done
+.second
+;>     else:
+;>         wMenuSubStep += 1                              # leave it at the farm
 	ld hl, wMenuSubStep
 	inc [hl]
-
-Jump_012_483a:
-jr_012_483a:
+.done
 	ret
 
 
+;@ path: menu/farm/deposit
+;@ Cursor positions of the deposit's two-choice window: 2 u16 window offsets, $FFFF ends.
 DepositChoiceCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def FarmDepositDoIt()
+;@ path: menu/farm/deposit
+;@ Deposit, step 6: takes the chosen monster out of the party (the record stays and is
+;@ marked as a farm monster by CompactMonsters) and prints message 6.
+;@ test: skip calls bank 1
 FarmDepositDoIt::
+;>@slot wParty[wMenuChoice2 & 0x7F] = 0xFF
 	ld a, [wMenuChoice2]
 	and $7f
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
+;=@slot
 	adc h
 	ld h, a
 	ld [hl], $ff
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> PrintMenuText(6)
 	ld hl, $0006
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmDepositDone()
+;@ path: menu/farm
+;@ Once the message is printed: back to the farm menu (redraws its words, message 1).
+;@ test: skip draws letter tiles
 FarmDepositDone::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> PrintMenuText(1)
 	ld hl, $0001
 	call PrintMenuText
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def FarmDepositViewStatus()
+;@ path: menu/farm/deposit
+;@ Deposit, step 8: opens the monster status screen on the party, starting at the chosen
+;@ monster; it runs over the menu (wMenuOverlay) and returns to step 9.
+;@ test: skip calls bank 7
 FarmDepositViewStatus::
+;> wViewList = wParty
 	ld hl, wParty
 	ld a, l
 	ld [wViewList], a
 	ld a, h
-	ld [$c931], a
+	ld [wViewList + 1], a
+;> wViewIndex = wMenuChoice2 & 0x7F
 	ld a, [wMenuChoice2]
 	and $7f
 	ld [wViewIndex], a
+;> wViewCount = wPartyCount
 	ld a, [wPartyCount]
 	ld [wViewCount], a
+;> UpdateMonsterStatus()
 	ld hl, far_UpdateMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def FarmDepositStatusReturn()
+;@ path: menu/farm/deposit
+;@ Deposit, step 9: after the status screen, puts the cursor on the monster shown last,
+;@ reloads the menu graphics and redraws the party list with the two-choice window.
+;@ test: skip draws into VRAM
 FarmDepositStatusReturn::
+;> wMenuChoice2 = (wMenuChoice2 & 0x80) | wViewResult
 	ld a, [wMenuChoice2]
 	and $80
 	ld b, a
 	ld a, [wViewResult]
 	or b
 	ld [wMenuChoice2], a
+;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x44
 	ld a, $44
 	ld [wTextIndex], a
+;> DrawTextTiles(0x9600, 0x0501)
 	ld hl, $9600
 	ld de, $0501
 	call DrawTextTiles
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> ShowSelectedPartyMonster()
 	call ShowSelectedPartyMonster
+;> LoadPartyNameTiles()
 	call LoadPartyNameTiles
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> DrawFarmPartyWindow()
 	call DrawFarmPartyWindow
+;> DrawDepositChoice()
 	call DrawDepositChoice
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> PrintMenuText(5)
 	ld hl, $0005
 	call PrintMenuText
+;> wMenuSubStep = 5
 	ld a, $05
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def FarmSwapAsk()
+;@ path: menu/farm/deposit
+;@ Deposit with a single party monster, step 10: offers to exchange it for a farm
+;@ monster (message 7).
+;@ test: skip prints a message
 FarmSwapAsk::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> PrintMenuText(7)
 	ld hl, $0007
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmSwapShowYesNo()
+;@ path: menu/farm/deposit
+;@ Step 11: once the question is printed, opens the yes/no window.
+;@ test: skip draws into VRAM
 FarmSwapShowYesNo::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawSwapYesNo()
 	call DrawSwapYesNo
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawSwapYesNo()
+;@ path: menu/farm/deposit
+;@ Draws the yes/no window of the exchange offer with the cursor on wConfirmChoice2.
 DrawSwapYesNo::
-	ld de, $6f54
+;> DrawWindowLayout(FarmYesNoWindow)
+	ld de, FarmYesNoWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $498d
+;> DrawCursorAt(wConfirmChoice2, SwapYesNoCursorPos)
+	ld de, SwapYesNoCursorPos
 	ld a, [wConfirmChoice2]
 	call DrawCursorAt
 	ret
 
 
+;@ def FarmSwapYesNoInput()
+;@ path: menu/farm/deposit
+;@ Step 12: yes goes on to the list of farm monsters; no or B back to the farm menu.
+;@ test: skip draws into VRAM
 FarmSwapYesNoInput::
-	ld de, $498d
+;> UpdateMenuCursor(wConfirmChoice2, 2, SwapYesNoCursorPos)
+	ld de, SwapYesNoCursorPos
 	ld hl, wConfirmChoice2
 	ld b, $02
 	call UpdateMenuCursor
+;> if not wJoyPressed & 0x02:
+;>@a     if not wJoyPressed & 0x01: return
+;>@b     QueueSound(0x59)
+;>@c     if wConfirmChoice2 != 0x81:                     # yes
+;>@d         wMenuSubStep += 1
+;>@d         return
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4974
-
-jr_012_4954:
+	jr z, .notB
+.back
+;> # B, or A on "no": back to the farm menu
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> PrintMenuText(1)
 	ld hl, $0001
 	call PrintMenuText
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
-	jr jr_012_498c
-
-jr_012_4974:
+	jr .done
+.notB
+;=@a
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_498c
-
+	jp z, .done
+;=@b
 	ld a, $59
 	call QueueSound
+;=@c
 	ld a, [wConfirmChoice2]
 	cp $81
-	jr z, jr_012_4954
-
+	jr z, .back
+;=@d
 	ld hl, wMenuSubStep
 	inc [hl]
-
-Jump_012_498c:
-jr_012_498c:
+.done
 	ret
 
 
+;@ path: menu/farm/deposit
+;@ Cursor positions of the yes/no window: 2 u16 window offsets, $FFFF ends.
 SwapYesNoCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def FarmSwapBuildList()
+;@ path: menu/farm/deposit
+;@ Step 13: lists the farm monsters (wSceneObjects) and asks which one to take (message 8).
+;@ test: skip prints a message
 FarmSwapBuildList::
+;> CountFarmMonsters()
 	call CountFarmMonsters
+;> ListFarmMonsters()
 	call ListFarmMonsters
+;> PrintMenuText(8)
 	ld hl, $0008
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmSwapShowList()
+;@ path: menu/farm/deposit
+;@ Step 14: once the message is printed, shows the farm monster list.
+;@ test: skip draws into VRAM
 FarmSwapShowList::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;> DrawFarmSwapList()
 	call DrawFarmSwapList
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawFarmSwapList()
+;@ path: menu/farm/deposit
+;@ Draws the farm menu, the level window of the selected farm monster, the farm list
+;@ window (4 rows a page) and the yes/no window into wTilemapBuffer.
+;@ test: skip draws letter tiles
 DrawFarmSwapList::
+;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;> DrawFarmMainMenu()
 	call DrawFarmMainMenu
-	ld de, $759a
+;> DrawWindowLayout(LevelWindow)
+	ld de, LevelWindow
 	call DrawWindowLayout
+;> DrawSelectedFarmLevel()
 	call DrawSelectedFarmLevel
-	ld de, $71f4
+;> DrawWindowLayout(FarmListWindow)
+	ld de, FarmListWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $4e26
+;> DrawListFrame(wListCursor, FarmListCursorPos, 4, wListLength)
+	ld de, FarmListCursorPos
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawListFrame
+;> DrawSwapYesNo()
 	call DrawSwapYesNo
 	ret
 
 
+;@ def ShowSelectedFarmMonster()
+;@ path: menu/farm
+;@ Shows name and sex of the list entry under the cursor (page * 4 + row of wSceneObjects).
+;@ test: skip draws letter tiles
 ShowSelectedFarmMonster::
+;>@i i = wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@i
 	add b
+;>@m DrawMonsterNameAndSex(wSceneObjects[i])
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@m
 	ld a, [hl]
 	call DrawMonsterNameAndSex
 	ret
 
 
+;@ def DrawSelectedFarmLevel()
+;@ path: menu/farm
+;@ Fills the level window for the list entry under the cursor.
+;@ test: skip calls a routine that writes with the LCD-safe write
 DrawSelectedFarmLevel::
+;>@i i = wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@i
 	add b
+;>@m DrawMonsterLevel(wSceneObjects[i])
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@m
 	ld a, [hl]
 	call DrawMonsterLevel
 	ret
 
 
+;@ def FarmSwapListInput()
+;@ path: menu/farm/deposit
+;@ Step 15: moves the cursor over the farm list (pages with Left/Right), updating the
+;@ name, sex and level shown. B goes back to the yes/no question, A asks to confirm.
+;@ test: skip draws into VRAM
 FarmSwapListInput::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
-	ld de, $4e26
+;>@old old_row = wListCursor; old_page = wListPage
+	ld de, FarmListCursorPos
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@old
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> UpdatePagedList(wListCursor, 4, wListLength, FarmListCursorPos)
 	call UpdatePagedList
+;> if wListCursor != old_row:
 	pop af
 	ld hl, wListCursor
 	cp [hl]
-	jr z, jr_012_4a42
-
+	jr z, .samePos
+;>     ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;>     DrawSelectedFarmLevel()
 	call DrawSelectedFarmLevel
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
-
-jr_012_4a42:
+.samePos
+;> if wListPage != old_page:
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_012_4a55
-
+	jr z, .keys
+;>     LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;>     ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;>     DrawSelectedFarmLevel()
 	call DrawSelectedFarmLevel
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
-
-jr_012_4a55:
+.keys
+;> if wJoyPressed & 0x02:                             # B: back to the yes/no question
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4a79
-
+	jr z, .notB
+;>     Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;>     RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
+;>     DrawFarmMainMenu()
 	call DrawFarmMainMenu
+;>     DrawSwapYesNo()
 	call DrawSwapYesNo
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;>     PrintMenuText(7)
 	ld hl, $0007
 	call PrintMenuText
+;>     wMenuSubStep = 12
 	ld a, $0c
 	ld [wMenuSubStep], a
-	jr jr_012_4a8e
-
-jr_012_4a79:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_4a8e
-
+	jp z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
+;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
-
-Jump_012_4a8e:
-jr_012_4a8e:
+.done
 	ret
 
 
+;@ def FarmSwapAskConfirm()
+;@ path: menu/farm/deposit
+;@ Step 16: asks about the chosen farm monster (message 9).
+;@ test: skip prints a message
 FarmSwapAskConfirm::
+;> PrintMenuText(9)
 	ld hl, $0009
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmSwapShowChoice()
+;@ path: menu/farm/deposit
+;@ Step 17: once the question is printed, opens the two-choice window (status / exchange).
+;@ test: skip draws into VRAM
 FarmSwapShowChoice::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawSwapChoice()
 	call DrawSwapChoice
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def DrawSwapChoice()
+;@ path: menu/farm/deposit
+;@ Draws the two-choice window of the exchange with the cursor on wConfirmChoice.
 DrawSwapChoice::
-	ld de, $7b42
+;> DrawWindowLayout(StatusOrOkWindow)
+	ld de, StatusOrOkWindow
 	call DrawWindowLayout
+;> ResetCursorBlink()
 	call ResetCursorBlink
-	ld de, $4b18
+;> DrawCursorAt(wConfirmChoice, SwapChoiceCursorPos)
+	ld de, SwapChoiceCursorPos
 	ld a, [wConfirmChoice]
 	call DrawCursorAt
 	ret
 
 
+;@ def FarmSwapChoiceInput()
+;@ path: menu/farm/deposit
+;@ Step 18: B goes back to the farm list (step 15), the first choice opens the status
+;@ screen (step 21), the second makes the exchange (step 19).
+;@ test: skip draws into VRAM
 FarmSwapChoiceInput::
-	ld de, $4b18
+;> UpdateMenuCursor(wConfirmChoice, 2, SwapChoiceCursorPos)
+	ld de, SwapChoiceCursorPos
 	ld hl, wConfirmChoice
 	ld b, $02
 	call UpdateMenuCursor
+;> if wJoyPressed & 0x02:                             # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_012_4af1
-
+	jr z, .notB
+;>     Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;>     ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;>     LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;>     DrawFarmSwapList()
 	call DrawFarmSwapList
+;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;>     PrintMenuText(8)
 	ld hl, $0008
 	call PrintMenuText
+;>     wMenuSubStep = 15
 	ld a, $0f
 	ld [wMenuSubStep], a
-	jr jr_012_4b17
-
-jr_012_4af1:
+	jr .done
+.notB
+;> elif wJoyPressed & 0x01:                           # A
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_012_4b17
-
+	jp z, .done
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice != 0x81:                       # first choice: status screen
 	ld a, [wConfirmChoice]
 	cp $81
-	jr z, jr_012_4b13
-
+	jr z, .second
+;>         wStatusViewVars[0] = 0
 	xor a
 	ld [wStatusViewVars], a
+;>         wFieldMenuStep = 0
 	ld [wFieldMenuStep], a
+;>         wMenuSubStep = 21
 	ld a, $15
 	ld [wMenuSubStep], a
-	jr jr_012_4b17
-
-jr_012_4b13:
+	jr .done
+.second
+;>     else:
+;>         wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
-
-Jump_012_4b17:
-jr_012_4b17:
+.done
 	ret
 
 
+;@ path: menu/farm/deposit
+;@ Cursor positions of the exchange's two-choice window: 2 u16 window offsets, $FFFF ends.
 SwapChoiceCursorPos::
-	db $21, $01, $61, $01, $ff, $ff
+	dw $0121, $0161, $ffff
 
+;@ def FarmSwapDoIt()
+;@ path: menu/farm/deposit
+;@ Step 19: puts the chosen farm monster in place of the only party monster (which stays at
+;@ the farm), with both names in wTextArg0/wTextArg1 for message 10.
+;@ test: skip calls bank 1
 FarmSwapDoIt::
+;>@cn CopyName(wTextArg0, MonsterField(wParty[0], wMonName))
 	ld a, [wParty]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
+;=@cn
 	call CopyName
+;>@i i = wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@i
 	add b
+;>@m mon = wSceneObjects[i]
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@m
 	ld a, [hl]
+;>@cn2 CopyName(wTextArg1, MonsterField(mon, wMonName))
 	push af
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg1
+;=@cn2
 	call CopyName
+;> wParty[0] = mon
 	pop af
 	ld [wParty], a
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> PrintMenuText(10)
 	ld hl, $000a
 	call PrintMenuText
+;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
+;@ def FarmSwapDone()
+;@ path: menu/farm
+;@ Once the message is printed: back to the farm menu.
+;@ test: skip draws letter tiles
 FarmSwapDone::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
-
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> PrintMenuText(1)
 	ld hl, $0001
 	call PrintMenuText
+;> wMenuStep = 1
 	ld a, $01
 	ld [wMenuStep], a
 	ret
 
 
+;@ def FarmSwapViewStatus()
+;@ path: menu/farm/deposit
+;@ Step 21: opens the monster status screen on the farm list, at the chosen entry.
+;@ test: skip calls bank 7
 FarmSwapViewStatus::
+;> wViewList = wSceneObjects
 	ld hl, wSceneObjects
 	ld a, l
 	ld [wViewList], a
 	ld a, h
-	ld [$c931], a
+	ld [wViewList + 1], a
+;>@i wViewIndex = wListPage * 4 + (wListCursor & 0x7F)
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@i
 	add b
 	ld a, a
 	ld [wViewIndex], a
+;> wViewCount = wListLength
 	ld a, [wListLength]
 	ld [wViewCount], a
+;> UpdateMonsterStatus()
 	ld hl, far_UpdateMonsterStatus
 	rst $10
+;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 	ret
 
 
+;@ def FarmSwapStatusReturn()
+;@ path: menu/farm/deposit
+;@ Step 22: after the status screen, puts the list cursor on the entry shown last,
+;@ reloads the menu graphics and redraws the list with the two-choice window (step 18).
+;@ test: skip draws into VRAM
 FarmSwapStatusReturn::
+;>@lc wListCursor = (wListCursor & 0x80) | (wViewResult & 3)
 	ld a, [wListCursor]
 	and $80
 	ld b, a
 	ld a, [wViewResult]
 	and $03
 	or b
+;=@lc
 	ld [wListCursor], a
+;> wListPage = wViewResult >> 2
 	ld a, [wViewResult]
 	srl a
 	srl a
 	ld [wListPage], a
+;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x44
 	ld a, $44
 	ld [wTextIndex], a
+;> DrawTextTiles(0x9600, 0x0501)
 	ld hl, $9600
 	ld de, $0501
 	call DrawTextTiles
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0x33
 	ld a, $33
 	ld [wTextIndex], a
+;> DrawTextTiles(0x8AA0, 0x0601)                      # the farm menu's words
 	ld hl, $8aa0
 	ld de, $0601
 	call DrawTextTiles
+;> CountFarmMonsters()
 	call CountFarmMonsters
+;> ListFarmMonsters()
 	call ListFarmMonsters
+;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
+;> DrawFarmSwapList()
 	call DrawFarmSwapList
+;> DrawSwapChoice()
 	call DrawSwapChoice
+;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
+;> PrintMenuText(9)
 	ld hl, $0009
 	call PrintMenuText
+;> wMenuSubStep = 18
 	ld a, $12
 	ld [wMenuSubStep], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 	ret
@@ -3736,9 +4585,9 @@ jr_012_580b:
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -3747,9 +4596,9 @@ jr_012_580b:
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -3763,9 +4612,9 @@ jr_012_580b:
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	pop hl
 	ld a, l
 	add $10
@@ -3890,7 +4739,11 @@ jr_012_5912:
 	ret
 
 
-	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff, $92, $01, $a8, $00
+FarmViewMonsterCursorPos::
+	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff
+
+FarmViewEggCursorPos::
+	db $92, $01, $a8, $00
 	db $e8, $00, $28, $01, $68, $01, $ff, $ff
 
 FarmViewStatus::
@@ -4080,6 +4933,7 @@ LoadReleaseMenuWords::
 	ret
 
 
+ReleaseKindCursorPos::
 	db $a1, $00, $e1, $00, $ff, $ff
 
 FarmReleaseBuildList::
@@ -4350,7 +5204,11 @@ jr_012_5c2f:
 	ret
 
 
-	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff, $92, $01, $a8, $00
+ReleaseMonsterCursorPos::
+	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff
+
+ReleaseEggCursorPos::
+	db $92, $01, $a8, $00
 	db $e8, $00, $28, $01, $68, $01, $ff, $ff
 
 FarmReleaseAskConfirm::
@@ -4440,6 +5298,7 @@ jr_012_5cd8:
 	ret
 
 
+ReleaseChoiceCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
 FarmReleaseDoIt::
@@ -4730,6 +5589,7 @@ jr_012_5ecb:
 	ret
 
 
+FarmSwitchCursorPos::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 FarmSwitchCheck::
@@ -5109,13 +5969,13 @@ LibraryRun::
 LibraryClose::
 	call ClearTilemapBuffer
 	call CopyTilemapBufferToVram
-	ld hl, far_Call_0B_4088
+	ld hl, far_ReloadMapTileset
 	rst $10
-	ld hl, far_Call_0B_40CE
+	ld hl, far_DrawMapScreen
 	rst $10
 	call BuildStatusBar
 	call DrawStatusBar
-	ld hl, far_Call_06_4D5A
+	ld hl, far_LoadFieldActorGfx
 	rst $10
 	xor a
 	ld [wMenuOverlay], a
@@ -5289,6 +6149,7 @@ Jump_012_6225:
 	ret
 
 
+FamilyCursorPos::
 	db $46, $01, $21, $00, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
 
 LibraryEnterFamily::
@@ -5359,6 +6220,7 @@ jr_012_6284:
 	ret
 
 
+FamilyFirstSpecies::
 	db $00, $14, $2d, $46, $5a, $6e, $82, $9b, $af, $c8, $d7
 
 LibraryShowMonsters::
@@ -5527,6 +6389,7 @@ jr_012_639d:
 	ret
 
 
+MonsterListCursorPos::
 	db $52, $01, $29, $00, $69, $00, $a9, $00, $e9, $00, $29, $01, $ff, $ff
 
 LibraryShowMonster::
@@ -5618,9 +6481,9 @@ DrawLongTextTiles::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -5628,9 +6491,9 @@ DrawLongTextTiles::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, far_PrintText_4D
 	rst $10
 	pop de
@@ -5640,9 +6503,9 @@ DrawLongTextTiles::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -5833,16 +6696,16 @@ LibraryTurnPage::
 LoadBreedingIcons::
 	ld a, [wCurPartyMember]
 	ld [wBreedQuery], a
-	ld hl, far_Call_16_485C
+	ld hl, far_LookupBreedPair
 	rst $10
 	ld a, [wBreedPair]
 	ld hl, $8600
 	call LoadBreedIconTiles
 	ld [wBreedPair], a
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	ld hl, $8700
 	call LoadBreedIconTiles
-	ld [$da72], a
+	ld [wBreedTemp], a
 	ret
 
 
@@ -5882,6 +6745,7 @@ jr_012_65ef:
 	ret
 
 
+BreedIconGfx::
 	db $00, $2f, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
 	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
 	db $01, $2f, $02, $2f, $03, $2f, $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f
@@ -5926,7 +6790,7 @@ DrawBreedingIcons::
 	ret nc
 
 jr_012_67d4:
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	cp $ff
 	jr z, jr_012_67de
 
@@ -5969,7 +6833,7 @@ jr_012_6804:
 	rst $10
 
 jr_012_6810:
-	ld a, [$da72]
+	ld a, [wBreedTemp]
 	cp $ff
 	ret z
 
@@ -6278,6 +7142,7 @@ jr_012_69ec:
 	ret
 
 
+ChooseListCursorPos::
 	db $05, $01, $61, $00, $a1, $00, $e1, $00, $ff, $ff
 
 ChooseMonsterAskConfirm::
@@ -6344,6 +7209,7 @@ jr_012_6a61:
 	ret
 
 
+ChooseYesNoCursorPos::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 ChooseMonsterCheckMaster::
@@ -6805,27 +7671,49 @@ CollectorClose::
 	ret
 
 
+CollectorRewards::
 	db $0d, $00, $50, $01, $12, $00, $51, $01, $19, $00, $53, $01, $1e, $00, $54, $01
-	db $ff, $ff, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ff, $ff
+
+UnusedWindow6D3B::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $b0, $b1, $b2, $b3, $b4, $b5
 	db $b6, $b7, $b8, $b9, $ba, $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd
 	db $ce, $cf, $d0, $d1, $d2, $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0e, $01, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow6DA6::
+	db $0e, $01, $fa
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6
+	db $fd, $d9
+
+ChooseYesNoWindow::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow6DF0::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $a8, $a7, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $0c, $00, $fa, $ef
+	db $a8, $a7, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow6E15::
+	db $0c, $00, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow6E32::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $a4, $aa, $d4, $e0, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d6, $d5, $de, $de, $e0, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d5, $ab, $a5, $a9, $e0, $ff
-	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $81, $00, $fa, $ef, $ef, $ef
+	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow6E73::
+	db $81, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6837,11 +7725,19 @@ CollectorClose::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0
 	db $a1, $a2, $a3, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+UnusedWindow6F29::
 	db $40, $01, $fa, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $fd
-	db $d9, $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e5, $e0
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $01, $fa, $ef, $ef
+	db $d9
+
+UnusedWindow6F3A::
+	db $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e5, $e0
+	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+FarmYesNoWindow::
+	db $00, $01, $fa, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+UnusedWindow6F79::
 	db $88, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d
@@ -6849,12 +7745,19 @@ CollectorClose::
 	db $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b
 	db $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow6FF0::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $a4, $d5, $a7, $a8, $a9, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $aa, $ab, $ac, $e0, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow701F::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $a4, $a5, $a6, $a7, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $a8, $a9, $aa, $ab, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+UnusedWindow7049::
 	db $68, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d
@@ -6862,12 +7765,21 @@ CollectorClose::
 	db $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b
 	db $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $6c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow70C0::
+	db $6c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $46, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $fd, $d9
+
+UnusedWindow70DD::
+	db $46, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $a0, $a1, $a2, $a3, $e0, $dd, $e0, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $ee, $fd, $d9
+
+FarmMainMenuWindow::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $92, $98, $9c, $e3, $e0, $9c, $93, $93, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e3, $95, $91, $96, $e0
 	db $9a, $e3, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
@@ -6877,37 +7789,58 @@ CollectorClose::
 	db $d8, $fe, $e0, $d6, $97, $d5, $d5, $e3, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d5, $a2, $95, $99, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c
+	db $d9
+
+FarmPartyWindow::
+	db $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c
 	db $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82
 	db $83, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86
 	db $87, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a
-	db $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00, $fa, $ef, $ef
+	db $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+FarmListWindow::
+	db $0d, $00, $fa, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb
 	db $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $ee, $fd, $d9
+
+ChooseMonsterWindow::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe
 	db $e0, $80, $81, $82, $83, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $84, $85, $86, $87, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $88, $89, $8a, $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00
+	db $e0, $88, $89, $8a, $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7298::
+	db $00
 	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff
 	db $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff
-	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00, $fa, $ef, $ef, $ef, $ef
+	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow72F2::
+	db $0d, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $fb, $d8, $fe, $e0, $95, $9d, $93, $9c, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $9c, $96, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $fd, $d9
+
+UnusedWindow731C::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9e, $90, $d6, $99, $d5, $98
 	db $e4, $a0, $a1, $a2, $a3, $e0, $e0, $e0, $e4, $e0, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $da, $a4, $a5, $a6, $a7, $e0, $db, $a8, $a9, $aa, $ab, $e0, $dc, $ac
 	db $ad, $ae, $af, $ff, $d8, $fe, $e0, $9f, $e4, $e0, $e0, $e0, $e0, $9f, $e4, $e0
 	db $e0, $e0, $e0, $9f, $e4, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7396::
+	db $80, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $84, $e0, $80, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6918,33 +7851,57 @@ CollectorClose::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $87, $e0
 	db $83, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8a
+	db $d9
+
+UnusedWindow743A::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8a
 	db $98, $d5, $d5, $92, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $94, $90, $99, $91, $94, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $40, $41, $42, $43, $e0, $e0, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $40, $00, $fa, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7482::
+	db $40, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb
 	db $eb, $ed, $d8, $fe, $e0, $61, $62, $63, $64, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $65, $66, $67, $68, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $69, $6a, $6b, $6c, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $6d, $6e, $6f, $70, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b
+	db $ee, $fd, $d9
+
+UnusedWindow74DC::
+	db $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b
 	db $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $61
 	db $62, $63, $64, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $65
 	db $66, $67, $68, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $69
 	db $6a, $6b, $6c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6d
-	db $6e, $6f, $70, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $09, $01, $fa
+	db $6e, $6f, $70, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7536::
+	db $09, $01, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $71
 	db $72, $73, $74, $75, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $76, $77, $78, $79, $7a, $e0, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $a9, $00, $fa, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7574::
+	db $a9, $00, $fa, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $71, $72, $73
 	db $74, $75, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $49, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $d9
+
+LevelWindow::
+	db $49, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $e0, $e0, $65, $66, $67, $68, $69, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow75C0::
+	db $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $78, $79, $7a, $7b, $7c, $e0, $ff
-	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $87, $00, $fa
+	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow75E6::
+	db $87, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $65
 	db $66, $67, $68, $69, $6a, $6b, $6c, $6d, $a0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6e, $6f, $70, $71, $72
@@ -6952,12 +7909,18 @@ CollectorClose::
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f
 	db $a2, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $a3, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow7666::
+	db $00, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d5, $df, $9f, $de, $e0
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8
 	db $de, $d5, $d6, $d6, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $d5, $a5, $a1, $a3, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow76AE::
+	db $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $70, $71, $72, $73, $74, $75, $76, $77, $78
 	db $9b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $9c, $ff, $d8, $fe
@@ -6965,17 +7928,26 @@ CollectorClose::
 	db $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $9d, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96
 	db $97, $98, $99, $9a, $9e, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow772E::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $a4, $a5, $a6, $a7, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $a8, $a9, $aa, $ab, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $ac, $ad, $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $80
+	db $e0, $ac, $ad, $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+FarmCountsWindow::
+	db $80
 	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $9e
 	db $9f, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $e0, $a0, $a1, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $63, $e0, $9e, $9f, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $63
 	db $e0, $a0, $a1, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $fd, $d9
+
+EggListWindow::
+	db $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $8c
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $8d, $ff, $d8, $fe, $e0
@@ -6983,21 +7955,36 @@ CollectorClose::
 	db $79, $7a, $7b, $7c, $7d, $7e, $7f, $8e, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $80, $81, $82, $83, $84, $85
 	db $86, $87, $88, $8f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $0c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $fd, $d9
+
+UnusedWindow784D::
+	db $0c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $95, $9d, $93, $9c, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $9c, $96, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
+	db $ee, $fd, $d9
+
+UnusedWindow787C::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $a1, $a7, $a9, $a4, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $a4, $a2, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6
+	db $fd, $d9
+
+FarmSwitchWindow::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+LibraryFamilyWindow::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $67, $68, $69, $6a, $6b, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $6c, $6d, $6e, $6f, $70, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $71, $72, $73, $74, $75, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $76, $77, $78, $79, $7a, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $7b, $7c, $7d, $7e
-	db $7f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $08, $00, $fa, $ef
+	db $7f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+LibraryMonsterListWindow::
+	db $08, $00, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $81, $82
 	db $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91
@@ -7006,7 +7993,10 @@ CollectorClose::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f
 	db $a0, $a1, $a2, $a3, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $a4, $a5, $a6, $a7, $a8, $a9, $aa, $ab, $ac, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $01
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+LibraryMonsterPageWindow::
+	db $00, $00, $01
 	db $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02
 	db $02, $02, $03, $d8, $04, $80, $81, $82, $83, $84, $85, $00, $00, $14, $15, $16
 	db $17, $18, $19, $1a, $1b, $1c, $00, $05, $d8, $04, $86, $87, $88, $89, $8a, $8b
@@ -7030,13 +8020,22 @@ CollectorClose::
 	db $13, $13, $13, $13, $13, $13, $13, $13, $13, $13, $13, $13, $13, $05, $d8, $04
 	db $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $7a, $7b, $7c, $7d
 	db $7e, $7f, $05, $d8, $06, $07, $08, $08, $08, $08, $08, $08, $08, $08, $08, $08
-	db $08, $08, $08, $08, $08, $08, $08, $09, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef
+	db $08, $08, $08, $08, $08, $08, $08, $09, $d9
+
+StatusOrOkWindow::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef
 	db $ef, $fb, $d8, $fe, $e0, $95, $9d, $93, $9c, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $9c, $96, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
+	db $ee, $fd, $d9
+
+EggStatusOrOkWindow::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $95, $9d, $93, $9c, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $9c, $96, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	db $fd, $d9
+
+Bank12Padding::
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

@@ -4,471 +4,599 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $00b", ROMX[$4000], BANK[$b]
 
+;@ path: field/map
+;@ Bank number byte: RST $10 reads it to know which bank to switch back to.
 BankNumber_0B::
 	db $0b
 
+;@ path: field/map
+;@ Far-call entry points of bank $0B, the map-screen bank (tilesets, screens, objects,
+;@ triggers and warps).
 FarTable_0B::
-	dw Call_0B_4015
-	dw Call_0B_4088
-	dw Call_0B_40CE
-	dw $4213
-	dw $4332
-	dw $43a4
-	dw $451d
-	dw Call_0B_470F
-	dw Call_0B_4239
-	dw Call_0B_4488
+	dw LoadMapTileset
+	dw ReloadMapTileset
+	dw DrawMapScreen
+	dw RedrawScreenBuffer
+	dw FindObjectAtPosition
+	dw CheckStepTrigger
+	dw CheckStandingWarp
+	dw SpawnMapObjects
+	dw GetScreenTilemapRef
+	dw CheckEdgeWarp
 
-Call_0B_4015::
+;@ def LoadMapTileset()
+;@ path: field/map
+;@ Map setup: takes over a pending warp's destination as the current map, then loads
+;@ the map's tileset to $9000 and its size from the map info table in the home bank
+;@ ($26DD, 8 bytes per map: tileset reference, width u16, height u16, solid-tile limit;
+;@ $2A5D on gate floors). The extra tiles for map 8 ($291D to $8800) are meant for map 8
+;@ only, but the check lost its compare (`ld a, $08` instead of `cp $08`), so whether
+;@ they load depends on the flags DecompressVRAM leaves.
+;@ test: skip decompresses graphics
+LoadMapTileset::
+;> if wWarpPending:
 	ld a, [wWarpPending]
 	or a
-	jr z, jr_00b_4027
-
+	jr z, .noWarp
+;>     wMapId = wWarpMap
 	ld a, [wWarpMap]
 	ld [wMapId], a
+;>     wOnGateFloor = wWarpOnGateFloor
 	ld a, [wWarpOnGateFloor]
 	ld [wOnGateFloor], a
-
-jr_00b_4027:
-	ld hl, far_Call_16_5B4E
+.noWarp
+;> NextGateFloor()
+	ld hl, far_NextGateFloor
 	rst $10
-	ld de, $26dd
+;> info = GateFloorMapInfo if wOnGateFloor else MapInfo
+	ld de, MapInfo
 	ld a, [wOnGateFloor]
 	or a
-	jr z, jr_00b_4037
-
-	ld de, $2a5d
-
-jr_00b_4037:
+	jr z, .fixed
+	ld de, GateFloorMapInfo
+.fixed
+;>@i info += wMapId * 8
 	ld a, [wMapId]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@i
 	add hl, de
+;>@d DecompressVRAM(mem16[info], 0x9000)   # the map's tiles
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
 	push hl
+;=@d
 	ld hl, $9000
 	call DecompressVRAM
+;> if flags_nz:                        # (meant: wMapId == 8)
 	ld a, [wMapId]
 	ld a, $08
-	jr nz, jr_00b_4076
-
+	jr nz, .size
+;>     DecompressVRAM(0x291D, 0x8800)
 	ld de, $291d
 	ld hl, $8800
 	call DecompressVRAM
+;>     wFieldTimer = 0
 	xor a
 	ld [wFieldTimer], a
 	ld [$c8a7], a
-	jr jr_00b_4076
+	jr .size
 
 	db $fa, $51, $d9, $fe, $07, $20, $0a, $af, $21, $d8, $c0, $01, $28, $00, $cd, $c7
 	db $12
 
-jr_00b_4076:
+.size
+;> hMapWidth = mem16[info + 2]
 	pop hl
 	ld a, [hli]
 	ldh [hMapWidth], a
 	ld a, [hli]
 	ldh [$ff9e], a
+;> hMapHeight = mem16[info + 4]
 	ld a, [hli]
 	ldh [hMapHeight], a
 	ld a, [hl]
 	ldh [$ffa0], a
-	ld hl, far_Call_16_5FE4
+;> MakeGateFloor()
+	ld hl, far_MakeGateFloor
 	rst $10
+;> return
 	ret
 
 
-Call_0B_4088::
-	ld de, $26dd
+;@ def ReloadMapTileset()
+;@ path: field/map
+;@ Reloads the current map's tileset and size (as LoadMapTileset without the warp and the
+;@ far calls; same lost compare for map 8).
+;@ test: skip decompresses graphics
+ReloadMapTileset::
+;> info = GateFloorMapInfo if wOnGateFloor else MapInfo
+	ld de, MapInfo
 	ld a, [wOnGateFloor]
 	or a
-	jr z, jr_00b_4094
-
-	ld de, $2a5d
-
-jr_00b_4094:
+	jr z, .fixed
+	ld de, GateFloorMapInfo
+.fixed
+;>@i info += wMapId * 8
 	ld a, [wMapId]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;=@i
 	add hl, de
+;>@d DecompressVRAM(mem16[info], 0x9000)
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
 	push hl
+;=@d
 	ld hl, $9000
 	call DecompressVRAM
+;> if flags_nz:                        # (meant: wMapId == 8)
 	ld a, [wMapId]
 	ld a, $08
-	jr nz, jr_00b_40c0
-
+	jr nz, .size
+;>     DecompressVRAM(0x291D, 0x8800)
 	ld de, $291d
 	ld hl, $8800
 	call DecompressVRAM
+;>     wFieldTimer = 0
 	xor a
 	ld [wFieldTimer], a
 	ld [$c8a7], a
-
-jr_00b_40c0:
+.size
+;> hMapWidth = mem16[info + 2]
 	pop hl
 	ld a, [hli]
 	ldh [hMapWidth], a
 	ld a, [hli]
 	ldh [$ff9e], a
+;> hMapHeight = mem16[info + 4]
 	ld a, [hli]
 	ldh [hMapHeight], a
 	ld a, [hl]
 	ldh [$ffa0], a
+;> return
 	ret
 
 
-Call_0B_40CE::
+;@ def DrawMapScreen()
+;@ path: field/map
+;@ Draws the map screen Terry is on. Maps are made of screens of 10 x 8 tiles (160 x 128
+;@ pixels), up to 4 across: wMapScreen = row * 4 + column, and the camera goes to the
+;@ screen's corner. The screen's tilemap is decompressed to wSavedTilemap (20 x 16 tiles,
+;@ rows 32 bytes apart) and copied to the background map at the scroll position; on a
+;@ Game Boy Color the attributes come from wScreenMap (two 4-bit values per byte).
+;@ The screen is marked as seen. The code after the final ret (far entry 3) only
+;@ rebuilds the screen's tilemap buffer.
+;@ test: skip draws a whole screen
+DrawMapScreen::
+;>@r row = hPlayerY // 128
 	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	ld a, $80
 	call Divide16
+;> wMapScreen = row * 4
 	ld a, l
 	add a
 	add a
 	ld [wMapScreen], a
+;>@sy hScrollY = row * 128
 	ld a, $80
 	ld c, l
 	ld b, h
 	call Multiply24
 	ld a, l
 	ldh [hScrollY], a
+;=@sy
 	ld a, h
 	ldh [$ffbc], a
+;> col = hPlayerX // 160
 	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
 	ld a, $a0
 	call Divide16
+;> wMapScreen += col
 	ld a, [wMapScreen]
 	add l
 	ld [wMapScreen], a
+;>@sx hScrollX = col * 160
 	ld a, $a0
 	ld c, l
 	ld b, h
 	call Multiply24
 	ld a, l
 	ldh [hScrollX], a
+;=@sx
 	ld a, h
 	ldh [$ffb8], a
+;> if not wFieldFlags & 0x0A:
 	ld a, [wFieldFlags]
 	bit 1, a
-	jr nz, jr_00b_4134
-
+	jr nz, .draw
 	bit 3, a
-	jr nz, jr_00b_4134
-
+	jr nz, .draw
+;>     LoadMapPalettes()
 	ld hl, far_LoadMapPalettes
 	rst $10
+;>     if not wGameStarted & 0x80:
 	ld a, [wGameStarted]
 	bit 7, a
-	jr nz, jr_00b_4134
-
-	call Call_0B_4239
+	jr nz, .draw
+;>         Decompress(GetScreenTilemapRef(), wSavedTilemap)   # the screen's tilemap
+	call GetScreenTilemapRef
 	ld hl, wSavedTilemap
 	call Decompress
+;>         PlaceFloorStairs(wSavedTilemap)  # the stairs of a gate floor
 	ld de, wSavedTilemap
-	call Call_0B_4309
+	call PlaceFloorStairs
+;>         LoadMapAttrBuffer()
 	ld hl, far_LoadMapAttrBuffer
 	rst $10
-
-jr_00b_4134:
+.draw
+;> if wOnCGB:
 	ld a, [wOnCGB]
 	or a
-	jr z, jr_00b_41b3
-
+	jr z, .tiles
+;>     rVBK = 1                      # attributes
 	di
 	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
+;>@b     base = 0x9800 + (hScrollY & 0xF8) * 4 + (hScrollX >> 3 & 0x1F)
 	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
 	sla l
 	rla
+;=@b
 	sla l
 	rla
 	ld h, $98
 	add h
 	ld h, a
 	ldh a, [hScrollX]
+;=@b
 	rrca
 	rrca
 	rrca
 	and $1f
 	add l
 	ld l, a
+;=@b
 	ld a, $00
 	adc h
 	ld h, a
+;>@y     for y in range(16):
 	ld de, wScreenMap
 	ld c, $10
-
-jr_00b_4165:
+.attrRow
+;>@x         for x in range(10):
 	ld b, $0a
 	push hl
-
-jr_00b_4168:
+.attrPair
+;>@n1             WriteVRAM(wScreenMap[16 * y + x] >> 4)   # left tile (column wraps at 32)
 	ld a, [de]
 	swap a
 	and $0f
 	call WriteVRAM
+;=@n1
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@n1
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>@n2             WriteVRAM(wScreenMap[16 * y + x] & 0x0F)  # right tile
 	ld a, [de]
 	and $0f
 	call WriteVRAM
+;=@n2
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@n2
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;=@x
 	inc de
 	dec b
-	jr nz, jr_00b_4168
-
+	jr nz, .attrPair
+;=@y
 	pop hl
 	ld a, e
 	add $06
 	ld e, a
 	ld a, d
 	adc $00
+;=@y
 	ld d, a
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@y
 	or $98
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_00b_4165
-
+	jr nz, .attrRow
+;>     rVBK = 0
 	di
 	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
-
-jr_00b_41b3:
+.tiles
+;>@t base = 0x9800 + (hScrollY & 0xF8) * 4 + (hScrollX >> 3 & 0x1F)
 	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
 	sla l
 	rla
+;=@t
 	sla l
 	rla
 	ld h, $98
 	add h
 	ld h, a
 	ldh a, [hScrollX]
+;=@t
 	rrca
 	rrca
 	rrca
 	and $1f
 	add l
 	ld l, a
+;=@t
 	ld a, $00
 	adc h
 	ld h, a
+;>@ty for y in range(16):              # 16 rows of 20 tiles
 	ld de, wSavedTilemap
 	ld c, $10
-
-jr_00b_41d5:
+.tileRow
+;>@tx     for x in range(20):
 	ld b, $14
 	push hl
-
-jr_00b_41d8:
+.tile
+;>@tw         WriteVRAM(wSavedTilemap[32 * y + x])   # (columns wrap at 32)
 	ld a, [de]
 	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
 	ld a, l
+;=@tw
 	inc a
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;=@tx
 	inc de
 	dec b
-	jr nz, jr_00b_41d8
-
+	jr nz, .tile
+;=@ty
 	pop hl
 	ld a, e
 	add $0c
 	ld e, a
 	ld a, d
 	adc $00
+;=@ty
 	ld d, a
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@ty
 	or $98
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_00b_41d5
-
+	jr nz, .tileRow
+;>@sn wFloorsSeen[wMapScreen] = 1      # this screen has been visited
 	ld a, [wMapScreen]
 	ld hl, wFloorsSeen
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sn
 	ld h, a
 	ld [hl], $01
+;> return
 	ret
 
 
+;@ def RedrawScreenBuffer()
+;@ path: field/map
+;@ Far entry: rebuilds the current screen's tilemap in wTilemapBuffer (with the gate
+;@ floor stairs) and its palettes and attributes without drawing it, and marks the
+;@ screen as seen.
+;@ test: skip decompresses a screen
+RedrawScreenBuffer::
+;> LoadMapPalettes()
 	ld hl, far_LoadMapPalettes
 	rst $10
-	call Call_0B_4239
+;> Decompress(GetScreenTilemapRef(), wTilemapBuffer)
+	call GetScreenTilemapRef
 	ld hl, wTilemapBuffer
 	call Decompress
+;> PlaceFloorStairs(wTilemapBuffer)
 	ld de, wTilemapBuffer
-	call Call_0B_4309
+	call PlaceFloorStairs
+;> LoadMapAttrBuffer()
 	ld hl, far_LoadMapAttrBuffer
 	rst $10
+;>@sn wFloorsSeen[wMapScreen] = 1
 	ld a, [wMapScreen]
 	ld hl, wFloorsSeen
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sn
 	ld h, a
 	ld [hl], $01
+;> return
 	ret
 
 
-Call_0B_4239::
+;@ def GetScreenTilemapRef() -> de
+;@ path: field/map
+;@ Tilemap reference (entry, bank) of the current screen. Fixed maps: MapScreenTable gives
+;@ the map's list of 16 screen pointers; a screen starts with the address of the story
+;@ variable that selects its version, followed by 6-byte versions (tilemap reference,
+;@ object list, warp list) indexed by that variable's value. Gate floors build theirs in
+;@ bank $16.
+;@ test: skip reads the map tables
+GetScreenTilemapRef::
+;> if wOnGateFloor:
 	ld a, [wOnGateFloor]
 	or a
-	jr z, jr_00b_4244
-
-	ld hl, far_Call_16_7033
+	jr z, .fixedMap
+;>     return GetFloorScreenMap()
+	ld hl, far_GetFloorScreenMap
 	rst $10
 	ret
 
 
-jr_00b_4244:
-	ld hl, $4b43
+.fixedMap
+;>@m screens = mem16[MapScreenTable + wMapId * 2]
+	ld hl, MapScreenTable
 	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@s screen = mem16[screens + wMapScreen * 2]
 	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@v version = screen + 2 + mem[mem16[screen]] * 6
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
 	ld a, [de]
 	ld e, a
+;=@v
 	add a
 	add e
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@v
 	adc h
 	ld h, a
+;> return mem16[version]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	ret
 
 
-Call_0B_4274::
+;@ def GetScreenObjects() -> hl
+;@ path: field/map
+;@ Object list of the current screen (version field +2, see GetScreenTilemapRef): 5-byte records
+;@ ($FF ends) - flags, sprite or trigger parameter, tile X, tile Y (in the screen), script
+;@ number. Flags bit 7 clear: an actor (bits 4-5 its facing); $8x: a talk trigger (low
+;@ nibble = direction Terry must face, $F any); $9x: a step trigger. On a gate floor the
+;@ list is GateFloorNpcLists[wFloorNpcKind], or an empty one without a special character.
+;@ test: skip reads the map tables
+GetScreenObjects::
+;> if not wOnGateFloor:
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_00b_42ac
-
-	ld hl, $4b43
+	jr nz, .gateFloor
+;>@m     screens = mem16[MapScreenTable + wMapId * 2]
+	ld hl, MapScreenTable
 	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@s     screen = mem16[screens + wMapScreen * 2]
 	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@v     version = screen + 2 + mem[mem16[screen]] * 6
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
 	ld a, [de]
 	ld e, a
+;=@v
 	add a
 	add e
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@v
 	adc h
 	ld h, a
+;>     return mem16[version + 2]
 	inc hl
 	inc hl
 	ld a, [hli]
@@ -477,22 +605,25 @@ Call_0B_4274::
 	ret
 
 
-jr_00b_42ac:
-	ld a, [$c926]
+.gateFloor
+;> if wFloorNpcScreen == 0xFF:
+	ld a, [wFloorNpcScreen]
 	cp $ff
-	jr nz, jr_00b_42b7
-
-	ld hl, $4308
+	jr nz, .npc
+;>     return GateFloorNoObjects
+	ld hl, GateFloorNoObjects
 	ret
 
 
-jr_00b_42b7:
-	ld hl, $42c8
-	ld a, [$c92b]
+.npc
+;>@n return GateFloorNpcLists[wFloorNpcKind]
+	ld hl, GateFloorNpcLists
+	ld a, [wFloorNpcKind]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@n
 	adc h
 	ld h, a
 	ld a, [hli]
@@ -501,283 +632,370 @@ jr_00b_42b7:
 	ret
 
 
+;@ path: field/gatefloor
+;@ Object lists of the gate floors' special characters, by wFloorNpcKind: 8 pointers,
+;@ then one actor record each (flags $0F, sprite, tile 1/1 - SpawnMapObjects moves it to
+;@ wFloorNpcX/Y - and script 1-6) ended by $FF.
+GateFloorNpcLists::
 	db $d8, $42, $de, $42, $e4, $42, $ea, $42, $f0, $42, $f6, $42, $fc, $42, $02, $43
 	db $0f, $0b, $01, $01, $01, $ff, $0f, $0b, $01, $01, $01, $ff, $0f, $0c, $01, $01
 	db $02, $ff, $0f, $0c, $01, $01, $02, $ff, $0f, $11, $01, $01, $03, $ff, $0f, $08
 	db $01, $01, $04, $ff, $0f, $0f, $01, $01, $05, $ff, $0f, $06, $01, $01, $06, $ff
+;@ path: field/gatefloor
+;@ An empty object list (only the $FF end), for gate floors without a special character.
+GateFloorNoObjects::
 	db $ff
 
-Call_0B_4309::
+;@ def PlaceFloorStairs(tilemap: de)
+;@ path: field/gatefloor
+;@ On the gate floor's stairs screen, writes the 2 x 2 stairs tiles ($3C-$3F) into the
+;@ screen's tilemap at wStairsOffset.
+;@ test: skip writes a tilemap buffer
+PlaceFloorStairs::
+;> if not wOnGateFloor or wMapScreen != mem[0xC960]:
 	ld a, [wOnGateFloor]
 	or a
 	ret z
-
-	ld hl, $c960
+	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
+;>     return
 	ret nz
-
-	ld a, [$c962]
+;> p = tilemap + mem16[0xC962]
+	ld a, [wStairsOffset]
 	ld l, a
 	ld a, [$c963]
 	ld h, a
 	add hl, de
+;> mem[p] = 0x3C
 	ld a, $3c
 	ld [hli], a
+;> mem[p + 1] = 0x3D
 	inc a
 	ld [hl], a
+;>@r mem[p + 32] = 0x3E                # next row
 	ld a, l
 	add $1f
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r
 	ld a, $3e
 	ld [hli], a
+;> mem[p + 33] = 0x3F
 	inc a
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def FindObjectAtPosition() -> hNumber
+;@ path: field/objects
+;@ Far entry: script number of the actor or talk trigger at the position in
+;@ hDivisorHigh/hFindY (see FindObjectAt) into hNumber, $FF for nothing.
+;@ test: skip reads the map tables
+FindObjectAtPosition::
+;> mem[0xFFD6] = 0
 	ld a, $00
 	ldh [$ffd6], a
+;> hNumber[0] = FindObjectAt(wActors)
 	ld hl, wActors
-	call Call_0B_433F
+	call FindObjectAt
 	ldh [hNumber], a
+;> return
 	ret
 
 
-Call_0B_433F::
+;@ def FindObjectAt(actors: hl) -> a
+;@ path: field/objects
+;@ What is at position (X in hDivisorHigh/$FFDC, Y in hFindY/$FFDE, pixels): first the
+;@ actors (32-byte records, $FF ends; bit 6 of the flags = ignore) - an actor within 16
+;@ pixels gives its script number (+4) and leaves its index in $FFD6. Otherwise the
+;@ screen's talk triggers ($8x records of the object list, low nibble = the direction
+;@ Terry must face, $F any) on that tile; $FFD6 = $FF then. $FF = nothing.
+;@ test: skip reads the map tables
+FindObjectAt::
+;> while mem[actors] != 0xFF:
 	ld a, [hl]
 	cp $ff
-	jr z, jr_00b_4366
-
+	jr z, .triggers
+;>     if not mem[actors] & 0x40 and IsActorAt(actors):
 	bit 6, a
-	jr nz, jr_00b_4357
-
-	call Call_0B_43E5
-	jr nz, jr_00b_4357
-
+	jr nz, .nextActor
+	call IsActorAt
+	jr nz, .nextActor
+;>@ra         return mem[actors + 4]
 	ld a, l
 	add $04
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@ra
 	ld a, [hl]
 	ret
 
 
-jr_00b_4357:
+.nextActor
+;>@na     actors += 0x20
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;>     mem[0xFFD6] += 1
 	ldh a, [$ffd6]
 	inc a
 	ldh [$ffd6], a
-	jr Call_0B_433F
+;=@na
+	jr FindObjectAt
 
-jr_00b_4366:
+.triggers
+;> mem[0xFFD6] = 0xFF
 	ld a, $ff
 	ldh [$ffd6], a
-	call Call_0B_4274
+;> obj = GetScreenObjects()
+	call GetScreenObjects
 
-jr_00b_436d:
+.trigger
+;>@t while mem[obj] != 0xFF:
 	ld a, [hl]
 	cp $ff
 	ret z
-
+;>     if not mem[obj] & 0x80:          # the actor records follow the triggers
+;>         return 0xFF
 	bit 7, a
-	jr z, jr_00b_43a1
-
+	jr z, .none
+;>     if mem[obj] & 0xF0 == 0x80 and IsTriggerAt(obj):
 	and $f0
 	cp $80
-	jr nz, jr_00b_4397
-
-	call Call_0B_4452
-	jr nz, jr_00b_4397
-
+	jr nz, .nextTrigger
+	call IsTriggerAt
+	jr nz, .nextTrigger
+;>         need = mem[obj] & 0x0F
 	ld a, [hl]
 	and $0f
+;>         if need == 0x0F or need == hPlayerDir:
 	cp $0f
-	jr z, jr_00b_438d
-
+	jr z, .found
 	ld b, a
 	ldh a, [hPlayerDir]
 	cp b
-	jr nz, jr_00b_4397
+	jr nz, .nextTrigger
 
-jr_00b_438d:
+.found
+;>@rf             return mem[obj + 4]
 	ld a, l
 	add $04
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@rf
 	ld a, [hl]
 	ret
 
 
-jr_00b_4397:
+.nextTrigger
+;>     obj += 5
 	ld a, l
 	add $05
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00b_436d
+;=@t
+	jr .trigger
 
-jr_00b_43a1:
+.none
+;> return 0xFF
 	ld a, $ff
 	ret
 
 
+;@ def CheckStepTrigger() -> hNumber
+;@ path: field/objects
+;@ Far entry: script number of the step trigger ($9x object record) under Terry into
+;@ hNumber; $FF when there is none, Terry is busy (bit 6 of hPlayerFlags) or a script
+;@ is running.
+;@ test: skip reads the map tables
+CheckStepTrigger::
+;> hNumber[0] = 0xFF
 	ld a, $ff
 	ldh [hNumber], a
+;> if hPlayerFlags & 0x40 or wScriptRunning:
 	ldh a, [hPlayerFlags]
 	bit 6, a
 	ret nz
-
 	ld a, [wScriptRunning]
 	or a
+;>     return
 	ret nz
-
-	call Call_0B_43B8
+;> hNumber[0] = FindStepTrigger()
+	call FindStepTrigger
 	ldh [hNumber], a
+;> return
 	ret
 
 
-Call_0B_43B8::
-	call Call_0B_4274
+;@ def FindStepTrigger() -> a
+;@ path: field/objects
+;@ Script number of the step trigger ($9x object record) on the tile at hDivisorHigh/
+;@ hFindY, $FF when none.
+;@ test: skip reads the map tables
+FindStepTrigger::
+;> obj = GetScreenObjects()
+	call GetScreenObjects
 
-jr_00b_43bb:
+.loop
+;>@t while mem[obj] != 0xFF:
 	ld a, [hl]
 	cp $ff
 	ret z
-
+;>     if not mem[obj] & 0x80:
+;>         return 0xFF
 	bit 7, a
-	jr z, jr_00b_43e2
-
+	jr z, .none
+;>     if mem[obj] & 0xF0 == 0x90 and IsTriggerAt(obj):
 	and $f0
 	cp $90
-	jr nz, jr_00b_43d8
-
-	call Call_0B_4452
-	jr nz, jr_00b_43d8
-
+	jr nz, .next
+	call IsTriggerAt
+	jr nz, .next
+;>@r         return mem[obj + 4]
 	ld a, l
 	add $04
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@r
 	ld a, [hl]
 	ret
 
 
-jr_00b_43d8:
+.next
+;>     obj += 5
 	ld a, l
 	add $05
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00b_43bb
+;=@t
+	jr .loop
 
-jr_00b_43e2:
+.none
+;> return 0xFF
 	ld a, $ff
 	ret
 
 
-Call_0B_43E5::
+;@ def IsActorAt(actor: hl) -> zf
+;@ path: field/objects
+;@ Zero flag set when the actor (not hidden: bit 0 of +5) stands less than 16 pixels from
+;@ position (hDivisorHigh/$FFDC, hFindY/$FFDE) in both X (+$18) and Y (+$1A).
+;@ test: skip reads HRAM inputs
+IsActorAt::
+;>@h if mem[actor + 5] & 1:
 	push hl
 	push bc
 	push de
 	ld a, l
 	add $05
 	ld l, a
+;=@h
 	ld a, h
 	adc $00
 	ld h, a
 	bit 0, [hl]
-	jr nz, jr_00b_444c
-
+;>     return False
+	jr nz, PositionMiss
+;>@dx dx = mem16[0xFFDB] - mem16[actor + 0x18]
 	ld a, l
 	add $13
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@dx
 	ldh a, [hDivisorHigh]
 	sub [hl]
 	inc hl
 	ld c, a
 	ldh a, [$ffdc]
 	sbc [hl]
+;=@dx
 	inc hl
 	ld b, a
-	jr nz, jr_00b_440f
-
+;>@ax if abs(dx) >= 16:
+	jr nz, .negX
 	ld a, c
 	cp $10
-	jr nc, jr_00b_444c
+	jr nc, PositionMiss
+	jr .checkY
 
-	jr jr_00b_4422
-
-jr_00b_440f:
+.negX
+;=@ax
 	ld a, c
 	cpl
 	add $01
 	ld c, a
 	ld a, b
 	cpl
+;=@ax
 	adc $00
 	ld b, a
 	ld a, b
 	or a
-	jr nz, jr_00b_444c
-
+	jr nz, PositionMiss
+;=@ax
 	ld a, c
 	cp $10
-	jr nc, jr_00b_444c
+;>     return False
+	jr nc, PositionMiss
 
-jr_00b_4422:
+.checkY
+;>@dy dy = mem16[0xFFDD] - mem16[actor + 0x1A]
 	ldh a, [hFindY]
 	sub [hl]
 	inc hl
 	ld c, a
 	ldh a, [$ffde]
 	sbc [hl]
+;=@dy
 	ld b, a
-	jr nz, jr_00b_4434
-
+;>@ay if abs(dy) >= 16:
+	jr nz, .negY
 	ld a, c
 	cp $10
-	jr nc, jr_00b_444c
+	jr nc, PositionMiss
+	jr PositionHit
 
-	jr jr_00b_4447
-
-jr_00b_4434:
+.negY
+;=@ay
 	ld a, c
 	cpl
 	add $01
 	ld c, a
 	ld a, b
 	cpl
+;=@ay
 	adc $00
 	ld b, a
 	ld a, b
 	or a
-	jr nz, jr_00b_444c
-
+	jr nz, PositionMiss
+;=@ay
 	ld a, c
 	cp $10
-	jr nc, jr_00b_444c
+;>     return False
+	jr nc, PositionMiss
 
-jr_00b_4447:
+PositionHit:
+;> return True
 	xor a
 	pop de
 	pop bc
@@ -785,7 +1003,8 @@ jr_00b_4447:
 	ret
 
 
-jr_00b_444c:
+PositionMiss:
+;> return False
 	xor a
 	inc a
 	pop de
@@ -794,339 +1013,412 @@ jr_00b_444c:
 	ret
 
 
-Call_0B_4452::
+;@ def IsTriggerAt(obj: hl) -> zf
+;@ path: field/objects
+;@ Zero flag set when the object record's tile (+2 X, +3 Y, inside the 10 x 8 screen)
+;@ is the tile of position (hDivisorHigh/$FFDC, hFindY/$FFDE).
+;@ test: skip reads HRAM inputs
+IsTriggerAt::
+;>@x if (mem16[0xFFDB] >> 4) % 10 != mem[obj + 2]:
 	push hl
 	push bc
 	push de
 	inc hl
 	inc hl
 	ldh a, [hDivisorHigh]
+;=@x
 	swap a
 	and $0f
 	ld b, a
 	ldh a, [$ffdc]
 	swap a
 	and $f0
+;=@x
 	or b
 	ld b, a
 	ld a, $0a
 	call Divide8
 	cp [hl]
-	jr nz, jr_00b_444c
-
+;>     return False
+	jr nz, PositionMiss
+;>@y if (mem16[0xFFDD] >> 4) % 8 != mem[obj + 3]:
 	inc hl
 	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
 	ldh a, [$ffde]
+;=@y
 	swap a
 	and $f0
 	or b
 	ld b, a
 	ld a, $08
 	call Divide8
+;=@y
 	cp [hl]
-	jr nz, jr_00b_444c
+;>     return False
+	jr nz, PositionMiss
+;> return True
+	jr PositionHit
 
-	jr jr_00b_4447
-
-Call_0B_4488::
+;@ def CheckEdgeWarp()
+;@ path: field/warps
+;@ Warps on the screen edge: when Terry stands on the tile of a warp record that lies on
+;@ the border of its screen (X 0 or 9, Y 0 or 7), takes it. Warp records (7 bytes, $FF
+;@ ends; the list is field +4 of the screen version): tile X, tile Y in the screen,
+;@ destination map, destination gate-floor flag, destination screen (low nibble; bit 7 =
+;@ half a tile lower), destination tile X and Y in that screen.
+;@ test: skip reads the map tables
+CheckEdgeWarp::
+;> if wFadeState or wGameModeChange or wMapLoadState:
+;>@c     return
 	ld a, [wFadeState]
 	or a
 	ret nz
-
 	ld a, [wGameModeChange]
 	or a
 	ret nz
-
+;=@c
 	ld a, [wMapLoadState]
 	or a
 	ret nz
-
+;> if wFieldFlags & 1 or hPlayerFlags & 1 or wOnGateFloor:
+;>@g     return
 	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
-
 	ldh a, [hPlayerFlags]
 	bit 0, a
 	ret nz
-
+;=@g
 	ld a, [wOnGateFloor]
 	or a
 	ret nz
-
-	ld hl, $4b43
+;>@m screens = mem16[MapScreenTable + wMapId * 2]
+	ld hl, MapScreenTable
 	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@s screen = mem16[screens + wMapScreen * 2]
 	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@v version = screen + 2 + mem[mem16[screen]] * 6
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
 	ld a, [de]
 	ld e, a
+;=@v
 	add a
 	add e
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@v
 	adc h
 	ld h, a
+;>@w warp = mem16[version + 4]
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	ld a, [hli]
 	ld h, [hl]
+;=@w
 	ld l, a
-	ld bc, $2de7
+;>@o origin = ScreenTileOrigins[wMapScreen]   # tile position of the screen in the map
+	ld bc, ScreenTileOrigins
 	ld a, [wMapScreen]
 	add a
 	add c
 	ld c, a
 	ld a, $00
+;=@o
 	adc b
 	ld b, a
 	ld a, [bc]
 	ld e, a
 	inc bc
 	ld a, [bc]
+;=@o
 	ld d, a
 
-jr_00b_44ec:
+.loop
+;>@l while mem[warp] != 0xFF:
 	ld a, [hl]
 	cp $ff
 	ret z
-
+;>@e     if mem[warp] in (0, 9) or mem[warp + 1] in (0, 7):
 	ld a, [hl]
 	or a
-	jr z, jr_00b_4504
-
+	jr z, .edge
 	cp $09
-	jr z, jr_00b_4504
-
+	jr z, .edge
+;=@e
 	inc hl
 	ld a, [hl]
 	dec hl
 	or a
-	jr z, jr_00b_4504
-
+	jr z, .edge
+;=@e
 	cp $07
-	jr z, jr_00b_4504
+	jr z, .edge
+	jr .next
 
-	jr jr_00b_4513
-
-jr_00b_4504:
+.edge
+;>@t         if hPlayerTileX - origin.x == mem[warp] and hPlayerTileY - origin.y == mem[warp + 1]:
 	ldh a, [hPlayerTileX]
 	sub e
 	cp [hl]
-	jr nz, jr_00b_4513
-
+	jr nz, .next
 	inc hl
 	ldh a, [hPlayerTileY]
+;=@t
 	sub d
 	cp [hl]
 	dec hl
-	jp z, Jump_00b_45a8
+;>             return TakeWarp(warp)
+	jp z, TakeWarp
 
-jr_00b_4513:
+.next
+;>     warp += 7
 	ld a, l
 	add $07
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00b_44ec
+;=@l
+	jr .loop
 
+
+;@ def CheckStandingWarp()
+;@ path: field/warps
+;@ Far entry: takes a warp inside the screen (not on its border) when Terry stands on its
+;@ tile, or on a gate floor the stairs to the next floor (a stairs tile on wStairsScreen).
+;@ TakeWarp sets the destination (wWarpMap, wWarpOnGateFloor, wWarpX/Y in pixels from the
+;@ destination screen's origin) and starts the change: a fade, or the gate-world
+;@ transition (bit 5 of wFieldFlags) when going to a gate floor or coming back from a
+;@ gate world - the party is healed then. Afterwards, on maps $53-$59 and $61-$64,
+;@ bank $16 runs CountEncounterSteps.
+;@ test: skip reads the map tables
+CheckStandingWarp::
+;> if wFieldFlags & 1 or hPlayerFlags & 1:
 	ld a, [wFieldFlags]
 	bit 0, a
-	jp nz, Jump_00b_4674
-
+	jp nz, AfterWarpCheck
 	ldh a, [hPlayerFlags]
 	bit 0, a
-	jp nz, Jump_00b_4674
-
+;>     return AfterWarpCheck()
+	jp nz, AfterWarpCheck
+;> if wOnGateFloor:
+;>     return CheckFloorStairs()
 	ld a, [wOnGateFloor]
 	or a
-	jp nz, Jump_00b_46a7
-
-	ld hl, $4b43
+	jp nz, CheckFloorStairs
+;>@m screens = mem16[MapScreenTable + wMapId * 2]
+	ld hl, MapScreenTable
 	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@s screen = mem16[screens + wMapScreen * 2]
 	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@v version = screen + 2 + mem[mem16[screen]] * 6
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	inc hl
 	ld a, [de]
 	ld e, a
+;=@v
 	add a
 	add e
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@v
 	adc h
 	ld h, a
+;>@w warp = mem16[version + 4]
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	ld a, [hli]
 	ld h, [hl]
+;=@w
 	ld l, a
-	ld bc, $2de7
+;>@o origin = ScreenTileOrigins[wMapScreen]
+	ld bc, ScreenTileOrigins
 	ld a, [wMapScreen]
 	add a
 	add c
 	ld c, a
 	ld a, $00
+;=@o
 	adc b
 	ld b, a
 	ld a, [bc]
 	ld e, a
 	inc bc
 	ld a, [bc]
+;=@o
 	ld d, a
 
-jr_00b_4578:
+.loop
+;>@l while mem[warp] != 0xFF:          # warps inside the screen
 	ld a, [hl]
 	cp $ff
-	jp z, Jump_00b_4674
-
+	jp z, AfterWarpCheck
+;>@x     if mem[warp] not in (0, 9) and hPlayerTileX - origin.x == mem[warp]:
 	ld a, [hl]
 	or a
-	jr z, jr_00b_459e
-
+	jr z, .next
 	cp $09
-	jr z, jr_00b_459e
-
+	jr z, .next
+;=@x
 	ldh a, [hPlayerTileX]
 	sub e
 	cp [hl]
-	jr nz, jr_00b_459e
-
+	jr nz, .next
+;>@y         if mem[warp + 1] not in (0, 7) and hPlayerTileY - origin.y == mem[warp + 1]:
 	inc hl
 	ld a, [hl]
 	dec hl
 	or a
-	jr z, jr_00b_459e
-
+	jr z, .next
 	cp $07
-	jr z, jr_00b_459e
-
+;=@y
+	jr z, .next
 	inc hl
 	ldh a, [hPlayerTileY]
 	sub d
 	cp [hl]
 	dec hl
-	jr z, jr_00b_45a8
+;>             return TakeWarp(warp)
+	jr z, TakeWarp
 
-jr_00b_459e:
+.next
+;>     warp += 7
 	ld a, l
 	add $07
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00b_4578
+;=@l
+	jr .loop
 
-Jump_00b_45a8:
-jr_00b_45a8:
+TakeWarp:
+;> wWarpMap = mem[warp + 2]
 	inc hl
 	inc hl
 	ld a, [hli]
 	ld [wWarpMap], a
+;> wWarpOnGateFloor = mem[warp + 3]
 	ld a, [hli]
 	ld [wWarpOnGateFloor], a
-	ld de, $2de7
+;>@sc screen = mem[warp + 4]
+	ld de, ScreenTileOrigins
 	ld a, [hli]
 	push af
 	and $0f
 	add a
 	add e
+;=@sc
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;>@wx wWarpX = (ScreenTileOrigins[screen & 0x0F].x + mem[warp + 5]) * 16 + 8
 	ld a, [de]
 	add [hl]
 	inc de
 	inc hl
 	swap a
 	ld b, a
+;=@wx
 	and $f0
 	ld c, a
 	ld a, b
 	and $0f
 	ld b, a
 	ld a, c
+;=@wx
 	add $08
 	ld c, a
 	ld a, b
 	adc $00
 	ld b, a
 	ld a, c
+;=@wx
 	ld [wWarpX], a
 	ld a, b
 	ld [$c970], a
+;>@wy y = (ScreenTileOrigins[screen & 0x0F].y + mem[warp + 6]) * 16 + 8
 	ld a, [de]
 	add [hl]
 	inc de
 	inc hl
 	swap a
 	ld b, a
+;=@wy
 	and $f0
 	ld c, a
 	ld a, b
 	and $0f
 	ld b, a
 	ld a, c
+;=@wy
 	add $08
 	ld c, a
 	ld a, b
 	adc $00
 	ld b, a
+;> if screen & 0x80:
 	pop af
 	bit 7, a
-	jr z, jr_00b_4601
-
+	jr z, .setY
+;>     y += 8
 	ld a, c
 	add $08
 	ld c, a
@@ -1134,667 +1426,842 @@ jr_00b_45a8:
 	adc $00
 	ld b, a
 
-jr_00b_4601:
+.setY
+;> wWarpY = y
 	ld a, c
 	ld [wWarpY], a
 	ld a, b
 	ld [$c972], a
+;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;> fade = False                      # False: the gate-world transition instead
+;> if not wWarpOnGateFloor:
 	ld a, [wWarpOnGateFloor]
 	or a
-	jr nz, jr_00b_466b
-
+	jr nz, .special
+;>     fade = True
+;>@lv     leaving = not wOnGateFloor and wMapId == 0x10 and hPlayerY == 0x68
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_00b_4627
-
+	jr nz, .checkWorld
 	ld a, [wMapId]
 	cp $10
-	jr nz, jr_00b_4627
-
+	jr nz, .checkWorld
+;=@lv
 	ldh a, [hPlayerY]
 	cp $68
-	jr z, jr_00b_462c
+	jr z, .leaving
 
-jr_00b_4627:
+.checkWorld
+;>     if leaving or IsInGateWorld():
 	call IsInGateWorld
-	jr z, jr_00b_465b
+	jr z, .fade
 
-jr_00b_462c:
+.leaving
+;>         save = (wMapId, wOnGateFloor)
 	ld a, [wMapId]
 	ld l, a
 	ld a, [wOnGateFloor]
 	ld h, a
 	push hl
+;>         wMapId = wWarpMap
+;>@dw         wOnGateFloor = wWarpOnGateFloor
 	ld a, [wWarpMap]
 	ld l, a
 	ld a, [wWarpOnGateFloor]
 	ld h, a
 	ld a, l
 	ld [wMapId], a
+;=@dw
 	ld a, h
 	ld [wOnGateFloor], a
+;>         inWorld = IsInGateWorld()      # the destination
 	call IsInGateWorld
+;>         wMapId = save[0]
+;>@rs         wOnGateFloor = save[1]
 	pop hl
 	push af
 	ld a, l
 	ld [wMapId], a
 	ld a, h
 	ld [wOnGateFloor], a
+;=@rs
 	pop af
-	jr nz, jr_00b_465b
-
+;>         if not inWorld:
+	jr nz, .fade
+;>             HealAllMonsters()          # back from a gate world
 	ld hl, far_HealAllMonsters
 	rst $10
-	jr jr_00b_466b
+;>             fade = False
+	jr .special
 
-jr_00b_465b:
+.fade
+;> if fade:
+;>     StartFade(3)
 	ld a, $03
 	call StartFade
+;>     wMapLoadState += 1
 	ld hl, wMapLoadState
 	inc [hl]
+;>     QueueSound(0x51)
 	ld a, $51
 	call QueueSound
-	jr jr_00b_4674
+	jr AfterWarpCheck
 
-jr_00b_466b:
+.special
+;> else:
+;>     wFieldFlags |= 0x20
 	ld hl, wFieldFlags
 	set 5, [hl]
+;>     wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 
-Jump_00b_4674:
-jr_00b_4674:
+AfterWarpCheck:
+;> if wMapId in (0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x61, 0x62, 0x63, 0x64):
+;>@mp     return FieldWarpHook()
 	ld a, [wMapId]
 	ld a, [wMapId]
 	cp $53
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $61
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
+;=@mp
 	cp $62
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $63
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $64
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
+;=@mp
 	cp $54
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $55
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $56
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
+;=@mp
 	cp $57
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $58
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
 	cp $59
-	jr z, jr_00b_46d5
-
+	jr z, FieldWarpHook
+;> return
 	ret
 
-
-Jump_00b_46a7:
-	ld hl, $c960
+CheckFloorStairs:
+;>@st if wMapScreen == wStairsScreen and hTestTile >> 2 == 0x0F:   # a stairs tile ($3C-$3F)
+	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
-	jr nz, jr_00b_46d5
-
+	jr nz, FieldWarpHook
 	ldh a, [hTestTile]
 	srl a
+;=@st
 	srl a
 	cp $0f
-	jr nz, jr_00b_46d5
-
+	jr nz, FieldWarpHook
+;>     wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;>     wWarpMap = 0
 	ld a, $00
 	ld [wWarpMap], a
+;>     wWarpOnGateFloor = 0x80            # to the next floor
 	ld a, $80
 	ld [wWarpOnGateFloor], a
-	call Call_0B_46DA
+;>     CheckFloorExplored()
+	call CheckFloorExplored
+;>     wFieldFlags |= 0x20
 	ld hl, wFieldFlags
 	set 5, [hl]
+;>     wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
 
-jr_00b_46d5:
-	ld hl, far_Call_16_6F05
+FieldWarpHook:
+;> CountEncounterSteps()
+	ld hl, far_CountEncounterSteps
 	rst $10
+;> return
 	ret
 
 
-Call_0B_46DA::
+;@ def CheckFloorExplored()
+;@ path: field/gatefloor
+;@ When every existing screen of the gate floor has been seen, sets wFloorEvent: 5 for
+;@ a full floor of 16 screens, 6 for a floor of only 2.
+;@ test: skip gate floor state
+CheckFloorExplored::
+;> if not wOnGateFloor:
 	ld a, [wOnGateFloor]
 	or a
+;>     return
 	ret z
-
-	ld hl, $c940
+;> count = 0
+	ld hl, wFloorLayout
 	ld de, wFloorsSeen
 	ld b, $10
 	ld c, $00
 
-jr_00b_46e9:
+.loop
+;>@f for i in range(16):
+;>     if wFloorLayout[i] & 0xF0 != 0xF0:     # a screen exists there
 	ld a, [hl]
 	and $f0
 	cp $f0
-	jr z, jr_00b_46f4
-
+	jr z, .skip
+;>         if not wFloorsSeen[i]:
 	ld a, [de]
 	or a
+;>             return
 	ret z
-
+;>         count += 1
 	inc c
 
-jr_00b_46f4:
+.skip
+;=@f
 	inc hl
 	inc de
 	dec b
-	jr nz, jr_00b_46e9
-
+	jr nz, .loop
+;> if count == 16:
+;>@e5     wFloorEvent = 5
 	ld a, c
 	cp $10
-	jr z, jr_00b_4703
-
+	jr z, .full
+;> elif count == 2:
+;>@e6     wFloorEvent = 6
 	cp $02
-	jr z, jr_00b_4709
-
+	jr z, .two
+;> return
 	ret
 
 
-jr_00b_4703:
+.full
+;=@e5
 	ld a, $05
 	ld [wFloorEvent], a
 	ret
 
 
-jr_00b_4709:
+.two
+;=@e6
 	ld a, $06
 	ld [wFloorEvent], a
 	ret
 
 
-Call_0B_470F::
+;@ def SpawnMapObjects()
+;@ path: field/objects
+;@ Creates the actors of the current screen from its object list (see GetScreenObjects)
+;@ and loads their sprite graphics. On a gate floor the floor's special character is
+;@ placed with the screen origin of its own screen and then moved to wFloorNpcX/Y.
+;@ During the intro/ending sequences (bit 7 of wGameStarted) bank 6 sets the actors up.
+;@ test: skip loads graphics
+SpawnMapObjects::
+;> if wGameStarted & 0x80:
 	ld a, [wGameStarted]
 	bit 7, a
-	jr z, jr_00b_471b
-
-	ld hl, far_Call_06_4D5A
+	jr z, .field
+;>     return LoadFieldActorGfx()
+	ld hl, far_LoadFieldActorGfx
 	rst $10
 	ret
 
 
-jr_00b_471b:
+.field
+;> FillMemory(wActors, 0x101, 0)
 	ld hl, wActors
 	ld bc, $0101
 	ld a, $00
 	call FillMemory
-	call Call_0B_482B
+;> ClearActorGfxSlots()
+	call ClearActorGfxSlots
+;> wActors[0] = 0xFF
 	ld a, $ff
 	ld [wActors], a
-	call Call_0B_4274
+;> obj = GetScreenObjects()
+	call GetScreenObjects
+;> if not wOnGateFloor or wFloorNpcScreen == 0xFF:
+;>     return SpawnObjectList(obj)
 	ld a, [wOnGateFloor]
 	or a
-	jr z, Call_0B_477E
-
-	ld a, [$c926]
+	jr z, SpawnObjectList
+	ld a, [wFloorNpcScreen]
 	cp $ff
-	jr z, Call_0B_477E
-
+	jr z, SpawnObjectList
+;>@sw swap(wMapScreen, wFloorNpcScreen)
 	ld a, [wMapScreen]
 	ld b, a
-	ld a, [$c926]
+	ld a, [wFloorNpcScreen]
 	ld [wMapScreen], a
 	ld a, b
-	ld [$c926], a
-	call Call_0B_477E
+	ld [wFloorNpcScreen], a
+;> SpawnObjectList(obj)
+	call SpawnObjectList
+;>@sb swap(wMapScreen, wFloorNpcScreen)
 	ld a, [wMapScreen]
 	ld b, a
-	ld a, [$c926]
+	ld a, [wFloorNpcScreen]
 	ld [wMapScreen], a
 	ld a, b
-	ld [$c926], a
-	ld a, [$c927]
+	ld [wFloorNpcScreen], a
+;>@nx mem16[0xD7EA] = wFloorNpcX          # the first actor's X
+	ld a, [wFloorNpcX]
 	ld l, a
 	ld a, [$c928]
 	ld h, a
 	ld a, l
 	ld [$d7ea], a
+;=@nx
 	ld a, h
 	ld [$d7eb], a
-	ld a, [$c929]
+;>@ny mem16[0xD7EC] = wFloorNpcY
+	ld a, [wFloorNpcY]
 	ld l, a
 	ld a, [$c92a]
 	ld h, a
 	ld a, l
 	ld [$d7ec], a
+;=@ny
 	ld a, h
 	ld [$d7ed], a
+;> return
 	ret
 
 
-Call_0B_477E::
+;@ def SpawnObjectList(obj: hl)
+;@ path: field/objects
+;@ Turns the actor records of an object list into actors (32 bytes each, from wActors):
+;@ +0 flags, +1 sprite, +2/+3 tile X/Y in the map (screen origin added), +4 script,
+;@ +6 facing (flags bits 4-5), +$11 graphics number, +$16 first sprite tile,
+;@ +$18/+$1A X/Y in pixels (tile * 16 + 8). Trigger records ($8x/$9x) are skipped;
+;@ the $FF end marker is copied as the end of the actor list.
+;@ test: skip loads graphics
+SpawnObjectList::
+;> actor = wActors
 	ld de, wActors
 
-Jump_00b_4781:
-jr_00b_4781:
+.loop
+;>@l while True:
+;>     mem16[0xFFD5] = actor        # kept in hNumber
 	ld a, e
 	ldh [hNumber], a
 	ld a, d
 	ldh [$ffd6], a
+;>     flags = mem[obj]
+;>     obj += 1
 	ld a, [hli]
+;>     mem[actor] = flags
 	ld [de], a
+;>     if flags == 0xFF:
+;>         return
 	cp $ff
 	ret z
-
+;>     if flags & 0x80:                   # a trigger
 	bit 7, a
-	jr z, jr_00b_479a
-
+	jr z, .actor
+;>         obj += 4
+;>@sk         continue
 	ld a, l
 	add $04
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
-	jr jr_00b_4781
+;=@sk
+	jr .loop
 
-jr_00b_479a:
+.actor
+;>@or     origin = ScreenTileOrigins[wMapScreen]
 	ldh [$ffd7], a
-	ld bc, $2de7
+	ld bc, ScreenTileOrigins
 	ld a, [wMapScreen]
 	add a
 	add c
 	ld c, a
+;=@or
 	ld a, $00
 	adc b
 	ld b, a
+;>     mem[actor + 1] = mem[obj]          # sprite
 	push de
 	inc de
 	ld a, [hli]
 	ld [de], a
+;>     mem[actor + 2] = origin.x + mem[obj + 1]
 	inc de
 	ld a, [bc]
 	add [hl]
 	ld [de], a
+;>     mem[actor + 3] = origin.y + mem[obj + 2]
 	inc hl
 	inc de
 	inc bc
 	ld a, [bc]
 	add [hl]
 	ld [de], a
+;>     mem[actor + 4] = mem[obj + 3]      # script
 	inc hl
 	inc de
 	ld a, [hli]
 	ld [de], a
+;>     mem[actor + 6] = flags >> 4 & 3    # facing
 	inc de
 	inc de
 	ldh a, [$ffd7]
 	swap a
 	and $03
 	ld [de], a
+;>@g     mem[actor + 0x11] = mem[actor + 1]
 	push hl
 	ldh a, [hNumber]
 	ld e, a
 	ldh a, [$ffd6]
 	ld d, a
 	ld a, e
+;=@g
 	add $11
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
 	ldh a, [hNumber]
+;=@g
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
 	inc hl
 	ld a, [hli]
 	ld [de], a
+;>     tiles = LoadActorGfx(mem[actor + 1], actor + 0x11)
 	push hl
-	call Call_0B_4839
+	call LoadActorGfx
 	pop hl
+;>@t     mem[actor + 0x16] = tiles
 	push af
 	ldh a, [hNumber]
 	ld e, a
 	ldh a, [$ffd6]
 	ld d, a
 	ld a, e
+;=@t
 	add $16
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
 	pop af
+;=@t
 	ld [de], a
+;>@p     p = actor + 0x18
 	ldh a, [hNumber]
 	ld e, a
 	ldh a, [$ffd6]
 	ld d, a
 	ld a, e
 	add $18
+;=@p
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;>@x     mem16[p] = mem[actor + 2] * 16 + 8
 	ld a, [hli]
 	swap a
 	ld c, a
 	and $f0
 	or $08
 	ld [de], a
+;=@x
 	inc de
 	ld a, c
 	and $0f
 	ld [de], a
 	inc de
+;>@y     mem16[p + 2] = mem[actor + 3] * 16 + 8
 	ld a, [hl]
 	swap a
 	ld c, a
 	and $f0
 	or $08
 	ld [de], a
+;=@y
 	inc de
 	ld a, c
 	and $0f
 	ld [de], a
 	inc de
+;>@n     actor += 0x20
 	pop hl
 	pop de
 	ld a, e
 	add $20
 	ld e, a
 	ld a, d
+;=@n
 	adc $00
 	ld d, a
-	jp Jump_00b_4781
+;=@l
+	jp .loop
 
 
-Call_0B_482B::
-	ld hl, $d7be
+;@ def ClearActorGfxSlots()
+;@ path: field/objects
+;@ Frees the 6 actor sprite-graphics slots of wActorGfxSlots.
+;@ test: skip
+ClearActorGfxSlots::
+;> for i in range(6):
+;>@c     wActorGfxSlots[2 * i] = 0xFF
+	ld hl, wActorGfxSlots
 	ld b, $06
 
-jr_00b_4830:
+.loop
+;=@c
 	ld a, $ff
 	ld [hli], a
+;>     wActorGfxSlots[2 * i + 1] = 0
 	xor a
 	ld [hli], a
+;=@c
 	dec b
-	jr nz, jr_00b_4830
-
+	jr nz, .loop
+;> return
 	ret
 
 
-Call_0B_4839::
+;@ def LoadActorGfx(sprite: a, gfx: de) -> a
+;@ path: field/objects
+;@ Makes sure the graphics of an actor's sprite are in VRAM and returns its first sprite
+;@ tile; gfx points at the actor's +$11 (graphics number; +$0F graphics source).
+;@ $E0: Terry (tile 0, graphics $5E); $E1-$E3: party monster 1-3 following him (tiles
+;@ $20/$30/$40); $F0-$F3: the monsters of the encounter list wEncGfx; anything else is
+;@ a person sprite. Other graphics share 6 slots of 16 tiles (wActorGfxSlots: number,
+;@ source), decompressed from the home-bank table at $2ADF (people) or ActorGfxRefs
+;@ (monsters) to $8000 + slot * $100 plus an area offset (gate floors $700, map 8 none,
+;@ map $45 $200, others $500). Graphics $15 and $55 of people take two slots. An actor
+;@ without its monster is removed (sprite $FF); with no slot free $50 is returned.
+;@ test: skip decompresses graphics
+LoadActorGfx::
+;> if sprite == 0xFF:
+;>     return
 	cp $ff
 	ret z
-
+;> if sprite == 0xE0:
+;>@te     mem[gfx] = 0x5E
+;>@tr     return 0
 	ld b, $00
 	cp $e0
-	jr z, jr_00b_48ba
-
+	jr z, .terry
+;> if sprite in (0xE1, 0xE2, 0xE3):    # tiles $20, $30, $40
+;>@p1     if wParty[sprite - 0xE1] == 0xFF:
+;>@p2         mem[gfx - 0x10] = 0xFF        # no such follower: remove the actor
+;>@p3         return 0
+;>@p4     mem[gfx] = wPartyGfx[sprite - 0xE1]
+;>@p5     mem[gfx - 2] = 1                  # graphics source: the party
+;>@p6     return tiles
 	ld b, $20
 	cp $e1
-	jr z, jr_00b_48bf
-
+	jr z, .party
 	ld b, $30
 	cp $e2
-	jr z, jr_00b_48bf
-
+	jr z, .party
+;=@p1
 	ld b, $40
 	cp $e3
-	jr z, jr_00b_48bf
-
+	jr z, .party
+;> if sprite >= 0xF0:                 # a monster of the encounter
 	cp $f0
-	jr c, jr_00b_488a
-
+	jr c, .person
+;>@en     enc = wEncGfx + (sprite & 3) * 2
 	and $03
 	add a
 	ld hl, wEncGfx
 	add l
 	ld l, a
 	ld a, $00
+;=@en
 	adc h
 	ld h, a
+;>@sr     mem[gfx - 2] = mem[enc + 1]      # the graphics source
 	inc hl
 	dec de
 	dec de
 	ld a, [hld]
 	ld [de], a
 	inc de
+;=@sr
 	inc de
 	ld b, a
+;>     mem[gfx] = mem[enc]
 	ld a, [hl]
 	ld [de], a
+;>     if mem[enc] == 0xFF:               # no monster there
 	cp $ff
-	jr nz, jr_00b_4887
-
+	jr nz, .monster
+;>@rm         mem[gfx - 0x10] = 0xFF        # remove the actor
 	push de
 	ld a, e
 	sub $10
 	ld e, a
 	ld a, d
 	sbc $00
+;=@rm
 	ld d, a
 	ld a, $ff
 	ld [de], a
+;>         mem[gfx - 0x12] = 0
 	dec de
 	dec de
 	ld a, $00
 	ld [de], a
+;>         return 0
 	pop de
 	ld a, $00
 	ret
 
 
-jr_00b_4887:
+.monster
+;>     source = mem[enc + 1]
 	ld e, b
-	jr jr_00b_488c
+	jr .search
 
-jr_00b_488a:
+.person
+;> else:
+;>     source = 0
 	ld e, $00
 
-jr_00b_488c:
-	ld hl, $d7be
+.search
+;> slot = 0                          # number = mem[gfx]
+;>@lp for i in range(6):
+	ld hl, wActorGfxSlots
 	ld b, $06
 	ld c, $00
 	ld d, a
 
-jr_00b_4894:
+.slot
+;>     if wActorGfxSlots[2 * i] == 0xFF:  # free: load the graphics here
+;>@l1         wActorGfxSlots[2 * i] = number
+;>@l2         wActorGfxSlots[2 * i + 1] = source
+;>@l3         ref = ActorGfx[number] if source == 0 else ActorGfxRefs[number]
+;>@l4         DecompressVRAM(ref, 0x8000 + (slot + area) * 0x100)
+;>@l5         return ActorGfxTiles(slot)
 	ld a, [hl]
 	cp $ff
-	jr z, jr_00b_48f6
-
+	jr z, .load
+;>     if wActorGfxSlots[2 * i] == number and wActorGfxSlots[2 * i + 1] == source:
+;>         return ActorGfxTiles(slot)
 	cp d
-	jr nz, jr_00b_48a2
-
+	jr nz, .count
 	inc hl
 	ld a, [hld]
 	cp e
-	jp z, Jump_00b_4945
+	jp z, ActorGfxTiles
 
-jr_00b_48a2:
+.count
+;>@big     if wActorGfxSlots[2 * i] in (0x55, 0x15) and wActorGfxSlots[2 * i + 1] == 0:
 	ld a, [hl]
 	cp $55
-	jr z, jr_00b_48ab
-
+	jr z, .big
 	cp $15
-	jr nz, jr_00b_48b1
+	jr nz, .next
 
-jr_00b_48ab:
+.big
+;=@big
 	inc hl
 	ld a, [hld]
 	or a
-	jr nz, jr_00b_48b1
-
+	jr nz, .next
+;>         slot += 1                      # these graphics take two slots
 	inc c
 
-jr_00b_48b1:
+.next
+;>     slot += 1
 	inc hl
 	inc hl
 	inc c
+;=@lp
 	dec b
-	jr nz, jr_00b_4894
-
+	jr nz, .slot
+;> return 0x50                        # no free slot
 	ld a, $50
 	ret
 
 
-jr_00b_48ba:
+.terry
+;=@te
 	ld a, $5e
 	ld [de], a
+;=@tr
 	ld a, b
 	ret
 
 
-jr_00b_48bf:
+.party
+;=@p1
 	sub $e1
 	push af
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
+;=@p1
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $ff
-	jr nz, jr_00b_48e1
-
+	jr nz, .follower
+;=@p2
 	pop af
 	push de
 	ld a, e
 	sub $10
 	ld e, a
 	ld a, d
+;=@p2
 	sbc $00
 	ld d, a
 	ld a, $ff
 	ld [de], a
 	pop de
+;=@p3
 	ld a, $00
 	ret
 
 
-jr_00b_48e1:
+.follower
+;=@p4
 	pop af
 	ld hl, wPartyGfx
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p4
 	ld h, a
 	ld a, [hl]
 	ld [de], a
+;=@p5
 	dec de
 	dec de
 	ld a, $01
 	ld [de], a
 	inc de
 	inc de
+;=@p6
 	ld a, b
 	ret
 
 
-jr_00b_48f6:
+.load
+;=@l1
 	ld [hl], d
 	inc hl
+;=@l2
 	ld [hl], e
 	push bc
+;=@l3
 	ld a, e
 	or a
-	jr nz, jr_00b_490b
-
-	ld hl, $2adf
+	jr nz, .monsterRef
+	ld hl, ActorGfx
 	ld a, d
 	add a
+;=@l3
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	jr jr_00b_4917
+	jr .decompress
 
-jr_00b_490b:
+.monsterRef
+;=@l3
 	ld l, d
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $74
+	add LOW(ActorGfxRefs)
 	ld l, a
+;=@l3
 	ld a, h
-	adc $49
+	adc HIGH(ActorGfxRefs)
 	ld h, a
 
-jr_00b_4917:
+.decompress
+;=@l3
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;=@l4
 	ld a, c
 	add $80
 	ld h, a
 	ld a, [wOnGateFloor]
 	or a
-	jr z, jr_00b_492a
-
+	jr z, .notFloor
+;=@l4
 	ld a, h
 	add $07
 	ld h, a
-	jr jr_00b_493f
+	jr .go
 
-jr_00b_492a:
+.notFloor
+;=@l4
 	ld a, [wMapId]
 	cp $08
-	jr z, jr_00b_493f
-
+	jr z, .go
 	cp $45
-	jr nz, jr_00b_493b
-
+	jr nz, .other
 	ld a, h
+;=@l4
 	add $02
 	ld h, a
-	jr jr_00b_493f
+	jr .go
 
-jr_00b_493b:
+.other
+;=@l4
 	ld a, h
 	add $05
 	ld h, a
 
-jr_00b_493f:
+.go
+;=@l4
 	ld l, $00
 	call DecompressVRAM
 	pop bc
 
-Jump_00b_4945:
+ActorGfxTiles:
+;> if wOnGateFloor:
+;>@gt     return slot * 16 + 0x70
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_00b_4964
-
+	jr nz, .floor
+;> if wMapId == 0x08:
+;>@m8     return slot * 16
 	ld a, [wMapId]
 	cp $08
-	jr z, jr_00b_495e
-
+	jr z, .map08
+;> if wMapId == 0x45:
+;>@m45     return slot * 16 + 0x20
 	cp $45
-	jr z, jr_00b_496c
-
+	jr z, .map45
+;>@r return slot * 16 + 0x50
 	ld a, c
 	add a
 	add a
 	add a
 	add a
 	add $50
+;=@r
 	ret
 
 
-jr_00b_495e:
+.map08
+;=@m8
 	ld a, c
 	add a
 	add a
@@ -1803,26 +2270,34 @@ jr_00b_495e:
 	ret
 
 
-jr_00b_4964:
+.floor
+;=@gt
 	ld a, c
 	add a
 	add a
 	add a
 	add a
 	add $70
+;=@gt
 	ret
 
 
-jr_00b_496c:
+.map45
+;=@m45
 	ld a, c
 	add a
 	add a
 	add a
 	add a
 	add $20
+;=@m45
 	ret
 
 
+;@ path: field/objects
+;@ Graphics references (entry number, bank) of the monster sprites that appear as
+;@ actors, by graphics number (used by LoadActorGfx); ends with $FF.
+ActorGfxRefs::
 	db $00, $2f, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
 	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
 	db $01, $2f, $02, $2f, $03, $2f, $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f
@@ -1851,7 +2326,17 @@ jr_00b_496c:
 	db $18, $3a, $19, $3a, $1a, $3a, $1b, $3a, $1c, $3a, $1d, $3a, $1e, $3a, $1f, $3a
 	db $20, $3a, $21, $3a, $22, $3a, $23, $3a, $24, $3a, $25, $3a, $26, $3a, $27, $3a
 	db $28, $3a, $29, $3a, $2a, $3a, $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a
-	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a, $ff, $13
+	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a, $ff
+
+;@ path: field/map
+;@ The screens of the fixed maps, to the end of the bank. MapScreenTable: one pointer per
+;@ map to a list of 16 screen pointers (wMapScreen = row * 4 + column; $FFFF = no screen).
+;@ A screen: the address of the story variable that picks its version, then 6 bytes per
+;@ version - tilemap reference (entry, bank), object list, warp list. Object records
+;@ are 5 bytes (flags, sprite or direction, tile X, tile Y, script; see GetScreenObjects),
+;@ warp records 7 bytes (see CheckEdgeWarp); both lists end with $FF.
+MapScreenTable::
+	db $13
 	db $4c, $23, $4e, $5d, $50, $f2, $52, $ae, $55, $3a, $58, $9e, $59, $2b, $5a, $86
 	db $5c, $45, $5d, $6a, $5e, $13, $4c, $94, $5e, $c0, $5e, $13, $4c, $4a, $5f, $71
 	db $5f, $13, $4c, $db, $5f, $7d, $60, $13, $4c, $13, $4c, $39, $61, $71, $5f, $f8

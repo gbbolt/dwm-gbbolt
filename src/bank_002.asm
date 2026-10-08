@@ -1014,7 +1014,7 @@ Cutscene0StepTable::
 ;@ def DrawCutscene0People()
 ;@ path: event/cutscene
 ;@ Cutscene 0, while the view is still low (steps 0 and 1): draws five figures standing on the
-;@ hill (four through Call_05_4005, one through DrawActorSprite), each with its position, sprite
+;@ hill (four through DrawCharacterSprite, one through DrawActorSprite), each with its position, sprite
 ;@ set, frame, tile base and attributes in hSpriteX..hSpriteAttr.
 DrawCutscene0People::
 ;> if wSceneStep != 0 and wSceneStep != 1:
@@ -1050,8 +1050,8 @@ DrawCutscene0People::
 ;> hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
-;> Call_05_4005()
-	ld hl, far_Call_05_4005
+;> DrawCharacterSprite()
+	ld hl, far_DrawCharacterSprite
 	rst $10
 ;> hSpriteX = 0x58
 	ld hl, hSpriteX
@@ -1076,8 +1076,8 @@ DrawCutscene0People::
 ;> hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
-;> Call_05_4005()
-	ld hl, far_Call_05_4005
+;> DrawCharacterSprite()
+	ld hl, far_DrawCharacterSprite
 	rst $10
 ;> hSpriteX = 0x68
 	ld hl, hSpriteX
@@ -1128,8 +1128,8 @@ DrawCutscene0People::
 ;> hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
-;> Call_05_4005()
-	ld hl, far_Call_05_4005
+;> DrawCharacterSprite()
+	ld hl, far_DrawCharacterSprite
 	rst $10
 ;> hSpriteX = 0x78
 	ld hl, hSpriteX
@@ -1154,8 +1154,8 @@ DrawCutscene0People::
 ;> hSpriteAttr = 0
 	ld a, $00
 	ld [hl], a
-;> Call_05_4005()
-	ld hl, far_Call_05_4005
+;> DrawCharacterSprite()
+	ld hl, far_DrawCharacterSprite
 	rst $10
 	ret
 
@@ -2157,7 +2157,7 @@ Cutscene0Star8::
 	ld a, $02
 	ld [$c0eb], a
 	ld a, $00
-	ld [$c0ec], a
+	ld [wVSTeam], a
 ;> wSceneObjects[21:24] = [0x01, 0x20, 0x20]
 	ld a, $01
 	ld [$c0ed], a
@@ -5242,9 +5242,9 @@ jr_002_6713:
 	ld hl, $c0ea
 	call UpdateSceneObject
 ;>     wSceneObjects[20] -= 2
-	ld a, [$c0ec]
+	ld a, [wVSTeam]
 	sub $02
-	ld [$c0ec], a
+	ld [wVSTeam], a
 ;>     if wSceneTimer == 0x3C:
 	ld a, [wSceneTimer]
 	cp $3c
@@ -5255,7 +5255,7 @@ jr_002_6713:
 
 jr_002_673d:
 ;>     if wSceneObjects[20] >= 0xF0:
-	ld a, [$c0ec]
+	ld a, [wVSTeam]
 	cp $f0
 	jr c, jr_002_6747
 

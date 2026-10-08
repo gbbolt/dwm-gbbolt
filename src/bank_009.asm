@@ -161,459 +161,701 @@ TilemapBufferAddr9::
 	ret
 
 
+;@ def WindowBgAddrWrapped9(offset: hl) -> hl
+;@ path: menu/window
+;@ BG map address of window tile `offset` (row * 32 + column, counted from the screen's top left
+;@ corner), wrapping around both at the bottom and at the right edge of the 32x32 BG map.
 WindowBgAddrWrapped9::
+;> column = offset & 0x1F
 	push bc
 	ld b, l
+;> addr = WindowBgAddr9(offset & 0xFFE0)         # start of the row
 	ld a, l
 	and $e0
 	ld l, a
 	call WindowBgAddr9
+;> for _ in range(column):
 	ld a, b
 	and $1f
-	jr z, jr_009_408b
+	jr z, .done
 
 	ld b, a
 
-jr_009_4085:
+.step
+;>     addr = NextBgColumn9(addr)
 	call NextBgColumn9
 	dec b
-	jr nz, jr_009_4085
+	jr nz, .step
 
-jr_009_408b:
+.done
+;> return addr
 	pop bc
 	ret
 
 
+;@ def DrawLayoutToVram9(layout: de)
+;@ path: unused/menu
+;@ Not called: draws a window layout (see DrawWindowLayout9) straight into the BG map instead of
+;@ wTilemapBuffer.
+;@ test: skip writes VRAM
 DrawLayoutToVram9::
-	db $1a, $6f, $13, $1a, $67, $13, $cd, $76, $40, $7d, $e0, $d5, $7c, $e0, $d6, $1a
-	db $13, $fe, $d9, $c8, $fe, $d8, $20, $1c, $f0, $d5, $6f, $f0, $d6, $67, $7d, $c6
-	db $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67, $7d, $e0, $d5, $7c
-	db $e0, $d6, $18, $db, $cd, $ad, $1a, $cd, $4a, $40, $18, $d3
-
-DrawWindowLayout9::
+;> offset = mem16[layout]; layout += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call TilemapBufferAddr9
+;> addr = WindowBgAddrWrapped9(offset)
+;> row_start = addr
+	call WindowBgAddrWrapped9
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 
-jr_009_40d8:
+.loop
+;> while (tile := mem[layout]) != 0xD9:           # $D9 ends the layout
 	ld a, [de]
 	inc de
 	cp $d9
 	ret z
 
+;>     if tile == 0xD8:                          # next row
 	cp $d8
-	jr nz, jr_009_40f7
+	jr nz, .tile
 
+;>@nx         addr = ((row_start + 32) & 0x3FF) | 0x9800
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@nx
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@nx
+	ld a, h
+	and $03
+	or $98
+	ld h, a
+;>         row_start = addr
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
-	jr jr_009_40d8
+	ldh [hNumber + 1], a
+	jr .loop
 
-jr_009_40f7:
+.tile
+;>     else:
+;>         WriteVRAM(tile, addr)
+	call WriteVRAM
+;>         addr = NextBgColumn9(addr)
+	call NextBgColumn9
+	jr .loop
+
+;@ def DrawWindowLayout9(layout: de)
+;@ path: menu/window
+;@ Draws a window layout into wTilemapBuffer (CopyTilemapBufferToVram9 shows it). A layout is
+;@ a word, the buffer offset of its top left corner (row * 32 + column), then the tiles row by
+;@ row: $D8 starts the next row, $D9 ends the layout. The window frame tiles are $FA/$FB top
+;@ corners, $EF top edge, $FE/$FF sides, $FC/$FD bottom corners, $EE bottom edge, $E0 blank.
+DrawWindowLayout9::
+;> offset = mem16[layout]; layout += 2
+	ld a, [de]
+	ld l, a
+	inc de
+	ld a, [de]
+	ld h, a
+	inc de
+;> dest = TilemapBufferAddr9(offset)
+	call TilemapBufferAddr9
+;> row_start = dest
+	ld a, l
+	ldh [hNumber], a
+	ld a, h
+	ldh [hNumber + 1], a
+
+.loop
+;> while (tile := mem[layout]) != 0xD9:
+	ld a, [de]
+	inc de
+	cp $d9
+	ret z
+
+;>     if tile == 0xD8:
+	cp $d8
+	jr nz, .tile
+
+;>@nr         row_start += 32
+	ldh a, [hNumber]
+	ld l, a
+	ldh a, [hNumber + 1]
+	ld h, a
+	ld a, l
+	add $20
+;=@nr
+	ld l, a
+	ld a, h
+	adc $00
+	ld h, a
+;>         dest = row_start
+	ld a, l
+	ldh [hNumber], a
+	ld a, h
+	ldh [hNumber + 1], a
+	jr .loop
+
+.tile
+;>     else:
+;>         mem[dest] = tile; dest += 1
 	ld [hli], a
-	jr jr_009_40d8
+	jr .loop
 
+;@ def CopyTilemapBufferToVram9()
+;@ path: menu/window
+;@ Copies all of wTilemapBuffer (18 rows of 32 tiles) to the BG map, starting at the screen's
+;@ top left corner wWindowBgMap and wrapping around the 32x32 map in both directions.
+;@ test: skip writes VRAM
 CopyTilemapBufferToVram9::
+;> row_addr = wWindowBgMap
 	ld a, [wWindowBgMap]
 	ld l, a
-	ld a, [$c90a]
+	ld a, [wWindowBgMap + 1]
 	ld h, a
+;> src = wTilemapBuffer
 	ld de, wTilemapBuffer
+;> for row in range(18):
 	ld c, $12
 
-jr_009_4107:
+.row
+;>     addr = row_addr
 	ld b, $20
 	push hl
 
-jr_009_410a:
+.tile
+;>     for column in range(32):
+;>         WriteVRAM(mem[src], addr)
 	ld a, [de]
 	call WriteVRAM
+;>@nc         addr = NextBgColumn9(addr)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@nc
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>         src += 1
 	inc de
 	dec b
-	jr nz, jr_009_410a
+	jr nz, .tile
 
+;>@nw     row_addr = ((row_addr + 32) & 0x3FF) | 0x9800
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@nw
 	or $98
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_009_4107
+	jr nz, .row
 
 	ret
 
 
+;@ def DrawTextTiles9(tiles: hl, lines: e, length: d)
+;@ path: menu/text
+;@ Renders the text wTextGroup / wTextIndex into letter tiles at VRAM `tiles` (a box of `lines`
+;@ lines of `length` tiles) without touching the text box the printer uses:
+;@ its settings are saved and put back.
+;@ test: skip far call
 DrawTextTiles9::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+;> saved_size = (wTextBoxLines, wTextBoxLineLength)
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = lines
+;> wTextBoxLineLength = length
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> PrintText_41()                      # render the text into the tiles
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_size[0]
+;> wTextBoxLineLength = saved_size[1]
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawNameTiles9(name: de, tiles: hl)
+;@ path: menu/text
+;@ Renders a 4-letter name into 4 letter tiles at VRAM `tiles` (through wTextArg0 and system
+;@ text $0200, which prints that buffer).
+;@ test: skip far call
 DrawNameTiles9::
+;> CopyName(name, wTextArg0)
 	push hl
 	ld hl, wTextArg0
 	call CopyName
 	pop hl
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+;> saved_size = (wTextBoxLines, wTextBoxLineLength)
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1                    # one line
 	ld de, $0401
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 4                   # of 4 tiles
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
+;> wTextIndex = 0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_size[0]
+;> wTextBoxLineLength = saved_size[1]
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawCharTile9(char: a, tiles: hl)
+;@ path: menu/text
+;@ Renders the single character `char` into one letter tile at VRAM `tiles`.
+;@ test: skip far call
 DrawCharTile9::
+;> wTextArg0[0] = char
+;> wTextArg0[1] = 0xF0                  # end mark
 	ld [wTextArg0], a
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+;> saved_size = (wTextBoxLines, wTextBoxLineLength)
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
+;> wTextIndex = 0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_size[0]
+;> wTextBoxLineLength = saved_size[1]
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def RestoreTilemapBuffer9()
+;@ path: menu/window
+;@ Puts the screen as it was before the menu opened back into wTilemapBuffer: the 16 saved field
+;@ rows (wSavedTilemap) and the two rows of the party bar (20 tiles each).
 RestoreTilemapBuffer9::
+;> dest = wTilemapBuffer
 	ld hl, wTilemapBuffer
 	ld de, wSavedTilemap
 	ld bc, $0200
 
-jr_009_420d:
+.copy
+;>@cp copy(dest, wSavedTilemap, 0x200); dest += 0x200
 	ld a, [de]
 	inc de
 	ld [hli], a
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_009_420d
+;=@cp
+	jr nz, .copy
 
+;> src = wPartyBarTiles
 	ld de, wPartyBarTiles
+;>@rows for row in range(2):
 	ld c, $02
 
-jr_009_421a:
+.row
+;>     copy(dest, src, 20)
 	ld b, $14
 
-jr_009_421c:
+.tile
 	ld a, [de]
 	inc de
 	ld [hli], a
 	dec b
-	jr nz, jr_009_421c
+	jr nz, .tile
 
+;>     src += 32
 	ld a, e
 	add $0c
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;>     dest += 32
 	ld a, l
 	add $0c
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@rows
 	dec c
-	jr nz, jr_009_421a
+	jr nz, .row
 
 	ret
 
 
+;@ def ClearTilemapBuffer9()
+;@ path: menu/window
+;@ Fills all of wTilemapBuffer (18 rows of 32) with the blank tile $E0.
 ClearTilemapBuffer9::
+;>@f fill(wTilemapBuffer, 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
-jr_009_423c:
+.loop
+;=@f
 	ld a, $e0
 	ld [hli], a
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_009_423c
+;=@f
+	jr nz, .loop
 
 	ret
 
 
+;@ def ClearBgMap9()
+;@ path: unused/menu
+;@ Not called: fills the whole BG map at $9800 with the blank tile $E0.
+;@ test: skip writes VRAM
 ClearBgMap9::
-	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
-	db $c9
+;> addr = 0x9800
+	ld hl, $9800
+	ld bc, $0400
+.loop
+;> for _ in range(0x400):
+;>     addr = WriteVRAMInc(0xE0, addr)
+	ld a, $e0
+	call WriteVRAMInc
+	dec bc
+	ld a, b
+	or c
+	jr nz, .loop
 
+;> return
+	ret
+
+;@ def UpdatePagedList9(cursor: hl, positions: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ One frame of a paged list of `count` entries shown `rows` at a time: Left / Right turn the page
+;@ (mem[cursor + 1], wrapping around), Up / Down move the cursor row (mem[cursor]), A marks the row
+;@ chosen (bit 7). `positions` is the cursor table: first the page-number position, then the
+;@ window offsets of the cursor rows, ending with $FFFF. On the last page only its rows are used.
+;@ test: skip continues in the middle of UpdateMenuCursor9
 UpdatePagedList9::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> positions += 2                      # skip the page-number position
 	inc de
 	inc de
+;> if wTextState == 0:                 # no page turning while text is printed
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_009_42cf
+	jp nz, .noPageTurn
 
+;>     if wJoyPressed & 0x20:          # Left: previous page
 	ld a, [wJoyPressed]
 	bit 5, a
-	jr z, jr_009_428c
+	jr z, .right
 
+;>         wPageToggle ^= 1
 	ld a, [wPageToggle]
 	inc a
 	and $01
 	ld [wPageToggle], a
+;>         page = u8(mem[cursor + 1] - 1)
 	inc hl
 	ld a, [hl]
 	dec a
+;>@p1         pages = (count - 1) // rows + 1
 	push af
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
+;=@p1
 	call Divide8
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:           # went below the first page
 	pop af
 	cp c
-	jr c, jr_009_42b3
+	jr c, .setPage
 
+;>             page = pages - 1
 	ld a, c
 	dec a
-	jr jr_009_42b3
+	jr .setPage
 
-jr_009_428c:
+.right
+;>     elif wJoyPressed & 0x10:        # Right: next page
 	ld a, [wJoyPressed]
 	bit 4, a
-	jr z, jr_009_42cf
+	jr z, .noPageTurn
 
+;>         wPageToggle ^= 1
 	ld a, [wPageToggle]
 	inc a
 	and $01
 	ld [wPageToggle], a
+;>         page = mem[cursor + 1] + 1
 	inc hl
 	ld a, [hl]
 	inc a
+;>@p2         pages = (count - 1) // rows + 1
 	push af
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
+;=@p2
 	call Divide8
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:
 	pop af
 	cp c
-	jr c, jr_009_42b3
+	jr c, .setPage
 
+;>             page = 0
 	ld a, $00
 
-jr_009_42b3:
+.setPage
+;>     if wJoyPressed & 0x30:
+;>         mem[cursor + 1] = page
 	ld [hld], a
+;>         if page == pages - 1:       # the last page may have fewer rows
 	dec c
 	cp c
-	jr nz, jr_009_4312
+	jr nz, MenuCursorMoved9
 
+;>@lr             last = count % rows
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@lr
 	call Divide8
 	pop bc
 	pop de
+;>             if last and mem[cursor] > last - 1:
 	or a
-	jr z, jr_009_4312
+	jr z, MenuCursorMoved9
 
 	dec a
 	cp [hl]
-	jr nc, jr_009_4312
+	jr nc, MenuCursorMoved9
 
+;>                 mem[cursor] = last - 1
 	ld [hl], a
-	jr jr_009_4312
+;>         return MenuCursorMoved9(cursor, positions)   # resets the blink, takes A, draws the cursor
+	jr MenuCursorMoved9
 
-Jump_009_42cf:
-jr_009_42cf:
+.noPageTurn
+;>@dp DrawPageNumber9(rows, count, positions, cursor)
 	push bc
 	push de
 	push hl
 	call DrawPageNumber9
 	pop hl
 	pop de
+;=@dp
 	pop bc
+;> last_page = (count - 1) // rows
+;>@lp wListLastRows = (count - 1) % rows
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@lp
 	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;> if mem[cursor + 1] == last_page:
 	inc hl
 	ld a, [hld]
 	cp c
 	jr nz, UpdateMenuCursor9
 
+;>     rows = wListLastRows + 1         # only the rows of the last page
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
+;> return UpdateMenuCursor9(cursor, rows, positions)
 
+;@ def UpdateMenuCursor9(cursor: hl, rows: b, positions: de)
+;@ path: menu/cursor
+;@ One frame of a menu cursor: Up / Down (with auto-repeat) move mem[cursor] through `rows`
+;@ entries, wrapping around; a move restarts the blink. A sets bit 7 (chosen). Then the cursor is
+;@ drawn at the window offsets in `positions` (DrawMenuCursor9). MenuCursorMoved9 and
+;@ MenuCursorCheckA9 are entry points into the second half.
+;@ test: skip draws to VRAM
 UpdateMenuCursor9::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:               # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_009_4303
+	jr z, .down
 
+;>     row = u8(mem[cursor] - 1)
 	ld a, [hl]
 	dec a
+;>     if row >= rows:
+;>         row = rows - 1
 	cp b
-	jr c, jr_009_4311
+	jr c, .store
 
 	dec b
 	ld a, b
-	jr jr_009_4311
+	jr .store
 
-jr_009_4303:
+.down
+;> elif wJoyRepeat & 0x80:             # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_009_431a
+	jr z, MenuCursorCheckA9
 
+;>     row = mem[cursor] + 1
 	ld a, [hl]
 	inc a
+;>     if row >= rows:
+;>         row = 0
 	cp b
-	jr c, jr_009_4311
+	jr c, .store
 
 	ld a, $00
 
-jr_009_4311:
+.store
+;> if wJoyRepeat & 0xC0:
+;>     mem[cursor] = row
 	ld [hl], a
 
-jr_009_4312:
+MenuCursorMoved9:
+;>     wCursorBlink = 0                # show the cursor at once
 	xor a
 	ld [wCursorBlink], a
 	push hl
@@ -621,145 +863,197 @@ jr_009_4312:
 	pop de
 	pop hl
 
-jr_009_431a:
+MenuCursorCheckA9:
+;> if wJoyPressed & 0x01:              # A
+;>     mem[cursor] |= 0x80
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_009_4323
+	jr z, .draw
 
 	set 7, [hl]
 
-jr_009_4323:
+.draw
+;> DrawMenuCursor9(mem[cursor], positions)
 	ld a, [hl]
 	call DrawMenuCursor9
 	ret
 
 
+;@ path: unused/menu
+;@ Not called: the Left / Right version of UpdateMenuCursor9 (code kept as bytes; it jumps into
+;@ the middle of UpdateMenuCursor9).
 UpdateMenuCursorLeftRight9::
 	db $cb, $be, $fa, $47, $c8, $cb, $6f, $28, $09, $7e, $3d, $b8, $38, $db, $05, $78
 	db $18, $d7, $fa, $47, $c8, $cb, $67, $28, $d9, $7e, $3c, $b8, $38, $cb, $3e, $00
 	db $18, $c7
 
+;@ def UpdateNumberEntry(digit: hl, positions: de, digits: b, limit: c)
+;@ path: menu/number
+;@ One frame of a two-digit number entry (how many to buy, sell, store or take): mem[digit] is the
+;@ digit the cursor is on, mem[digit + 1] the number. Down / Up lower / raise that digit (wrapping
+;@ 0-9), Left / Right move between the `digits` digits, A sets bit 7 of mem[digit]. The number is
+;@ kept between 1 and `limit`. Then the digits are drawn at the window offsets in `positions`.
+;@ test: skip draws to VRAM
 UpdateNumberEntry::
+;> mem[digit] &= 0x7F
 	res 7, [hl]
+;> hNumber[2] = limit
 	ld a, c
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;> if wJoyRepeat & 0x80:               # Down: the digit goes down
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_009_4360
+	jr z, .up
 
+;>     wCursorBlink = 0x10             # show the digit, not the cursor
+;>     NumberEntryDigitDown(digit)
 	ld a, $10
 	ld [wCursorBlink], a
 	call NumberEntryDigitDown
-	jr jr_009_4394
+	jr .moved
 
-jr_009_4360:
+.up
+;> elif wJoyRepeat & 0x40:             # Up: the digit goes up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_009_4371
+	jr z, .left
 
+;>     wCursorBlink = 0x10
+;>     NumberEntryDigitUp(digit)
 	ld a, $10
 	ld [wCursorBlink], a
 	call NumberEntryDigitUp
-	jr jr_009_4394
+	jr .moved
 
-jr_009_4371:
+.left
+;> elif wJoyRepeat & 0x20:             # Left: the digit to the left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_009_4381
+	jr z, .right
 
+;>     d = u8(mem[digit] - 1)
 	ld a, [hl]
 	dec a
+;>     if d >= digits:
+;>         d = digits - 1
 	cp b
-	jr c, jr_009_438f
+	jr c, .store
 
 	dec b
 	ld a, b
-	jr jr_009_438f
+	jr .store
 
-jr_009_4381:
+.right
+;> elif wJoyRepeat & 0x10:             # Right: the digit to the right
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_009_4398
+	jr z, .checkA
 
+;>     d = mem[digit] + 1
+;>     if d >= digits:
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_009_438f
+	jr c, .store
 
+;>         d = 0
 	ld a, $00
 
-jr_009_438f:
+.store
+;> if wJoyRepeat & 0x30:
+;>     mem[digit] = d
 	ld [hl], a
+;>     wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
 
-jr_009_4394:
+.moved
+;> pass
 	push hl
 	push de
 	pop de
 	pop hl
 
-jr_009_4398:
+.checkA
+;> if wJoyPressed & 0x01:              # A
+;>     mem[digit] |= 0x80
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_009_43a1
+	jr z, .limit
 
 	set 7, [hl]
 
-jr_009_43a1:
-	ldh a, [$ffd7]
+.limit
+;> if limit < mem[digit + 1]:
+	ldh a, [hNumber + 2]
 	inc hl
 	cp [hl]
 	dec hl
-	jr nc, jr_009_43aa
+	jr nc, .notZero
 
+;>     mem[digit + 1] = limit
 	inc hl
 	ld [hld], a
 
-jr_009_43aa:
+.notZero
+;> if mem[digit + 1] == 0:
+;>     mem[digit + 1] = 1
 	inc hl
 	ld a, [hl]
 	or a
-	jr nz, jr_009_43b1
+	jr nz, .draw
 
 	ld [hl], $01
 
-jr_009_43b1:
+.draw
+;> DrawNumberEntry(mem[digit], digit, positions)
 	dec hl
 	ld a, [hl]
 	call DrawNumberEntry
 	ret
 
 
+;@ def NumberEntryDigitDown(digit: hl)
+;@ path: menu/number
+;@ Lowers digit mem[digit] (0 tens, 1 ones) of the number mem[digit + 1], 0 wrapping to 9. When the
+;@ ones digit takes the number down to 0 it becomes 9 instead.
+;@ test: skip uses the home number routines
 NumberEntryDigitDown::
+;>@pn PrintNumber2Zeros(mem[digit + 1], wNumberBackup)    # its two digits
 	push de
 	ld a, [hl]
 	push hl
 	inc hl
 	ld c, [hl]
 	ld b, $00
+;=@pn
 	ld hl, wNumberBackup
 	call PrintNumber2Zeros
 	pop hl
+;>@dg d = wNumberBackup[mem[digit]] & 0x0F
 	ld a, [hl]
 	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@dg
 	ld d, a
 	ld a, [de]
 	and $0f
+;> wNumberBackup[mem[digit]] = 9 if d == 0 else d - 1
 	dec a
 	ld [de], a
 	cp $ff
-	jr nz, jr_009_43db
+	jr nz, .value
 
 	ld a, $09
 	ld [de], a
 
-jr_009_43db:
+.value
+;> value = NumberEntryDigitsToValue(digit)
 	call NumberEntryDigitsToValue
+;> if value == 0 and mem[digit] != 0:
 	pop de
 	or a
 	ret nz
@@ -768,394 +1062,541 @@ jr_009_43db:
 	or a
 	ret z
 
+;>     mem[digit + 1] = 9
 	ld a, $09
 	inc hl
 	ld [hld], a
 	ret
 
 
+;@ def NumberEntryDigitsToValue(digit: hl) -> a
+;@ path: menu/number
+;@ Puts the two digits in wNumberBackup together into the number mem[digit + 1] and returns it.
+;@ test: skip uses the home multiply routine
 NumberEntryDigitsToValue::
+;>@v value = (wNumberBackup[0] & 0x0F) * 10 + (wNumberBackup[1] & 0x0F)
 	push hl
 	ld a, [wNumberBackup]
 	and $0f
 	ld c, $0a
 	call Multiply
-	ld a, [$c0a1]
+;=@v
+	ld a, [wNumberBackup + 1]
 	and $0f
 	add l
+;> mem[digit + 1] = value
 	pop hl
 	inc hl
 	ld [hld], a
+;> return value
 	ret
 
 
+;@ def NumberEntryDigitUp(digit: hl)
+;@ path: menu/number
+;@ Raises digit mem[digit] (0 tens, 1 ones) of the number mem[digit + 1], 9 wrapping to 0.
+;@ test: skip uses the home number routines
 NumberEntryDigitUp::
+;>@pn PrintNumber2Zeros(mem[digit + 1], wNumberBackup)
 	push de
 	ld a, [hl]
 	push hl
 	inc hl
 	ld c, [hl]
 	ld b, $00
+;=@pn
 	ld hl, wNumberBackup
 	call PrintNumber2Zeros
 	pop hl
-	ld de, $c0a1
+;>@dg d = wNumberBackup[mem[digit]] & 0x0F
+	ld de, wNumberBackup + 1
 	ld a, [hl]
 	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
+;=@dg
 	adc d
 	ld d, a
 	ld a, [de]
 	and $0f
+;> wNumberBackup[mem[digit]] = 0 if d == 9 else d + 1
 	inc a
 	ld [de], a
 	cp $0a
-	jr nz, jr_009_4425
+	jr nz, .value
 
 	ld a, $00
 	ld [de], a
 
-jr_009_4425:
+.value
+;> NumberEntryDigitsToValue(digit)
 	call NumberEntryDigitsToValue
 	pop de
 	ret
 
 
+;@ def ResetCursorBlink9()
+;@ path: menu/cursor
+;@ Restarts the cursor blink, so the next DrawMenuCursor9 draws the cursor at once.
 ResetCursorBlink9::
+;> wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
 	ret
 
 
+;@ def DrawMenuCursor9(cursor: a, positions: de)
+;@ path: menu/cursor
+;@ Draws the menu cursor among the window offsets in `positions` (ending with $FFFF): the arrow
+;@ $E8 at entry cursor & $7F (blinking: it is off while wCursorBlink bit 4 is set), the filled
+;@ arrow $E9 once chosen (bit 7), blank $E0 at all the others. Unless chosen, it only redraws every
+;@ 16 frames. Tiles go both to the BG map and to wTilemapBuffer.
+;@ test: skip writes VRAM
 DrawMenuCursor9::
+;> if not cursor & 0x80:
 	ld c, a
 	bit 7, a
-	jr nz, jr_009_4444
+	jr nz, .draw
 
+;>     t = wCursorBlink & 0x0F
+;>     wCursorBlink += 1
 	ld a, [wCursorBlink]
 	and $0f
 	push af
 	ld a, [wCursorBlink]
 	inc a
 	ld [wCursorBlink], a
+;>     if t:
+;>         return
 	pop af
 	ld a, c
 	ret nz
 
-jr_009_4444:
+.draw
+;> i = 0
 	ld c, a
 	ld b, $00
 
-jr_009_4447:
+.loop
+;>@wh while (pos := mem16[positions + 2 * i]) != 0xFFFF:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@wh
 	and l
 	cp $ff
 	ret z
 
+;>@w     addr = WindowBgAddrWrapped9(pos)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@w
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
+;>     if (cursor & 0x7F) != i:
+;>         tile = 0xE0
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_009_4477
+	jr nz, .put
 
+;>     elif cursor & 0x80:
+;>         tile = 0xE9                 # chosen
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_009_4477
+	jr nz, .put
 
+;>     elif wCursorBlink & 0x10:
+;>         tile = 0xE0                 # blink phase: hidden
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_009_4477
+	jr nz, .put
 
+;>     else:
+;>         tile = 0xE8
 	ld a, $e8
 
-jr_009_4477:
+.put
+;>     WriteVRAM(tile, addr)
 	call WriteVRAM
+;>@b     wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
+;>     i += 1
 	inc b
-	jr jr_009_4447
+	jr .loop
 
+;@ def DrawPageNumber9(rows: b, count: c, positions: de, cursor: hl)
+;@ path: menu/cursor
+;@ If the list has more than one page, writes the page number (page + 1, one or two digits, tiles
+;@ $F0-$F9 are the digits 0-9) into the window frame just left of the position at positions - 2.
+;@ test: skip writes VRAM
 DrawPageNumber9::
+;> if rows >= count:
+;>     return
 	ld a, b
 	cp c
 	ret nc
 
+;> page = mem[cursor + 1]
 	inc hl
 	ld c, [hl]
+;>@ps pos = mem16[positions - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@ps
 	ld h, a
 	inc de
+;> if pos == 0xFFFF:
+;>     return
 	and l
 	cp $ff
 	ret z
 
+;> pos -= 1                            # hNumber holds the position for PutWindowTile
 	dec hl
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
+;> if (page & 0x7F) != 9:
 	ld a, c
 	and $7f
 	cp $09
-	jr z, jr_009_44b6
+	jr z, .ten
 
+;>     PutWindowTile(0xF1 + page)      # digit page + 1
+;>     tile = 0xEE                     # frame edge in front
 	add $f1
 	call PutWindowTile
 	ld a, $ee
-	jr jr_009_44bd
+	jr .left
 
-jr_009_44b6:
+.ten
+;> else:
+;>     PutWindowTile(0xF0)             # "10"
+;>     tile = 0xF1
 	ld a, $f0
 	call PutWindowTile
 	ld a, $f1
 
-jr_009_44bd:
+.left
+;>@l mem16[hNumber] = pos - 1
 	push af
 	ldh a, [hNumber]
 	sub $01
 	ldh [hNumber], a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	sbc $00
-	ldh [$ffd6], a
+;=@l
+	ldh [hNumber + 1], a
+;> PutWindowTile(tile)
 	pop af
 	call PutWindowTile
+;>@hb mem16[hNumber] = pos             # put the position back
 	ldh a, [hNumber]
 	add $01
 	ldh [hNumber], a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
+;=@hb
 	adc $00
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	ret
 
 
+;@ def PutWindowTile(tile: a)
+;@ path: menu/window
+;@ Puts `tile` at the window offset in hNumber (u16): into the BG map and into wTilemapBuffer.
+;@ test: skip writes VRAM
 PutWindowTile::
+;> pos = mem16[hNumber]
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
+;>@v WriteVRAM(tile, WindowBgAddrWrapped9(pos))
 	push de
 	push bc
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
 	pop af
+;=@v
 	call WriteVRAM
+;>@t wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@t
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@t
 	ld [hl], a
 	ret
 
 
+;@ def DrawListFrame9(cursor: hl, positions: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Draws the list marks into wTilemapBuffer: at the first position of `positions` the arrow $E7 if
+;@ the list has more pages (else the frame edge $EE) with the page number (mem[cursor + 1] + 1)
+;@ in front of it, then the cursor (DrawCursorAt9 with the rest of the table).
 DrawListFrame9::
+;> row = mem[cursor]
 	ld a, [hli]
 	push af
 	push hl
+;>@bf buf = wTilemapBuffer + mem16[positions]; positions += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
 	ld h, a
+;=@bf
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;> more = rows < count
+;> mem[buf] = 0xE7 if more else 0xEE
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_009_4518
+	jr nc, .mark
 
 	ld a, $e7
 
-jr_009_4518:
+.mark
 	ld [hld], a
+;> if more:
 	pop bc
-	jr nc, jr_009_452f
+	jr nc, .cursor
 
+;>     page = mem[cursor + 1]
+;>     if page != 9:
 	ld a, [bc]
 	cp $09
-	jr z, jr_009_4529
+	jr z, .ten
 
+;>         mem[buf - 1] = 0xF1 + page
+;>         mem[buf - 2] = 0xEE
 	add $f1
 	ld [hld], a
 	ld a, $ee
 	ld [hli], a
-	jr jr_009_452f
+	jr .cursor
 
-jr_009_4529:
+.ten
+;>     else:
+;>         mem[buf - 1] = 0xF0         # "10"
+;>         mem[buf - 2] = 0xF1
 	ld a, $f0
 	ld [hld], a
 	ld a, $f1
 	ld [hli], a
 
-jr_009_452f:
+.cursor
+;> return DrawCursorAt9(row, positions)
 	pop af
 
+;@ def DrawCursorAt9(row: a, positions: de)
+;@ path: menu/cursor
+;@ Puts the cursor tile of entry `row` of `positions` into wTilemapBuffer only (the caller copies
+;@ the buffer to the screen): $E9 if chosen (bit 7), else $E8, or $E0 in the hidden blink phase.
 DrawCursorAt9::
+;>@p pos = mem16[positions + 2 * (row & 0x7F)]
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@p
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;=@p
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
+;> WindowBgAddrWrapped9(pos)            # (result not used)
 	push de
 	push bc
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
+;> if row & 0x80:
+;>     tile = 0xE9
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_009_455b
+	jr nz, .put
 
+;> elif wCursorBlink & 0x10:
+;>     tile = 0xE0
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_009_455b
+	jr nz, .put
 
+;> else:
+;>     tile = 0xE8
 	ld a, $e8
 
-jr_009_455b:
+.put
+;>@b wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
 	ret
 
 
+;@ def DrawNumberEntry(cursor: a, digit: hl, positions: de)
+;@ path: menu/number
+;@ Draws the two digits of the number mem[digit + 1] at the window offsets in `positions`; the digit
+;@ the cursor is on blinks with the cursor tile $E6. Unless the entry is chosen (bit 7), it only
+;@ redraws every 16 frames.
+;@ test: skip writes VRAM
 DrawNumberEntry::
+;>@pn PrintNumber2Zeros(mem[digit + 1], wNumberBackup)
 	ld c, a
 	inc hl
 	push de
 	push bc
 	ld c, [hl]
 	ld b, $00
+;=@pn
 	ld hl, wNumberBackup
 	call PrintNumber2Zeros
 	pop bc
 	pop de
+;> if not cursor & 0x80:
 	bit 7, c
-	jr nz, jr_009_4590
+	jr nz, .draw
 
+;>     t = wCursorBlink & 0x0F
+;>     wCursorBlink += 1
 	ld a, [wCursorBlink]
 	and $0f
 	push af
 	ld a, [wCursorBlink]
 	inc a
 	ld [wCursorBlink], a
+;>     if t:
+;>         return
 	pop af
 	ld a, c
 	ret nz
 
-jr_009_4590:
+.draw
+;> i = 0
 	ld c, a
 	ld b, $00
 
-jr_009_4593:
+.loop
+;>@wh while (pos := mem16[positions + 2 * i]) != 0xFFFF:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@wh
 	and l
 	cp $ff
 	ret z
 
+;>@w     addr = WindowBgAddrWrapped9(pos)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@w
 	call WindowBgAddrWrapped9
 	pop bc
 	pop de
+;>@c     if (cursor & 0x7F) == i and not (wCursorBlink & 0x10):
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_009_45bd
+	jr nz, .check
 
+;=@c
 	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_009_45bd
+	jr nz, .check
 
+;>         tile = 0xE6                 # the cursor
 	ld a, $e6
 
-jr_009_45bd:
+.check
+;>     else:
+;>@d         tile = wNumberBackup[i]     # the digit
 	cp $e0
-	jr nz, jr_009_45ce
+	jr nz, .put
 
 	push hl
 	ld a, b
 	ld hl, wNumberBackup
 	add l
+;=@d
 	ld l, a
 	ld a, $00
 	adc h
@@ -1163,31 +1604,43 @@ jr_009_45bd:
 	ld a, [hl]
 	pop hl
 
-jr_009_45ce:
+.put
+;>     WriteVRAM(tile, addr)
 	call WriteVRAM
+;>@b     wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
+;>     i += 1
 	inc b
-	jr jr_009_4593
+	jr .loop
 
+;@ def PrintMenuText9(n: hl)
+;@ path: menu/script
+;@ Prints message wScriptMenuText + `n`: the messages of a script menu follow each other, the
+;@ script that opened the menu sets the first one.
+;@ test: skip prints text
 PrintMenuText9::
+;> msg = wScriptMenuText + n
 	ld a, [wScriptMenuText]
 	add l
 	ld l, a
-	ld a, [$c8f1]
+	ld a, [wScriptMenuText + 1]
 	adc h
 	ld h, a
+;> PrintMessage(msg)
 	call PrintMessage
 	ret
 
@@ -1740,6 +2193,7 @@ jr_009_498c:
 	ret
 
 
+ShopBuyDigitCursor::
 	db $61, $01, $62, $01, $ff, $ff
 
 ShopBuyAskConfirm::
@@ -1857,6 +2311,7 @@ jr_009_4a63:
 	ret
 
 
+ShopBuyYesNoCursor::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 ShopBuyDoIt::
@@ -2272,6 +2727,7 @@ jr_009_4cdc:
 	ret
 
 
+ShopSellListCursor::
 	db $92, $01, $a2, $00, $e2, $00, $22, $01, $62, $01, $ff, $ff
 
 ShopSellAskQuantity::
@@ -2390,6 +2846,7 @@ jr_009_4db4:
 	ret
 
 
+ShopSellDigitCursor::
 	db $61, $01, $62, $01, $ff, $ff
 
 ShopSellAskConfirm::
@@ -2490,6 +2947,7 @@ jr_009_4e6c:
 	ret
 
 
+ShopSellYesNoCursor::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 ShopSellDoIt::
@@ -2735,6 +3193,7 @@ jr_009_501a:
 	ret
 
 
+VaultMainMenuCursor::
 	db $21, $00, $61, $00, $a1, $00, $ff, $ff
 
 VaultOpenWhatMenu::
@@ -2915,10 +3374,17 @@ jr_009_5158:
 	ret
 
 
+VaultStoreItemShowList::
 	db $fa, $25, $c8, $b7, $c0, $cd, $99, $51, $cd, $e5, $51, $cd, $cd, $47, $cd, $77
-	db $51, $21, $06, $c9, $34, $c9, $cd, $04, $42, $cd, $49, $50, $11, $53, $71, $cd
+	db $51, $21, $06, $c9, $34, $c9
+
+DrawVaultStoreWindow::
+	db $cd, $04, $42, $cd, $49, $50, $11, $53, $71, $cd
 	db $c9, $40, $cd, $2a, $44, $11, $72, $52, $06, $04, $fa, $e9, $c8, $4f, $21, $e2
-	db $c8, $cd, $ff, $44, $cd, $fa, $40, $c9, $21, $05, $03, $d7, $21, $65, $d6, $01
+	db $c8, $cd, $ff, $44, $cd, $fa, $40, $c9
+
+BuildBagItemList::
+	db $21, $05, $03, $d7, $21, $65, $d6, $01
 	db $30, $00, $af, $cd, $c7, $12, $21, $d8, $c0, $01, $28, $00, $af, $cd, $c7, $12
 	db $11, $51, $ca, $06, $14, $1a, $b7, $28, $15, $fe, $ff, $28, $11, $ea, $5e, $da
 	db $21, $65, $d6, $85, $6f, $3e, $00, $8c, $67, $13, $34, $05, $20, $e7, $21, $66
@@ -2954,6 +3420,7 @@ jr_009_51f4:
 	ret
 
 
+VaultStoreListInput::
 	db $11, $72, $52, $21, $e2, $c8, $fa, $e9, $c8, $4f, $06, $04, $23, $3a, $f5, $7e
 	db $f5, $cd, $56, $42, $f1, $21, $e2, $c8, $e6, $7f, $47, $7e, $e6, $7f, $b8, $28
 	db $00, $f1, $21, $e3, $c8, $be, $28, $03, $cd, $cd, $47, $fa, $46, $c8, $cb, $4f
@@ -2961,25 +3428,52 @@ jr_009_51f4:
 	db $01, $0c, $cd, $2f, $41, $cd, $04, $42, $cd, $49, $50, $cd, $fa, $40, $21, $03
 	db $00, $cd, $e5, $45, $3e, $04, $ea, $05, $c9, $18, $16, $fa, $46, $c8, $cb, $47
 	db $ca, $71, $52, $3e, $59, $cd, $2c, $1b, $21, $06, $c9, $34, $3e, $01, $ea, $de
-	db $c8, $c9, $72, $01, $89, $00, $c9, $00, $09, $01, $49, $01, $ff, $ff, $21, $07
-	db $00, $cd, $e5, $45, $3e, $01, $ea, $dd, $c8, $21, $06, $c9, $34, $c9, $fa, $25
-	db $c8, $b7, $c0, $cd, $9b, $52, $21, $06, $c9, $34, $c9, $cd, $04, $42, $cd, $49
+	db $c8, $c9
+
+VaultStoreListCursor::
+	db $72, $01, $89, $00, $c9, $00, $09, $01, $49, $01, $ff, $ff
+
+VaultStoreAskQuantity::
+	db $21, $07
+	db $00, $cd, $e5, $45, $3e, $01, $ea, $dd, $c8, $21, $06, $c9, $34, $c9
+
+VaultStoreShowQuantity::
+	db $fa, $25
+	db $c8, $b7, $c0, $cd, $9b, $52, $21, $06, $c9, $34, $c9
+
+DrawVaultStoreQuantity::
+	db $cd, $04, $42, $cd, $49
 	db $50, $11, $53, $71, $cd, $c9, $40, $11, $72, $52, $06, $04, $fa, $e9, $c8, $4f
 	db $21, $e2, $c8, $cd, $ff, $44, $11, $44, $70, $cd, $c9, $40, $21, $d8, $c0, $fa
 	db $e3, $c8, $87, $87, $47, $fa, $e2, $c8, $e6, $7f, $80, $85, $6f, $3e, $00, $8c
 	db $67, $7e, $ea, $5e, $da, $21, $65, $d6, $85, $6f, $3e, $00, $8c, $67, $4e, $06
 	db $00, $21, $64, $01, $cd, $6d, $40, $cd, $82, $20, $cd, $2a, $44, $11, $49, $53
-	db $21, $dd, $c8, $06, $02, $7e, $cd, $6d, $45, $cd, $fa, $40, $c9, $11, $49, $53
+	db $21, $dd, $c8, $06, $02, $7e, $cd, $6d, $45, $cd, $fa, $40, $c9
+
+VaultStoreQuantityInput::
+	db $11, $49, $53
 	db $21, $65, $d6, $fa, $5e, $da, $85, $6f, $3e, $00, $8c, $67, $4e, $06, $02, $21
 	db $dd, $c8, $cd, $4a, $43, $fa, $46, $c8, $cb, $4f, $28, $1b, $cd, $77, $51, $21
 	db $04, $00, $cd, $e5, $45, $21, $06, $c9, $35, $21, $06, $c9, $35, $21, $06, $c9
 	db $35, $21, $06, $c9, $35, $18, $11, $fa, $46, $c8, $cb, $47, $ca, $48, $53, $3e
-	db $59, $cd, $2c, $1b, $21, $06, $c9, $34, $c9, $61, $01, $62, $01, $ff, $ff, $21
+	db $59, $cd, $2c, $1b, $21, $06, $c9, $34, $c9
+
+VaultStoreDigitCursor::
+	db $61, $01, $62, $01, $ff, $ff
+
+VaultStoreDoIt::
+	db $21
 	db $65, $ca, $06, $28, $cd, $f2, $51, $fa, $de, $c8, $81, $fe, $29, $21, $08, $00
 	db $30, $13, $fa, $de, $c8, $47, $c5, $21, $07, $03, $d7, $cd, $1a, $5b, $c1, $05
-	db $20, $f4, $21, $09, $00, $cd, $e5, $45, $21, $06, $c9, $34, $c9, $fa, $25, $c8
+	db $20, $f4, $21, $09, $00, $cd, $e5, $45, $21, $06, $c9, $34, $c9
+
+VaultStoreDone::
+	db $fa, $25, $c8
 	db $b7, $c0, $21, $dc, $c8, $01, $06, $00, $3e, $00, $cd, $c7, $12, $21, $e2, $c8
-	db $01, $08, $00, $3e, $00, $cd, $c7, $12, $3e, $00, $ea, $06, $c9, $c9, $fa, $25
+	db $01, $08, $00, $3e, $00, $cd, $c7, $12, $3e, $00, $ea, $06, $c9, $c9
+
+VaultStoreFinish::
+	db $fa, $25
 	db $c8, $b7, $c0, $21, $01, $00, $cd, $e5, $45, $3e, $01, $ea, $05, $c9, $c9
 
 VaultDepositGold::
@@ -3100,6 +3594,7 @@ jr_009_548e:
 	ret
 
 
+DepositGoldDigitCursor::
 	db $8e, $00, $8f, $00, $90, $00, $91, $00, $92, $00, $ff, $ff
 
 VaultDepositGoldDoIt::
@@ -3372,6 +3867,7 @@ jr_009_5651:
 	ret
 
 
+VaultTakeListCursor::
 	db $72, $01, $89, $00, $c9, $00, $09, $01, $49, $01, $ff, $ff
 
 VaultTakeAskQuantity::
@@ -3489,6 +3985,7 @@ jr_009_5728:
 	ret
 
 
+VaultTakeDigitCursor::
 	db $61, $01, $62, $01, $ff, $ff
 
 VaultTakeDoIt::
@@ -3684,6 +4181,7 @@ jr_009_5881:
 	ret
 
 
+WithdrawGoldDigitCursor::
 	db $8e, $00, $8f, $00, $90, $00, $91, $00, $92, $00, $ff, $ff
 
 VaultWithdrawGoldDoIt::
@@ -4105,6 +4603,7 @@ jr_009_5b16:
 	ret
 
 
+StoreItem::
 	db $fa, $5e, $da, $fe, $00, $c8, $fe, $ff, $c8, $21, $65, $ca, $06, $28, $7e, $fe
 	db $00, $28, $0e, $fe, $ff, $28, $0a, $23, $05, $20, $f3, $3e, $ff, $ea, $5e, $da
 	db $c9, $fa, $5e, $da, $77, $c9
@@ -4408,7 +4907,11 @@ DrawEntryFeeSlot::
 	ret
 
 
-	db $2a, $29, $28, $27, $26, $25, $24, $36, $00, $00, $0a, $00, $32, $00, $64, $00
+ArenaClassLetters::
+	db $2a, $29, $28, $27, $26, $25, $24, $36
+
+ArenaEntryFees::
+	db $00, $00, $0a, $00, $32, $00, $64, $00
 	db $f4, $01, $e8, $03, $88, $13, $10, $27
 
 ArenaClassListInput::
@@ -4480,6 +4983,7 @@ jr_009_5da1:
 	ret
 
 
+ArenaClassCursor::
 	db $8c, $01, $a2, $00, $e2, $00, $22, $01, $62, $01, $ff, $ff
 
 ArenaCheckFee::
@@ -4627,6 +5131,7 @@ jr_009_5ea0:
 	ret
 
 
+ArenaYesNoCursor::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 ArenaEntryNext::
@@ -4829,6 +5334,7 @@ jr_009_5fc5:
 	ret
 
 
+GalleryPictures::
 	db $0f, $56, $10, $56, $11, $56, $12, $56, $13, $56, $14, $56, $15, $56, $16, $56
 	db $17, $56, $18, $56, $19, $56, $1a, $56, $1b, $56, $1c, $56, $1d, $56, $1e, $56
 
@@ -4925,8 +5431,11 @@ jr_009_6072:
 	ret
 
 
+GalleryNameFlags::
 	db $10, $11, $12, $13, $14, $16, $17, $19, $1d, $1c, $1a, $1f, $20, $22, $23, $25
+GalleryNames::
 	db $09, $1c, $c4, $44, $66, $0a, $45, $c5, $2a, $58, $2b, $99, $ad, $43, $94, $9a
+GalleryEntryFlags::
 	db $00, $30, $30, $31, $31, $32, $32, $33, $33, $34, $34, $35, $35, $36, $36, $37
 
 GalleryInput::
@@ -4975,18 +5484,19 @@ jr_009_60f1:
 	ret
 
 
+GalleryPageCursor::
 	db $12, $02, $ff, $ff, $ff, $ff, $ff, $ff
 
 GalleryClose::
 	call ClearTilemapBuffer9
 	call CopyTilemapBufferToVram9
-	ld hl, far_Call_0B_4088
+	ld hl, far_ReloadMapTileset
 	rst $10
-	ld hl, far_Call_0B_40CE
+	ld hl, far_DrawMapScreen
 	rst $10
 	call BuildStatusBar
 	call DrawStatusBar
-	ld hl, far_Call_06_4D5A
+	ld hl, far_LoadFieldActorGfx
 	rst $10
 	xor a
 	ld [wMenuOverlay], a
@@ -5220,9 +5730,9 @@ DrawNameEntryScreen::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld hl, $8af0
@@ -5232,9 +5742,9 @@ DrawNameEntryScreen::
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -5248,9 +5758,9 @@ DrawNameEntryScreen::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, $0064
 	call TilemapBufferAddr9
 	ld [hl], $af
@@ -5796,6 +6306,7 @@ jr_009_6606:
 	ret
 
 
+KeyboardKeyPositions::
 	db $e1, $00, $e2, $00, $e3, $00, $e4, $00, $e5, $00, $e6, $00, $e7, $00, $e8, $00
 	db $e9, $00, $ea, $00, $eb, $00, $ec, $00, $ed, $00, $ef, $00, $f0, $00, $f1, $00
 	db $f2, $00, $21, $01, $22, $01, $23, $01, $24, $01, $25, $01, $26, $01, $27, $01
@@ -5987,6 +6498,7 @@ jr_009_67d6:
 	ret
 
 
+NameYesNoCursor::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 NameEntryFinish::
@@ -6026,9 +6538,9 @@ jr_009_6804:
 jr_009_6812:
 	call ClearTilemapBuffer9
 	call CopyTilemapBufferToVram9
-	ld hl, far_Call_0B_4088
+	ld hl, far_ReloadMapTileset
 	rst $10
-	ld hl, far_Call_0B_40CE
+	ld hl, far_DrawMapScreen
 	rst $10
 	call BuildStatusBar
 	call DrawStatusBar
@@ -6036,7 +6548,7 @@ jr_009_6812:
 	or a
 	jr nz, jr_009_6832
 
-	ld hl, far_Call_06_4D5A
+	ld hl, far_LoadFieldActorGfx
 	rst $10
 	jr jr_009_687a
 
@@ -6295,6 +6807,7 @@ jr_009_6982:
 	ret
 
 
+ForbiddenNames::
 	db $34, $55, $42, $8e, $9f, $9f, $9f, $9f, $34, $55, $42, $8e, $2d, $9f, $9f, $9f
 	db $34, $55, $34, $55, $9f, $9f, $9f, $9f, $28, $43, $55, $2d, $9f, $9f, $9f, $9f
 	db $43, $55, $2d, $9f, $9f, $9f, $9f, $9f, $28, $46, $2d, $9f, $9f, $9f, $9f, $9f
@@ -6518,7 +7031,11 @@ jr_009_6aef:
 	inc b
 	jr jr_009_6ad0
 
-	db $68, $00, $69, $00, $6a, $00, $6b, $00, $ff, $ff, $00, $2f, $40, $31, $40, $31
+NameSlotPositions::
+	db $68, $00, $69, $00, $6a, $00, $6b, $00, $ff, $ff
+
+NamePictures::
+	db $00, $2f, $40, $31, $40, $31
 	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
 	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $01, $2f, $02, $2f, $03, $2f
 	db $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f, $09, $2f, $0a, $2f, $0b, $2f
@@ -6547,7 +7064,12 @@ jr_009_6aef:
 	db $1b, $3a, $1c, $3a, $1d, $3a, $1e, $3a, $1f, $3a, $20, $3a, $21, $3a, $22, $3a
 	db $23, $3a, $24, $3a, $25, $3a, $26, $3a, $27, $3a, $28, $3a, $29, $3a, $2a, $3a
 	db $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a, $30, $3a, $31, $3a, $32, $3a
-	db $33, $3a, $34, $3a, $35, $3a, $36, $3a, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef
+	db $33, $3a, $34, $3a, $35, $3a, $36, $3a
+
+;@ path: menu/gallery
+;@ The picture gallery's frame with the monster picture tiles ($38-$40, $88-$90, ...), 20 x 17 tiles at row 0, column 0. Window layouts: dw screen offset (row * 32 + column), then the tiles, $D8 starts the next row, $D9 ends.
+GalleryFrameLayout::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $38, $39, $3a, $3b, $3c, $3d, $3e, $3f, $40, $88, $89, $8a, $8b, $8c, $8d, $8e
 	db $8f, $90, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6569,27 +7091,62 @@ jr_009_6aef:
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $c7
 	db $c8, $c9, $ca, $cb, $cc, $cd, $ce, $cf, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 20 x 5 tiles at row 0, column 0.
+UnusedLayout6E45::
+	db $00
 	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $b0, $b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8
 	db $b9, $ba, $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd, $ce, $cf, $d0
 	db $d1, $d2, $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: menu/names
+;@ Yes / No window of the name entry, 6 x 5 tiles at row 8, column 14.
+NameYesNoLayout::
+	db $0e, $01, $fa, $ef, $ef, $ef
 	db $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $0e
+	db $d8, $fe, $e0, $31, $32, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: arena/entry
+;@ Yes / No window of the arena entry, 6 x 5 tiles at row 8, column 14.
+ArenaYesNoLayout::
+	db $0e
 	db $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4
+	db $ee, $ee, $fd, $d9
+
+;@ path: item/shop
+;@ Yes / No window of the shop, 6 x 5 tiles at row 8, column 14.
+ShopYesNoLayout::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4
 	db $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $a7, $e0
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $0c, $00, $fa, $ef, $ef, $ef, $ef
+	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: item/shop
+;@ The window showing the gold carried, 8 x 3 tiles at row 0, column 12.
+GoldWindowLayout::
+	db $0c, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: item/shop
+;@ The shop's Buy / Sell / Quit menu, 8 x 7 tiles at row 0, column 0.
+ShopMainMenuLayout::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $a4, $aa, $d4, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $d6, $d5, $de, $de, $e0, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d5, $ab, $a5, $a9, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $81, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: item/shop
+;@ The shop's item list window (names and prices), 19 x 9 tiles at row 4, column 1.
+ShopListLayout::
+	db $81, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80
 	db $81, $82, $83, $84, $85, $86, $87, $88, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6600,12 +7157,32 @@ jr_009_6aef:
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $40, $01, $fa
-	db $ef, $ef, $fb, $d8, $fe, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $fd, $d9, $40, $01
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: item/shop
+;@ The quantity window when buying, 4 x 3 tiles at row 10, column 0.
+BuyQuantityLayout::
+	db $40, $01, $fa
+	db $ef, $ef, $fb, $d8, $fe, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $fd, $d9
+
+;@ path: item/shop
+;@ The quantity window when selling, 7 x 3 tiles at row 10, column 0.
+SellQuantityLayout::
+	db $40, $01
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e5, $e0, $e0, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef, $fb
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 6 x 5 tiles at row 8, column 0.
+UnusedLayout705E::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $88, $00, $fa
+	db $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 12 x 9 tiles at row 4, column 8.
+UnusedLayout7083::
+	db $88, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $81
 	db $82, $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90
@@ -6613,12 +7190,27 @@ jr_009_6aef:
 	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e
 	db $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 8 x 5 tiles at row 0, column 0.
+UnusedLayout70FA::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $a4, $d5, $a7, $a8, $a9, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $aa, $ab, $ac, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a4
+	db $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 5 tiles at row 0, column 0.
+UnusedLayout7129::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a4
 	db $a5, $a6, $a7, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8
-	db $a9, $aa, $ab, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $68, $00, $fa
+	db $a9, $aa, $ab, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: item/vault
+;@ The vault's item list window, 12 x 9 tiles at row 3, column 8.
+VaultItemListLayout::
+	db $68, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $81
 	db $82, $83, $84, $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90
@@ -6626,11 +7218,24 @@ jr_009_6aef:
 	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e
 	db $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $6c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $fd, $d9
+
+;@ path: item/vault/gold
+;@ The window showing the gold kept in the vault, 8 x 3 tiles at row 3, column 12.
+BankedGoldLayout::
+	db $6c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $46, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $d9
+
+;@ path: item/vault/gold
+;@ The gold amount entry window, 14 x 3 tiles at row 10, column 6.
+GoldEntryLayout::
+	db $46, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $a0, $a1, $a2, $a3, $e0, $dd, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: unused/layouts
+;@ A window layout nothing uses, 11 x 13 tiles at row 0, column 0.
+UnusedLayout7216::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $92, $98, $9c, $e3, $e0, $9c, $93, $93, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e3, $95, $91, $96, $e0, $9a, $e3, $e0
@@ -6640,30 +7245,58 @@ jr_009_6aef:
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $d6, $97, $d5, $d5, $e3, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d5, $a2, $95, $99, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00
+	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 9 tiles at row 0, column 13.
+UnusedLayout72B4::
+	db $0d, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8
 	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 11 tiles at row 0, column 13.
+UnusedLayout72FE::
+	db $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb
 	db $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94
+	db $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 9 tiles at row 0, column 0.
+UnusedLayout7358::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94
 	db $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81
 	db $82, $83, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85
 	db $86, $87, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89
-	db $8a, $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef
+	db $8a, $8b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 11 tiles at row 0, column 0.
+UnusedLayout73A2::
+	db $00, $00, $fa, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb
 	db $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $80, $81, $82, $83, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $85, $86, $87, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $88, $89, $8a, $8b, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 5 tiles at row 0, column 13.
+UnusedLayout73FC::
+	db $0d, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $95, $9d, $93, $9c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $9c, $96, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: unused/layouts
+;@ A window layout nothing uses, 19 x 6 tiles at row 0, column 0.
+UnusedLayout7426::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9e, $90, $d6, $99, $d5, $98, $e4, $a0, $a1
 	db $a2, $a3, $e0, $e0, $e0, $e4, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
@@ -6671,7 +7304,12 @@ jr_009_6aef:
 	db $a4, $a5, $a6, $a7, $e0, $db, $a8, $a9, $aa, $ab, $e0, $dc, $ac, $ad, $ae, $af
 	db $ff, $d8, $fe, $e0, $9f, $e4, $e0, $e0, $e0, $e0, $9f, $e4, $e0, $e0, $e0, $e0
 	db $9f, $e4, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: arena/entry
+;@ The arena's class list window (class letters and entry fees), 17 x 9 tiles at row 4, column 0.
+ArenaClassLayout::
+	db $80, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $84
 	db $e0, $80, $e0, $91, $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6681,34 +7319,72 @@ jr_009_6aef:
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $87, $e0, $83, $e0, $91
 	db $97, $90, $d6, $d6, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 9 x 7 tiles at row 0, column 0.
+UnusedLayout7544::
+	db $00, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8a, $98, $d5, $d5
 	db $92, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $94, $90, $99, $91, $94, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $40, $41, $42, $43, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 11 tiles at row 2, column 0.
+UnusedLayout758C::
+	db $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $9b, $94, $9c, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
 	db $fe, $e0, $61, $62, $63, $64, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $65, $66, $67, $68, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $69, $6a, $6b, $6c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $6d, $6e, $6f, $70, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 11 tiles at row 2, column 0.
+UnusedLayout75E6::
 	db $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9b, $94, $9c, $e0
 	db $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $61, $62, $63, $64
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $65, $66, $67, $68
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $69, $6a, $6b, $6c
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6d, $6e, $6f, $70
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $09, $01, $fa, $ef, $ef, $ef
+	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 11 x 5 tiles at row 8, column 9.
+UnusedLayout7640::
+	db $09, $01, $fa, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $71, $72, $73, $74
 	db $75, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $e0, $e0, $76, $77, $78, $79, $7a, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $a9, $00, $fa, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 11 x 3 tiles at row 5, column 9.
+UnusedLayout767E::
+	db $a9, $00, $fa, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $71, $72, $73, $74, $75, $e0
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $49, $01
+	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 11 x 3 tiles at row 10, column 9.
+UnusedLayout76A4::
+	db $49, $01
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0
 	db $65, $66, $67, $68, $69, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 11 x 3 tiles at row 10, column 0.
+UnusedLayout76CA::
+	db $40, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $e0, $e0, $78, $79, $7a, $7b, $7c, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $87, $00, $fa, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 13 x 9 tiles at row 4, column 7.
+UnusedLayout76F0::
+	db $87, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $65, $66, $67, $68
 	db $69, $6a, $6b, $6c, $6d, $a0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6e, $6f, $70, $71, $72, $73, $74, $75
@@ -6716,12 +7392,22 @@ jr_009_6aef:
 	db $ff, $d8, $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $a2, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $80, $81, $82, $83, $84, $85, $86, $87, $88, $a3, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 9 x 7 tiles at row 0, column 0.
+UnusedLayout7770::
+	db $00, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d5, $df, $9f, $de, $e0, $e0, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $de, $d5, $d6
 	db $d6, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $d5, $a5, $a1, $a3, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 13 x 9 tiles at row 4, column 7.
+UnusedLayout77B8::
+	db $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $70, $71, $72, $73, $74, $75, $76, $77, $78, $9b, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $80, $81, $82, $83, $84, $85, $86, $87, $88, $9c, $ff, $d8, $fe, $e0, $e0, $e0
@@ -6729,17 +7415,32 @@ jr_009_6aef:
 	db $8d, $8e, $8f, $90, $91, $9d, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99
 	db $9a, $9e, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a4, $a5
+	db $fd, $d9
+
+;@ path: item/vault
+;@ The vault's main menu window, 7 x 7 tiles at row 0, column 0.
+VaultMainMenuLayout::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a4, $a5
 	db $a6, $a7, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $a9
 	db $aa, $ab, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $ac, $ad
-	db $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa, $ef
+	db $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 10 x 9 tiles at row 4, column 0.
+UnusedLayout7872::
+	db $80, $00, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $9e, $9f, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $e0, $a0, $a1, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $63, $e0, $9e, $9f, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $63, $e0, $a0, $a1
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 13 x 9 tiles at row 4, column 7.
+UnusedLayout78D7::
+	db $87, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $8c, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6e
 	db $6f, $70, $71, $72, $73, $74, $75, $76, $8d, $ff, $d8, $fe, $e0, $e0, $e0, $e0
@@ -6747,21 +7448,44 @@ jr_009_6aef:
 	db $7c, $7d, $7e, $7f, $8e, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88
 	db $8f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $0c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $95, $9d
+	db $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 8 x 5 tiles at row 0, column 12.
+UnusedLayout7957::
+	db $0c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $95, $9d
 	db $93, $9c, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $9c, $96, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: unused/layouts
+;@ A window layout nothing uses, 8 x 5 tiles at row 8, column 0.
+UnusedLayout7986::
 	db $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a1, $a7, $a9
 	db $a4, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a4
-	db $a2, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0e
+	db $a2, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 6 x 5 tiles at row 8, column 14.
+UnusedLayout79B5::
+	db $0e
 	db $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9c, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 8 x 11 tiles at row 0, column 0.
+UnusedLayout79DA::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $67, $68, $69, $6a, $6b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $6c, $6d, $6e, $6f, $70, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $71, $72, $73, $74, $75, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $76, $77, $78, $79, $7a, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $7b, $7c, $7d, $7e, $7f, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $08, $00, $fa, $ef, $ef, $ef, $ef
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 12 x 11 tiles at row 0, column 8.
+UnusedLayout7A3F::
+	db $08, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $81, $82, $83, $84, $85
 	db $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8, $fe
@@ -6770,7 +7494,12 @@ jr_009_6aef:
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2
 	db $a3, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $a4, $a5, $a6, $a7, $a8, $a9, $aa, $ab, $ac, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $01, $02, $02, $02
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused/layouts
+;@ A full-screen layout nothing uses, 20 x 18 tiles at row 0, column 0.
+UnusedScreen7AD0::
+	db $00, $00, $01, $02, $02, $02
 	db $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $03
 	db $d8, $04, $80, $81, $82, $83, $84, $85, $00, $00, $14, $15, $16, $17, $18, $19
 	db $1a, $1b, $1c, $00, $05, $d8, $04, $86, $87, $88, $89, $8a, $8b, $00, $0a, $0b
@@ -6794,15 +7523,33 @@ jr_009_6aef:
 	db $13, $13, $13, $13, $13, $13, $13, $13, $13, $13, $05, $d8, $04, $6e, $6f, $70
 	db $71, $72, $73, $74, $75, $76, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $05
 	db $d8, $06, $07, $08, $08, $08, $08, $08, $08, $08, $08, $08, $08, $08, $08, $08
-	db $08, $08, $08, $08, $09, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $08, $08, $08, $08, $09, $d9
+
+;@ path: unused/layouts
+;@ A window layout nothing uses, 7 x 5 tiles at row 8, column 0.
+UnusedLayout7C4C::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $95, $9d, $93, $9c, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $9c, $96, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: unused/layouts
+;@ A window layout nothing uses, 8 x 5 tiles at row 8, column 0.
+UnusedLayout7C76::
 	db $00, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $95, $9d, $93
 	db $9c, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9c
-	db $96, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $26
+	db $96, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: menu/names
+;@ The box the typed name is shown in, 8 x 4 tiles at row 1, column 6.
+NameBoxLayout::
+	db $26
 	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $00, $01, $02, $03
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $a0, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $fd, $d9
+
+;@ path: menu/names
+;@ The name entry keyboard, second page, 20 x 12 tiles at row 5, column 0.
+KeyboardLayout1::
+	db $a0, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $24, $25, $26
 	db $27, $28, $e0, $3e, $3f, $40, $41, $42, $e0, $e0, $91, $92, $93, $94, $95, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6818,7 +7565,12 @@ jr_009_6aef:
 	db $e0, $e0, $28, $53, $50, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $a0, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $fd, $d9
+
+;@ path: menu/names
+;@ The name entry keyboard, first page, 20 x 12 tiles at row 5, column 0.
+KeyboardLayout0::
+	db $a0, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $24, $25, $26, $27, $28
 	db $29, $2a, $2b, $2c, $2d, $2e, $2f, $30, $e0, $04, $05, $06, $07, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -6834,7 +7586,12 @@ jr_009_6aef:
 	db $e0, $28, $31, $27, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	db $d9
+
+;@ path: unused/padding
+;@ Unused space at the end of the bank.
+Bank09Padding::
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $01a", ROMX[$4000], BANK[$1a]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_1A::
 	db $1a
 
+;@ path: text/dialogue
+;@ Entry points of text bank $1A: the text routines, then one pointer per text group.
+;@ That tail (from $4007) is the group table the routines hand to StartText.
 FarTable_1A::
 	dw StartText_1A
 	dw CopyText_1A
@@ -14,6 +19,39 @@ FarTable_1A::
 	dw TextGroup_1A_0
 	dw TextGroup_1A_1
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $1A: one pointer per text (wTextIndex) into Texts_1A.
+;@ The text format (all text banks; printed by TextPrinterStep, control codes run by bank $56):
+;@ Characters are tiles of the font in bank $4F (Font, letter n at $4010 + 16 * n):
+;@   $00-$09 digits 0-9, $0A-$0D 0-3 again, $10-$19 small icons (monster family symbols),
+;@   $24-$3D A-Z, $3E-$57 a-z, $5C ', $5D the menu arrow, $5E , (comma), $5F . (period),
+;@   $60 ;, $61 .., $62 space, $63 !, $64 ?, $65 ", $66-$71 an apostrophe and a letter in one
+;@   tile ('l 't 's 'r 'm 'y 'v 'd 'e 'c 'n 'T), $96 [, $97 ], $9A ., $9C -, $9D ~, $9E /,
+;@   $9F * (starts what a nameless person says, "*:"), $A0 (, $A1 ), $A2 +, $A3 :, $A4 ...,
+;@   $A8 female sign, $B6 &. $8D / $8E add a diacritic mark to the letter before.
+;@ Control codes ($E0-$FF):
+;@   $E0-$E6, $FF ask yes/no (Up/Down choose, A or B answers into wTextChoice; $E6 without the
+;@   confirm sound); $E7 the same with "no" chosen first;
+;@   $E8 x y: move the cursor to column x of line y; $E9 n: play sound n;
+;@   $EA / $EB: beep each letter with sound $5B / $5A (the speaker's voice); $FD / $FE: letter
+;@   beep on / off; $EC: pause by the message speed setting (6-48 frames; at the slowest a
+;@   button press); $ED: print the rest at once; $F4: normal speed again; $F5: no letter delay;
+;@   $F8 n: n frames per letter;
+;@   $EF $EE: new line ($EF moves to the second line, or scrolls the box up when on it; $EE
+;@   clears the line); $F1: next line without scrolling; $F2: clear the box; $F3: cursor
+;@   back to the top left;
+;@   $FA: show the blinking arrow, $F7: wait for a button (usually "$FA $F7 $EF $EE");
+;@   $FB n: wait n frames (a button cuts it short); $FC n: pause n frames;
+;@   $F6: insert the player's name; $F9 n: insert the string at $C180 + n (a monster or item
+;@   name the code put there, $00 / $10 / $20 / $30 = user, item, target, ...);
+;@   $F0: end of the text (or of an inserted string).
+;@ The first texts of this group, decoded (" / " = new line, <wait> = $FA $F7):
+;@   0: <beep $5B>*:Yo! Pulio was / happy!<wait>
+;@   1: <beep $5A>Pulio:Thank you / <player>!<wait> / I'm saved! / <wait> / Pulio:In return, /
+;@      let me tell you<wait> / a secret. ...
+;@   2: <beep $5A>*:This is the / monster farm.<wait> / *:You can find / something special<wait> /
+;@      under the / SkyDragon!<wait>
+;@   3: <beep $5A>*:Old monsters / like myself can<wait> / no longer make it / to the next level.
 TextGroup_1A_0::
 	db $52, $41, $6c, $41, $94, $42, $f1, $42, $62, $43, $f1, $43, $15, $44, $3c, $44
 	db $5a, $44, $89, $44, $c5, $44, $f7, $44, $2e, $45, $70, $45, $b4, $45, $28, $46
@@ -31,6 +69,9 @@ TextGroup_1A_0::
 	db $8b, $5b, $e6, $5b, $07, $5c, $58, $5c, $be, $5c, $d8, $5c, $fc, $5c, $25, $5d
 	db $50, $5d
 
+;@ path: text/dialogue
+;@ Text group 1 of bank $1A: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_1A_1::
 	db $e0, $5d, $fb, $5d, $29, $5e, $68, $5e, $da, $5e, $0d, $5f, $fd, $5f, $20, $60
 	db $d5, $60, $bb, $61, $7c, $62, $16, $63, $84, $63, $6b, $64, $be, $64, $d7, $65
@@ -38,24 +79,42 @@ TextGroup_1A_1::
 	db $64, $69, $f0, $69, $a5, $6a, $1e, $6b, $90, $6b, $0c, $6c, $6f, $6c, $e9, $6c
 	db $5b, $6d, $ed, $6d, $5c, $6e, $ea, $6e, $3c, $6f, $1a, $70, $8a, $70, $34, $71
 
+;@ def StartText_1A()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $1A.
+;@ test: skip runs the text code with this bank switched in
 StartText_1A::
-	ld de, $4007
+;> StartText(FarTable_1A + 6)                 # the group pointers at the end of the far table
+	ld de, FarTable_1A + 6
 	call StartText
 	ret
 
 
+;@ def CopyText_1A()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $1A to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_1A::
-	ld de, $4007
+;> CopyTextString(FarTable_1A + 6)                 # the group pointers at the end of the far table
+	ld de, FarTable_1A + 6
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_1A()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $1A at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_1A::
+;> StartText_1A()
 	call StartText_1A
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $1A, one after the other, each ended by $F0 (format: see TextGroup_1A_0).
 Texts_1A::
 	db $ea, $9f, $a3, $3c, $4c, $63, $62, $33, $52, $49, $46, $4c, $62, $54, $3e, $50
 	db $ef, $ee, $45, $3e, $4d, $4d, $56, $63, $f7, $f0, $eb, $33, $52, $49, $46, $4c

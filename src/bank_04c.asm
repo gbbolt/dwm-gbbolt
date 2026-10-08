@@ -4,9 +4,15 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $04c", ROMX[$4000], BANK[$4c]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_4C::
 	db $4c
 
+;@ path: text/dialogue
+;@ Entry points of text bank $4C: the three text routines and PrintBattleMessage, then one
+;@ pointer per text group. That tail (from $4009) is the group table the routines hand to
+;@ StartText.
 FarTable_4C::
 	dw StartText_4C
 	dw CopyText_4C
@@ -21,6 +27,9 @@ FarTable_4C::
 	dw TextGroup_4C_6
 	dw TextGroup_4C_7
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_0::
 	db $05, $43, $1f, $43, $40, $43, $66, $43, $87, $43, $ab, $43, $cf, $43, $f1, $43
 	db $15, $44, $38, $44, $52, $44, $82, $44, $af, $44, $d1, $44, $f0, $44, $17, $45
@@ -55,73 +64,125 @@ TextGroup_4C_0::
 	db $9e, $5d, $b6, $5d, $d4, $5d, $f4, $5d, $2c, $5e, $4d, $5e, $6a, $5e, $8d, $5e
 	db $b2, $5e, $d7, $5e, $fd, $5e, $12, $5f, $41, $5f, $6c, $5f
 
+;@ path: text/dialogue
+;@ Text group 1 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_1::
 	db $6d, $5f, $86, $5f, $a7, $5f, $ca, $5f, $02, $60, $32, $60, $69, $60, $9e, $60
 	db $f2, $60, $27, $61, $45, $61, $70, $61, $9a, $61, $c8, $61, $fb, $61, $43, $62
 	db $70, $62, $ac, $62, $e3, $62
 
+;@ path: text/dialogue
+;@ Text group 2 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_2::
 	db $1f, $63, $45, $63, $45, $63, $75, $63, $a3, $63, $b5, $63, $c9, $63
 
+;@ path: text/dialogue
+;@ Text group 3 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_3::
 	db $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63
 	db $e5, $63
 
+;@ path: text/dialogue
+;@ Text group 4 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_4::
 	db $e5, $63, $01, $64, $29, $64, $47, $64
 
+;@ path: text/dialogue
+;@ Text group 5 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_5::
 	db $64, $64, $78, $64, $90, $64, $ac, $64, $bc, $64, $c8, $64, $d5, $64, $e8, $64
 	db $03, $65, $1b, $65, $34, $65, $42, $65, $4d, $65, $5a, $65, $65, $65, $79, $65
 	db $89, $65, $95, $65, $9e, $65, $b1, $65, $b1, $65, $ba, $65, $c7, $65, $db, $65
 	db $e6, $65, $fa, $65, $05, $66
 
+;@ path: text/dialogue
+;@ Text group 6 of bank $4C: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_4C_6::
 	db $06, $66, $14, $66, $2d, $66, $3f, $66, $52, $66, $54, $66, $75, $66, $9f, $66
 	db $ba, $66, $cc, $66, $ce, $66, $e4, $66, $08, $67, $30, $67, $71, $67, $7c, $67
 	db $bb, $67, $bd, $67, $cc, $67, $0d, $68, $5c, $68, $a7, $68, $b9, $68, $c9, $68
 	db $e8, $68, $fa, $68, $10, $69
 
+;@ path: text/dialogue
+;@ Text group 7 of bank $4C: a single text, at $6944.
 TextGroup_4C_7::
-	ld b, h
-	ld l, c
+	dw $6944
 
+;@ def StartText_4C()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $4C, unless wTextIndex is $FF; then
+;@ sets wTextIndex to $FF, so the same text is not started twice.
+;@ test: skip runs the text code with this bank switched in
 StartText_4C::
+;> if wTextIndex == 0xFF:
+;>     return
 	ld a, [wTextIndex]
 	cp $ff
 	ret z
 
-	ld de, $4009
+;> StartText(FarTable_4C + 8)                 # this bank's table of text groups
+	ld de, FarTable_4C + 8
 	call StartText
+;> wTextIndex = 0xFF
 	ld a, $ff
 	ld [wTextIndex], a
 	ret
 
 
+;@ def CopyText_4C()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $4C to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_4C::
-	ld de, $4009
+;> CopyTextString(FarTable_4C + 8)            # this bank's table of text groups
+	ld de, FarTable_4C + 8
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_4C()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $4C at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_4C::
+;> StartText_4C()
 	call StartText_4C
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ def PrintBattleMessage()
+;@ path: text/dialogue
+;@ Starts the message the battle code left in the byte at $DD6D: text $D7 + n of group 0 of
+;@ this bank. The byte is cleared afterwards.
+;@ test: skip runs the text code with this bank switched in
 PrintBattleMessage::
+;> wTextIndex = mem[0xDD6D] + 0xD7
 	ld a, [$dd6d]
 	add $d7
 	ld [wTextIndex], a
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	call StartText_4C
+;> mem[0xDD6D] = 0
 	xor a
 	ld [$dd6d], a
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $4C, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
+Texts_4C::
 	db $ed, $2f, $4c, $4c, $48, $62, $4c, $52, $51, $63, $f1, $f9, $00, $62, $4a, $4c
 	db $4b, $50, $51, $42, $4f, $63, $fc, $10, $ec, $f0, $ed, $38, $45, $9c, $4c, $45
 	db $63, $62, $24, $62, $44, $3e, $4b, $44, $62, $4c, $43, $f1, $f9, $00, $62, $4a

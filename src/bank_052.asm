@@ -3121,7 +3121,7 @@ jr_052_52f2:
 	jr jr_052_5324
 
 jr_052_530d:
-	ld hl, $cb29
+	ld hl, wMonResist
 	call PartyMonsterField
 	jr jr_052_5324
 

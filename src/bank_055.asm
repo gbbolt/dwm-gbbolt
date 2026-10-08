@@ -299,9 +299,9 @@ Call_55_4823::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -309,9 +309,9 @@ Call_55_4823::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	call Call_55_4863
 	pop de
 	pop hl
@@ -320,9 +320,9 @@ Call_55_4823::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -627,9 +627,9 @@ Jump_55_4ACB::
 
 Call_55_4B1A::
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 
 Call_55_4B22::
 	ld a, l
@@ -738,9 +738,9 @@ Call_55_4D44::
 	ld [wTextGroup], a
 	ld hl, $0901
 	ld a, l
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, h
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, $8a40
 	ld a, l
 	ld [wTextTiles], a
@@ -803,9 +803,9 @@ jr_055_4eed:
 	ld [wTextGroup], a
 	ld hl, $0701
 	ld a, l
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, h
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, $8800
 	call Call_55_4F8F
 	ld a, [wNumberBackup]
@@ -825,9 +825,9 @@ jr_055_4f19:
 	ld [wTextGroup], a
 	ld hl, $0701
 	ld a, l
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, h
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, $8870
 	call Call_55_4F8F
 	ld a, $04
@@ -976,9 +976,9 @@ jr_055_524c:
 	rst $10
 	ld hl, $0901
 	ld a, l
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, h
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $05
 	ld [wTextGroup], a
 	ld a, [wNewMonNameText]

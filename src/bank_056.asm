@@ -155,7 +155,7 @@ jr_056_4084:
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
 Call_56_4485::
-	ld hl, wTextBoxWidth
+	ld hl, wTextBoxLines
 	ld a, [hli]
 	or [hl]
 	ret z
@@ -164,11 +164,11 @@ Call_56_4485::
 	ld l, a
 	ld a, [$c828]
 	ld h, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld c, a
 
 jr_056_4497:
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld b, a
 
 jr_056_449b:
@@ -264,7 +264,7 @@ Jump_56_451F::
 	call NextTextByte
 	call ReadTextBankByte
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	call Multiply
 	add hl, de
 	add hl, hl
@@ -313,7 +313,7 @@ Jump_56_4569::
 Jump_56_4574::
 	ld hl, wTextFlags
 	res 7, [hl]
-	ld a, [$c8ee]
+	ld a, [wMessageSpeed]
 	cp $07
 	jr z, jr_056_4593
 
@@ -360,9 +360,9 @@ Jump_56_45AD::
 	rr e
 	srl d
 	rr e
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	ld a, [wTextBoxMap]
 	ld l, a
@@ -380,12 +380,12 @@ jr_056_45d6:
 
 	ld hl, $0020
 	call TextBoxMapAddress
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	call ClearMapTiles
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -439,7 +439,7 @@ jr_056_461f:
 
 
 Jump_56_4640::
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -482,9 +482,9 @@ jr_056_4679:
 	ld l, a
 	ld a, [$c83f]
 	ld h, a
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	call ClearMapTiles
 	ld a, [wTextTiles]
@@ -499,9 +499,9 @@ jr_056_4679:
 	rr e
 	srl d
 	rr e
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	ld hl, $0020
 	call TextBoxMapAddress
@@ -519,12 +519,12 @@ jr_056_46b5:
 
 	ld hl, $0040
 	call TextBoxMapAddress
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	call ClearMapTiles
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -587,7 +587,7 @@ Jump_056_4722:
 
 
 Jump_56_472B::
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -990,9 +990,9 @@ Call_56_4996::
 
 Call_56_49E2::
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h

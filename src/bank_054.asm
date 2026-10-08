@@ -1681,7 +1681,7 @@ jr_054_5587:
 
 
 Call_54_5591::
-	ld a, [$c8ee]
+	ld a, [wMessageSpeed]
 	cp $07
 	jr z, jr_054_55b6
 
@@ -1692,7 +1692,7 @@ Call_54_5591::
 	jr jr_054_55b0
 
 Call_54_55A0::
-	ld a, [$c8ee]
+	ld a, [wMessageSpeed]
 	cp $07
 	jr z, jr_054_55b6
 

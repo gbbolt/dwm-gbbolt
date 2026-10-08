@@ -24,12 +24,12 @@ Call_18_400B::
 	ld bc, $0012
 	call FillMemory
 	xor a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	ld bc, $0008
 	call FillMemory
 	ld hl, $9800
 	ld a, l
-	ld [$c8d6], a
+	ld [wTitleBgMap], a
 	ld a, h
 	ld [$c8d7], a
 	ld hl, wSGBPalSet
@@ -59,9 +59,9 @@ Call_18_400B::
 	ld de, $2f00
 	ld hl, $8000
 	call Decompress
-	ld a, [$c8c3]
+	ld a, [wVSTeamCount]
 	ld [wPartyCount], a
-	ld a, [$c8c4]
+	ld a, [wVSTeamSlots]
 	ld [wParty], a
 	ld a, [$c8c5]
 	ld [$ca8f], a
@@ -183,13 +183,13 @@ Call_18_42D1::
 
 
 jr_018_42da:
-	ld a, [$c8ba]
+	ld a, [wLinkPrizeSlot]
 	ret
 
 
 Call_18_42DE::
 	call Call_18_4DDA
-	ld a, [$c8d2]
+	ld a, [wTitleStep]
 	rst $00
 
 JumpTable_18_42E5::
@@ -240,7 +240,7 @@ Jump_18_4325::
 	call Call_18_4FD5
 	call Call_18_5006
 	call Call_18_5244
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -259,7 +259,7 @@ Jump_18_434F::
 
 jr_018_4361:
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
 jr_018_4368:
@@ -271,7 +271,7 @@ Jump_18_4369::
 	or a
 	jr nz, jr_018_4378
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $0c
 	ld [wLinkChoice], a
@@ -290,7 +290,7 @@ Jump_18_4379::
 	call Call_18_4E8F
 	ld a, $07
 	call Call_18_4E8F
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $0c
 	ld [wLinkChoice], a
@@ -307,7 +307,7 @@ Jump_18_4395::
 	call Call_18_4E8F
 	ld a, $06
 	call Call_18_4E8F
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $0c
 	ld [wLinkChoice], a
@@ -324,7 +324,7 @@ Jump_18_43B1::
 	call Call_18_4E8F
 	ld a, $05
 	call Call_18_4E8F
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $0c
 	ld [wLinkChoice], a
@@ -341,7 +341,7 @@ Jump_18_43CD::
 	call Call_18_4E8F
 	ld a, $04
 	call Call_18_4E8F
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $20
 	ld [wLinkChoice], a
@@ -362,7 +362,7 @@ Jump_18_43CD::
 
 jr_018_43ff:
 	ld a, $1a
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -398,7 +398,7 @@ Jump_18_4405::
 	cp $0a
 	ret nz
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $b0
 	ld [wLinkChoice], a
@@ -449,7 +449,7 @@ Jump_18_4468::
 	cp $60
 	ret nz
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $1e
 	ld [wConfirmChoice2], a
@@ -487,7 +487,7 @@ Jump_18_44AD::
 	cp $50
 	ret nz
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $1e
 	ld [wConfirmChoice2], a
@@ -514,7 +514,7 @@ Jump_18_44E1::
 	cp $40
 	ret nz
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld a, $3c
 	ld [wConfirmChoice2], a
@@ -550,7 +550,7 @@ jr_018_4525:
 	cp $fe
 	ret nz
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld de, $c8bb
 	ld hl, wTextArg0
@@ -614,7 +614,7 @@ jr_018_459b:
 
 	ld hl, $024b
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -637,7 +637,7 @@ jr_018_45c0:
 	ld bc, $0007
 	call Call_18_4604
 	ld hl, wLibraryFlags
-	ld de, $a1ce
+	ld de, sLibraryFlags
 	ld bc, $0020
 	call Call_18_4604
 	ei
@@ -648,7 +648,7 @@ jr_018_45c0:
 	rst $10
 	di
 	ld hl, wLibraryFlags
-	ld de, $a1ce
+	ld de, sLibraryFlags
 	ld bc, $0020
 	call Call_18_4617
 	call SaveMonsters
@@ -656,7 +656,7 @@ jr_018_45c0:
 
 jr_018_45fe:
 	ld a, $1a
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -704,7 +704,7 @@ Jump_18_462A::
 	call Call_18_5142
 	call Call_18_463D
 	call Call_18_5006
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -732,7 +732,7 @@ Jump_18_4659::
 	jr z, jr_018_4672
 
 jr_018_466b:
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_018_468f
 
@@ -751,7 +751,7 @@ jr_018_4672:
 	xor a
 	ld [wLinkPartnerChoice], a
 	ld a, $1b
-	ld [$c8d2], a
+	ld [wTitleStep], a
 
 Jump_018_468f:
 	ret
@@ -762,7 +762,7 @@ Jump_018_468f:
 Jump_18_4696::
 	ld hl, $024c
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -773,7 +773,7 @@ Jump_18_46A1::
 	ret nz
 
 	ld a, $1a
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -785,7 +785,7 @@ Jump_18_46AC::
 	ld hl, $0252
 	call PrintSystemText
 	ld a, $1e
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -800,7 +800,7 @@ jr_018_46be:
 
 jr_018_46ce:
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -861,7 +861,7 @@ jr_018_470a:
 	jr nz, jr_018_46dd
 
 	ld a, c
-	ld [$c8d8], a
+	ld [wTitleListCount], a
 	ret
 
 
@@ -938,7 +938,7 @@ Call_18_4774::
 	or a
 	jr nz, jr_018_47b5
 
-	ld hl, $a1f3
+	ld hl, sStashedParty
 	call ReadSRAMByte
 	or a
 	jr z, jr_018_47b5
@@ -948,7 +948,7 @@ Call_18_4774::
 	cp b
 	jr z, jr_018_47b7
 
-	ld hl, $a1f3
+	ld hl, sStashedParty
 	call ReadSRAMByte
 	cp $01
 	jr z, jr_018_47b5
@@ -958,7 +958,7 @@ Call_18_4774::
 	cp b
 	jr z, jr_018_47b7
 
-	ld hl, $a1f3
+	ld hl, sStashedParty
 	call ReadSRAMByte
 	cp $02
 	jr z, jr_018_47b5
@@ -989,7 +989,7 @@ Jump_18_47BB::
 	call Call_18_480D
 	call Call_18_47D4
 	call Call_18_5006
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1018,7 +1018,7 @@ jr_018_47ed:
 
 jr_018_4800:
 	ld b, $04
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wListCursor
 	call Call_18_52E1
@@ -1206,9 +1206,9 @@ jr_018_48fb:
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -1217,9 +1217,9 @@ jr_018_48fb:
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -1233,9 +1233,9 @@ jr_018_48fb:
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	pop hl
 	ld a, l
 	add $10
@@ -1312,9 +1312,9 @@ Call_18_4970::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -1323,9 +1323,9 @@ Call_18_4970::
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -1339,9 +1339,9 @@ Call_18_4970::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -1423,7 +1423,7 @@ Jump_18_4A5A::
 
 jr_018_4a6c:
 	ld hl, wListCursor
-	ld a, [$c8d8]
+	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -1463,7 +1463,7 @@ jr_018_4aa0:
 	call Call_18_4D38
 	call Call_18_5006
 	ld a, $1d
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jr jr_018_4aeb
 
 jr_018_4abd:
@@ -1490,7 +1490,7 @@ jr_018_4abd:
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 
 Jump_018_4aeb:
@@ -1502,7 +1502,7 @@ jr_018_4aeb:
 	db $61, $00, $a1, $00, $e1, $00, $ff, $ff
 
 Jump_18_4B04::
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1515,7 +1515,7 @@ Jump_18_4B09::
 	call Call_18_5142
 	call Call_18_4B1C
 	call Call_18_5006
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1566,11 +1566,11 @@ jr_018_4b53:
 	call Call_18_480D
 	call Call_18_47D4
 	call Call_18_5006
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	dec [hl]
 	jp Jump_018_4bb7
 
@@ -1589,17 +1589,17 @@ jr_018_4b80:
 	xor a
 	ld [wStatusViewVars], a
 	ld [wFieldMenuStep], a
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	jp Jump_018_4bb7
 
 
 jr_018_4ba2:
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ld hl, sPartyCount
 	call ReadSRAMByte
@@ -1626,7 +1626,7 @@ Jump_18_4BE3::
 	or a
 	ret z
 
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1662,7 +1662,7 @@ jr_018_4c34:
 	call Call_18_4970
 	call Call_18_480D
 	ld a, $14
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -1702,7 +1702,7 @@ jr_018_4c76:
 	ld bc, $0007
 	call Call_18_4604
 	ld hl, wLibraryFlags
-	ld de, $a1ce
+	ld de, sLibraryFlags
 	ld bc, $0020
 	call Call_18_4604
 	ei
@@ -1731,7 +1731,7 @@ jr_018_4cb0:
 	rst $10
 	di
 	ld hl, wLibraryFlags
-	ld de, $a1ce
+	ld de, sLibraryFlags
 	ld bc, $0020
 	call Call_18_4617
 	call SaveMonsters
@@ -1744,7 +1744,7 @@ jr_018_4cb0:
 	call PrintSystemText
 
 jr_018_4cd8:
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1777,7 +1777,7 @@ Jump_18_4CDD::
 	xor a
 	ld [wLinkSendByte], a
 	xor a
-	ld [$c86d], a
+	ld [wLinkCommand], a
 	ld a, $04
 	call StartFade
 	ret
@@ -1786,7 +1786,7 @@ Jump_18_4CDD::
 Jump_18_4D1A::
 	ld hl, $0251
 	call PrintSystemText
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1799,7 +1799,7 @@ Jump_18_4D25::
 	call Call_18_5142
 	call Call_18_4D38
 	call Call_18_5006
-	ld hl, $c8d2
+	ld hl, wTitleStep
 	inc [hl]
 	ret
 
@@ -1830,7 +1830,7 @@ Jump_18_4D4E::
 	call Call_18_463D
 	call Call_18_5006
 	ld a, $0e
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	jr jr_018_4d8f
 
 jr_018_4d76:
@@ -1841,7 +1841,7 @@ jr_018_4d76:
 	ld a, $59
 	call QueueSound
 	ld a, $11
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	xor a
 	ld [wListCursor], a
 	ld [wListPage], a
@@ -1864,7 +1864,7 @@ Jump_18_4D96::
 	call Call_18_4D38
 	call Call_18_5006
 	ld a, $1d
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -1888,7 +1888,7 @@ Jump_18_4DB0::
 jr_018_4dd1:
 	call PrintSystemText
 	ld a, $13
-	ld [$c8d2], a
+	ld [wTitleStep], a
 	ret
 
 
@@ -1903,7 +1903,7 @@ Call_18_4DDA::
 	or a
 	ret z
 
-	ld a, [$c8d2]
+	ld a, [wTitleStep]
 	cp $0c
 	ret c
 
@@ -2029,7 +2029,7 @@ jr_018_4e7f:
 	ld [hli], a
 	ld a, c
 	ld [hl], a
-	ld hl, far_Call_05_4005
+	ld hl, far_DrawCharacterSprite
 	rst $10
 	ret
 
@@ -2192,7 +2192,7 @@ Call_18_4F56::
 
 
 Call_18_4F65::
-	ld a, [$c8d6]
+	ld a, [wTitleBgMap]
 	add l
 	ld l, a
 	ld a, [$c8d7]
@@ -2287,7 +2287,7 @@ jr_018_5003:
 	jr jr_018_4fe4
 
 Call_18_5006::
-	ld a, [$c8d6]
+	ld a, [wTitleBgMap]
 	ld l, a
 	ld a, [$c8d7]
 	ld h, a
@@ -2336,9 +2336,9 @@ Call_18_503B::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -2346,9 +2346,9 @@ Call_18_503B::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld hl, far_PrintText_41
 	rst $10
 	pop de
@@ -2358,9 +2358,9 @@ Call_18_503B::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -2374,9 +2374,9 @@ Call_18_5074::
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [wTextBoxWidth]
+	ld a, [wTextBoxLines]
 	ld c, a
-	ld a, [wTextBoxHeight]
+	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
 	ld a, l
@@ -2385,9 +2385,9 @@ Call_18_5074::
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
@@ -2401,9 +2401,9 @@ Call_18_5074::
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [wTextBoxWidth], a
+	ld [wTextBoxLines], a
 	ld a, d
-	ld [wTextBoxHeight], a
+	ld [wTextBoxLineLength], a
 	ret
 
 
@@ -2582,7 +2582,7 @@ jr_018_520b:
 
 jr_018_520c:
 	xor a
-	ld [$c8d9], a
+	ld [wTitleBlink], a
 	push hl
 	push de
 	pop de
@@ -2607,7 +2607,7 @@ jr_018_521d:
 
 Call_18_5244::
 	xor a
-	ld [$c8d9], a
+	ld [wTitleBlink], a
 	ret
 
 
@@ -2616,12 +2616,12 @@ Call_18_5249::
 	bit 7, a
 	jr nz, jr_018_525e
 
-	ld a, [$c8d9]
+	ld a, [wTitleBlink]
 	and $0f
 	push af
-	ld a, [$c8d9]
+	ld a, [wTitleBlink]
 	inc a
-	ld [$c8d9], a
+	ld [wTitleBlink], a
 	pop af
 	ld a, c
 	ret nz
@@ -2660,7 +2660,7 @@ jr_018_5261:
 	bit 7, c
 	jr nz, jr_018_5291
 
-	ld a, [$c8d9]
+	ld a, [wTitleBlink]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_018_5291
@@ -2795,7 +2795,7 @@ Call_18_5303::
 	bit 7, c
 	jr nz, jr_018_532e
 
-	ld a, [$c8d9]
+	ld a, [wTitleBlink]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_018_532e

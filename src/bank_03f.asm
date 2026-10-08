@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $03f", ROMX[$4000], BANK[$3f]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_3F::
 	db $3f
 
+;@ path: gfx/compressed
+;@ Entry points of bank $3F: eight compressed blocks for Decompress (entries $3F00-$3F07:
+;@ Game Boy Color attribute maps and one tile set), then the routines of the bank's texts.
 FarTable_3F::
 	dw CGBAttrMap_3F00
 	dw CGBAttrMap_3F01
@@ -20,10 +25,15 @@ FarTable_3F::
 	dw CopyText_3F
 	dw PrintText_3F
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 18 screen (Decompress entry $3F00,
+;@ unpacked into VRAM bank 1 by bank $5F).
 CGBAttrMap_3F00::
 	db $40, $02, $01, $01, $a0, $ff, $4d, $01, $5f, $0f, $4d, $01, $bf, $0f, $4d, $01
 	db $1f, $1f, $4d, $01, $7f, $1f, $4d, $01, $df, $1f, $4d
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 18 screen (Decompress entry $3F01).
 CGBAttrMap_3F01::
 	db $40, $02, $02, $01, $02, $00, $0f, $00, $02, $f4, $ff, $4d, $02, $34, $0f, $2a
 	db $05, $05, $02, $33, $09, $05, $02, $c0, $00, $02, $a6, $09, $05, $05, $02, $34
@@ -31,12 +41,17 @@ CGBAttrMap_3F01::
 	db $0c, $07, $02, $22, $1b, $02, $12, $1f, $02, $02, $40, $00, $07, $07, $02, $21
 	db $11, $02, $32, $0f, $4d, $02, $92, $1f, $4d, $02, $d2, $1f, $1b
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 18 screen (Decompress entry $3F02,
+;@ unpacked into VRAM bank 1 by bank $5F).
 CGBAttrMap_3F02::
 	db $40, $02, $00, $01, $00, $00, $0f, $00, $04, $00, $14, $07, $00, $00, $0f, $4d
 	db $00, $60, $0f, $4d, $00, $a0, $0f, $0f, $02, $00, $02, $1b, $00, $92, $0c, $03
 	db $00, $22, $1b, $00, $12, $1f, $1d, $00, $90, $08, $00, $8e, $0f, $05, $00, $66
 	db $1f, $0d, $00, $86, $0f, $4d, $00, $c6, $1f, $27
 
+;@ path: gfx/compressed
+;@ Compressed tiles (Decompress entry $3F03), unpacked to $8800 by bank $18.
 Tiles_3F03::
 	db $a0, $02, $05, $ff, $60, $ff, $90, $cf, $88, $c7, $84, $e3, $42, $f1, $21, $f8
 	db $10, $fc, $08, $ff, $0c, $ff, $12, $f3, $22, $e3, $42, $c7, $84, $8f, $08, $1f
@@ -68,6 +83,9 @@ Tiles_3F03::
 	db $ff, $8a, $ff, $86, $ff, $82, $ff, $00, $05, $80, $00, $ff, $82, $05, $94, $21
 	db $05, $8f, $00, $00
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 32 background (Decompress entry $3F04):
+;@ InitCutscene0 unpacks it for both BG maps.
 CGBAttrMap_3F04::
 	db $00, $04, $05, $04, $05, $00, $0f, $00, $05, $f4, $ff, $4d, $05, $54, $0f, $4d
 	db $05, $b4, $0f, $4d, $05, $14, $1f, $4d, $05, $74, $1f, $4d, $05, $d4, $1f, $4d
@@ -78,12 +96,17 @@ CGBAttrMap_3F04::
 	db $05, $84, $30, $05, $c2, $3a, $01, $02, $05, $d4, $28, $05, $a4, $36, $05, $a6
 	db $36, $05, $a0, $f8
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 32 background (Decompress entry $3F05).
 CGBAttrMap_3F05::
 	db $00, $04, $01, $04, $01, $00, $0f, $00, $01, $f4, $ff, $4d, $01, $54, $0f, $4d
 	db $01, $b4, $0f, $4d, $01, $14, $1f, $4d, $01, $74, $1f, $4d, $01, $a0, $ff, $4d
 	db $01, $53, $2f, $4d, $01, $b3, $2f, $4d, $01, $13, $3f, $4d, $01, $73, $3f, $4d
 	db $01, $d3, $3f, $19
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 32 background (Decompress entry $3F06),
+;@ used by InitCutscene1 and InitCutscene2.
 CGBAttrMap_3F06::
 	db $00, $04, $07, $01, $07, $00, $0f, $00, $07, $f4, $ff, $4d, $07, $14, $0f, $0c
 	db $02, $07, $14, $08, $02, $02, $07, $84, $0c, $02, $06, $07, $14, $08, $06, $06
@@ -99,6 +122,9 @@ CGBAttrMap_3F06::
 	db $05, $05, $05, $04, $07, $83, $30, $05, $07, $88, $30, $04, $07, $82, $30, $05
 	db $05, $07, $14, $08, $07, $83, $31, $07, $a0, $3b, $07, $94, $3f, $39
 
+;@ path: gfx/compressed
+;@ Compressed Game Boy Color attribute map of a 32 x 32 background (Decompress entry $3F07),
+;@ used by InitCutscene3.
 CGBAttrMap_3F07::
 	db $00, $04, $08, $01, $08, $00, $0f, $00, $08, $f4, $ff, $4d, $08, $14, $0f, $00
 	db $02, $02, $08, $86, $00, $01, $01, $03, $08, $8f, $00, $08, $14, $0a, $08, $8f
@@ -111,9 +137,15 @@ CGBAttrMap_3F07::
 	db $19, $07, $07, $08, $e2, $0c, $06, $07, $08, $74, $3a, $08, $a0, $3e, $08, $94
 	db $3f, $39
 
+;@ path: text/dialogue
+;@ The text group table of bank $3F: one pointer per group (wTextGroup); each group lists
+;@ one pointer per text (wTextIndex).
 TextGroups_3F::
 	db $87, $44
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $3F: one pointer per text (wTextIndex). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_3F_0::
 	db $6c, $45, $dc, $45, $9b, $46, $20, $47, $71, $47, $f6, $47
 	db $47, $48, $b2, $48, $d2, $49, $e6, $4a, $51, $4b, $6e, $4c, $1b, $4d, $e4, $4d
@@ -130,24 +162,43 @@ TextGroup_3F_0::
 	db $fa, $70, $25, $71, $3e, $71, $71, $71, $88, $71, $bc, $71, $1f, $72, $ac, $72
 	db $f2, $72, $52, $73
 
+;@ def StartText_3F()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $3F.
+;@ test: skip runs the text code with this bank switched in
 StartText_3F::
-	ld de, $4485
+;> StartText(TextGroups_3F)                 # this bank's table of text groups
+	ld de, TextGroups_3F
 	call StartText
 	ret
 
 
+;@ def CopyText_3F()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $3F to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_3F::
-	ld de, $4485
+;> CopyTextString(TextGroups_3F)                 # this bank's table of text groups
+	ld de, TextGroups_3F
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_3F()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $3F at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_3F::
+;> StartText_3F()
 	call StartText_3F
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ path: text/dialogue
+;@ The texts of bank $3F, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0).
 Texts_3F::
 	db $ea, $9f, $a3, $2c, $62, $54, $4c, $4b, $67, $62, $44, $46, $53, $42, $ef, $ee
 	db $51, $45, $46, $50, $62, $37, $4f, $3e, $53, $42, $49, $42, $4f, $50, $5c, $fa
