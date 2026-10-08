@@ -258,196 +258,316 @@ EndingSavePromptStates::
 	dw SavePromptAnswer
 	dw SavePromptDone
 
+;@ def CreditsWaitPage()
+;@ path: event/ending
+;@ Credits state 0: counts frames and seconds; after 5 seconds the page fades out and state 1
+;@ draws the next one.
+;@ test: wSceneObjects[2] = rng.randint(0, 59); wSceneObjects[3] = rng.randint(0, 4)
 CreditsWaitPage::
-	ld hl, $c0da
+;> wSceneObjects[2] += 1                   # frames
+	ld hl, wSceneObjects + 2
 	inc [hl]
+;> if wSceneObjects[2] < 60:
+;>     return
 	ld a, [hl]
 	cp $3c
 	ret c
 
+;> wSceneObjects[2] = 0
 	ld a, $00
 	ld [hli], a
+;> wSceneObjects[3] += 1                   # seconds
 	inc [hl]
+;> if wSceneObjects[3] < 5:
+;>     return
 	ld a, [hl]
 	cp $05
 	ret c
 
+;> wSceneObjects[3] = 0
 	ld [hl], $00
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
+;> wMapLoadState += 1
 	ld hl, wMapLoadState
 	inc [hl]
+;> StartFade(0x04)                         # fade out
 	ld a, $04
 	call StartFade
 	ret
 
 
+;@ def CreditsNextPage()
+;@ path: event/ending
+;@ Credits state 1 (screen faded out): goes to the next page and draws its text and monster;
+;@ page 26, the last, also gets its own screen layout.
+;@ test: skip calls routines in other banks
 CreditsNextPage::
-	ld hl, $c0d9
+;> wSceneObjects[1] += 1                   # page
+	ld hl, wSceneObjects + 1
 	inc [hl]
+;> if wSceneObjects[1] == 26:
+;>     DrawCreditsLastPage()
 	ld a, [hl]
 	cp $1a
 	call z, DrawCreditsLastPage
+;> PrintCreditsPage()
 	call PrintCreditsPage
+;> LoadCreditsMonster()
 	call LoadCreditsMonster
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def CreditsFadeIn()
+;@ path: event/ending
+;@ Credits state 2: fades the new page in (on a Super Game Boy with the colours of the
+;@ monster's palette).
+;@ test: skip calls a routine in another bank
 CreditsFadeIn::
+;> SGBLoadPalettes()
 	ld hl, far_SGBLoadPalettes
 	rst $10
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def CreditsCheckLast()
+;@ path: event/ending
+;@ Credits state 3: back to state 0 for the next page, or on to state 4 after the last page.
+;@ test: wSceneObjects[1] = rng.choice([0, 5, 26])
 CreditsCheckLast::
+;> wMapLoadState = 0
 	xor a
 	ld [wMapLoadState], a
-	ld a, [$c0d9]
+;> if wSceneObjects[1] != 26:
+;>     wSceneObjects[0] = 0
+	ld a, [wSceneObjects + 1]
 	cp $1a
-	jr z, jr_05f_4173
+	jr z, .last
 
 	xor a
 	ld [wSceneObjects], a
+;>     return
 	ret
 
-
-jr_05f_4173:
+.last
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def CreditsLeaveToField()
+;@ path: event/ending
+;@ Credits state 4: shows the last page for 5 seconds, then fades out and returns to the field
+;@ (game mode 1) with a warp to map $2F at X $38, Y $C8.
+;@ test: wSceneObjects[2] = rng.randint(0, 59); wSceneObjects[3] = rng.randint(0, 4)
 CreditsLeaveToField::
-	ld hl, $c0da
+;> wSceneObjects[2] += 1                   # frames
+	ld hl, wSceneObjects + 2
 	inc [hl]
+;> if wSceneObjects[2] < 60:
+;>     return
 	ld a, [hl]
 	cp $3c
 	ret c
 
+;> wSceneObjects[2] = 0
 	ld a, $00
 	ld [hli], a
+;> wSceneObjects[3] += 1                   # seconds
 	inc [hl]
+;> if wSceneObjects[3] < 5:
+;>     return
 	ld a, [hl]
 	cp $05
 	ret c
 
+;> wSceneObjects[3] = 0
 	ld [hl], $00
+;> wWarpMap = 0x2F; wWarpOnGateFloor = 0
 	ld hl, $002f
 	ld a, l
 	ld [wWarpMap], a
 	ld a, h
 	ld [wWarpOnGateFloor], a
+;> wWarpX = 0x0038
 	ld hl, $0038
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
+;> wWarpY = 0x00C8
 	ld hl, $00c8
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
+;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;> hPlayerFlags = 0
 	xor a
 	ldh [hPlayerFlags], a
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;> wFieldFlags &= ~0x01                    # no field event pending
 	ld hl, wFieldFlags
 	res 0, [hl]
+;> wGameMode = 1                           # the field
 	ld a, $01
 	ld [wGameMode], a
+;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
 	ret
 
 
+;@ def SavePromptPrintEnd()
+;@ path: event/ending
+;@ Closing screen state 0: prints text 7/0 of bank $4C (the closing words) into the text box.
+;@ test: skip calls a routine in another bank
 SavePromptPrintEnd::
+;> wTextGroup = 7
 	ld a, $07
 	ld [wTextGroup], a
+;> wTextIndex = 0
 	ld a, $00
 	ld [wTextIndex], a
-	ld hl, EffectShakeY
+;> PrintText_4C()
+	ld hl, $4c02
 	rst $10
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def SavePromptStart()
+;@ path: event/ending
+;@ Closing screen state 1: clears wMapLoadState and goes on.
 SavePromptStart::
+;> wMapLoadState = 0
 	xor a
 	ld [wMapLoadState], a
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def SavePromptWaitButton()
+;@ path: event/ending
+;@ Closing screen state 2: waits for A, B, Select or Start, then asks whether to save (system
+;@ text $0256 in a message window drawn at the top of the screen).
+;@ test: skip prints text
 SavePromptWaitButton::
+;> if wJoyPressed & 0x0F == 0:
+;>     return
 	ld a, [wJoyPressed]
 	and $0f
 	ret z
 
+;> PrintSystemText(0x0256)                 # save the game?
 	ld hl, $0256
 	call PrintSystemText
-	ld de, $2e07
+;> DrawTilemapVRAM_5F(MessageWindowLayout, 0x9800)
+	ld de, MessageWindowLayout
 	ld hl, $9800
 	call DrawTilemapVRAM_5F
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def SavePromptAnswer()
+;@ path: event/ending
+;@ Closing screen state 3: once the question is answered, saves the game on "yes" (with
+;@ wGameStarted set and the field state cleared, so the save continues after the ending) and
+;@ prints system text $0257 (saved) or $0258 (not saved).
+;@ test: skip saves the game
 SavePromptAnswer::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wTextChoice != 0:                    # "no"
+;>     msg = 0x0258
 	ld a, [wTextChoice]
 	or a
 	ld hl, $0258
-	jr nz, jr_05f_423c
+	jr nz, .print
 
+;> else:
+;>     hPlayerFlags = 0
 	xor a
 	ldh [hPlayerFlags], a
+;>     wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;>     wGameStarted = 1
 	ld a, $01
 	ld [wGameStarted], a
+;>     wFieldFlags &= ~0x01
 	ld hl, wFieldFlags
 	res 0, [hl]
+;>     disable_interrupts()
 	di
+;>     SaveGame()
 	call SaveGame
+;>     enable_interrupts()
 	ei
+;>     QueueSound(0x59)                    # saved jingle
 	ld a, $59
 	call QueueSound
+;>     msg = 0x0257
 	ld hl, $0257
 
-jr_05f_423c:
+.print
+;> PrintSystemText(msg)
 	call PrintSystemText
+;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
+;@ def SavePromptDone()
+;@ path: event/ending
+;@ Closing screen state 4: nothing more happens; the game stays on this screen.
 SavePromptDone::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> return
 	ret
 
 

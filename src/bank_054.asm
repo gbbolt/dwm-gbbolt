@@ -21,7 +21,7 @@ FarTable_54::
 	dw ConsumeBattleItem
 	dw CheckEnemyJoins
 	dw UseBeastTail
-SkillPointers:
+SkillPointers::
 	dw Skill_Blaze
 	dw Skill_Blazemore
 	dw Skill_Blazemost
@@ -1594,130 +1594,185 @@ Skill_Ahhh_DD::
 	db $78, $13, $11, $0a, $02, $00, $00, $83, $9e, $13, $02, $00, $00, $00, $00, $00
 	db $00, $00, $00
 
+;@ def GetSkillWord()
+;@ path: monster/skills
+;@ Reads the 16-bit word at byte wBattleArg2 of the record of skill wBattleArg0 (wBattleArg1 = high
+;@ byte of the skill number, always 0) and returns it in wBattleArg0 (low byte) and wBattleArg1 (high).
+;@ Callers mostly want the first of the two bytes. The record format is described at Skill_Blaze.
+;@ test: wBattleArg0 = rand(0, 0xDD); wBattleArg1 = 0; wBattleArg2 = rand(0, 17)
 GetSkillWord::
+;> skill = wBattleArg0 | wBattleArg1 << 8
 	ld a, [wBattleArg0]
 	ld c, a
 	ld a, [wBattleArg1]
 	ld b, a
-	ld hl, $4013
+;> rec = mem16[SkillPointers + 2 * skill]
+	ld hl, SkillPointers
 	add hl, bc
 	add hl, bc
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> p = rec + wBattleArg2
 	ld a, [wBattleArg2]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> value = mem16[p]
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> wBattleArg0 = value & 0xFF
 	ld a, c
 	ld [wBattleArg0], a
+;> wBattleArg1 = value >> 8
 	ld a, b
 	ld [wBattleArg1], a
 	ret
 
 
+;@ def GetSkillValue()
+;@ path: monster/skills
+;@ Like GetSkillWord, and also returns the byte after the word in wBattleArg2: used for the base
+;@ amount (u16) and random spread (u8) at record +11 / +15.
+;@ test: wBattleArg0 = rand(0, 0xDD); wBattleArg1 = 0; wBattleArg2 = rand(0, 16)
 GetSkillValue::
+;> skill = wBattleArg0 | wBattleArg1 << 8
 	ld a, [wBattleArg0]
 	ld c, a
 	ld a, [wBattleArg1]
 	ld b, a
-	ld hl, $4013
+;> rec = mem16[SkillPointers + 2 * skill]
+	ld hl, SkillPointers
 	add hl, bc
 	add hl, bc
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> p = rec + wBattleArg2
 	ld a, [wBattleArg2]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> value = mem16[p]
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> wBattleArg2 = mem[p + 2]
 	inc hl
 	ld a, [hl]
 	ld [wBattleArg2], a
+;> wBattleArg0 = value & 0xFF
 	ld a, c
 	ld [wBattleArg0], a
+;> wBattleArg1 = value >> 8
 	ld a, b
 	ld [wBattleArg1], a
 	ret
 
 
+;@ def LoadSkillFlags()
+;@ path: monster/skills
+;@ Copies the targets byte (+2) and the three flag bytes (+7..+9) of skill wSkillId's record to
+;@ wSkillTargeting and wSkillFlags1-3, where the battle code tests them.
+;@ test: wSkillId = rand(0, 0xDD)
 LoadSkillFlags::
+;> skill = wSkillId
 	ld a, [wSkillId]
 	ld c, a
 	ld b, $00
-	ld hl, $4013
+;> rec = mem16[SkillPointers + 2 * skill]
+	ld hl, SkillPointers
 	add hl, bc
 	add hl, bc
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> p = rec + 2
 	ld a, $02
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> wSkillTargeting = mem[p]
 	ld a, [hl]
 	ld [wSkillTargeting], a
+;> p += 5
 	ld a, $05
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> wSkillFlags1 = mem[p]
 	ld a, [hli]
 	ld [wSkillFlags1], a
+;> wSkillFlags2 = mem[p + 1]
 	ld a, [hli]
 	ld [wSkillFlags2], a
+;> wSkillFlags3 = mem[p + 2]
 	ld a, [hl]
 	ld [wSkillFlags3], a
 	ret
 
 
+;@ def GetSkillBaseAmount()
+;@ path: battle/damage
+;@ Puts the base amount of skill wSkillId used by battle position wSkillUser into wSkillAmount: the
+;@ word at record +11 for a monster of your side, +15 for an enemy, plus the spread byte after it
+;@ unless the user's intelligence class is 2.
+;@ test: wSkillId = rand(0, 0xDD); wSkillUser = rand(0, 7)
 GetSkillBaseAmount::
+;> wBattleArg0 = wSkillId
 	ld a, [wSkillId]
 	ld [wBattleArg0], a
+;> wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;> if wSkillUser & 4:                     # an enemy uses it
 	ld a, [wSkillUser]
 	bit 2, a
-	jr z, jr_054_52e0
+	jr z, .ownSide
 
+;>     wBattleArg2 = 15
 	ld a, $0f
 	ld [wBattleArg2], a
-	jr jr_054_52e5
+	jr .read
 
-jr_054_52e0:
+;> else:
+.ownSide
+;>     wBattleArg2 = 11
 	ld a, $0b
 	ld [wBattleArg2], a
 
-jr_054_52e5:
+.read
+;> GetSkillValue()                       # base in wBattleArg0/1, spread in wBattleArg2
 	call GetSkillValue
+;> amount = wBattleArg0 | wBattleArg1 << 8
 	ld a, [wBattleArg0]
 	ld c, a
 	ld a, [wBattleArg1]
 	ld b, a
+;>@c cls = wBattlerIntClass[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c
 	ld h, a
 	ld a, [hl]
+;> if cls != 2:
 	cp $02
-	jr z, jr_054_530a
+	jr z, .store
 
+;>     amount += wBattleArg2
 	ld a, [wBattleArg2]
 	add c
 	ld c, a
@@ -1725,48 +1780,65 @@ jr_054_52e5:
 	adc b
 	ld b, a
 
-jr_054_530a:
+.store
+;> wSkillAmount = amount
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ret
 
 
+;@ def GetSkillBaseAmountCopy()
+;@ path: unused
+;@ An identical copy of GetSkillBaseAmount, reachable as far entry 4 of bank $54; nothing calls it.
+;@ test: wSkillId = rand(0, 0xDD); wSkillUser = rand(0, 7)
 GetSkillBaseAmountCopy::
+;> wBattleArg0 = wSkillId
 	ld a, [wSkillId]
 	ld [wBattleArg0], a
+;> wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;> if wSkillUser & 4:                     # an enemy uses it
 	ld a, [wSkillUser]
 	bit 2, a
-	jr z, jr_054_532c
+	jr z, .ownSide
 
+;>     wBattleArg2 = 15
 	ld a, $0f
 	ld [wBattleArg2], a
-	jr jr_054_5331
+	jr .read
 
-jr_054_532c:
+;> else:
+.ownSide
+;>     wBattleArg2 = 11
 	ld a, $0b
 	ld [wBattleArg2], a
 
-jr_054_5331:
+.read
+;> GetSkillValue()
 	call GetSkillValue
+;> amount = wBattleArg0 | wBattleArg1 << 8
 	ld a, [wBattleArg0]
 	ld c, a
 	ld a, [wBattleArg1]
 	ld b, a
+;>@c cls = wBattlerIntClass[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c
 	ld h, a
 	ld a, [hl]
+;> if cls != 2:
 	cp $02
-	jr z, jr_054_5356
+	jr z, .store
 
+;>     amount += wBattleArg2
 	ld a, [wBattleArg2]
 	add c
 	ld c, a
@@ -1774,110 +1846,167 @@ jr_054_5331:
 	adc b
 	ld b, a
 
-jr_054_5356:
+.store
+;> wSkillAmount = amount
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ret
 
 
+;@ def GetBattleItemTarget()
+;@ path: item/battle
+;@ For the battle effect wBattleArg0 of an item ($AF + item number) returns its targets byte in
+;@ wBattleArg0 and the effect in wBattleArg1, or wBattleArg0 = 0 when the item can't be used in
+;@ battle (record +10 = 1, or past the table). The BeastTail ($D5) aims at all enemies.
+;@ test: wBattleArg0 = rand(0xAF, 0xFF)
 GetBattleItemTarget::
+;> if wBattleArg0 == 0xD5:                # the BeastTail
 	ld a, [wBattleArg0]
 	cp $d5
-	jr z, jr_054_539d
+	jr z, .beastTail
 
-	jr nc, jr_054_53a6
+;>@b1     wBattleArg1 = 0xD5
+;>@b2     wBattleArg0 = 0x12                # all enemies
+;>@b3     return
+;> if wBattleArg0 > 0xD5:
+	jr nc, .none
 
+;>@n1     wBattleArg0 = 0
+;>@n2     return
+;> wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;> wBattleArg2 = 10                      # record +10: where it can be used
 	ld a, $0a
 	ld [wBattleArg2], a
+;> effect = wBattleArg0
 	ld a, [wBattleArg0]
 	ld l, a
 	ld a, [wBattleArg1]
 	ld h, a
+;> GetSkillWord()
 	push hl
 	call GetSkillWord
 	pop hl
+;> if wBattleArg0 == 1:                  # outside battle only
 	ld a, [wBattleArg0]
 	cp $01
-	jr z, jr_054_53a6
+	jr z, .none
 
+;>@o1     wBattleArg0 = 0
+;>@o2     return
+;> wBattleArg0 = effect
 	ld a, l
 	ld [wBattleArg0], a
+;> wBattleArg1 = 0
 	ld a, h
 	ld [wBattleArg1], a
+;> wBattleArg2 = 2                       # record +2: targets
 	push hl
 	ld a, $02
 	ld [wBattleArg2], a
+;> GetSkillWord()
 	call GetSkillWord
 	pop hl
+;> wBattleArg1 = effect
 	ld a, l
 	ld [wBattleArg1], a
 	ret
 
-
-jr_054_539d:
+.beastTail
+;=@b1
 	ld [wBattleArg1], a
+;=@b2
 	ld a, $12
 	ld [wBattleArg0], a
+;=@b3
 	ret
 
-
-jr_054_53a6:
+.none
+;=@n1
+;=@o1
 	ld a, $00
 	ld [wBattleArg0], a
+;=@n2
+;=@o2
 	ret
 
 
+;@ def ConsumeBattleItem()
+;@ path: item/battle
+;@ Uses up the item chosen in the battle item list (page wConfirmChoice, line wMenuChoice2): looks the
+;@ item up, lets MaybeUseUpItem remove it, and when it is gone and could have stayed (use-up chance
+;@ below 100%) sets wBattleItemUsedUp, puts its name in wTextArg1 and calls far 50_5B58.
+;@ test: skip calls routines in other banks
 ConsumeBattleItem::
+;> wBattleItemUsedUp = 0
 	xor a
 	ld [wBattleItemUsedUp], a
+;>@slot slot = wConfirmChoice * 4 + (wMenuChoice2 & 0x7F)
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	ld b, a
 	ld a, [wMenuChoice2]
 	and $7f
+;=@slot
 	add b
 	ld a, a
+;> wBattleArg0 = slot
 	ld [wBattleArg0], a
+;>@item wItemId = wBagItems[slot]
 	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@item
 	ld a, [hl]
 	ld [wItemId], a
+;> GetItemData()
 	ld hl, far_GetItemData
 	rst $10
+;> wItemBagSlot = slot
 	ld a, [wBattleArg0]
 	ld [wItemBagSlot], a
+;> MaybeUseUpItem()
 	ld hl, far_MaybeUseUpItem
 	rst $10
+;> if wItemId == 0xFF and wItemUseUpChance != 100:
 	ld a, [wItemId]
 	cp $ff
-	jr nz, jr_054_53f5
+	jr nz, .done
 
 	ld a, [wItemUseUpChance]
 	cp $64
-	jr z, jr_054_53f5
+	jr z, .done
 
+;>     wBattleItemUsedUp = 1
 	ld a, $01
 	ld [wBattleItemUsedUp], a
+;>     CopyBattleItemName()
 	call CopyBattleItemName
+;>     Call_50_5B58()
 	ld hl, far_Call_50_5B58
 	rst $10
 
-jr_054_53f5:
+.done
 	ret
 
 
+;@ def CopyBattleItemName()
+;@ path: item/battle
+;@ Copies the name of the item behind battle effect wSkillId (item wSkillId - $AF, system text group
+;@ 8) to wTextArg1.
+;@ test: skip calls a routine in another bank
 CopyBattleItemName::
+;> item = wSkillId - 0xAF
 	ld a, [wSkillId]
 	sub $af
+;> CopySystemText(0x0800 + item, wTextArg1)
 	ld l, a
 	ld h, $08
 	ld de, wTextArg1
