@@ -3874,38 +3874,57 @@ jr_016_63ac:
 	ret
 
 
+;@ def PickFloorSpot()
+;@ path: field/gatefloor/spots
+;@ Picks a random spot for an object: a random screen of the floor (the next one present after a
+;@ random start), whose map is loaded into wSavedTilemap, and in it a random tile 1-8 across,
+;@ 1-6 down, until that tile is plain floor (collision kind $0C or $0D). The result is wMapScreen
+;@ and the pixel position in hTestX, hTestY.
+;@ test: skip calls routines in other banks
 PickFloorSpot::
+;> screen = Random()                   # wRandomHigh
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 
+;> while True:                          # the next screen that exists
+;>     screen += 1
 jr_016_63b6:
 	inc b
 	ld a, b
+;>     wMapScreen = screen & 15
 	and $0f
 	ld [wMapScreen], a
+;>     if wFloorLayout[wMapScreen] < 0xF0:
+;>@k1         break
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@k1
 	ld a, [hl]
 	and $f0
 	cp $f0
 	jr z, jr_016_63b6
 
+;> Decompress(GetScreenTilemapRef(), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
+;> hScrollX = 0
 	xor a
 	ldh [hScrollX], a
 	ldh [$ffb8], a
+;> hScrollY = 0
 	xor a
 	ldh [hScrollY], a
 	ldh [$ffbc], a
 
+;> while True:
+;>@g44     hTestX = (Random() % 8 + 1) * 16 + 8
 jr_016_63e1:
 	call Random
 	ld a, [wRandomHigh]
@@ -3913,37 +3932,45 @@ jr_016_63e1:
 	ld a, $08
 	call Divide8
 	add $01
+;=@g44
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g44
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
+;>@g46     hTestY = (Random() % 6 + 1) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
 	call Divide8
 	add $01
+;=@g46
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g46
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
+;>     GetCollisionAt()
 	call GetCollisionAt
+;>     if hTestTile >> 2 in (0x0C, 0x0D):
+;>@g48         return
 	ldh a, [hTestTile]
 	srl a
 	srl a
@@ -3951,58 +3978,84 @@ jr_016_63e1:
 	ret z
 
 	cp $0d
+;=@g48
 	ret z
 
 	jr jr_016_63e1
 
+;@ def PlaceFloorObject(dest: hl, chance: c) -> hl
+;@ path: field/gatefloor/spots
+;@ Places one object of the floor: its kind comes from the class's FloorObjectTable list, + $10
+;@ with the given percent chance. Up to 16 random spots are tried; a spot must leave room around
+;@ it (CheckObjectSpace), not be the stairs, the arrival spot or another object, not lie on the
+;@ character's screen, and a screen holds at most 3 objects (the stairs and arrival screens and
+;@ screens that already have one are avoided while other picks come up). The 4-byte entry at dest
+;@ is the kind, the contents (an item from FloorItemTables for chests), and the floor tile column
+;@ and row; dest is returned past it. If no spot is found, nothing is written.
+;@ test: skip calls routines in other banks
 PlaceFloorObject::
+;> wFloorTries = 16
 	push hl
 	ld a, $10
 	ld [wFloorTries], a
+;>@g49 wFloorObjKind = PickByPercent(FloorObjectTable + wGateClass * 16)
 	push bc
 	ld a, [wGateClass]
-	ld hl, $7326
+	ld hl, FloorObjectTable
 	add a
 	add a
 	add a
+;=@g49
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@g49
 	call PickByPercent
 	ld [wFloorObjKind], a
+;> if Random() % 100 < chance:
+;>@g51     wFloorObjKind += 0x10
 	call Random
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
+;=@g51
 	call Divide16
 	pop bc
 	cp c
-	jr z, jr_016_646d
+	jr z, Jump_016_646d
 
-	jr nc, jr_016_646d
+	jr nc, Jump_016_646d
 
 	ld a, [wFloorObjKind]
+;=@g51
 	add $10
 	ld [wFloorObjKind], a
 
+;> while True:
+;>     wFloorTries -= 1
 Jump_016_646d:
 jr_016_646d:
 	ld a, [wFloorTries]
 	dec a
 	ld [wFloorTries], a
+;>     if wFloorTries == 0:
+;>         return dest
 	jr nz, jr_016_6478
 
 	pop hl
 	ret
 
 
+;>     PickFloorSpot()
 jr_016_6478:
 	call PickFloorSpot
+;>     if wMapScreen == wStairsScreen:
+;>         PickFloorSpot()
 	ld a, [wMapScreen]
 	ld b, a
 	ld a, [wStairsScreen]
@@ -4011,6 +4064,8 @@ jr_016_6478:
 
 	call PickFloorSpot
 
+;>     if wMapScreen == wArrivalScreen:
+;>         PickFloorSpot()
 jr_016_6488:
 	ld a, [wMapScreen]
 	ld b, a
@@ -4020,6 +4075,8 @@ jr_016_6488:
 
 	call PickFloorSpot
 
+;>     if per_screen[wMapScreen]:          # per_screen is wLineScroll[16]
+;>@g53         PickFloorSpot()
 jr_016_6495:
 	ld a, [wMapScreen]
 	ld hl, wLineScroll
@@ -4027,6 +4084,7 @@ jr_016_6495:
 	ld l, a
 	ld a, $00
 	adc h
+;=@g53
 	ld h, a
 	ld a, [hl]
 	or a
@@ -4034,6 +4092,7 @@ jr_016_6495:
 
 	call PickFloorSpot
 
+;>@g54     spot = (hTestX, hTestY)
 jr_016_64a8:
 	ldh a, [hTestX]
 	ld [$c0aa], a
@@ -4041,90 +4100,119 @@ jr_016_64a8:
 	ld [$c0ab], a
 	ldh a, [hTestY]
 	ld [$c0ac], a
+;=@g54
 	ldh a, [$ffa8]
 	ld [$c0ad], a
+;>     if not CheckObjectSpace():
+;>         continue
 	call CheckObjectSpace
 	jr z, jr_016_646d
 
+;>     hTestX = spot.x                      # CheckObjectSpace moved the test position
 	ld a, [$c0aa]
 	ldh [hTestX], a
 	ld a, [$c0ab]
 	ldh [$ffa6], a
+;>     hTestY = spot.y
 	ld a, [$c0ac]
 	ldh [hTestY], a
 	ld a, [$c0ad]
 	ldh [$ffa8], a
+;>     if IsStairsSpot() or IsArrivalSpot() or IsObjectSpot():
+;>@k1         continue
 	call IsStairsSpot
 	jr z, jr_016_646d
 
+;=@k1
 	call IsArrivalSpot
 	jr z, jr_016_646d
 
+;=@k1
 	call IsObjectSpot
 	jr z, jr_016_646d
 
+;>     if wMapScreen == wFloorNpcScreen:
+;>         continue
 	ld a, [wMapScreen]
 	ld b, a
 	ld a, [wFloorNpcScreen]
 	cp b
 	jp z, Jump_016_646d
 
+;>     if per_screen[wMapScreen] == 3:
+;>@g55         continue
 	ld a, [wMapScreen]
 	ld hl, wLineScroll
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@g55
 	ld h, a
+;=@g55
 	ld a, [hl]
 	cp $03
 	jp z, Jump_016_646d
 
+;>     per_screen[wMapScreen] += 1
 	inc [hl]
+;>@x     x = ScreenOrigins[wMapScreen].x + hTestX    # floor pixel position
 	ld a, [wMapScreen]
 	add a
 	add a
 	ld hl, $2da7
 	add l
 	ld l, a
+;=@x
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
 	ldh [hDivisorHigh], a
 	ld a, [hli]
+;=@x
 	ldh [$ffdc], a
+;>@y     y = ScreenOrigins[wMapScreen].y + hTestY
 	ld a, [hli]
 	ldh [hFindY], a
 	ld a, [hli]
 	ldh [$ffde], a
+;=@x
 	ld hl, hDivisorHigh
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
+;=@y
 	ld [hl], a
+;=@y
 	ld hl, hFindY
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
 	adc [hl]
+;=@y
 	ld [hl], a
+;>     mem[dest] = wFloorObjKind
 	pop hl
 	ld a, [wFloorObjKind]
 	ld [hli], a
+;>@g58     contents = ObjectIsChestTable[wFloorObjKind & 0x0F]
 	push hl
 	ld a, [wFloorObjKind]
 	and $0f
-	ld hl, $7426
+	ld hl, ObjectIsChestTable
 	add l
 	ld l, a
+;=@g58
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>     if contents == 1:                    # a chest: roll its item
+;>@g59         contents = PickByPercent(FloorItemTables + wGateClass * 48)
 	cp $01
 	jr nz, jr_016_6564
 
@@ -4132,80 +4220,107 @@ jr_016_64a8:
 	ld l, a
 	ld h, $00
 	add hl, hl
+;=@g59
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	ld e, l
 	ld d, h
 	add hl, hl
+;=@g59
 	add hl, de
 	ld a, l
 	add $36
 	ld l, a
 	ld a, h
 	adc $74
+;=@g59
 	ld h, a
 	call PickByPercent
 
+;>     mem[dest + 1] = contents
 jr_016_6564:
 	pop hl
 	ld [hli], a
+;>@g62     mem[dest + 2] = x >> 4               # floor tile column
 	ldh a, [hDivisorHigh]
 	swap a
 	and $0f
 	ld b, a
 	ldh a, [$ffdc]
 	swap a
+;=@g62
 	and $f0
 	or b
 	ld [hli], a
+;>@g63     mem[dest + 3] = y >> 4               # floor tile row
 	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
 	ldh a, [$ffde]
 	swap a
+;=@g63
 	and $f0
 	or b
 	ld [hli], a
+;>     return dest + 4
 	ret
 
 
+;@ def PickNpcSpot()
+;@ path: field/gatefloor/spots
+;@ Picks a random spot for the floor's special character: a random screen of the floor (map
+;@ loaded into wSavedTilemap), then up to 64 random tiles 1-8 across, 1-6 down, until one has
+;@ collision kind $0C, $0D or $0E; failing that, the next screen is tried.
+;@ test: skip calls routines in other banks
 PickNpcSpot::
+;> screen = Random()                   # wRandomHigh
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 
+;> while True:                          # the next screen that exists
+;>     screen += 1
 Jump_016_658c:
 jr_016_658c:
 	inc b
 	ld a, b
+;>     wMapScreen = screen & 15
 	and $0f
 	ld [wMapScreen], a
+;>     if wFloorLayout[wMapScreen] >= 0xF0:
+;>@k1         continue
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@k1
 	ld a, [hl]
 	and $f0
 	cp $f0
 	jr z, jr_016_658c
 
+;>     Decompress(GetScreenTilemapRef(), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
+;>     hScrollX = 0
 	xor a
 	ldh [hScrollX], a
 	ldh [$ffb8], a
+;>     hScrollY = 0
 	xor a
 	ldh [hScrollY], a
 	ldh [$ffbc], a
+;>     for hNumber in range(64, 0, -1):
 	ld a, $40
 	ldh [hNumber], a
 
+;>@g64         hTestX = (Random() % 8 + 1) * 16 + 8
 jr_016_65bb:
 	call Random
 	ld a, [wRandomHigh]
@@ -4213,37 +4328,45 @@ jr_016_65bb:
 	ld a, $08
 	call Divide8
 	add $01
+;=@g64
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g64
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
+;>@g66         hTestY = (Random() % 6 + 1) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
 	call Divide8
 	add $01
+;=@g66
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g66
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
+;>         GetCollisionAt()
 	call GetCollisionAt
+;>         if hTestTile >> 2 in (0x0C, 0x0D, 0x0E):
+;>@g68             return
 	ldh a, [hTestTile]
 	srl a
 	srl a
@@ -4251,6 +4374,7 @@ jr_016_65bb:
 	ret z
 
 	cp $0d
+;=@g68
 	ret z
 
 	cp $0e
@@ -4259,48 +4383,67 @@ jr_016_65bb:
 	ldh a, [hNumber]
 	dec a
 	ldh [hNumber], a
+;=@g68
 	jr nz, jr_016_65bb
 
+;>     screen = wMapScreen
 	ld a, [wMapScreen]
 	ld b, a
 	jp Jump_016_658c
 
 
+;@ def PickArrivalSpot()
+;@ path: field/gatefloor/spots
+;@ Picks a random spot where Terry arrives on the floor: like PickNpcSpot, but only tiles with
+;@ collision kind $0C or $0D count.
+;@ test: skip calls routines in other banks
 PickArrivalSpot::
+;> screen = Random()                   # wRandomHigh
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 
+;> while True:                          # the next screen that exists
+;>     screen += 1
 Jump_016_6622:
 jr_016_6622:
 	inc b
 	ld a, b
+;>     wMapScreen = screen & 15
 	and $0f
 	ld [wMapScreen], a
+;>     if wFloorLayout[wMapScreen] >= 0xF0:
+;>@k1         continue
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@k1
 	ld a, [hl]
 	and $f0
 	cp $f0
 	jr z, jr_016_6622
 
+;>     Decompress(GetScreenTilemapRef(), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
+;>     hScrollX = 0
 	xor a
 	ldh [hScrollX], a
 	ldh [$ffb8], a
+;>     hScrollY = 0
 	xor a
 	ldh [hScrollY], a
 	ldh [$ffbc], a
+;>     for hNumber in range(64, 0, -1):
 	ld a, $40
 	ldh [hNumber], a
 
+;>@g70         hTestX = (Random() % 8 + 1) * 16 + 8
 jr_016_6651:
 	call Random
 	ld a, [wRandomHigh]
@@ -4308,37 +4451,45 @@ jr_016_6651:
 	ld a, $08
 	call Divide8
 	add $01
+;=@g70
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g70
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
+;>@g72         hTestY = (Random() % 6 + 1) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
 	call Divide8
 	add $01
+;=@g72
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g72
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
+;>         GetCollisionAt()
 	call GetCollisionAt
+;>         if hTestTile >> 2 in (0x0C, 0x0D):
+;>@g74             return
 	ldh a, [hTestTile]
 	srl a
 	srl a
@@ -4346,6 +4497,7 @@ jr_016_6651:
 	ret z
 
 	cp $0d
+;=@g74
 	ret z
 
 	ldh a, [hNumber]
@@ -4353,46 +4505,64 @@ jr_016_6651:
 	ldh [hNumber], a
 	jr nz, jr_016_6651
 
+;>     screen = wMapScreen
 	ld a, [wMapScreen]
 	ld b, a
 	jp Jump_016_6622
 
 
+;@ def PickStairsSpot()
+;@ path: field/gatefloor/spots
+;@ Picks a random spot for the stairs: like PickNpcSpot (collision kinds $0C-$0E), but only tiles
+;@ 2-7 across and 2-5 down, away from the screen edges.
+;@ test: skip calls routines in other banks
 PickStairsSpot::
+;> screen = Random()                   # wRandomHigh
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 
+;> while True:                          # the next screen that exists
+;>     screen += 1
 Jump_016_66b5:
 jr_016_66b5:
 	inc b
 	ld a, b
+;>     wMapScreen = screen & 15
 	and $0f
 	ld [wMapScreen], a
+;>     if wFloorLayout[wMapScreen] >= 0xF0:
+;>@k1         continue
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@k1
 	ld a, [hl]
 	and $f0
 	cp $f0
 	jr z, jr_016_66b5
 
+;>     Decompress(GetScreenTilemapRef(), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
 	call Decompress
+;>     hScrollX = 0
 	xor a
 	ldh [hScrollX], a
 	ldh [$ffb8], a
+;>     hScrollY = 0
 	xor a
 	ldh [hScrollY], a
 	ldh [$ffbc], a
+;>     for hNumber in range(64, 0, -1):
 	ld a, $40
 	ldh [hNumber], a
 
+;>@g75         hTestX = (Random() % 6 + 2) * 16 + 8
 jr_016_66e4:
 	call Random
 	ld a, [wRandomHigh]
@@ -4400,37 +4570,45 @@ jr_016_66e4:
 	ld a, $06
 	call Divide8
 	add $02
+;=@g75
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g75
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
+;>@g77         hTestY = (Random() % 4 + 2) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $04
 	call Divide8
 	add $02
+;=@g77
 	swap a
 	ld h, a
 	and $f0
 	or $08
 	ld l, a
 	ld a, h
+;=@g77
 	and $0f
 	ld h, a
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
+;>         GetCollisionAt()
 	call GetCollisionAt
+;>         if hTestTile >> 2 in (0x0C, 0x0D, 0x0E):
+;>@g79             return
 	ldh a, [hTestTile]
 	srl a
 	srl a
@@ -4438,6 +4616,7 @@ jr_016_66e4:
 	ret z
 
 	cp $0d
+;=@g79
 	ret z
 
 	cp $0e
@@ -4446,16 +4625,28 @@ jr_016_66e4:
 	ldh a, [hNumber]
 	dec a
 	ldh [hNumber], a
+;=@g79
 	jr nz, jr_016_66e4
 
+;>     screen = wMapScreen
 	ld a, [wMapScreen]
 	ld b, a
 	jp Jump_016_66b5
 
 
+;@ def GetScreenExits(screen: a) -> (b, c)
+;@ path: field/gatefloor/layout
+;@ Works out which exits a screen of the 4 x 4 floor grid needs. Exit bits: 8 up, 4 down,
+;@ 2 left, 1 right. For each side, a neighbour screen whose shape (ScreenShapeTable) has an exit
+;@ towards this one sets the bit in b (must be open); a neighbour without that exit, or the edge
+;@ of the grid, sets it in c (must be closed); an empty neighbour ($FF) leaves both clear.
+;@ test: a = rand(0, 15)
 GetScreenExits::
+;> opens = 0
+;> closed = 0
 	ld bc, $0000
 	ld d, a
+;>@k1 above = wFloorLayout[screen - 4] if screen >= 4 else None    # the screen above
 	sub $04
 	jr c, jr_016_676f
 
@@ -4463,16 +4654,19 @@ GetScreenExits::
 	add l
 	ld l, a
 	ld a, $00
+;=@k1
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@k2 if above is not None and above != 0xFF and ScreenShapeTable[above].exits & 4:
 	cp $ff
 	jr z, jr_016_6773
 
 	add a
 	add a
-	ld hl, $7055
+	ld hl, ScreenShapeTable
 	add l
+;=@k2
 	ld l, a
 	ld a, $00
 	adc h
@@ -4480,16 +4674,20 @@ GetScreenExits::
 	bit 2, [hl]
 	jr z, jr_016_676f
 
+;>     opens |= 8                       # it has an exit down to this screen
 	ld a, $08
 	or b
 	ld b, a
 	jr jr_016_6773
 
+;> elif above != 0xFF:                  # no exit there, or the edge of the grid
+;>     closed |= 8
 jr_016_676f:
 	ld a, $08
 	or c
 	ld c, a
 
+;>@k3 below = wFloorLayout[screen + 4] if screen + 4 < 16 else None    # the screen below
 jr_016_6773:
 	ld a, d
 	add $04
@@ -4498,18 +4696,21 @@ jr_016_6773:
 
 	ld hl, wFloorLayout
 	add l
+;=@k3
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@k4 if below is not None and below != 0xFF and ScreenShapeTable[below].exits & 8:
 	cp $ff
 	jr z, jr_016_67a1
 
 	add a
 	add a
-	ld hl, $7055
+	ld hl, ScreenShapeTable
 	add l
+;=@k4
 	ld l, a
 	ld a, $00
 	adc h
@@ -4517,16 +4718,20 @@ jr_016_6773:
 	bit 3, [hl]
 	jr z, jr_016_679d
 
+;>     opens |= 4                       # it has an exit up to this screen
 	ld a, $04
 	or b
 	ld b, a
 	jr jr_016_67a1
 
+;> elif below != 0xFF:
+;>     closed |= 4
 jr_016_679d:
 	ld a, $04
 	or c
 	ld c, a
 
+;>@k5 left = wFloorLayout[screen - 1] if screen & 3 else None    # the screen to the left
 jr_016_67a1:
 	ld a, d
 	and $03
@@ -4535,19 +4740,22 @@ jr_016_67a1:
 	ld a, d
 	dec a
 	ld hl, wFloorLayout
+;=@k5
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@k6 if left is not None and left != 0xFF and ScreenShapeTable[left].exits & 1:
 	cp $ff
 	jr z, jr_016_67cf
 
 	add a
 	add a
-	ld hl, $7055
+	ld hl, ScreenShapeTable
 	add l
+;=@k6
 	ld l, a
 	ld a, $00
 	adc h
@@ -4555,16 +4763,20 @@ jr_016_67a1:
 	bit 0, [hl]
 	jr z, jr_016_67cb
 
+;>     opens |= 2                       # it has an exit right to this screen
 	ld a, $02
 	or b
 	ld b, a
 	jr jr_016_67cf
 
+;> elif left != 0xFF:
+;>     closed |= 2
 jr_016_67cb:
 	ld a, $02
 	or c
 	ld c, a
 
+;>@k7 right = wFloorLayout[screen + 1] if screen & 3 != 3 else None    # the screen to the right
 jr_016_67cf:
 	ld a, d
 	and $03
@@ -4573,20 +4785,24 @@ jr_016_67cf:
 
 	ld a, d
 	inc a
+;=@k7
 	ld hl, wFloorLayout
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@k7
 	ld a, [hl]
+;>@k8 if right is not None and right != 0xFF and ScreenShapeTable[right].exits & 2:
 	cp $ff
 	jr z, jr_016_67ff
 
 	add a
 	add a
-	ld hl, $7055
+	ld hl, ScreenShapeTable
 	add l
+;=@k8
 	ld l, a
 	ld a, $00
 	adc h
@@ -4594,64 +4810,87 @@ jr_016_67cf:
 	bit 1, [hl]
 	jr z, jr_016_67fb
 
+;>     opens |= 1                       # it has an exit left to this screen
 	ld a, $01
 	or b
 	ld b, a
 	jr jr_016_67ff
 
+;> elif right != 0xFF:
+;>     closed |= 1
 jr_016_67fb:
 	ld a, $01
 	or c
 	ld c, a
 
+;> return opens, closed
 jr_016_67ff:
 	ret
 
 
+;@ def PickScreenShape(opens: b, closed: c) -> a
+;@ path: field/gatefloor/layout
+;@ Picks a random screen shape with all exits in opens and none in closed. The fitting entries
+;@ of ScreenShapeTable (4 bytes: exits, shape, weight class, unused) are listed in
+;@ wTilemapBuffer; weight class 1-4 shares a weight of 20, 40, 60 or 80 among its fitting shapes
+;@ (class 0 is never picked). Returns $0F when nothing fits.
+;@ test: b = rand(0, 15); c = rand(0, 15) & ~b
 PickScreenShape::
+;> fits = wTilemapBuffer                # (shape, class) pairs, $FF $FF at the end
 	ld de, wTilemapBuffer
-	ld hl, $7055
+	ld hl, ScreenShapeTable
 
+;>@fe for entry in ScreenShapeTable:    # 4 bytes each, $FF at the end
 jr_016_6806:
 	ld a, [hl]
 	cp $ff
 	jr z, jr_016_6826
 
+;>@k1     if entry.exits & closed == 0 and entry.exits & opens == opens:
 	and c
 	jr nz, jr_016_681c
 
+;=@k1
 	ld a, [hl]
 	and b
 	cp b
 	jr nz, jr_016_681c
 
+;>@k2         fits.append((entry.shape, entry.weight_class))
 	push hl
 	inc hl
 	ld a, [hli]
 	ld [de], a
 	inc de
 	ld a, [hl]
+;=@k2
 	ld [de], a
 	inc de
 	pop hl
 
 jr_016_681c:
+;=@fe
 	ld a, l
 	add $04
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@k2
 	jr jr_016_6806
 
+;> fits.append((0xFF, 0xFF))
 jr_016_6826:
 	ld [de], a
 	inc de
 	ld [de], a
+;> in_class = [0] * 5                   # shapes per class, in wNumberBackup[5]
 	ld hl, wNumberBackup
 	ld bc, $0005
 	ld a, $00
 	call FillMemory
+;> for shape, cls in fits:
+;>@g82     in_class[cls] += 1
 	ld hl, $c501
 
 jr_016_6837:
@@ -4661,16 +4900,20 @@ jr_016_6837:
 
 	inc hl
 	ld de, wNumberBackup
+;=@g82
 	add e
+;=@g82
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	inc a
+;=@g82
 	ld [de], a
 	jr jr_016_6837
 
+;>@g83 weight = [0, 20 // in_class[1], 40 // in_class[2], 60 // in_class[3], 80 // in_class[4]]
 jr_016_684b:
 	xor a
 	ld [wNumberBackup], a
@@ -4678,25 +4921,31 @@ jr_016_684b:
 	ld b, $14
 	call Divide8
 	ld a, b
+;=@g83
 	ld [$c0a1], a
 	ld a, [$c0a2]
 	ld b, $28
 	call Divide8
 	ld a, b
 	ld [$c0a2], a
+;=@g83
 	ld a, [wLineUpOrder]
 	ld b, $3c
 	call Divide8
 	ld a, b
 	ld [wLineUpOrder], a
 	ld a, [$c0a4]
+;=@g83
 	ld b, $50
 	call Divide8
 	ld a, b
 	ld [$c0a4], a
+;> total = 0
+;> for fit in fits:                     # the class byte becomes the running total
 	ld hl, $c501
 	ld b, $00
 
+;>@k4     total += weight[fit.cls]; fit.cls = total
 jr_016_6884:
 	ld a, [hl]
 	cp $ff
@@ -4705,17 +4954,20 @@ jr_016_6884:
 	ld de, wNumberBackup
 	add e
 	ld e, a
+;=@k4
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	add b
 	ld b, a
+;=@k4
 	ld [hl], a
 	inc hl
 	inc hl
 	jr jr_016_6884
 
+;>@g86 roll = Random() % total if total else Random()
 jr_016_689a:
 	push bc
 	call Random
@@ -4723,16 +4975,20 @@ jr_016_689a:
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;=@g86
 	pop af
 	or a
 	jr z, jr_016_68ad
 
 	call Divide16
 
+;>@ff for fit in fits:
 jr_016_68ad:
 	ld b, a
 	ld hl, $c501
 
+;>     if fit.cls == 0xFF:
+;>         return 0x0F
 jr_016_68b1:
 	ld a, [hl]
 	cp $ff
@@ -4741,6 +4997,8 @@ jr_016_68b1:
 	ld a, $0f
 	jr jr_016_68c5
 
+;>     if fit.cls >= roll:
+;>         return fit.shape
 jr_016_68ba:
 	cp b
 	jr c, jr_016_68c1
@@ -4750,6 +5008,7 @@ jr_016_68ba:
 	jr jr_016_68c5
 
 jr_016_68c1:
+;=@ff
 	inc hl
 	inc hl
 	jr jr_016_68b1
@@ -4758,63 +5017,93 @@ jr_016_68c5:
 	ret
 
 
+;@ def IsStairsSpot() -> z
+;@ path: field/gatefloor/spots
+;@ Sets z when the test spot (wMapScreen, hTestX, hTestY) is where the stairs were placed.
+;@ test: none
 IsStairsSpot::
+;> if wMapScreen != wStairsScreen:
+;>     return nz
 	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
+;> if hTestX != stairs.x:
+;>@k1     return nz
 	ld hl, hTestX
 	ld a, [$c0a5]
 	cp [hl]
 	ret nz
 
+;=@k1
 	inc hl
 	ld a, [$c0a6]
 	cp [hl]
 	ret nz
 
+;>@k2 return z if hTestY == stairs.y else nz
 	ld hl, hTestY
 	ld a, [$c0a7]
 	cp [hl]
 	ret nz
 
+;=@k2
 	inc hl
 	ld a, [$c0a8]
 	cp [hl]
 	ret
 
 
+;@ def IsArrivalSpot() -> z
+;@ path: field/gatefloor/spots
+;@ Sets z when the test spot (wMapScreen, hTestX, hTestY) is where Terry arrives.
+;@ test: none
 IsArrivalSpot::
+;> if wMapScreen != arrival.screen:
+;>     return nz
 	ld hl, wNumberBackup
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
+;> if hTestX != arrival.x:
+;>@k1     return nz
 	ld hl, hTestX
 	ld a, [$c0a1]
 	cp [hl]
 	ret nz
 
+;=@k1
 	inc hl
 	ld a, [$c0a2]
 	cp [hl]
 	ret nz
 
+;>@k2 return z if hTestY == arrival.y else nz
 	ld hl, hTestY
 	ld a, [wLineUpOrder]
 	cp [hl]
 	ret nz
 
+;=@k2
 	inc hl
 	ld a, [$c0a4]
 	cp [hl]
 	ret
 
 
+;@ def IsObjectSpot() -> z
+;@ path: field/gatefloor/spots
+;@ Sets z when one of the objects placed so far (wFloorObjects, $FF at the end) is at the test
+;@ spot (see IsObjectAt).
+;@ test: none
 IsObjectSpot::
+;>@fo for obj in wFloorObjects:         # 4 bytes each
 	ld hl, wFloorObjects
 
+;>     if obj[0] == 0xFF:
+;>         return nz
 jr_016_6911:
 	ld a, [hl]
 	cp $ff
@@ -4824,46 +5113,63 @@ jr_016_6911:
 	ret
 
 
+;>     if IsObjectAt(obj):
+;>         return z
 jr_016_6918:
 	push hl
 	call IsObjectAt
 	pop hl
 	ret z
 
+;=@fo
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	jr jr_016_6911
 
+;@ def IsObjectAt(obj: hl) -> z
+;@ path: field/gatefloor/spots
+;@ Sets z when the object entry at obj lies on screen wMapScreen in the row of hTestY. The floor
+;@ is 4 x 4 screens of 10 x 8 tiles; the entry holds the floor tile column and row. Only the row
+;@ is compared, not the column.
+;@ test: none
 IsObjectAt::
+;>@g87 screen = obj[2] // 10                # screen column
 	inc hl
 	inc hl
 	ld b, [hl]
 	inc hl
 	push hl
 	ld a, $0a
+;=@g87
 	call Divide8
 	ld a, b
 	ldh [$ffda], a
+;>@g88 screen += (obj[3] // 8) * 4           # screen row
 	pop hl
 	ld a, [hl]
 	and $f8
 	srl a
 	ld b, a
 	ldh a, [$ffda]
+;=@g88
 	add b
 	ldh [$ffda], a
+;> y = (obj[3] & 7) * 16 + 8            # pixel row in the screen
 	ld a, [hl]
 	and $07
 	swap a
 	or $08
 	ldh [hDivisorHigh], a
+;> if screen != wMapScreen:
+;>     return nz
 	ld hl, $ffda
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
+;> return z if y == hTestY else nz
 	ld hl, hTestY
 	ldh a, [hDivisorHigh]
 	cp [hl]

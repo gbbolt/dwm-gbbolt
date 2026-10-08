@@ -193,8 +193,8 @@ StorePartyPersonalities::
 ;@ for an empty position far_Call_58_5749 runs instead), then clears the screen and draws the enemy
 ;@ pictures and the party panel into the tilemap buffer and the BG map.
 LoadBattleGraphics::
-;> fill(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> fill(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -472,7 +472,7 @@ InitBattlers::
 ;> mem[0xDA88] = 0; mem[0xDA82] = 0xFF
 .init:
 	xor a
-	ld [$da88], a
+	ld [wDebugStatsShown], a
 	ld a, $ff
 	ld [$da82], a
 ;> fill(0xDB00, 0x73, 0)
@@ -583,7 +583,7 @@ InitBattlers::
 	call FillMemory
 ;> fill(0xDCFC, 7, 0)
 	xor a
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	ld bc, $0007
 	call FillMemory
 ;> wBattleItemTarget = 0xFF; wBattleItemEffect = 0xFF
@@ -683,8 +683,8 @@ InitBattlers::
 	dec b
 	jr nz, .pos
 
-;> fill(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> fill(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	xor a
 	call FillMemory
@@ -1435,971 +1435,1286 @@ StoreBattlerWord::
 	ret
 
 
+;@ def LoadBattlerSkills()
+;@ path: battle/setup
+;@ Reloads the skill list of battle position wBattleArg0: clears it, then copies the skills again from
+;@ the monster record (own monsters, and everyone in a link battle) or from the monster template of the
+;@ encounter species (enemies).
 LoadBattlerSkills::
+;> pos = wBattleArg0
 	ld a, [wBattleArg0]
 	ld c, a
+;> p = addr(wBattlerSkills) + 16 * pos
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>@clr for i in range(8):
 	ld h, a
 	ld b, $08
 
-jr_051_46bb:
+;>     mem[p] = 0; mem[p + 1] = 0xFF; p += 2
+.clear:
 	ld a, $00
 	ld [hli], a
 	ld a, $ff
 	ld [hli], a
+;=@clr
 	dec b
-	jr nz, jr_051_46bb
+	jr nz, .clear
 
+;> if wLinkActive or pos < 4:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_46cf
+	jr nz, .record
 
 	ld a, c
 	cp $04
-	jr nc, jr_051_46dc
+	jr nc, .template
 
-jr_051_46cf:
+;>     src = PartyMonsterField(pos, wMonSkills)
+.record:
 	ld a, c
 	ld hl, wMonSkills
 	call PartyMonsterField
+;>     return CopyBattlerSkills(wBattleArg0, src)
 	ld a, [wBattleArg0]
 	ld c, a
 	jr CopyBattlerSkills
 
-jr_051_46dc:
+;> p = addr(wEncSpecies) + 2 * (pos & 3)
+.template:
 	ld a, c
 	and $03
 	ld hl, wEncSpecies
 	add a
 	add l
 	ld l, a
+;>@id wNewMonId = mem16[p]
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@id
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;> LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
+;> return CopyBattlerSkills(wBattleArg0, addr(wTemplateSkills))     # runs on into it
 	ld a, [wBattleArg0]
 	ld c, a
 	ld hl, wTemplateSkills
 
+;@ def CopyBattlerSkills(pos: c, src: hl)
+;@ path: battle/setup
+;@ Copies the skill list at `src` ($FF ends it) into the skill numbers of battle position `pos` (up to 8;
+;@ 4 for an enemy outside link battles), then looks up each skill's kind (high nibble of word 1 of its
+;@ skill table record, GetSkillWord) and finally applies SubstituteSkills.
 CopyBattlerSkills::
+;> if not wLinkActive and pos >= 4:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_470e
+	jr nz, .eight
 
 	ld a, c
 	cp $04
-	jr c, jr_051_470e
+	jr c, .eight
 
+;>     n = 4
 	ld b, $04
-	jr jr_051_4710
+	jr .copy
 
-jr_051_470e:
+;> else:
+;>     n = 8
+.eight:
 	ld b, $08
 
-jr_051_4710:
+;> q = addr(wBattlerSkills) + 1 + 16 * pos
+.copy:
 	ld de, $dc65
 	ld a, c
 	swap a
 	add e
 	ld e, a
+;> while True:
 	ld a, $00
 	adc d
 	ld d, a
 
-jr_051_471c:
+;>     mem[q] = mem[src]; src += 1; q += 2
+.copyLoop:
 	ld a, [hli]
 	ld [de], a
 	inc de
 	inc de
+;>     if mem[src] == 0xFF: break
 	ld a, [hl]
 	cp $ff
-	jr z, jr_051_4728
+	jr z, .kinds
 
+;>     n -= 1
+;>     if n == 0: break
 	dec b
-	jr nz, jr_051_471c
+	jr nz, .copyLoop
 
-jr_051_4728:
+;> q = addr(wBattlerSkills) + 1 + 16 * pos
+.kinds:
 	ld a, c
 	ld de, $dc65
 	swap a
 	add e
 	ld e, a
 	ld a, $00
+;> saved = wBattleArg0
 	adc d
 	ld d, a
 	ld b, $08
 	ld a, [wBattleArg0]
 	push af
 
-jr_051_473a:
+;>@k for i in range(8):
+;>     if mem[q] == 0xFF: break
+.kindLoop:
 	ld a, [de]
 	cp $ff
-	jr z, jr_051_4761
+	jr z, .done
 
+;>     wBattleArg0 = mem[q]; wBattleArg1 = 0
 	push bc
 	ld a, [de]
 	ld [wBattleArg0], a
 	xor a
 	ld [wBattleArg1], a
+;>     wBattleArg2 = 1; GetSkillWord()      # word 1 of the skill's record
 	ld a, $01
 	ld [wBattleArg2], a
-	ld hl, FallStep1
+	ld hl, far_GetSkillWord
 	rst $10
+;>     mem[q - 1] = wBattleArg0 >> 4; q += 2
 	ld a, [wBattleArg0]
 	swap a
 	and $0f
 	dec de
 	ld [de], a
 	inc de
+;=@k
 	inc de
 	inc de
 	pop bc
 	dec b
-	jr nz, jr_051_473a
+	jr nz, .kindLoop
 
-jr_051_4761:
+;> wBattleArg0 = saved
+.done:
 	pop af
 	ld [wBattleArg0], a
+;> SubstituteSkills()
 	call SubstituteSkills
+;> return
 	ret
 
 
+;@ def LoadBattlerAilments(pos: c, status: hl)
+;@ path: battle/setup
+;@ Reads the record's status byte at `status`: bit 7 (dead) puts battle position `pos` down. Outside
+;@ tournament and link battles the ailments carry over: bit 0 sets status flag $20, bit 2 flag $01.
 LoadBattlerAilments::
+;> q = addr(wBattlerState) + pos
 	push hl
 	ld a, c
 	ld de, wBattlerState
 	add e
 	ld e, a
 	ld a, $00
+;> if mem[status] & 0x80:
 	adc d
 	ld d, a
 	bit 7, [hl]
-	jr z, jr_051_477d
+	jr z, .alive
 
+;>     mem[q] = 1                    # down
 	ld a, $01
 	ld [de], a
-	jr jr_051_47a3
+	jr .done
 
-jr_051_477d:
+;> else:
+;>     mem[q] = 0
+.alive:
 	ld a, $00
 	ld [de], a
+;>     if wBattleType != 2:
 	ld a, [wBattleType]
 	cp $02
-	jr z, jr_051_47a3
+	jr z, .done
 
+;>         s = addr(wBattlerStatus) + 8 * pos
 	ld a, c
 	ld de, wBattlerStatus
 	add a
 	add a
 	add a
 	add e
+;>         if mem[status] & 1:
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	bit 0, [hl]
-	jr z, jr_051_479b
+	jr z, .bit2
 
+;>             mem[s] = 0x20
 	ld a, $20
 	ld [de], a
 
-jr_051_479b:
+;>         if mem[status] & 4:
+.bit2:
 	bit 2, [hl]
-	jr z, jr_051_47a3
+	jr z, .done
 
+;>             mem[s] |= 0x01
 	ld a, [de]
 	or $01
 	ld [de], a
 
-jr_051_47a3:
+;> return
+.done:
 	pop hl
 	ret
 
 
+;@ def SetIntClass(pos: c)
+;@ path: battle/setup
+;@ Sorts the intelligence of battle position `pos` into wBattlerIntClass: 0 below 20, 1 below 179,
+;@ 2 from 179 up.
+;@ test: pos = rand(0, 7)
 SetIntClass::
+;> q = addr(wBattlerIntClass) + pos
 	push bc
 	ld a, c
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
+;> p = addr(wBattlerIntelligence) + 2 * pos
 	adc h
 	ld h, a
 	push hl
 	ld a, c
 	ld hl, wBattlerIntelligence
 	add a
+;> intel = mem16[p]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
+;> if intel < 20:
 	ld h, [hl]
 	ld l, a
 	ld bc, $0014
 	call CompareHLBC
-	jr c, jr_051_47d3
+	jr c, .low
 
+;>@lo     mem[q] = 0
+;> elif intel < 179:
 	ld bc, $00b3
 	call CompareHLBC
-	jr c, jr_051_47d7
+	jr c, .mid
 
+;>@md     mem[q] = 1
+;> else:
+;>     mem[q] = 2
 	ld a, $02
-	jr jr_051_47d9
+	jr .store
 
-jr_051_47d3:
+;=@lo
+.low:
 	ld a, $00
-	jr jr_051_47d9
+	jr .store
 
-jr_051_47d7:
+;=@md
+.mid:
 	ld a, $01
 
-jr_051_47d9:
+.store:
 	pop hl
 	ld [hl], a
+;> return
 	pop bc
 	ret
 
-
+; unused bytes (push bc / jr into LoadEnemyFromTemplate)
 	db $c5, $18, $12
 
+;@ def LoadEnemyFromTemplate(i: c)
+;@ path: battle/setup
+;@ Copies the monster template just loaded (wTemplate...) into enemy position i + 4: template byte 3,
+;@ level, HP (randomized in wild battles), MP, the four stats and the intelligence class, wildness 255,
+;@ the reward, the species, the personality bytes and the four skills.
 LoadEnemyFromTemplate::
+;>@t3 wEnemyTemplate3[i] = wTemplateByte3
 	push bc
 	ld hl, wEnemyTemplate3
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
+;=@t3
 	adc h
 	ld h, a
 	ld a, [wTemplateByte3]
 	ld [hl], a
+;> pos = i + 4
 	ld a, c
 	add $04
 	ld c, a
 	add a
 	ld b, a
+;>@lv wBattlerLevel[pos] = wTemplateLevel
 	ld hl, wBattlerLevel
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@lv
 	ld h, a
 	ld a, [wTemplateLevel]
 	ld [hl], a
+;> p = addr(wBattlerHP) + 2 * pos
 	ld hl, wBattlerHP
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateHP
 	ld h, a
 	ld a, [wTemplateHP]
 	ld [hli], a
 	ld a, [$da1e]
 	ld [hld], a
+;> RandomizeEnemyHP(p)
 	ld a, b
 	call RandomizeEnemyHP
+;> p = addr(wBattlerMaxHP) + 2 * pos
 	ld hl, wBattlerMaxHP
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateHP
 	ld h, a
 	ld a, [wTemplateHP]
 	ld [hli], a
 	ld a, [$da1e]
 	ld [hl], a
+;> p = addr(wBattlerMP) + 2 * pos
 	ld hl, wBattlerMP
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateMP
 	ld h, a
 	ld a, [wTemplateMP]
 	ld [hli], a
 	ld a, [$da20]
 	ld [hl], a
+;> p = addr(wBattlerMaxMP) + 2 * pos
 	ld hl, wBattlerMaxMP
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateMP
 	ld h, a
 	ld a, [wTemplateMP]
 	ld [hli], a
 	ld a, [$da20]
 	ld [hl], a
+;> p = addr(wBattlerAttack) + 2 * pos
 	ld hl, wBattlerAttack
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateAttack
 	ld h, a
 	ld a, [wTemplateAttack]
 	ld [hli], a
 	ld a, [$da22]
 	ld [hl], a
+;> p = addr(wBattlerDefense) + 2 * pos
 	ld hl, wBattlerDefense
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateDefense
 	ld h, a
 	ld a, [wTemplateDefense]
 	ld [hli], a
 	ld a, [$da24]
 	ld [hl], a
+;> p = addr(wBattlerAgility) + 2 * pos
 	ld hl, wBattlerAgility
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateAgility
 	ld h, a
 	ld a, [wTemplateAgility]
 	ld [hli], a
 	ld a, [$da26]
 	ld [hl], a
+;> p = addr(wBattlerIntelligence) + 2 * pos
 	ld hl, wBattlerIntelligence
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = wTemplateIntelligence
 	ld h, a
 	ld a, [wTemplateIntelligence]
 	ld [hli], a
 	ld a, [$da28]
 	ld [hld], a
+;> intel = wTemplateIntelligence & 0xFF        # only the low byte is compared
 	ld a, [hl]
 	push af
+;> q = addr(wBattlerIntClass) + pos
 	ld hl, wBattlerIntClass
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> if intel < 0x15:
 	ld h, a
 	pop af
 	cp $15
-	jr c, jr_051_48b0
+	jr c, .low
 
+;>@lo     mem[q] = 0
+;> elif intel < 0xB5:
 	cp $b5
-	jr c, jr_051_48b4
+	jr c, .mid
 
+;>@md     mem[q] = 1
+;> else:
+;>     mem[q] = 2
 	ld a, $02
-	jr jr_051_48b6
+	jr .store
 
-jr_051_48b0:
+;=@lo
+.low:
 	ld a, $00
-	jr jr_051_48b6
+	jr .store
 
-jr_051_48b4:
+;=@md
+.mid:
 	ld a, $01
 
-jr_051_48b6:
+.store:
 	ld [hl], a
+;> p = addr(wBattlerWildness) + 2 * pos
 	ld hl, wBattlerWildness
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[p] = 0x00FF
 	ld h, a
 	ld [hl], $ff
 	inc hl
 	ld [hl], $00
+;>@rw p = addr(wEnemyReward) + 3 * i
 	ld hl, wEnemyReward
 	push bc
 	ld a, c
 	sub $04
 	ld c, a
 	add a
+;=@rw
 	add c
 	pop bc
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[p] = wTemplateReward & 0xFF; mem[p + 1] = wTemplateReward >> 8
 	ld h, a
 	ld a, [wTemplateReward]
 	ld [hli], a
 	ld a, [$da1a]
 	ld [hli], a
+;> mem[p + 2] = 0
 	ld [hl], $00
+;>@sp wBattlerSpecies[pos] = wNewMonNameText
 	ld hl, wBattlerSpecies
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sp
 	ld h, a
 	ld a, [wNewMonNameText]
 	ld [hl], a
+;>@p1 wBattlerPersonality1[pos] = wTemplatePersonality1
 	ld hl, wBattlerPersonality1
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p1
 	ld h, a
 	ld a, [wTemplatePersonality1]
 	ld [hl], a
+;>@s67 wBattlerStat67[pos] = wTemplateStat67
 	ld hl, wBattlerStat67
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s67
 	ld h, a
 	ld a, [wTemplateStat67]
 	ld [hl], a
+;>@p2 wBattlerPersonality2[pos] = wTemplatePersonality2
 	ld hl, wBattlerPersonality2
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p2
 	ld h, a
 	ld a, [wTemplatePersonality2]
 	ld [hl], a
+;>@p3 wBattlerPersonality3[pos] = wTemplatePersonality3
 	ld hl, wBattlerPersonality3
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p3
 	ld h, a
 	ld a, [wTemplatePersonality3]
 	ld [hl], a
+;> q = addr(wBattlerSkills) + 1 + 16 * pos
 	ld hl, $dc65
 	ld a, b
 	add a
 	add a
 	add a
 	add l
+;>@sk for k in range(4):
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+
+;>     mem[q + 2 * k] = wTemplateSkills[k]
 	ld a, [wTemplateSkills]
 	ld [hli], a
 	inc hl
+;=@sk
 	ld a, [$da2e]
 	ld [hli], a
 	inc hl
+;=@sk
 	ld a, [$da2f]
 	ld [hli], a
 	inc hl
+;=@sk
 	ld a, [$da30]
 	ld [hl], a
+;> return
 	pop bc
 	ret
 
-
+; unused bytes (push bc / jr into RollEnemySex)
 	db $c5, $18, $04
 
+;@ def RollEnemySex(i: c)
+;@ path: battle/setup
+;@ Rolls the sex of enemy position i + 4 from the MonsterStats sex chance just looked up (0 always 0,
+;@ 1 one time in ten 1, 2 half and half, otherwise nine times in ten 1), then packs the species'
+;@ resistances for it.
+;@ test: skip calls Random
 RollEnemySex::
+;> pos = i + 4
 	push bc
 	ld a, c
 	add $04
 	ld c, a
+;> q = addr(wBattlerSex) + pos
 	ld hl, wBattlerSex
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> sex = 0
 	ld h, a
+;> if wMonSexChance != 0:
 	ld a, [wMonSexChance]
 	or a
-	jr z, jr_051_4988
+	jr z, .store
 
+;>@o     if wMonSexChance == 1: limit = 0x19
 	cp $01
-	jr z, jr_051_496c
+	jr z, .one
 
+;>@t     elif wMonSexChance == 2: limit = 0x80
 	cp $02
-	jr z, jr_051_4970
+	jr z, .two
 
+;>     else: limit = 0xE6
 	ld b, $e6
-	jr jr_051_4972
+	jr .roll
 
-jr_051_496c:
+;=@o
+.one:
 	ld b, $19
-	jr jr_051_4972
+	jr .roll
 
-jr_051_4970:
+;=@t
+.two:
 	ld b, $80
 
-jr_051_4972:
+;>@r     Random()
+.roll:
 	push af
 	push bc
 	push de
 	push hl
 	call Random
 	pop hl
+;=@r
 	pop de
 	pop bc
 	pop af
+;>     sex = 1 if wRandomHigh < limit else 0
 	ld a, [wRandomHigh]
 	cp b
-	jr c, jr_051_4986
+	jr c, .female
 
 	xor a
-	jr jr_051_4988
+	jr .store
 
-jr_051_4986:
+.female:
 	ld a, $01
 
-jr_051_4988:
+;> mem[q] = sex
+.store:
 	ld [hl], a
+;>@q q = addr(wBattlerResist) + 7 * pos
 	ld hl, wMonResistances
 	ld de, wBattlerResist
 	ld a, c
 	add a
 	add c
 	add a
+;=@q
 	add c
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> PackResistances(addr(wMonResistances), q)
 	call PackResistances
+;> return
 	pop bc
 	ret
 
 
+;@ def SubstituteSkills()
+;@ path: battle/setup
+;@ Swaps skills for their battle variants: in the first skill $70 of every monster of sex 0 becomes $DD;
+;@ outside link battles enemy skills $97, $19 and $2A become $DB, $DA and $DC.
 SubstituteSkills::
+;>@pos for pos in range(8):
 	ld bc, $0800
 	ld hl, wBattlerSex
 
-jr_051_49a5:
+;>     if not CheckBattlerPresent(pos) and wBattlerSex[pos] == 0:
+.sexLoop:
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_051_49b4
+	jr c, .nextSex
 
 	ld a, [hl]
 	or a
-	jr nz, jr_051_49b4
+	jr nz, .nextSex
 
+;>         SubstituteSexSkill(pos)
 	push hl
 	call SubstituteSexSkill
 	pop hl
 
-jr_051_49b4:
+;=@pos
+.nextSex:
 	inc c
 	inc hl
 	dec b
-	jr nz, jr_051_49a5
+	jr nz, .sexLoop
 
+;> if wLinkActive: return
 	ld a, [wLinkActive]
 	or a
 	ret nz
 
+;>@en for pos in range(4, 7):
 	ld bc, $0304
+;>     p = addr(wBattlerSkills) + 1 + 16 * pos
 	ld hl, $dca5
 
-jr_051_49c4:
+;>     if not CheckBattlerPresent(pos):
+.enemyLoop:
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_051_49ef
+	jr c, .nextEnemy
 
+;>@k         for k in range(4):
 	ld d, $04
 
-jr_051_49cc:
+;>             if mem[p] == 0xFF: break
+.skillLoop:
 	ld a, [hl]
 	cp $ff
-	jr z, jr_051_49ef
+	jr z, .nextEnemy
 
+;>             if mem[p] == 0x97: SetSkillDB(p)
 	cp $97
-	jr nz, jr_051_49da
+	jr nz, .not97
 
 	call SetSkillDB
-	jr jr_051_49ea
+	jr .nextSkill
 
-jr_051_49da:
+;>             elif mem[p] == 0x19: SetSkillDA(p)
+.not97:
 	cp $19
-	jr nz, jr_051_49e3
+	jr nz, .not19
 
 	call SetSkillDA
-	jr jr_051_49ea
+	jr .nextSkill
 
-jr_051_49e3:
+;>             elif mem[p] == 0x2A: SetSkillDC(p)
+.not19:
 	cp $2a
-	jr nz, jr_051_49ea
+	jr nz, .nextSkill
 
 	call SetSkillDC
 
-jr_051_49ea:
+;>             p += 2
+.nextSkill:
 	inc hl
 	inc hl
+;=@k
 	dec d
-	jr nz, jr_051_49cc
+	jr nz, .skillLoop
 
-jr_051_49ef:
+;>     p = addr(wBattlerSkills) + 1 + 16 * (pos + 1)
+.nextEnemy:
 	inc c
 	ld a, c
 	swap a
 	ld hl, $dc65
 	add l
 	ld l, a
+;=@en
 	ld a, $00
 	adc h
 	ld h, a
 	dec b
-	jr nz, jr_051_49c4
+	jr nz, .enemyLoop
 
+;> return
 	ret
 
 
+;@ def SubstituteSexSkill(pos: c)
+;@ path: battle/setup
+;@ Replaces the first skill $70 in the skill list of battle position `pos` with $DD.
 SubstituteSexSkill::
+;> p = addr(wBattlerSkills) + 1 + 16 * pos
 	ld a, c
 	ld hl, $dc65
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;>@k for k in range(8):
 	adc h
 	ld h, a
 	ld d, $08
 
-jr_051_4a0e:
+;>     if mem[p] == 0xFF: return
+.loop:
 	ld a, [hl]
 	cp $ff
 	ret z
 
+;>     if mem[p] == 0x70:
 	cp $70
-	jr nz, jr_051_4a19
+	jr nz, .next
 
+;>         mem[p] = 0xDD
 	ld [hl], $dd
+;>         return
 	ret
 
-
-jr_051_4a19:
+;>     p += 2
+.next:
 	inc hl
 	inc hl
+;=@k
 	dec d
-	jr nz, jr_051_4a0e
+	jr nz, .loop
 
+;> return
 	ret
 
 
+;@ def SetSkillDB(p: hl)
+;@ path: battle/setup
+;@ Turns the skill at `p` into skill $DB.
 SetSkillDB::
+;> mem[p] = 0xDB
 	ld [hl], $db
+;> return
 	ret
 
 
+;@ def SetSkillDA(p: hl)
+;@ path: battle/setup
+;@ Turns the skill at `p` into skill $DA.
 SetSkillDA::
+;> mem[p] = 0xDA
 	ld [hl], $da
+;> return
 	ret
 
 
+;@ def SetSkillDC(p: hl)
+;@ path: battle/setup
+;@ Turns the skill at `p` into skill $DC.
 SetSkillDC::
+;> mem[p] = 0xDC
 	ld [hl], $dc
+;> return
 	ret
 
 
+;@ def SetSkillKinds()
+;@ path: battle/setup
+;@ For all 64 skill slots of the 8 battle positions: stores the skill's kind (high nibble of word 1
+;@ of its skill table record, read with GetSkillWord) in front of the skill number, 0 for an empty slot.
 SetSkillKinds::
+;> p = addr(wBattlerSkills) + 1
 	ld hl, $dc65
+;>@n for n in range(64):
 	ld bc, $0808
 
-jr_051_4a2e:
+;>     if mem[p] != 0xFF:
+.loop:
 	push bc
 	ld a, [hl]
 	cp $ff
 	push hl
-	jr z, jr_051_4a50
+	jr z, .empty
 
+;>         wBattleArg0 = mem[p]; wBattleArg1 = 0
 	ld a, [hl]
 	ld [wBattleArg0], a
 	ld a, $00
 	ld [wBattleArg1], a
+;>         wBattleArg2 = 1; GetSkillWord()
 	ld a, $01
 	ld [wBattleArg2], a
-	ld hl, FallStep1
+	ld hl, far_GetSkillWord
 	rst $10
+;>         kind = wBattleArg0 >> 4
 	ld a, [wBattleArg0]
 	swap a
 	and $0f
-	jr jr_051_4a52
+	jr .store
 
-jr_051_4a50:
+;>     else:
+;>         kind = 0
+.empty:
 	ld a, $00
 
-jr_051_4a52:
+;>     mem[p - 1] = kind; p += 2
+.store:
 	pop hl
 	dec hl
 	ld [hli], a
 	inc hl
 	inc hl
+;=@n
 	pop bc
 	dec c
-	jr nz, jr_051_4a2e
+	jr nz, .loop
 
+;=@n
 	ld c, $08
 	dec b
-	jr nz, jr_051_4a2e
+	jr nz, .loop
 
+;> return
 	ret
 
 
+;@ def RandomizeEnemyHP(p: hl)
+;@ path: battle/setup
+;@ In a wild battle, sets the HP word at `p` to a random value from 13/16 of it up to just below the
+;@ full amount, using the random generator's current state.
+;@ test: p = 0xC100; mem[0xC100] = rand(16, 255); mem[0xC101] = rand(0, 3)
 RandomizeEnemyHP::
+;> if wBattleType != 0: return
 	ld a, [wBattleType]
 	or a
 	ret nz
 
+;> hp = mem16[p]
 	push bc
 	push hl
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> base = ThirteenSixteenths(hp)
 	ld b, h
 	ld c, l
 	call ThirteenSixteenths
+;> span = hp - base
 	ld a, c
 	sub l
 	ld c, a
 	ld a, b
 	sbc h
 	ld b, a
+;> r = wRandomHigh | wRandomLow << 8
 	push hl
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 
-jr_051_4a7f:
+;>@w while r >= span:
+.mod:
 	call CompareHLBC
-	jr c, jr_051_4a8c
+	jr c, .done
 
+;>     r -= span
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
-	jr jr_051_4a7f
+;=@w
+	jr .mod
 
-jr_051_4a8c:
+;>@st mem16[p] = (base + r) & 0xFFFF
+.done:
 	pop bc
 	add hl, bc
 	pop bc
 	ld a, l
 	ld [bc], a
 	inc bc
+;=@st
 	ld a, h
 	ld [bc], a
+;> return
 	pop bc
 	ret
 
 
+;@ def SaveBattleResults()
+;@ path: battle/end
+;@ Far entry after the battle: keeps the party's tactic setting and writes each own monster's battle
+;@ state back into its record: tactic bits, ailments (bit 7 when it is out of the fight), HP and MP (no
+;@ higher than the maximum), wildness and the personality bytes (the third counts the battles survived).
 SaveBattleResults::
+;> wSavedTeamTactic = wTeamTactic
 	ld a, [wTeamTactic]
 	ld [wSavedTeamTactic], a
+;>@l for pos in range(wPartyBattlers):
 	ld a, [wPartyBattlers]
 	ld b, a
 	ld c, $00
 
-jr_051_4aa2:
+;>     SaveTacticBits(pos)
+.loop:
 	call SaveTacticBits
+;>     rec = PartyMonsterField(pos, wMonStatus)
 	ld a, c
 	ld hl, wMonStatus
 	call PartyMonsterField
+;>     rec = SaveAilments(pos, rec)
 	call SaveAilments
+;>     rec = SaveHP(pos, rec)
 	call SaveHP
+;>     rec = SaveMP(pos, rec)
 	call SaveMP
+;>     rec = SaveWildness(pos, rec)
 	call SaveWildness
+;>     SavePersonality(pos, rec)
 	call SavePersonality
+;=@l
 	inc c
 	dec b
-	jr nz, jr_051_4aa2
+	jr nz, .loop
 
+;> return
 	ret
 
 
+;@ def SaveTacticBits(pos: c)
+;@ path: battle/end
+;@ Writes the tactic (bits 4-5) and wBattlerSexBits67 (bits 6-7) of battle position `pos` back into
+;@ the record's sex byte, keeping the sex in bits 0-3.
 SaveTacticBits::
+;> rec = PartyMonsterField(pos, wMonGender)
 	ld a, c
 	ld hl, wMonGender
 	call PartyMonsterField
+;> q = addr(wBattlerTactic) + pos
 	ld a, c
 	ld de, wBattlerTactic
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> bits = mem[q] & 3
 	ld d, a
 	ld a, [de]
 	push hl
 	and $03
 	ld l, a
+;> q = addr(wBattlerSexBits67) + pos
 	ld a, c
 	ld de, wBattlerSexBits67
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> bits |= (mem[q] << 2) & 0x0C
 	ld d, a
 	ld a, [de]
 	rlca
 	rlca
 	and $0c
 	or l
+;> v = (mem[rec] & 0x0F) | bits << 4
 	pop hl
 	swap a
 	ld d, a
 	ld a, [hl]
 	and $0f
 	or d
+;> mem[rec] = v
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def SaveAilments(pos: c, status: hl) -> hl
+;@ path: battle/end
+;@ Rebuilds the record's status byte at `status` from battle position `pos`: bit 2 from status bits
+;@ 0-1, bit 0 from status bit 5, bit 7 when the monster is out of the fight. A monster still standing
+;@ (outside a reload) gets its third personality byte raised by one (up to $FF). Returns status + 6
+;@ (the HP field).
 SaveAilments::
+;> mem[status] = 0
 	ld a, $00
 	ld [hl], a
+;> s = 8 * pos
 	ld a, c
 	ld de, wBattlerStatus
 	add a
 	add a
 	add a
+;> s += addr(wBattlerStatus)
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> if mem[s] & 3:
 	ld a, [de]
 	and $03
-	jr z, jr_051_4b07
+	jr z, .bit5
 
+;>     mem[status] |= 4
 	set 2, [hl]
 
-jr_051_4b07:
+;> if mem[s] & 0x20:
+.bit5:
 	ld a, [de]
 	bit 5, a
-	jr z, jr_051_4b0e
+	jr z, .present
 
+;>     mem[status] |= 1
 	set 0, [hl]
 
-jr_051_4b0e:
+;> if CheckBattlerPresent(pos):          # carry: out of the fight
+.present:
 	ld a, c
 	call CheckBattlerPresent
-	jr nc, jr_051_4b18
+	jr nc, .standing
 
+;>     mem[status] |= 0x80
 	set 7, [hl]
-	jr jr_051_4b2f
+	jr .done
 
-jr_051_4b18:
+;> elif not wBattlerReload:
+.standing:
 	ld a, [wBattlerReload]
 	or a
-	jr nz, jr_051_4b2f
+	jr nz, .done
 
+;>     q = addr(wBattlerPersonality3) + pos
 	ld a, c
 	ld de, wBattlerPersonality3
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>     if mem[q] != 0xFF:
 	ld d, a
 	ld a, [de]
 	cp $ff
-	jr z, jr_051_4b2f
+	jr z, .done
 
+;>         mem[q] += 1
 	inc a
 	ld [de], a
 
-jr_051_4b2f:
+;>@r return status + 6
+.done:
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	inc hl
+;=@r
 	ret
 
 
+;@ def SaveHP(pos: c, hp: hl) -> hl
+;@ path: battle/end
+;@ Writes the HP of battle position `pos` into the record's HP field at `hp` (no higher than the
+;@ maximum that follows it); returns the address of the MP field.
 SaveHP::
+;> q = addr(wBattlerHP) + 2 * pos
 	push bc
 	ld a, c
 	ld de, wBattlerHP
 	add a
 	add e
 	ld e, a
+;>@w v = mem16[q]; mem16[hp] = v
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	ld [hli], a
 	ld c, a
+;=@w
 	inc de
 	ld a, [de]
 	ld [hli], a
 	ld b, a
+;> ClampToMax(hp + 2, v)
 	call ClampToMax
+;> return hp + 4
 	inc hl
 	inc hl
 	pop bc
 	ret
 
 
+;@ def SaveMP(pos: c, mp: hl) -> hl
+;@ path: battle/end
+;@ Writes the MP of battle position `pos` into the record's MP field at `mp` (no higher than the
+;@ maximum that follows it); returns the address of the wildness field.
 SaveMP::
+;> q = addr(wBattlerMP) + 2 * pos
 	push bc
 	ld a, c
 	ld de, wBattlerMP
 	add a
 	add e
 	ld e, a
+;>@w v = mem16[q]; mem16[mp] = v
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [de]
 	ld [hli], a
 	ld c, a
+;=@w
 	inc de
 	ld a, [de]
 	ld [hli], a
 	ld b, a
+;> ClampToMax(mp + 2, v)
 	call ClampToMax
+;>@r return mp + 12
 	ld a, $0a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@r
 	pop bc
 	ret
 
 
+;@ def ClampToMax(max: hl, value: bc)
+;@ path: battle/end
+;@ If the maximum word at `max` is below `value`, writes the maximum into the word just before it.
 ClampToMax::
+;> m = mem16[max]
 	push hl
 	ld d, h
 	ld e, l
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> if m < value:
 	call CompareHLBC
-	jr nc, jr_051_4b81
+	jr nc, .done
 
+;>     mem16[max - 2] = m
 	dec de
 	ld a, h
 	ld [de], a
@@ -2407,340 +2722,444 @@ ClampToMax::
 	ld a, l
 	ld [de], a
 
-jr_051_4b81:
+;> return
+.done:
 	pop hl
 	ret
 
 
+;@ def SaveWildness(pos: c, wild: hl) -> hl
+;@ path: battle/end
+;@ Writes the wildness of battle position `pos` into the record field at `wild`; returns the address of
+;@ the personality bytes.
 SaveWildness::
+;> q = addr(wBattlerWildness) + 2 * pos
 	ld a, c
 	ld de, wBattlerWildness
 	add a
 	add e
 	ld e, a
 	ld a, $00
+;>@w mem16[wild] = mem16[q]
 	adc d
 	ld d, a
 	ld a, [de]
 	ld [hli], a
 	inc de
 	ld a, [de]
+;=@w
 	ld [hli], a
+;> return wild + 4
 	inc hl
 	inc hl
 	ret
 
 
+;@ def SavePersonality(pos: c, p: hl)
+;@ path: battle/end
+;@ For a monster still in the fight (and not marked by status byte 1 bit 4), writes its personality
+;@ bytes and record byte +$67 back to the record at `p`.
 SavePersonality::
+;> q = addr(wBattlerState) + pos
 	ld a, c
 	ld de, wBattlerState
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;> if mem[q] == 0:
 	ld d, a
 	ld a, [de]
 	or a
-	jr nz, jr_051_4be7
+	jr nz, .done
 
+;>     off = 8 * pos
 	push hl
 	ld a, c
 	ld hl, wBattlerStatus1
 	add a
 	add a
 	add a
+;>     s = addr(wBattlerStatus1) + off
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>     if not mem[s] & 0x10:
 	bit 4, [hl]
 	pop hl
-	jr nz, jr_051_4be7
+	jr nz, .done
 
+;>         q = addr(wBattlerPersonality1) + pos
 	ld a, c
 	ld de, wBattlerPersonality1
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>         mem[p] = mem[q]; p += 1
 	ld d, a
 	ld a, [de]
 	ld [hli], a
+;>         q = addr(wBattlerPersonality2) + pos
 	ld a, c
 	ld de, wBattlerPersonality2
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>         mem[p] = mem[q]; p += 1
 	ld d, a
 	ld a, [de]
 	ld [hli], a
+;>         q = addr(wBattlerPersonality3) + pos
 	ld a, c
 	ld de, wBattlerPersonality3
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>         mem[p] = mem[q]; p += 1
 	ld d, a
 	ld a, [de]
 	ld [hli], a
+;>         q = addr(wBattlerStat67) + pos
 	ld a, c
 	ld de, wBattlerStat67
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>         mem[p] = mem[q]
 	ld d, a
 	ld a, [de]
 	ld [hl], a
 
-jr_051_4be7:
+;> return
+.done:
 	ret
 
 
+;@ def DefeatBattler()
+;@ path: battle/state
+;@ Far entry: battle position wBattleArg0 goes down. A monster first gets its record stats back
+;@ (ReloadBattler, ending a transformation); a called monster (slot 3 of a side) leaves the fight
+;@ instead and its side's dragon flag is cleared. Then SetBattlerDown.
 DefeatBattler::
+;> wBattleStepArg1 = 1
 	ld a, $01
 	ld [wBattleStepArg1], a
+;> wBattleTemp = wBattleArg0
 	ld a, [wBattleArg0]
 	ld [wBattleTemp], a
+;> if wBattleArg0 & 3 != 3:
 	and $03
 	cp $03
-	jr z, jr_051_4c00
+	jr z, .called
 
+;>     ReloadBattler()
 	call ReloadBattler
+;>     SetBattlerDown()
 	call SetBattlerDown
+;>     return
 	ret
 
-
-jr_051_4c00:
+;> q = addr(wBattlerState) + wBattleArg0
+.called:
 	ld a, [wBattleArg0]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem[q] = 0xFF                      # the called monster is gone
 	ld h, a
 	ld [hl], $ff
+;> side = wBattleArg0 >> 2 & 1
 	ld a, [wBattleArg0]
 	and $04
 	rrca
 	rrca
 	and $01
+;>@sf wSideFlags[side] &= ~4
 	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@sf
 	res 2, [hl]
+;> SetBattlerDown()
 	call SetBattlerDown
+;> return
 	ret
 
 
+;@ def SetBattlerDown()
+;@ path: battle/state
+;@ Puts battle position wBattleTemp down: HP 0, MP no higher than its maximum, all status flags cleared
+;@ (a changed palette is put back), state 1 unless it already was out. Outside link battles a fallen
+;@ enemy (not a called one) also loses its transformation mark in wEnemyMorph.
 SetBattlerDown::
+;> p = addr(wBattlerHP) + 2 * wBattleTemp
 	ld a, [wBattleTemp]
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;> mem16[p] = 0
 	adc h
 	ld h, a
 	xor a
 	ld [hli], a
 	ld [hl], a
+;> p += 0x20                          # its MP
 	ld a, $1f
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mp = mem16[p]
 	push hl
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> pmax = p + 0x10                    # its maximum MP
 	ld a, $0f
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> if mem16[pmax] < mp:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	call CompareHLBC
 	pop bc
-	jr nc, jr_051_4c58
+	jr nc, .status
 
+;>     mem16[p] = mem16[pmax]
 	ld a, l
 	ld [bc], a
 	inc bc
 	ld a, h
 	ld [bc], a
 
-jr_051_4c58:
+;> s = 8 * wBattleTemp
+.status:
 	ld a, [wBattleTemp]
 	ld hl, wBattlerStatus
 	add a
 	add a
 	add a
+;> s += addr(wBattlerStatus)
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[s] = 0
 	xor a
 	ld [hli], a
+;> RestorePalettesIfChanged(s + 1)
 	call RestorePalettesIfChanged
+;>@f fill(s + 1, 7, 0)
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@f
 	ld [hl], a
+;> q = addr(wBattlerState) + wBattleTemp
 	ld a, [wBattleTemp]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> if mem[q] != 0: return
 	ld h, a
 	ld a, [hl]
 	or a
 	ret nz
 
+;> mem[q] = 1
 	ld [hl], $01
+;> if wLinkActive: return
 	ld a, [wLinkActive]
 	or a
 	ret nz
 
+;> if wBattleArg0 < 4: return
 	ld a, [wBattleArg0]
 	cp $04
 	ret c
 
+;> if wBattleArg0 & 3 == 3: return
 	and $03
 	cp $03
 	ret z
 
+;>@em wEnemyMorph[wBattleArg0 & 3] = 0xFF
 	ld hl, wEnemyMorph
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@em
 	ld [hl], $ff
+;> return
 	ret
 
 
+;@ def RestorePalettesIfChanged(s1: hl)
+;@ path: battle/state
+;@ If status byte 1 at `s1` has bit 4 or 5 set (a changed look), reloads the picture palettes of the
+;@ battle and sends them to the CGB. Returns with a = 0 in that case.
 RestorePalettesIfChanged::
+;> if not mem[s1] & 0x10 and not mem[s1] & 0x20: return
 	bit 4, [hl]
-	jr nz, jr_051_4ca7
+	jr nz, .restore
 
 	bit 5, [hl]
 	ret z
 
-jr_051_4ca7:
+;> SetBattlePicPalettes()
+.restore:
 	push hl
 	ld hl, far_SetBattlePicPalettes
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> return
 	pop hl
 	xor a
 	ret
 
 
+;@ def AppendEnemyLetter()
+;@ path: battle/names
+;@ Far entry: when several enemies share the species of position wNameBattler, adds a letter to its
+;@ name at wNameDest (before the $F0 end): the first of them gets code $0B, the next $0C and so on.
+;@ An enemy whose species appears only once gets no letter.
 AppendEnemyLetter::
+;> n = wEncCount + 1; pos = 4; before = 0
 	ld a, [wEncCount]
 	ld b, a
 	inc b
 	ld c, $04
 	ld d, $00
+;> p = addr(wBattlerSpecies) + wNameBattler
 	ld a, [wNameBattler]
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> species = mem[p]
 	ld h, a
 	ld e, [hl]
 
-jr_051_4cc9:
+;> while True:
+;>     q = addr(wBattlerSpecies) + pos
+.count:
 	ld a, c
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>     if mem[q] == species:
 	ld h, a
 	ld a, [hl]
 	cp e
-	jr nz, jr_051_4cdf
+	jr nz, .next
 
+;>         if pos == wNameBattler: break
 	ld a, [wNameBattler]
 	cp c
-	jp z, Jump_051_4ce4
+	jp z, .found
 
+;>         before += 1
 	inc d
 
-jr_051_4cdf:
+;>     pos += 1; n -= 1
+.next:
 	inc c
 	dec b
-	jr nz, jr_051_4cc9
+;>     if n == 0: return
+	jr nz, .count
 
 	ret
 
-
-Jump_051_4ce4:
+;> if before == 0:                   # the first of its kind: only lettered when another one follows
+.found:
 	ld a, d
 	or a
-	jr nz, jr_051_4cfc
+	jr nz, .append
 
+;>     pos += 1
 	inc c
 
-jr_051_4ce9:
+;>     while True:
+;>         q = addr(wBattlerSpecies) + pos
+.search:
 	ld a, c
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>         if mem[q] == species: break
 	ld h, a
 	ld a, [hl]
 	cp e
-	jr z, jr_051_4cfc
+	jr z, .append
 
+;>         pos += 1; n -= 1
 	inc c
 	dec b
-	jr nz, jr_051_4ce9
+;>         if n == 0: return
+	jr nz, .search
 
 	ret
 
-
-jr_051_4cfc:
+;> p = wNameDest
+.append:
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
+;> letter = before + 0x0B
 	ld a, d
 	add $0b
 	push af
 
-jr_051_4d08:
+;> while mem[p] != 0xF0: p += 1
+.find:
 	ld a, [hl]
 	cp $f0
-	jr z, jr_051_4d10
+	jr z, .end
 
 	inc hl
-	jr jr_051_4d08
+	jr .find
 
-jr_051_4d10:
+;> mem[p] = letter; mem[p + 1] = 0xF0
+.end:
 	pop af
 	ld [hli], a
 	ld a, $f0
 	ld [hl], a
+;> return
 	ret
 
 
@@ -4145,7 +4564,7 @@ jr_051_55b7:
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -5194,7 +5613,7 @@ RecruitStep00::
 	ld hl, $9000
 	ld a, [wNewMonNameText]
 	call LoadMonsterPic
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -5289,7 +5708,7 @@ RecruitStep02::
 	call Call_51_72CC
 	call ResetBattleCursorBlink
 	ld de, $5de4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call Call_51_75E7
 	call CopyTilemapBufferToBG
 	ret
@@ -5297,7 +5716,7 @@ RecruitStep02::
 
 RecruitStep03::
 	ld de, $5de4
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $02
 	call Call_51_74D3
 	ld a, [wJoyPressed]
@@ -5323,13 +5742,13 @@ jr_051_5dbc:
 
 	ld a, $59
 	call QueueSound
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	cp $81
 	jr z, jr_051_5da3
 
 	ld hl, wCommandStep
 	inc [hl]
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	set 7, [hl]
 	ld hl, wMenuChoice2
 	ld bc, $0007
@@ -5370,7 +5789,7 @@ jr_051_5df7:
 	ld de, $6eef
 	call Call_51_72CC
 	ld de, $5de4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call Call_51_75E7
 	call CopyTilemapBufferToBG
 
@@ -6967,7 +7386,7 @@ RecruitStep36::
 
 
 SwapMenuVars::
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld de, wBattlerSexBits67
 	ld b, $08
 
@@ -7026,11 +7445,11 @@ jr_051_6933:
 SetNewMonPicPalette::
 	ld [wPaletteSet], a
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 	ld a, [wJoinCandidate]
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 	ld hl, far_LoadMonPicPalette
 	rst $10
 	ret
@@ -7096,7 +7515,7 @@ SetPicPalette::
 	push bc
 	push af
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 	pop af
@@ -7113,7 +7532,7 @@ SetPicPalette::
 	pop af
 	and $03
 	add $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 	ld hl, far_LoadMonPicPalette
 	rst $10
 	pop bc

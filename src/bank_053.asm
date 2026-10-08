@@ -27,6 +27,7 @@ FarTable_53::
 	dw Call_53_51AA
 	dw Call_53_5F15
 
+CritChanceOwn_53::
 	db $02, $02, $02, $02, $02, $03, $02, $02, $03, $02, $03, $02, $03, $02, $02, $02
 	db $02, $02, $01, $01, $01, $01, $01, $01, $01, $02, $01, $02, $02, $02, $00, $01
 	db $01, $01, $01, $02, $01, $01, $02, $02, $01, $01, $01, $01, $00, $01, $02, $01
@@ -40,7 +41,10 @@ FarTable_53::
 	db $01, $01, $02, $02, $02, $02, $01, $01, $01, $01, $01, $02, $01, $00, $02, $02
 	db $01, $02, $02, $02, $02, $02, $01, $02, $02, $01, $01, $02, $02, $01, $02, $02
 	db $01, $01, $02, $02, $01, $01, $02, $00, $01, $00, $01, $00, $01, $00, $00, $00
-	db $01, $00, $01, $01, $00, $00, $00, $00, $02, $02, $01, $01, $02, $00, $00, $01
+	db $01, $00, $01, $01, $00, $00, $00, $00, $02, $02, $01, $01, $02
+
+CritChanceWild_53::
+	db $00, $00, $01
 	db $00, $00, $00, $01, $00, $00, $00, $00, $00, $00, $01, $01, $01, $00, $00, $00
 	db $00, $00, $01, $01, $01, $00, $01, $00, $01, $00, $00, $00, $01, $01, $01, $01
 	db $01, $01, $01, $00, $01, $00, $00, $00, $00, $00, $01, $00, $00, $00, $00, $01
@@ -54,7 +58,10 @@ FarTable_53::
 	db $00, $00, $01, $01, $00, $01, $01, $01, $00, $01, $00, $00, $01, $01, $00, $00
 	db $00, $00, $01, $00, $00, $01, $00, $01, $00, $01, $00, $01, $01, $01, $01, $00
 	db $00, $00, $03, $03, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+
+EnemyAvoidsRepeat_53::
+	db $00, $00, $00, $00, $00, $00
 	db $00, $01, $00, $00, $00, $00, $00, $00, $00, $00, $01, $01, $01, $00, $00, $00
 	db $00, $01, $01, $01, $01, $01, $01, $00, $01, $00, $00, $01, $01, $01, $01, $01
 	db $00, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $00, $00, $00
@@ -86,11 +93,11 @@ FarTable_53::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 
-Call_53_43C5::
+GetBattlerName_53::
 	cp $03
-	jr nc, jr_053_43e3
+	jr nc, GetEnemyName_53
 
-Call_53_43C9::
+GetPartyMonName_53::
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
@@ -109,12 +116,12 @@ jr_053_43d8:
 	inc hl
 	jr jr_053_43d8
 
-jr_053_43df:
+GetLinkEnemyName_53::
 	ld a, b
 	pop bc
-	jr Call_53_43C9
+	jr GetPartyMonName_53
 
-jr_053_43e3:
+GetEnemyName_53::
 	push bc
 	ld b, a
 	and $03
@@ -127,7 +134,7 @@ jr_053_43e3:
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_053_43df
+	jr nz, GetLinkEnemyName_53
 
 	push hl
 	ld a, b
@@ -147,18 +154,18 @@ jr_053_43e3:
 
 jr_053_4409:
 	pop bc
-	jr nz, jr_053_4434
+	jr nz, GetMorphName_53
 
 jr_053_440c:
 	push af
-	call Call_53_4416
+	call GetSpeciesName_53
 	pop af
 	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret
 
 
-Call_53_4416::
+GetSpeciesName_53::
 	ld [wNameBattler], a
 	push hl
 	ld hl, wBattlerSpecies
@@ -179,8 +186,8 @@ Call_53_4416::
 	ret
 
 
-jr_053_4434:
-	call Call_53_43C9
+GetMorphName_53::
+	call GetPartyMonName_53
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
@@ -274,9 +281,10 @@ jr_053_4495:
 	ret
 
 
+UnusedGetTargetName2_53::
 	db $21, $a0, $c1, $18, $03
 
-Call_53_44A0::
+GetTargetName_53::
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
@@ -284,11 +292,11 @@ Call_53_44A0::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ret
 
 
-Call_53_44B5::
+GetUserName_53::
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
@@ -296,7 +304,7 @@ Call_53_44B5::
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ret
 
 
@@ -505,7 +513,7 @@ jr_053_45f9:
 	bit 4, [hl]
 	jr z, jr_053_4621
 
-	call Call_53_44B5
+	call GetUserName_53
 	ld a, $10
 	ld [wTextIndex], a
 	xor a
@@ -598,7 +606,7 @@ jr_053_467c:
 	ld h, a
 	ld a, [hl]
 	ld [wSkillId], a
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
 	ret
 
@@ -661,9 +669,9 @@ jr_053_46a8:
 	cp $55
 	jr z, jr_053_4733
 
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 3, a
 	jr nz, jr_053_4733
 
@@ -711,7 +719,7 @@ jr_053_4733:
 	inc hl
 	ld a, [hl]
 	ld [wSkillTarget], a
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
 	ld a, [wSkillId]
 	cp $14
@@ -794,7 +802,7 @@ jr_053_47b2:
 	cp $53
 	jr z, jr_053_47d1
 
-	ld a, [$dcfc]
+	ld a, [wSkillTargeting]
 	and $01
 	jr z, jr_053_47e8
 
@@ -860,7 +868,7 @@ jr_053_4809:
 Jump_53_480E::
 	ld hl, wBattleSubStep2
 	inc [hl]
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
 	ld a, [wSkillId]
 	ld [wBattleArg0], a
@@ -868,7 +876,7 @@ Jump_53_480E::
 	ld [wBattleArg1], a
 	ld a, $04
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	ld c, a
@@ -892,7 +900,7 @@ Jump_53_480E::
 
 	call Call_53_49DC
 	call z, Call_53_490A
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 6, a
 	jr z, jr_053_485b
 
@@ -923,7 +931,7 @@ jr_053_486d:
 
 Jump_053_4871:
 jr_053_4871:
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 6, a
 	jr z, jr_053_48af
 
@@ -1094,7 +1102,7 @@ Call_53_4963::
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld hl, wTextArg1
 	ld a, l
 	ld [wBattleArg2], a
@@ -1102,7 +1110,7 @@ Call_53_4963::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, [wSkillId]
 	cp $42
 	jr z, jr_053_49b3
@@ -1217,7 +1225,7 @@ Call_53_4A04::
 	ld [wBattleArg1], a
 	ld a, $04
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	ld c, a
@@ -1272,7 +1280,7 @@ Jump_53_4A55::
 
 
 jr_053_4a6c:
-	call Call_53_44B5
+	call GetUserName_53
 	ld a, [wSkillUser]
 	ld b, a
 	and $03
@@ -1457,7 +1465,7 @@ Call_53_4B4F::
 	ld [wBattleArg1], a
 	ld a, $04
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	ld c, a
@@ -1512,7 +1520,7 @@ Call_53_4B92::
 	cp $96
 	jr z, jr_053_4bd1
 
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 6, a
 	jr z, jr_053_4bd1
 
@@ -1642,7 +1650,7 @@ Call_53_4C50::
 	push af
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
-	call Call_53_44A0
+	call GetTargetName_53
 	pop af
 	ld [wSkillTarget], a
 	ld a, [wRandomLow]
@@ -1868,7 +1876,7 @@ jr_053_4d97:
 	ld [wBattleArg1], a
 	ld a, $09
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleType]
 	or a
@@ -1944,7 +1952,7 @@ Call_53_4E01::
 	or a
 	jr nz, jr_053_4e21
 
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	jr jr_053_4e30
 
 jr_053_4e21:
@@ -2261,7 +2269,7 @@ Jump_53_4FDA::
 
 
 Call_53_4FF3::
-	call Call_53_44A0
+	call GetTargetName_53
 	call Call_53_4FFD
 	call Call_53_500C
 	ret
@@ -2285,7 +2293,7 @@ Call_53_500C::
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ret
 
 
@@ -2531,7 +2539,7 @@ jr_053_516e:
 	ld a, [wTextIndex]
 	push af
 	ld a, [wBattleArg0]
-	call Call_53_43C5
+	call GetBattlerName_53
 	pop af
 	ld [wTextIndex], a
 	ld a, [wBattleTemp]
@@ -2690,7 +2698,7 @@ Jump_53_5242::
 	jr z, Jump_53_527A
 
 	push af
-	call Call_53_44B5
+	call GetUserName_53
 	pop af
 	bit 6, a
 	jr nz, jr_053_526c
@@ -2807,7 +2815,7 @@ Jump_53_52E9::
 
 
 jr_053_52f4:
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
 	ld a, [wSkillId]
 	cp $42
@@ -2851,7 +2859,7 @@ jr_053_5313:
 	jr z, Jump_53_535E
 
 	push af
-	call Call_53_44B5
+	call GetUserName_53
 	pop af
 	bit 1, a
 	jr z, jr_053_5349
@@ -2860,7 +2868,7 @@ jr_053_5313:
 	jr jr_053_5352
 
 jr_053_5349:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 4, a
 	jr z, Jump_53_535E
 
@@ -2882,7 +2890,7 @@ Jump_53_535E::
 	call CheckBattlerPresent
 	jr c, Jump_53_537A
 
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld a, [wSkillAnimActive]
 	cp $01
@@ -2895,7 +2903,7 @@ Jump_53_535E::
 Jump_53_537A::
 	ld hl, wBattleSubStep2
 	inc [hl]
-	ld a, [$dd68]
+	ld a, [wSkillAnimPhase]
 	cp $02
 	jr nz, Jump_53_53A9
 
@@ -2928,7 +2936,7 @@ jr_053_53a3:
 Jump_53_53A9::
 	ld hl, wBattleSubStep2
 	inc [hl]
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 7, a
 	jr z, Jump_53_5411
 
@@ -2963,11 +2971,11 @@ Jump_53_53A9::
 	ld a, [$c1c8]
 	ld hl, wTextArg0
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, [wSkillTarget]
 	ld hl, wTextArg1
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, $6c
 	ld [wTextIndex], a
 	xor a
@@ -2986,7 +2994,7 @@ Jump_53_5411::
 	bit 3, a
 	jp nz, Jump_053_54d6
 
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
 	call Call_53_4E33
 	ld a, [wSkillTarget]
@@ -2996,7 +3004,7 @@ Jump_53_5411::
 	and $0c
 	jr z, jr_053_5458
 
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	bit 5, a
 	jr z, jr_053_5458
 
@@ -3004,7 +3012,7 @@ Jump_53_5411::
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $c1
 	ld [wTextIndex], a
 	xor a
@@ -3017,7 +3025,7 @@ Jump_53_5411::
 
 
 jr_053_5458:
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 4, a
 	jp z, Jump_053_54d6
 
@@ -3083,7 +3091,7 @@ jr_053_5458:
 	ld [wSkillTarget], a
 	ld b, $02
 	call Call_53_5ECE
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $81
 	ld [wTextIndex], a
 	xor a
@@ -3094,7 +3102,7 @@ jr_053_5458:
 
 
 Jump_053_54d6:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 1, a
 	jr z, jr_053_554d
 
@@ -3123,12 +3131,12 @@ Call_53_5504::
 	ld hl, wTextArg0
 	push bc
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, [wSkillTarget]
 	ld [$c1c8], a
 	ld hl, wTextArg1
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	pop bc
 	ld a, b
 	ld [wSkillTarget], a
@@ -3162,7 +3170,7 @@ jr_053_554d:
 	or a
 	jp nz, Jump_53_5622
 
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 7, a
 	jr z, jr_053_5594
 
@@ -3201,7 +3209,7 @@ jr_053_557a:
 
 
 jr_053_5594:
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 4, a
 	jp z, Jump_053_55ca
 
@@ -3213,7 +3221,7 @@ jr_053_5594:
 	jr z, jr_053_55ca
 
 	res 6, [hl]
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $01
 	call Call_53_5E38
 	ld a, $02
@@ -3231,7 +3239,7 @@ jr_053_5594:
 
 Jump_053_55ca:
 jr_053_55ca:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 0, a
 	jp z, Jump_53_5622
 
@@ -3309,7 +3317,7 @@ jr_053_563c:
 	call CheckBattlerCanAct
 	jr c, Jump_53_56A8
 
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 7, a
 	jr z, Jump_53_56A8
 
@@ -3323,7 +3331,7 @@ jr_053_563c:
 	bit 7, [hl]
 	jr z, Jump_53_56A8
 
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $6e
 	ld [wTextIndex], a
 	xor a
@@ -3337,7 +3345,7 @@ jr_053_563c:
 
 
 jr_053_5678:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 1, a
 	jr z, jr_053_563c
 
@@ -3413,7 +3421,7 @@ jr_053_56e1:
 	and $c0
 	jr z, jr_053_5747
 
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 2, a
 	jr z, jr_053_5747
 
@@ -3452,7 +3460,7 @@ jr_053_5715:
 
 jr_053_5731:
 	push af
-	call Call_53_44A0
+	call GetTargetName_53
 	pop af
 	ld [wTextIndex], a
 	xor a
@@ -3467,7 +3475,7 @@ jr_053_5746:
 
 
 jr_053_5747:
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 7, a
 	jr z, jr_053_5763
 
@@ -3477,14 +3485,14 @@ jr_053_5747:
 	bit 2, [hl]
 	jr z, jr_053_5763
 
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $c1
 	jp Jump_053_582a
 
 
 jr_053_5763:
 	call Call_53_4E33
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 1, a
 	jr z, jr_053_579e
 
@@ -3519,7 +3527,7 @@ jr_053_5785:
 
 
 jr_053_579e:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 7, a
 	jr z, jr_053_57f5
 
@@ -3577,7 +3585,7 @@ jr_053_57f5:
 	jr Jump_53_586A
 
 Call_53_57F7::
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $78
 	ld [wTextIndex], a
 	xor a
@@ -3591,7 +3599,7 @@ Call_53_57F7::
 
 
 Call_53_5810::
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
@@ -3654,11 +3662,11 @@ Call_53_5857::
 
 
 Jump_53_586A::
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
 	ld hl, wBattleSubStep2
 	inc [hl]
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	and $70
 	ret z
 
@@ -3671,7 +3679,7 @@ Jump_53_586A::
 	bit 2, [hl]
 	ret nz
 
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 
 jr_053_588b:
 	bit 4, a
@@ -3765,7 +3773,7 @@ jr_053_5912:
 	bit 2, [hl]
 	jr z, jr_053_5941
 
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 5, a
 	jr z, jr_053_5941
 
@@ -3819,7 +3827,7 @@ jr_053_5978:
 	bit 0, [hl]
 	jr z, jr_053_599a
 
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 6, a
 	jr z, jr_053_599a
 
@@ -3838,7 +3846,7 @@ jr_053_599a:
 	bit 4, [hl]
 	jr z, jr_053_59c3
 
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 4, a
 	jr z, jr_053_59c3
 
@@ -3902,7 +3910,7 @@ jr_053_59ec:
 	ld h, a
 	jr nz, jr_053_5a15
 
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 7, a
 	jp z, Jump_53_5A6F
 
@@ -3912,7 +3920,7 @@ jr_053_5a0f:
 	jr jr_053_5a25
 
 jr_053_5a15:
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 0, a
 	jr z, Jump_53_5A6F
 
@@ -3949,7 +3957,7 @@ jr_053_5a44:
 	bit 2, [hl]
 	jr z, Jump_53_5A6F
 
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 7, a
 	jr z, Jump_53_5A6F
 
@@ -4005,7 +4013,7 @@ Jump_53_5A6F::
 	cp $1b
 	ret nz
 
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
@@ -4044,7 +4052,7 @@ jr_053_5ad2:
 
 	ld hl, far_Call_55_4026
 	rst $10
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld a, [wSkillAnimActive]
 	cp $01
@@ -4066,7 +4074,7 @@ Jump_53_5AED::
 
 	ld hl, far_Call_55_4035
 	rst $10
-	ld hl, far_Call_5F_4A60
+	ld hl, far_StartSkillHitEffect
 	rst $10
 	ld a, $01
 	ld [$c1c9], a
@@ -4378,7 +4386,7 @@ jr_053_5c9a:
 
 
 Call_53_5CA1::
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 4, a
 	ret z
 
@@ -4403,9 +4411,9 @@ Call_53_5CBC::
 	bit 0, [hl]
 	ret z
 
-	ld hl, far_Call_54_5298
+	ld hl, far_LoadSkillFlags
 	rst $10
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	bit 0, a
 	ret z
 
@@ -4415,7 +4423,7 @@ Call_53_5CBC::
 	ld [wBattleArg1], a
 	ld a, $04
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	ld c, a
@@ -4492,7 +4500,7 @@ Call_53_5D22::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, $8d
 	ld [wTextIndex], a
 	xor a
@@ -4686,7 +4694,7 @@ Call_53_5E38::
 	call Call_53_5DE7
 	ld a, [wSkillTarget]
 	ld [wSkillUser], a
-	ld a, [$dcfc]
+	ld a, [wSkillTargeting]
 	bit 0, a
 	jr nz, jr_053_5e53
 
@@ -4861,7 +4869,7 @@ Jump_53_5F21::
 	and $90
 	jr z, jr_053_5f66
 
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	bit 3, a
 	jr z, jr_053_5f66
 
@@ -4922,7 +4930,7 @@ Jump_53_5F6E::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, $db
 	ld [wTextIndex], a
 	xor a
@@ -4961,7 +4969,7 @@ Jump_53_5FB6::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, $dc
 	ld [wTextIndex], a
 	xor a
@@ -5174,7 +5182,7 @@ jr_053_610f:
 	ld a, [wSkillTarget]
 	ld hl, wTextArg0
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, $ac
 	ld [wTextIndex], a
 	xor a
@@ -5309,7 +5317,7 @@ Jump_53_61E3::
 	ld a, [wSkillTarget]
 	ld hl, wTextArg0
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, $d8
 	ld [wTextIndex], a
 	xor a
@@ -6028,7 +6036,7 @@ Jump_53_667C::
 	jr nz, jr_053_66a5
 
 	set 1, [hl]
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $98
 	ld [wTextIndex], a
 	xor a
@@ -6164,7 +6172,7 @@ Jump_53_6720::
 	and $c0
 	jr z, jr_053_6752
 
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $ba
 	ld [wTextIndex], a
 	ld a, $00
@@ -6198,12 +6206,12 @@ jr_053_6752:
 	ld hl, wTextArg0
 	push bc
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	ld a, [wSkillTarget]
 	ld [$c1c8], a
 	ld hl, wTextArg1
 	ld [wNamePos], a
-	call Call_53_43C5
+	call GetBattlerName_53
 	pop bc
 	ld a, b
 	ld [wSkillTarget], a
@@ -6262,7 +6270,7 @@ Jump_53_67A9::
 	jr nc, jr_053_6858
 
 jr_053_67db:
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, [wSkillTarget]
 	call GetBattlerHP
 	ld a, l
@@ -6341,7 +6349,7 @@ Jump_053_6858:
 jr_053_6858:
 	ld hl, wBattleSubStep2
 	inc [hl]
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $b8
 	ld [wTextIndex], a
 	jr jr_053_6846
@@ -6454,7 +6462,7 @@ jr_053_68fd:
 	db $21, $ed, $d9, $34, $af, $ea, $ee, $d9, $c9
 
 Call_53_690E::
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	bit 0, a
 	ret z
 
@@ -6520,7 +6528,7 @@ Jump_53_6971::
 	ret c
 
 	call Call_53_4E33
-	call Call_53_44B5
+	call GetUserName_53
 	ld a, [wSkillUser]
 	call GetBattlerHP
 	ld a, l
@@ -6818,7 +6826,7 @@ jr_053_6b42:
 	ld [wBattleTempHigh], a
 	ld a, $ff
 	ld [wSkillTempPtr], a
-	call Call_53_44A0
+	call GetTargetName_53
 	ret
 
 
@@ -6828,11 +6836,11 @@ Jump_53_6B53::
 	ld hl, wBattleSubStep2
 	inc [hl]
 	call Call_53_6BC1
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld a, $84
 	ld [wBattleTempHigh], a
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_053_6b72
@@ -6961,7 +6969,7 @@ jr_053_6c1b:
 	jr c, jr_053_6c38
 
 	ld a, [wSkillTarget]
-	call Call_53_44A0
+	call GetTargetName_53
 	ld a, $aa
 	ld [wTextIndex], a
 	xor a

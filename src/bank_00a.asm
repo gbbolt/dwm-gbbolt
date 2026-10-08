@@ -59,7 +59,7 @@ ServiceScreenNone0A::
 ;@ path: menu/window
 ;@ Rounds the 16-bit pixel coordinate at `p` to the nearest multiple of 8, so
 ;@ the window drawn over the field lines up with whole background tiles.
-;@ test: hl = 0xC100
+;@ test: p = 0xC100
 RoundToTile::
 ;> v = mem16[p] + 4
 	ld a, [hl]
@@ -538,7 +538,7 @@ RenderCharTile::
 ;@ wPartyBarTiles. Windows are then drawn on top of it.
 ;@ test: skip large copy
 RestoreFieldTilemap::
-;>@c1 copy(wSavedTilemap, wTilemapBuffer, 0x200)
+;>@c1 copy(wTilemapBuffer, wSavedTilemap, 0x200)
 	ld hl, wTilemapBuffer
 	ld de, wSavedTilemap
 	ld bc, $0200
@@ -559,7 +559,7 @@ RestoreFieldTilemap::
 ;>@rows for _ in range(2):
 	ld c, $02
 .row
-;>@c2     copy(src, dest, 20)
+;>@c2     copy(dest, src, 20)
 	ld b, $14
 .column
 	ld a, [de]
@@ -594,7 +594,7 @@ RestoreFieldTilemap::
 ;@ path: unused
 ;@ Unused: fills wTilemapBuffer (576 tiles) with the blank tile $E0.
 ClearTilemapBuffer0A::
-;>@f fill(wTilemapBuffer, 0x240, 0xE0)
+;>@f fill(wTilemapBuffer, 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 .loop
@@ -748,7 +748,7 @@ UpdateListCursor::
 ;=@mv
 	jr jr_00a_42eb
 
-;>@mv     cursor_moved_tail(cursor, table)      # the end of UpdateMenuCursor0A from jr_00a_42eb: blink reset, A, redraw
+;>@mv     jr_00a_42eb(cursor, table)            # the end of UpdateMenuCursor0A: blink reset, A, redraw
 ;>     return
 ;> else:
 .rows
@@ -1228,8 +1228,8 @@ PartnerBreedInit::
 ;> RoundToTile(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile
-;> FillMemory(wLinkChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -1299,7 +1299,7 @@ PartnerBreedOpenMenu::
 ;@ def DrawPartnerBreedMenu()
 ;@ path: breed/partner
 ;@ Draws the two-entry menu window and the message box frame into
-;@ wTilemapBuffer, with the cursor on wLinkChoice (used here as the menu
+;@ wTilemapBuffer, with the cursor on wMenuChoice (used here as the menu
 ;@ cursor).
 ;@ test: skip draws from tables
 DrawPartnerBreedMenu::
@@ -1311,9 +1311,9 @@ DrawPartnerBreedMenu::
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-;> DrawCursorAt0A(wLinkChoice, PartnerBreedMenuCursorPos)
+;> DrawCursorAt0A(wMenuChoice, PartnerBreedMenuCursorPos)
 	ld de, PartnerBreedMenuCursorPos
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt0A
 	ret
 
@@ -1325,9 +1325,9 @@ DrawPartnerBreedMenu::
 ;@ clears the list cursors for the chosen service.
 ;@ test: skip calls the cursor drawing
 PartnerBreedMenuInput::
-;> UpdateMenuCursor0A(wLinkChoice, PartnerBreedMenuCursorPos, 2)
+;> UpdateMenuCursor0A(wMenuChoice, PartnerBreedMenuCursorPos, 2)
 	ld de, PartnerBreedMenuCursorPos
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $02
 	call UpdateMenuCursor0A
 ;> if wJoyPressed & 0x0A:                    # B or Start
@@ -1358,10 +1358,10 @@ PartnerBreedMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
-;>     wItemsHandedIn = wLinkChoice           # the menu entry to run
+;>     wItemsHandedIn = wMenuChoice           # the menu entry to run
 	ld a, [hl]
 	ld [wItemsHandedIn], a
 ;>     FillMemory(wMenuChoice2, 7, 0)
@@ -1544,7 +1544,7 @@ PBCountMonsters::
 ;@ 20-byte list at wSceneObjects, $FF after the last.
 ;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 PBBuildMonsterList::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -2900,8 +2900,8 @@ BreedingInit::
 ;> RoundToTile(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile
-;> FillMemory(wLinkChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -2984,7 +2984,7 @@ BreedingOpenMenu::
 ;@ path: breed/house
 ;@ Draws the gold window with the player's gold (row 1, column 14), the
 ;@ three-entry menu and the message box frame into wTilemapBuffer, cursor on
-;@ wLinkChoice (used here as the menu cursor).
+;@ wMenuChoice (used here as the menu cursor).
 ;@ test: skip draws from tables
 DrawBreedingMenu::
 ;> DrawWindowLayout0A(LayoutGold)
@@ -3009,9 +3009,9 @@ DrawBreedingMenu::
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-;> DrawCursorAt0A(wLinkChoice, BreedingMenuCursorPos)
+;> DrawCursorAt0A(wMenuChoice, BreedingMenuCursorPos)
 	ld de, BreedingMenuCursorPos
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt0A
 	ret
 
@@ -3023,9 +3023,9 @@ DrawBreedingMenu::
 ;@ clears the list cursors for the chosen service.
 ;@ test: skip calls the cursor drawing
 BreedingMenuInput::
-;> UpdateMenuCursor0A(wLinkChoice, BreedingMenuCursorPos, 3)
+;> UpdateMenuCursor0A(wMenuChoice, BreedingMenuCursorPos, 3)
 	ld de, BreedingMenuCursorPos
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $03
 	call UpdateMenuCursor0A
 ;> if wJoyPressed & 0x0A:                    # B or Start
@@ -3052,10 +3052,10 @@ BreedingMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
-;>     wItemsHandedIn = wLinkChoice           # the menu entry to run
+;>     wItemsHandedIn = wMenuChoice           # the menu entry to run
 	ld a, [hl]
 	ld [wItemsHandedIn], a
 ;>     FillMemory(wMenuChoice2, 7, 0)
@@ -3259,7 +3259,7 @@ BRCountMonsters::
 ;@ 20-byte list at wSceneObjects, $FF after the last.
 ;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 BRBuildMonsterList::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -3991,7 +3991,7 @@ BRListMates::
 ;@ path: breed/house
 ;@ Counts the monster records that hold a hatched monster other than the
 ;@ pedigree parent (wListKnown) into wListLength.
-;@ test: wListKnown = rand(0, 19); for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
+;@ test: for i in range(20): wListKnown = rand(0, 19); mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 BRCountMates::
 ;> n = 0
 ;> rec = wMonsters
@@ -4051,9 +4051,9 @@ BRCountMates::
 ;@ path: breed/house
 ;@ Writes the slot numbers of the possible mates (see BRCountMates) into the
 ;@ 20-byte list at wSceneObjects, $FF after the last.
-;@ test: wListKnown = rand(0, 19); for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
+;@ test: for i in range(20): wListKnown = rand(0, 19); mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 BRBuildMateList::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -5250,9 +5250,9 @@ BRWarpToBreeding::
 ;@ def CopyMonsterRecord(src: hl, dest: de)
 ;@ path: monster/records
 ;@ Copies one $95-byte monster record.
-;@ test: hl = 0xC100; de = 0xC300
+;@ test: src = 0xC100; dest = 0xC300
 CopyMonsterRecord::
-;>@c copy(src, dest, 0x95)
+;>@c copy(dest, src, 0x95)
 	ld b, $95
 .loop
 	ld a, [hli]
@@ -5641,7 +5641,7 @@ HTCountEggs::
 ;@ wSceneObjects, $FF after the last.
 ;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 HTBuildEggList::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -6644,7 +6644,7 @@ DrawSaveFileInfo::
 	jr nz, .saved
 
 ;>@b     for row in range(1, 5):
-;>         fill(OffsetToTilemapBuffer(row * 32 + 1), 17, 0xE0)
+;>         fill(OffsetToTilemapBuffer(row * 32 + 1), 0xE0, 17)
 	ld hl, $0021
 	call OffsetToTilemapBuffer
 	ld bc, $0011
@@ -6824,9 +6824,9 @@ DrawSaveFileInfo::
 ;@ path: save/summary
 ;@ Blanks one party slot of the save window: 5 tiles at `pos` and 2 tiles at
 ;@ `pos` + 33 (the row below, one column on).
-;@ test: hl = rand(0, 0x1DF)
+;@ test: pos = rand(0, 0x1DF)
 ClearSaveInfoSlot::
-;>@a fill(OffsetToTilemapBuffer(pos), 5, 0xE0)
+;>@a fill(OffsetToTilemapBuffer(pos), 0xE0, 5)
 	push hl
 	call OffsetToTilemapBuffer
 	ld a, $e0
@@ -6836,7 +6836,7 @@ ClearSaveInfoSlot::
 ;=@a
 	ld [hli], a
 	ld [hl], a
-;>@q fill(OffsetToTilemapBuffer(pos + 0x21), 2, 0xE0)
+;>@q fill(OffsetToTilemapBuffer(pos + 0x21), 0xE0, 2)
 	pop hl
 	ld a, l
 	add $21
@@ -6934,10 +6934,10 @@ DrawSaveFileMember::
 	ld b, $20
 ;> # else: the name and icon are drawn at jr_00a_5fd9
 
-;@ def ClearTiles(tiles: hl, count: b) -> hl
+;@ def ClearTiles(tiles: hl, count: b, name: de) -> hl
 ;@ path: menu/window
 ;@ Fills `count` tile rows (2 bytes each) at VRAM `tiles` with plain colour 1
-;@ ($FF, $00). The code after its `ret` (jr_00a_5fd9) is the drawing part of
+;@ ($FF, $00); `name` is not used by this part. The code after its `ret` (jr_00a_5fd9) is the drawing part of
 ;@ DrawSaveFileMember: the member's name and its family icon.
 ;@ test: skip writes VRAM while waiting for the LCD
 ClearTiles::
@@ -6957,9 +6957,10 @@ ClearTiles::
 
 
 jr_00a_5fd9:
-;> # --- DrawSaveFileMember(n: b, name: de, tiles: hl) goes on here:
-;> RenderNameTiles(tiles, name)
+;> # --- DrawSaveFileMember goes on here; `name` (de) is only used by this part
+;> n = count                     # on this path b holds the member number
 	push bc
+;> RenderNameTiles(tiles, name)
 	call RenderNameTiles
 	pop bc
 ;> mem[0x0100] = 0x0A
@@ -7018,9 +7019,9 @@ SaveFamilyIconGfx::
 ;@ Writes `value` (0-99) as one or two digit tiles ($F0 + digit) from `dest`
 ;@ on: the tens digit only when it is not 0. `dest` is a screen-like address
 ;@ (the column wraps inside its 32-tile row).
-;@ test: bc = rand(0, 99); hl = 0xC500
+;@ test: value = rand(0, 99); dest = 0xC500
 DrawTwoDigits0A::
-;> tens = CountDivisions(value, 10)
+;> tens, _ = CountDivisions(value, 10)
 	ld de, $000a
 	push bc
 	call CountDivisions
@@ -7029,7 +7030,7 @@ DrawTwoDigits0A::
 	or a
 	jr z, .ones
 
-;>     tens = CountDivisions(value, 10); value -= tens * 10
+;>     tens, value = CountDivisions(value, 10)
 	ld de, $000a
 	call CountDivisions
 ;>     DrawDigit(tens, dest)
@@ -7152,7 +7153,7 @@ AppendPlusValue::
 ;@ path: text/names
 ;@ Appends the gender mark $A7 + (gender & 1) to the $F0-terminated string
 ;@ `text`.
-;@ test: de = 0xC100; mem[0xC100 + rand(0, 8)] = 0xF0
+;@ test: text = 0xC100; mem[0xC100 + rand(0, 8)] = 0xF0
 AppendGenderMark::
 ;> while mem[text] != 0xF0:
 	push af
@@ -7209,8 +7210,8 @@ EAInit::
 ;> RoundToTile(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile
-;> FillMemory(wLinkChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7281,7 +7282,7 @@ EAOpenMenu::
 ;@ path: breed/appraiser
 ;@ Draws the three-entry menu, the gold window with the player's gold (row 1,
 ;@ column 14) and the message box frame into wTilemapBuffer, cursor on
-;@ wLinkChoice (used here as the menu cursor).
+;@ wMenuChoice (used here as the menu cursor).
 ;@ test: skip draws from tables
 DrawEAMenu::
 ;> DrawWindowLayout0A(LayoutAppraiserMenu)
@@ -7306,9 +7307,9 @@ DrawEAMenu::
 	call PrintNumber5
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-;> DrawCursorAt0A(wLinkChoice, EAMenuCursorPos)
+;> DrawCursorAt0A(wMenuChoice, EAMenuCursorPos)
 	ld de, EAMenuCursorPos
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt0A
 	ret
 
@@ -7319,9 +7320,9 @@ DrawEAMenu::
 ;@ (bit 7 of the cursor is set) and clears the list cursors.
 ;@ test: skip calls the cursor drawing
 EAMenuInput::
-;> UpdateMenuCursor0A(wLinkChoice, EAMenuCursorPos, 3)
+;> UpdateMenuCursor0A(wMenuChoice, EAMenuCursorPos, 3)
 	ld de, EAMenuCursorPos
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $03
 	call UpdateMenuCursor0A
 ;> if wJoyPressed & 0x0A:                    # B or Start
@@ -7352,8 +7353,8 @@ EAMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
 ;>     FillMemory(wMenuChoice2, 7, 0)
 	ld hl, wMenuChoice2
@@ -7383,8 +7384,8 @@ EAMenuCursorPos::
 ;@ Step 3: runs the chosen menu entry, one step per frame.
 ;@ test: skip jumps through a table
 EARunChoice::
-;> EAChoices[wLinkChoice & 0x7F]()
-	ld a, [wLinkChoice]
+;> EAChoices[wMenuChoice & 0x7F]()
+	ld a, [wMenuChoice]
 	rst $00
 
 ;@ path: breed/appraiser
@@ -7540,7 +7541,7 @@ EACountEggs::
 ;@ wSceneObjects, $FF after the last.
 ;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 EABuildEggList::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -8937,18 +8938,20 @@ GCQuotePrice::
 	ld e, $01
 
 .ok
-;>@n hNumber = price                     # 24 bits
+;> mem16[hNumber] = price & 0xFFFF        # 24 bits
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
 	ldh [hNumber + 1], a
+;> mem[hNumber + 2] = price >> 16
 	ld a, e
 	ldh [hNumber + 2], a
-;>@p mem24[wListCursor2] = price          # $C8E4-$C8E6
+;> mem16[wListCursor2] = price & 0xFFFF   # $C8E4-$C8E6
 	ld a, l
 	ld [wListCursor2], a
 	ld a, h
 	ld [wListPage2], a
+;> mem[wListCursor2 + 2] = price >> 16
 	ld a, e
 	ld [wListCursor2 + 2], a
 ;> Number24ToDecimal(wTextArg0)
@@ -9091,7 +9094,7 @@ GCConfirmCursorPos::
 ;@ (message $1A, then step 7); else message $1C and back to the menu (step 8).
 ;@ test: skip prints messages through other banks
 GCPay::
-;>@g if wGold < mem24[wListCursor2]:
+;>@g if mem16[wGold] | mem[wGold + 2] << 16 < mem16[wListCursor2] | mem[wListCursor2 + 2] << 16:
 	ld hl, wListCursor2
 	ld a, [wGold]
 	sub [hl]
@@ -9117,7 +9120,7 @@ GCPay::
 
 .pay
 ;> else:
-;>@sp     SpendGold(mem24[wListCursor2])
+;>@sp     SpendGold(mem16[wListCursor2] | mem[wListCursor2 + 2] << 16)
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
@@ -9219,11 +9222,12 @@ GCReturnFromStatus::
 	call EADrawPage
 ;> EADrawGenders()
 	call EADrawGenders
-;>@n hNumber = mem24[wListCursor2]
+;> mem16[hNumber] = mem16[wListCursor2]   # the 24-bit price
 	ld a, [wListCursor2]
 	ldh [hNumber], a
 	ld a, [wListPage2]
 	ldh [hNumber + 1], a
+;> mem[hNumber + 2] = mem[wListCursor2 + 2]
 	ld a, [wListCursor2 + 2]
 	ldh [hNumber + 2], a
 ;> Number24ToDecimal(wTextArg0)
@@ -9282,8 +9286,8 @@ JPInit::
 ;> RoundToTile(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile
-;> FillMemory(wLinkChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)            # the menu cursors $C8DA-$C8E1
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -9358,7 +9362,7 @@ JPOpenMenu::
 ;@ def DrawJPMenu()
 ;@ path: breed/join
 ;@ Draws the yes/no window and the message box frame into wTilemapBuffer,
-;@ cursor on wLinkChoice (used here as the menu cursor).
+;@ cursor on wMenuChoice (used here as the menu cursor).
 ;@ test: skip draws from tables
 DrawJPMenu::
 ;> DrawWindowLayout0A(LayoutYesNo)
@@ -9369,9 +9373,9 @@ DrawJPMenu::
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
-;> DrawCursorAt0A(wLinkChoice, JPMenuCursorPos)
+;> DrawCursorAt0A(wMenuChoice, JPMenuCursorPos)
 	ld de, JPMenuCursorPos
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt0A
 	ret
 
@@ -9382,9 +9386,9 @@ DrawJPMenu::
 ;@ set, the choice kept in wItemsHandedIn) and clears the list cursors.
 ;@ test: skip calls the cursor drawing
 JPMenuInput::
-;> UpdateMenuCursor0A(wLinkChoice, JPMenuCursorPos, 2)
+;> UpdateMenuCursor0A(wMenuChoice, JPMenuCursorPos, 2)
 	ld de, JPMenuCursorPos
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $02
 	call UpdateMenuCursor0A
 ;> if wJoyPressed & 0x0A:                    # B or Start
@@ -9411,10 +9415,10 @@ JPMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
-;>     wItemsHandedIn = wLinkChoice           # the menu entry to run
+;>     wItemsHandedIn = wMenuChoice           # the menu entry to run
 	ld a, [hl]
 	ld [wItemsHandedIn], a
 ;>     FillMemory(wMenuChoice2, 7, 0)
@@ -9595,7 +9599,7 @@ JFCountChoices::
 ;@ $FF), then the new monster wLeaderSlot; $FF fills the rest.
 ;@ test: skip fills memory through a helper
 JFBuildList::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff

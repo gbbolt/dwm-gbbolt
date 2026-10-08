@@ -31,9 +31,9 @@ TitleModeInit::
 	ld [wFieldStackPtr], a
 	ld a, h
 	ld [$da7c], a
-;> fill(wLinkChoice, 8, 0)               # menu cursors
+;> fill(wMenuChoice, 8, 0)               # menu cursors
 	xor a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
 ;> fill(wTextTiles, 0x12, 0)             # text box set-up
@@ -83,8 +83,8 @@ TitleInitOpening::
 ;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
-;> Call_5F_441C()                       # set up the opening
-	ld hl, far_Call_5F_441C
+;> OpeningInit()                       # set up the opening
+	ld hl, far_OpeningInit
 	rst $10
 ;> StartFade(0xFC)
 	ld a, $fc
@@ -191,8 +191,8 @@ TitleInitMenu::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> fill(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -295,8 +295,8 @@ TitleInitVSLink::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> fill(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -394,8 +394,8 @@ TitleInitBreedLink::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> fill(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -586,10 +586,10 @@ TitleMenuOpen::
 ;> wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
-;> wLinkPartnerChoice = wLinkChoice
-	ld a, [wLinkChoice]
+;> wLinkPartnerChoice = wMenuChoice
+	ld a, [wMenuChoice]
 	ld [wLinkPartnerChoice], a
-;> MenuDrawCursorAt_15(wLinkChoice, marks)
+;> MenuDrawCursorAt_15(wMenuChoice, marks)
 	call MenuDrawCursorAt_15
 ;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -628,14 +628,14 @@ TitleMenuChoose::
 	ld b, $04
 
 .move
-;> wLinkChoice = wLinkPartnerChoice
-	ld hl, wLinkChoice
+;> wMenuChoice = wLinkPartnerChoice
+	ld hl, wMenuChoice
 	ld a, [wLinkPartnerChoice]
-	ld [wLinkChoice], a
-;> MoveMenuCursor_15(wLinkChoice, count, marks)
+	ld [wMenuChoice], a
+;> MoveMenuCursor_15(wMenuChoice, count, marks)
 	call MoveMenuCursor_15
-;> wLinkPartnerChoice = wLinkChoice
-	ld a, [wLinkChoice]
+;> wLinkPartnerChoice = wMenuChoice
+	ld a, [wMenuChoice]
 	ld [wLinkPartnerChoice], a
 ;> sends = TitleSendOne
 	ld de, TitleSendOne
@@ -649,8 +649,8 @@ TitleMenuChoose::
 	ld de, TitleSendFour
 
 .send
-;> i = wLinkChoice & 0x7F
-	ld a, [wLinkChoice]
+;> i = wMenuChoice & 0x7F
+	ld a, [wMenuChoice]
 	and $7f
 ;> p = sends + i
 	add e
@@ -666,8 +666,8 @@ TitleMenuChoose::
 	bit 0, a
 	jp z, .done
 
-;>     if wLinkChoice & 0x7F not in (2, 3):
-	ld a, [wLinkChoice]
+;>     if wMenuChoice & 0x7F not in (2, 3):
+	ld a, [wMenuChoice]
 	and $7f
 	cp $02
 	jr z, .next
@@ -720,8 +720,8 @@ TitleSendFour::
 ;@ cursor number is moved up by one.
 ;@ test: skip calls routines in other banks
 TitleMenuRunChoice::
-;> choice = wLinkChoice & 0x7F
-	ld a, [wLinkChoice]
+;> choice = wMenuChoice & 0x7F
+	ld a, [wMenuChoice]
 	and $7f
 	ld b, a
 ;> if not ReadSRAMByte(sSaveValid):
@@ -764,9 +764,9 @@ TitleMenuStartField::
 	ld [wGameModeStep], a
 ;> mem[0xC88C] = 0; mem[0xC88D] = 0
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 ;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
@@ -1603,12 +1603,12 @@ VSDrawTeamWindows::
 	call DrawWindowLayout_15
 ;> MenuResetBlink_15()
 	call MenuResetBlink_15
-;>@g1 MenuDrawListCursor_15(wLinkChoice, VSTeamListCursor, 4, wTitleListCount)
+;>@g1 MenuDrawListCursor_15(wMenuChoice, VSTeamListCursor, 4, wTitleListCount)
 	ld de, VSTeamListCursor
 	ld b, $04
 	ld a, [wTitleListCount]
 	ld c, a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	call MenuDrawListCursor_15
 ;=@g1
 	ret
@@ -1711,12 +1711,12 @@ VSDrawListName::
 ;@ sign into the tile at $9200.
 ;@ test: skip prints text
 DrawCursorMonName::
-;>@slot slot = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
+;>@slot slot = wSceneObjects[wMenuChoice2 * 4 + (wMenuChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 ;=@slot
 	add b
@@ -1809,12 +1809,12 @@ DrawCursorMonName::
 ;@ party (also a party a script has put aside).
 ;@ test: skip touches battery RAM
 DrawCursorMonLevel::
-;>@slot slot = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
+;>@slot slot = wSceneObjects[wMenuChoice2 * 4 + (wMenuChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 ;=@slot
 	add b
@@ -1911,9 +1911,9 @@ VSTeamListInput::
 	call VSCheckPartnerCancel
 	ret z
 
-;>@old old_page = wMenuChoice2; old_cursor = wLinkChoice
+;>@old old_page = wMenuChoice2; old_cursor = wMenuChoice
 	ld de, VSTeamListCursor
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
@@ -1923,11 +1923,11 @@ VSTeamListInput::
 	push af
 	ld a, [hl]
 	push af
-;> MovePagedListCursor_15(wLinkChoice, 4, wTitleListCount, VSTeamListCursor)
+;> MovePagedListCursor_15(wMenuChoice, 4, wTitleListCount, VSTeamListCursor)
 	call MovePagedListCursor_15
-;> if wLinkChoice != old_cursor:
+;> if wMenuChoice != old_cursor:
 	pop af
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	cp [hl]
 	jr z, .samePos
 
@@ -2028,12 +2028,12 @@ VSTeamListInput::
 ;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
-;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
+;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wMenuChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 ;=@pick
 	add b
@@ -2466,9 +2466,9 @@ VSAnotherInput::
 ;>         wTitleStep = 1
 	ld a, $01
 	ld [wTitleStep], a
-;>         wLinkChoice = 0; wMenuChoice2 = 0
+;>         wMenuChoice = 0; wMenuChoice2 = 0
 	xor a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld [wMenuChoice2], a
 	jp Jump_015_4be2
 
@@ -2611,9 +2611,9 @@ VSPrizeYesNoInput::
 	call VSDrawListNames
 ;>         VSDrawTeamWindows()
 	call VSDrawTeamWindows
-;>         wLinkChoice = 0; wMenuChoice2 = 0
+;>         wMenuChoice = 0; wMenuChoice2 = 0
 	xor a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld [wMenuChoice2], a
 ;>         wTitleStep += 1
 	ld hl, wTitleStep
@@ -2837,12 +2837,12 @@ VSDrawPrizeWindows::
 	call DrawWindowLayout_15
 ;> MenuResetBlink_15()
 	call MenuResetBlink_15
-;>@g5 MenuDrawListCursor_15(wLinkChoice, VSPrizeListCursor, 4, wTitleListCount)
+;>@g5 MenuDrawListCursor_15(wMenuChoice, VSPrizeListCursor, 4, wTitleListCount)
 	ld de, VSPrizeListCursor
 	ld b, $04
 	ld a, [wTitleListCount]
 	ld c, a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	call MenuDrawListCursor_15
 ;=@g5
 	ret
@@ -2961,9 +2961,9 @@ VSPrizeListInput::
 	call VSCheckPartnerCancel
 	ret z
 
-;>@old old_page = wMenuChoice2; old_cursor = wLinkChoice
+;>@old old_page = wMenuChoice2; old_cursor = wMenuChoice
 	ld de, VSPrizeListCursor
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
@@ -2973,11 +2973,11 @@ VSPrizeListInput::
 	push af
 	ld a, [hl]
 	push af
-;> MovePagedListCursor_15(wLinkChoice, 4, wTitleListCount, VSPrizeListCursor)
+;> MovePagedListCursor_15(wMenuChoice, 4, wTitleListCount, VSPrizeListCursor)
 	call MovePagedListCursor_15
-;> if wLinkChoice != old_cursor:
+;> if wMenuChoice != old_cursor:
 	pop af
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	cp [hl]
 	jr z, .samePos
 
@@ -3028,12 +3028,12 @@ VSPrizeListInput::
 	xor a
 	ld [wConfirmChoice], a
 	ld [wConfirmChoice2], a
-;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
+;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wMenuChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 ;=@pick
 	add b
@@ -4646,12 +4646,12 @@ BreedDrawWindows::
 	call DrawWindowLayout_15
 ;> MenuResetBlink_15()
 	call MenuResetBlink_15
-;>@g7 MenuDrawListCursor_15(wLinkChoice, BreedListCursor, 4, wTitleListCount)
+;>@g7 MenuDrawListCursor_15(wMenuChoice, BreedListCursor, 4, wTitleListCount)
 	ld de, BreedListCursor
 	ld b, $04
 	ld a, [wTitleListCount]
 	ld c, a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	call MenuDrawListCursor_15
 ;=@g7
 	ret
@@ -4770,9 +4770,9 @@ BreedListInput::
 	call BreedCheckPartnerCancel
 	ret z
 
-;>@old old_page = wMenuChoice2; old_cursor = wLinkChoice
+;>@old old_page = wMenuChoice2; old_cursor = wMenuChoice
 	ld de, BreedListCursor
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
@@ -4782,11 +4782,11 @@ BreedListInput::
 	push af
 	ld a, [hl]
 	push af
-;> MovePagedListCursor_15(wLinkChoice, 4, wTitleListCount, BreedListCursor)
+;> MovePagedListCursor_15(wMenuChoice, 4, wTitleListCount, BreedListCursor)
 	call MovePagedListCursor_15
-;> if wLinkChoice != old_cursor:
+;> if wMenuChoice != old_cursor:
 	pop af
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	cp [hl]
 	jr z, .samePos
 
@@ -4842,12 +4842,12 @@ BreedListInput::
 ;>     wConfirmChoice = 0
 	xor a
 	ld [wConfirmChoice], a
-;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
+;>@pick     wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wMenuChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 ;=@pick
 	add b
@@ -5914,12 +5914,12 @@ BreedMakeOffspring::
 ;> StartFade(0x04)
 	ld a, $04
 	call StartFade
-;>@pick wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wLinkChoice & 0x7F)]
+;>@pick wCurPartyMember = wSceneObjects[wMenuChoice2 * 4 + (wMenuChoice & 0x7F)]
 	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 ;=@pick
 	add b

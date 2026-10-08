@@ -31,11 +31,11 @@ DrawSkillAnimSprite_5D::
 	ld de, SkillAnimSpriteSets_5D
 	call DrawSkillAnimFrame_5D
 ;>@c1 if mem[0xDD68] == 0 or mem[0xDAA4] in (3, 4):
-	ld a, [$dd68]
+	ld a, [wSkillAnimPhase]
 	or a
 	jr z, .move
 
-	ld a, [$daa4]
+	ld a, [wSkillAnimSet]
 	cp $03
 	jr z, .move
 
@@ -71,12 +71,12 @@ DrawSkillAnimSprite_5D::
 .phase
 ;> if mem[0xDD68]:
 ;>     return
-	ld a, [$dd68]
+	ld a, [wSkillAnimPhase]
 	or a
 	ret nz
 
 ;> if mem[0xDAA4] in (3, 4):
-	ld a, [$daa4]
+	ld a, [wSkillAnimSet]
 	cp $03
 	jr z, .longFlight
 
@@ -94,7 +94,7 @@ DrawSkillAnimSprite_5D::
 	ld [$dd65], a
 ;>     mem[0xDD68] = 1
 	ld a, $01
-	ld [$dd68], a
+	ld [wSkillAnimPhase], a
 	ret
 
 .flight
@@ -109,7 +109,7 @@ DrawSkillAnimSprite_5D::
 	ld [wSkillAnimSprites], a
 ;>     mem[0xDD68] = 1
 	ld a, $01
-	ld [$dd68], a
+	ld [wSkillAnimPhase], a
 	ret
 
 
@@ -133,7 +133,7 @@ StartSkillAnimSprite_5D::
 	ld [$dd62], a
 ;> x = 0
 ;> if mem[0xDD68]:
-	ld a, [$dd68]
+	ld a, [wSkillAnimPhase]
 	or a
 	jr z, .start
 
@@ -167,7 +167,7 @@ StartSkillAnimSprite_5D::
 	ld a, $00
 	ld [hli], a
 ;> hSpriteSet = mem[0xDAA4]; hSpriteFrame = 0
-	ld a, [$daa4]
+	ld a, [wSkillAnimSet]
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
@@ -180,7 +180,7 @@ StartSkillAnimSprite_5D::
 	ld a, $01
 	ld [wSkillAnimSprites], a
 ;> wPlayerAnimPtr = 0xDD63
-	ld hl, $dd63
+	ld hl, wBattleAnimSet
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h

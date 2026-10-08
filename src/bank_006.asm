@@ -4,13 +4,13 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $006", ROMX[$4000], BANK[$6]
 
-;@ path: core/banks
+;@ path: system/banks
 ;@ Bank number byte of bank $06 (actors on the field, skills learned on level-up, field input,
 ;@ screen scrolling, the field events and transitions).
 BankNumber_06::
 	db $06
 
-;@ path: core/banks
+;@ path: system/banks
 ;@ Far-call table of bank $06 (entry n = word n): 0 CheckActorOverlap, 1 DrawFieldActors,
 ;@ 2 UpdateFieldActors, 3 UpdateAllActors, 4 LoadFieldActorGfx, 5 FindLearnableSkill,
 ;@ 6 FieldInput.
@@ -24,10 +24,10 @@ FarTable_06::
 	dw FieldInput
 
 ;@ def UpdateFieldActors()
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Far entry 2: runs the actors' behaviours once per field frame, unless the field is busy
 ;@ (wFieldFlags bits 1, 3, 4 or 7), and not on step 1 of a screen-to-screen scroll (bit 2).
-;@ test: walk around a town and watch the people move
+;@ test: skip works on the actor record at hNumber
 UpdateFieldActors::
 ;> flags = wFieldFlags
 ;> if flags & 0x02: return
@@ -57,10 +57,10 @@ UpdateFieldActors::
 	ret z
 
 ;@ def UpdateAllActors()
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Far entry 3: runs the behaviour of every actor in wActors (32-byte records, $FF ends the list;
 ;@ records whose byte +1 is $FF are empty).
-;@ test: walk around a town and watch the people move
+;@ test: skip works on the actor record at hNumber
 UpdateAllActors::
 ;> actor = wActors
 	ld hl, wActors
@@ -91,10 +91,10 @@ jr_006_402b:
 	jr jr_006_402b
 
 ;@ def UpdateActor(actor: hl)
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Runs one actor: stores its address in hNumber/hNumber+1 (all actor code reads it from there)
 ;@ and, unless it is hidden (flags bit 6), jumps to the behaviour in the low nibble of its flags.
-;@ test: walk around a town and watch the people move
+;@ test: skip works on the actor record at hNumber
 UpdateActor::
 ;> mem16[hNumber] = actor
 	ld a, l
@@ -110,7 +110,7 @@ UpdateActor::
 	and $0f
 	rst $00
 
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Jump table of the 16 actor behaviours (low nibble of actor byte +0): stand, spin, pace 2 tiles,
 ;@ walk a square, walk a figure, pace 3 tiles, stand still, face fixed, pace 1 tile, pace 2 tiles
 ;@ starting left, sway, 3 x stand, wander (gate floor, may touch Terry), wander quietly.
@@ -133,11 +133,11 @@ ActorBehaviours::
 	dw ActorWanderQuiet
 
 ;@ def ActorStand()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 0 (and 11-13): stands on the spot, marching in place.
-;@ test: talk to a standing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorStand::
-;> flags = actor + 5                      # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; flags = actor + 5
 	ldh a, [hNumber]
 	add $05
 	ld l, a
@@ -164,9 +164,9 @@ jr_006_408d:
 
 
 ;@ def ActorSpin()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 1: stands and turns a quarter turn every 16 frames.
-;@ test: find a spinning person in a town
+;@ test: skip works on the actor record at hNumber
 ActorSpin::
 ;> if wFieldTimer & 7: return AnimateActor()
 	ld a, [wFieldTimer]
@@ -178,7 +178,7 @@ ActorSpin::
 	and $0f
 	jr nz, jr_006_40ae
 
-;>     dirp = actor + 6
+;>     actor = mem16[hNumber]; dirp = actor + 6
 	ldh a, [hNumber]
 	add $06
 	ld l, a
@@ -197,18 +197,18 @@ jr_006_40ae:
 
 
 ;@ def ActorPace2()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 2: paces 2 tiles to the right of its home tile and back, one pixel every other
 ;@ frame, pausing $10 frames at each tile. Phase (+8) 0 walks right, 1 walks left. It stops while
 ;@ it talks to Terry or a script runs.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2::
 ;> if wFieldTimer & 1: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -275,11 +275,11 @@ jr_006_40fd:
 
 
 ;@ def ActorPace2Step() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorPace2 for its phase; returns the new offset from home and the turning point.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2Step::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -290,16 +290,16 @@ ActorPace2Step::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase handlers of ActorPace2: right, left.
 ActorPace2Steps::
 	dw ActorPace2Right
 	dw ActorPace2Left
 
 ;@ def ActorPace2Right() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 0 of ActorPace2: one pixel right, turning at +$20 (2 tiles).
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2Right::
 ;> return MoveActorX(1), 0x20
 	ld bc, $0001
@@ -308,9 +308,9 @@ ActorPace2Right::
 
 
 ;@ def ActorPace2Left() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 1 of ActorPace2: one pixel left, turning at -$20.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2Left::
 ;> return MoveActorX(-1), -0x20
 	ld bc, $ffff
@@ -319,17 +319,17 @@ ActorPace2Left::
 
 
 ;@ def ActorWalkSquare()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 3: walks a 2 x 2 tile square from its home tile: down, right, up, left (phase 0,
 ;@ 3, 2, 1, which is also the facing), pausing $10 frames at each tile.
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 ActorWalkSquare::
 ;> if wFieldTimer & 1: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -392,11 +392,11 @@ jr_006_416a:
 
 
 ;@ def ActorSquareStep() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorWalkSquare for its phase; returns the new offset from home and the corner.
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 ActorSquareStep::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -407,7 +407,7 @@ ActorSquareStep::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase handlers of ActorWalkSquare: down, left, up, right.
 ActorSquareSteps::
 	dw ActorSquareDown
@@ -416,9 +416,9 @@ ActorSquareSteps::
 	dw ActorSquareRight
 
 ;@ def ActorSquareDown() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 0 of ActorWalkSquare: one pixel down, corner at Y +$20.
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 ActorSquareDown::
 ;> return MoveActorY(1), 0x20
 	ld bc, $0001
@@ -427,9 +427,9 @@ ActorSquareDown::
 
 
 ;@ def ActorSquareLeft() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 1 of ActorWalkSquare: one pixel left, corner at X +0.
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 ActorSquareLeft::
 ;> return MoveActorX(-1), 0
 	ld bc, $ffff
@@ -438,9 +438,9 @@ ActorSquareLeft::
 
 
 ;@ def ActorSquareUp() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 2 of ActorWalkSquare: one pixel up, corner at Y +0.
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 ActorSquareUp::
 ;> return MoveActorY(-1), 0
 	ld bc, $ffff
@@ -449,9 +449,9 @@ ActorSquareUp::
 
 
 ;@ def ActorSquareRight() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 3 of ActorWalkSquare: one pixel right, corner at X +$20.
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 ActorSquareRight::
 ;> return MoveActorX(1), 0x20
 	ld bc, $0001
@@ -460,18 +460,18 @@ ActorSquareRight::
 
 
 ;@ def ActorWalkFigure()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 4: walks a figure of two 3 x 3 tile squares side by side, left of its home tile, in
 ;@ 8 legs (phase +8 0-7; the facing of each leg comes from ActorFigureFacings), pausing $10
 ;@ frames at each tile.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorWalkFigure::
 ;> if wFieldTimer & 1: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -542,11 +542,11 @@ jr_006_41f7:
 
 
 ;@ def ActorFigureStep() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorWalkFigure for its phase; returns the new offset from home and the leg end.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -557,7 +557,7 @@ ActorFigureStep::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ The 8 legs of ActorWalkFigure.
 ActorFigureSteps::
 	dw ActorFigureStep0
@@ -570,9 +570,9 @@ ActorFigureSteps::
 	dw ActorFigureStep7
 
 ;@ def ActorFigureStep0() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 0 of ActorWalkFigure: left to X -$30.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep0::
 ;> return MoveActorX(-1), -0x30
 	ld bc, $ffff
@@ -581,9 +581,9 @@ ActorFigureStep0::
 
 
 ;@ def ActorFigureStep1() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 1 of ActorWalkFigure: up to Y -$30.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep1::
 ;> return MoveActorY(-1), -0x30
 	ld bc, $ffff
@@ -592,9 +592,9 @@ ActorFigureStep1::
 
 
 ;@ def ActorFigureStep2() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 2 of ActorWalkFigure: left to X -$60.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep2::
 ;> return MoveActorX(-1), -0x60
 	ld bc, $ffff
@@ -603,9 +603,9 @@ ActorFigureStep2::
 
 
 ;@ def ActorFigureStep3() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 3 of ActorWalkFigure: down to Y 0.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep3::
 ;> return MoveActorY(1), 0
 	ld bc, $0001
@@ -614,9 +614,9 @@ ActorFigureStep3::
 
 
 ;@ def ActorFigureStep4() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 4 of ActorWalkFigure: right to X -$30.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep4::
 ;> return MoveActorX(1), -0x30
 	ld bc, $0001
@@ -625,9 +625,9 @@ ActorFigureStep4::
 
 
 ;@ def ActorFigureStep5() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 5 of ActorWalkFigure: up to Y -$30.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep5::
 ;> return MoveActorY(-1), -0x30
 	ld bc, $ffff
@@ -636,9 +636,9 @@ ActorFigureStep5::
 
 
 ;@ def ActorFigureStep6() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 6 of ActorWalkFigure: right to X 0.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep6::
 ;> return MoveActorX(1), 0
 	ld bc, $0001
@@ -647,32 +647,32 @@ ActorFigureStep6::
 
 
 ;@ def ActorFigureStep7() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Leg 7 of ActorWalkFigure: down to Y 0, back home.
-;@ test: watch a person walking a long loop in a town
+;@ test: skip works on the actor record at hNumber
 ActorFigureStep7::
 ;> return MoveActorY(1), 0
 	ld bc, $0001
 	ld de, $0000
 	jp MoveActorY
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Facing (0 down, 1 left, 2 up, 3 right) of each of the 8 legs of ActorWalkFigure.
 ActorFigureFacings::
 	db $01, $02, $01, $00, $03, $02, $03, $00
 
 ;@ def ActorPace3()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 5: paces 3 tiles to the right of its home tile and back (phase 0 right, 1 left),
 ;@ pausing $10 frames at each tile.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace3::
 ;> if wFieldTimer & 1: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -739,11 +739,11 @@ jr_006_42b2:
 
 
 ;@ def ActorPace3Step() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorPace3 for its phase; returns the new offset from home and the turning point.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace3Step::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -754,16 +754,16 @@ ActorPace3Step::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase handlers of ActorPace3: out (right), back (left).
 ActorPace3Steps::
 	dw ActorPace3Out
 	dw ActorPace3Back
 
 ;@ def ActorPace3Out() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 0 of ActorPace3: one pixel right, turning at +$30.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace3Out::
 ;> return MoveActorX(1), 0x30
 	ld bc, $0001
@@ -772,9 +772,9 @@ ActorPace3Out::
 
 
 ;@ def ActorPace3Back() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 1 of ActorPace3: one pixel left, back home at 0.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace3Back::
 ;> return MoveActorX(-1), 0
 	ld bc, $ffff
@@ -783,12 +783,12 @@ ActorPace3Back::
 
 
 ;@ def ActorStandStill()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 6: stands on the spot and, unlike ActorStand, keeps its facing when Terry talks to it.
 ;@ The talking flag is cleared as soon as no script runs.
-;@ test: talk to a person who does not turn around
+;@ test: skip works on the actor record at hNumber
 ActorStandStill::
-;> flags = actor + 5                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; flags = actor + 5
 	ldh a, [hNumber]
 	add $05
 	ld l, a
@@ -831,11 +831,11 @@ jr_006_4306:
 
 
 ;@ def ActorStandFixed()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 7: stands facing the direction in bits 4-5 of its byte +0 (turns to Terry while talking).
-;@ test: talk to a person facing a fixed way
+;@ test: skip works on the actor record at hNumber
 ActorStandFixed::
-;> flags = actor + 5
+;> actor = mem16[hNumber]; flags = actor + 5
 	ldh a, [hNumber]
 	add $05
 	ld l, a
@@ -883,17 +883,17 @@ jr_006_433c:
 
 
 ;@ def ActorPace1()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 8: paces 1 tile to the right of its home tile and back (phase 0 right, 1 left),
 ;@ pausing $10 frames at each tile.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace1::
 ;> if wFieldTimer & 1: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -960,11 +960,11 @@ jr_006_438b:
 
 
 ;@ def ActorPace1Step() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorPace1 for its phase; returns the new offset from home and the turning point.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace1Step::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -975,16 +975,16 @@ ActorPace1Step::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase handlers of ActorPace1: right, left.
 ActorPace1Steps::
 	dw ActorPace1Right
 	dw ActorPace1Left
 
 ;@ def ActorPace1Right() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 0 of ActorPace1: one pixel right, turning at +$10.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace1Right::
 ;> return MoveActorX(1), 0x10
 	ld bc, $0001
@@ -993,9 +993,9 @@ ActorPace1Right::
 
 
 ;@ def ActorPace1Left() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 1 of ActorPace1: one pixel left, turning at -$10.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace1Left::
 ;> return MoveActorX(-1), -0x10
 	ld bc, $ffff
@@ -1004,17 +1004,17 @@ ActorPace1Left::
 
 
 ;@ def ActorPace2L()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 9: paces 2 tiles each side of its home tile, starting to the left (phase 0 left,
 ;@ 1 right), pausing $10 frames at each tile.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2L::
 ;> if wFieldTimer & 1: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -1080,11 +1080,11 @@ jr_006_43fa:
 
 
 ;@ def ActorPace2LStep() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorPace2L for its phase; returns the new offset from home and the turning point.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2LStep::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -1095,16 +1095,16 @@ ActorPace2LStep::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase handlers of ActorPace2L: left, right.
 ActorPace2LSteps::
 	dw ActorPace2LLeft
 	dw ActorPace2LRight
 
 ;@ def ActorPace2LLeft() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 0 of ActorPace2L: one pixel left, turning at -$20.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2LLeft::
 ;> return MoveActorX(-1), -0x20
 	ld bc, $ffff
@@ -1113,9 +1113,9 @@ ActorPace2LLeft::
 
 
 ;@ def ActorPace2LRight() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 1 of ActorPace2L: one pixel right, turning at +$20.
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 ActorPace2LRight::
 ;> return MoveActorX(1), 0x20
 	ld bc, $0001
@@ -1124,17 +1124,17 @@ ActorPace2LRight::
 
 
 ;@ def ActorSway()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 10: sways slowly (one pixel every 8 frames) 1 tile right and left of its home tile
 ;@ without pausing and without turning (phase 0 right, 1 left).
-;@ test: find a swaying character in a town
+;@ test: skip works on the actor record at hNumber
 ActorSway::
 ;> if wFieldTimer & 7: return AnimateActor()
 	ld a, [wFieldTimer]
 	and $07
 	jp nz, AnimateActor
 
-;> timer = actor + 7                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -1197,12 +1197,12 @@ jr_006_446a:
 
 
 ;@ def ActorSwayStep() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorSway for its phase; returns the new offset from home (bc) and the turning
 ;@ point (de).
-;@ test: find a swaying character in a town
+;@ test: skip works on the actor record at hNumber
 ActorSwayStep::
-;> phase = actor + 8
+;> actor = mem16[hNumber]; phase = actor + 8
 	ldh a, [hNumber]
 	add $08
 	ld l, a
@@ -1213,16 +1213,16 @@ ActorSwayStep::
 	ld a, [hl]
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase handlers of ActorSway: right, left.
 ActorSwaySteps::
 	dw ActorSwayRight
 	dw ActorSwayLeft
 
 ;@ def ActorSwayRight() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 0 of ActorSway: one pixel right, turning at +$10.
-;@ test: find a swaying character in a town
+;@ test: skip works on the actor record at hNumber
 ActorSwayRight::
 ;> return MoveActorXFree(1), 0x10
 	ld bc, $0001
@@ -1231,9 +1231,9 @@ ActorSwayRight::
 
 
 ;@ def ActorSwayLeft() -> (bc, de)
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Phase 1 of ActorSway: one pixel left, turning at -$10.
-;@ test: find a swaying character in a town
+;@ test: skip works on the actor record at hNumber
 ActorSwayLeft::
 ;> return MoveActorXFree(-1), -0x10
 	ld bc, $ffff
@@ -1242,18 +1242,18 @@ ActorSwayLeft::
 
 
 ;@ def MoveActorXFree(step: bc) -> bc
-;@ path: field/actors/movement
+;@ path: field/npcs/movement
 ;@ Adds `step` to the actor's X (+$18) and returns its offset from the centre of its home tile
 ;@ (+2, pixel = tile * 16 + 8). Unlike MoveActorX it never pauses at tiles. Does nothing while a
 ;@ field event runs (wFieldFlags bit 0).
-;@ test: find a swaying character in a town
+;@ test: skip works on the actor record at hNumber
 MoveActorXFree::
 ;> if wFieldFlags & 0x01: return
 	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-;> xp = actor + 0x18                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; xp = actor + 0x18
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -1300,12 +1300,12 @@ MoveActorXFree::
 
 
 ;@ def ActorWander()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 14: the gate floor's special character (only on its screen, wFloorNpcScreen). It
 ;@ walks tile by tile in a random direction inside a 7 x 5 tile area right of and below its home
 ;@ tile; at each new tile it checks whether it ran into Terry (CheckActorTouchesPlayer, which
 ;@ starts its script), then turns at random 1 time in 4; when blocked it always picks a new way.
-;@ test: on a gate floor, chase the wandering character until it touches Terry
+;@ test: skip works on the actor record at hNumber
 ActorWander::
 ;> if wMapScreen != wFloorNpcScreen: return
 	ld a, [wMapScreen]
@@ -1324,7 +1324,7 @@ ActorWander::
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -1408,12 +1408,12 @@ jr_006_4540:
 
 
 ;@ def ActorWanderStep() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of a wandering actor in its facing; returns 0 between tiles, 1 on reaching the next
 ;@ tile, 2 when blocked.
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderStep::
-;> dirp = actor + 6
+;> actor = mem16[hNumber]; dirp = actor + 6
 	ldh a, [hNumber]
 	add $06
 	ld l, a
@@ -1425,7 +1425,7 @@ ActorWanderStep::
 	and $03
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Direction handlers of the wandering actors: down, left, up, right.
 ActorWanderSteps::
 	dw ActorWanderDown
@@ -1434,9 +1434,9 @@ ActorWanderSteps::
 	dw ActorWanderRight
 
 ;@ def ActorWanderDown() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Wandering one pixel down (looks one tile ahead, +$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderDown::
 ;> return WanderMoveY(1, 0x10)
 	ld bc, $0001
@@ -1445,9 +1445,9 @@ ActorWanderDown::
 
 
 ;@ def ActorWanderLeft() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Wandering one pixel left (looks one tile ahead, -$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderLeft::
 ;> return WanderMoveX(-1, -0x10)
 	ld bc, $ffff
@@ -1456,9 +1456,9 @@ ActorWanderLeft::
 
 
 ;@ def ActorWanderUp() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Wandering one pixel up (looks one tile ahead, -$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderUp::
 ;> return WanderMoveY(-1, -0x10)
 	ld bc, $ffff
@@ -1467,9 +1467,9 @@ ActorWanderUp::
 
 
 ;@ def ActorWanderRight() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Wandering one pixel right (looks one tile ahead, +$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderRight::
 ;> return WanderMoveX(1, 0x10)
 	ld bc, $0001
@@ -1478,12 +1478,12 @@ ActorWanderRight::
 
 
 ;@ def CheckActorTouchesPlayer()
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Starts the actor's script (StartActorScript) when Terry stands on one of the 4 tiles next to
 ;@ it: right, left, below or above.
-;@ test: on a gate floor, let the wandering character walk into Terry
+;@ test: skip works on the actor record at hNumber
 CheckActorTouchesPlayer::
-;> xp = actor + 0x18                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; xp = actor + 0x18
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -1628,14 +1628,14 @@ jr_006_463e:
 
 
 ;@ def StartActorScript()
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Starts the script of the current actor (its byte +4, script map $70) and marks it as talking
 ;@ (flags bit 6). If the script asks for a field event (wScriptRunning bit 1), the field event
 ;@ $FFFF is queued: wEventRoutine = $FFFF, wFieldFlags bit 0, step 0.
-;@ test: on a gate floor, let the wandering character walk into Terry
+;@ test: skip works on the actor record at hNumber
 StartActorScript::
 jr_006_463f:
-;> p = actor + 4                            # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; p = actor + 4
 	ldh a, [hNumber]
 	add $04
 	ld l, a
@@ -1649,7 +1649,7 @@ jr_006_463f:
 	ld [wScriptMap], a
 ;> mem[actor + 5] |= 0x40                   # talking
 	set 6, [hl]
-;> wScriptRunning = 0; far_StartScript()
+;> wScriptRunning = 0; StartScript()
 	xor a
 	ld [wScriptRunning], a
 	ld hl, far_StartScript
@@ -1681,10 +1681,10 @@ jr_006_463f:
 
 
 ;@ def SameTileAs(p: hl, d: bc, coord: de) -> zero
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Zero flag set when the u16 pixel coordinate at `p` plus `d` lies on the same tile as `coord`
 ;@ (both rounded to the tile centre, low nibble 8).
-;@ test: on a gate floor, let the wandering character walk into Terry
+;@ test: skip works on the actor record at hNumber
 SameTileAs::
 ;> v = mem16[p] + d
 	ld a, [hli]
@@ -1713,10 +1713,10 @@ SameTileAs::
 
 
 ;@ def ActorWanderQuiet()
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Behaviour 15: like ActorWander (gate floor screen only, tile by tile, random turns 1 time in 4,
 ;@ new way when blocked), but it never starts its script by touching Terry.
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderQuiet::
 ;> if wMapScreen != wFloorNpcScreen: return
 	ld a, [wMapScreen]
@@ -1735,7 +1735,7 @@ ActorWanderQuiet::
 	and $01
 	jp nz, AnimateActor
 
-;> timer = actor + 7                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -1798,12 +1798,12 @@ jr_006_46f1:
 
 
 ;@ def ActorWanderQuietStep() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel of ActorWanderQuiet in its facing; returns 0 between tiles, 1 on reaching the next
 ;@ tile, 2 when blocked.
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderQuietStep::
-;> dirp = actor + 6
+;> actor = mem16[hNumber]; dirp = actor + 6
 	ldh a, [hNumber]
 	add $06
 	ld l, a
@@ -1815,7 +1815,7 @@ ActorWanderQuietStep::
 	and $03
 	rst $00
 
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ Direction handlers of ActorWanderQuiet: down, left, up, right.
 ActorWanderQuietSteps::
 	dw ActorWanderQuietDown
@@ -1824,9 +1824,9 @@ ActorWanderQuietSteps::
 	dw ActorWanderQuietRight
 
 ;@ def ActorWanderQuietDown() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel down (looks one tile ahead, +$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderQuietDown::
 ;> return WanderMoveY(1, 0x10)
 	ld bc, $0001
@@ -1835,9 +1835,9 @@ ActorWanderQuietDown::
 
 
 ;@ def ActorWanderQuietLeft() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel left (looks one tile ahead, -$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderQuietLeft::
 ;> return WanderMoveX(-1, -0x10)
 	ld bc, $ffff
@@ -1846,9 +1846,9 @@ ActorWanderQuietLeft::
 
 
 ;@ def ActorWanderQuietUp() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel up (looks one tile ahead, -$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderQuietUp::
 ;> return WanderMoveY(-1, -0x10)
 	ld bc, $ffff
@@ -1857,9 +1857,9 @@ ActorWanderQuietUp::
 
 
 ;@ def ActorWanderQuietRight() -> a
-;@ path: field/actors/behaviours
+;@ path: field/npcs/behaviours
 ;@ One pixel right (looks one tile ahead, +$10).
-;@ test: on a gate floor, watch the wandering character
+;@ test: skip works on the actor record at hNumber
 ActorWanderQuietRight::
 ;> return WanderMoveX(1, 0x10)
 	ld bc, $0001
@@ -1868,20 +1868,20 @@ ActorWanderQuietRight::
 
 
 ;@ def WanderMoveX(step: bc, ahead: de) -> a
-;@ path: field/actors/movement
+;@ path: field/npcs/movement
 ;@ Moves a wandering actor one pixel along X. On a tile centre it first looks at the tile `ahead`
 ;@ pixels away: unless its collision class (hTestTile >> 2) is $0C-$0E (floor) the actor is
 ;@ snapped to its tile, waits 8 frames and 2 is returned. It is also blocked (2) when the new X
 ;@ would leave the 7-tile range right of the home tile. Otherwise it moves and returns 1 when it
 ;@ reaches a tile centre (then waits $10 frames), else 0. Does nothing during a field event.
-;@ test: on a gate floor, watch the wandering character bump into walls
+;@ test: skip works on the actor record at hNumber
 WanderMoveX::
 ;> if wFieldFlags & 0x01: return
 	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-;> xp = actor + 0x18                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; xp = actor + 0x18
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2155,18 +2155,18 @@ jr_006_4825:
 
 
 ;@ def WanderMoveY(step: bc, ahead: de) -> a
-;@ path: field/actors/movement
+;@ path: field/npcs/movement
 ;@ Like WanderMoveX, along Y: looks at the tile `ahead` pixels below/above on a tile centre, is
 ;@ blocked by non-floor tiles and outside 5 tiles below the home tile; returns 0 between tiles,
 ;@ 1 at the next tile centre, 2 when blocked.
-;@ test: on a gate floor, watch the wandering character bump into walls
+;@ test: skip works on the actor record at hNumber
 WanderMoveY::
 ;> if wFieldFlags & 0x01: return
 	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-;> yp = actor + 0x1A                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; yp = actor + 0x1A
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
@@ -2440,18 +2440,18 @@ jr_006_496b:
 
 
 ;@ def MoveActorX(step: bc) -> bc
-;@ path: field/actors/movement
+;@ path: field/npcs/movement
 ;@ Adds `step` to the actor's X (+$18) and returns its offset from the centre of its home tile
 ;@ (+2). On a tile boundary of that offset the actor waits $10 frames (timer +7). Does nothing
 ;@ during a field event (wFieldFlags bit 0).
-;@ test: watch a pacing person in a town
+;@ test: skip works on the actor record at hNumber
 MoveActorX::
 ;> if wFieldFlags & 0x01: return
 	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-;> xp = actor + 0x18                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; xp = actor + 0x18
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2514,16 +2514,16 @@ jr_006_4a00:
 
 
 ;@ def MoveActorY(step: bc) -> bc
-;@ path: field/actors/movement
+;@ path: field/npcs/movement
 ;@ Like MoveActorX, along Y (+$1A) relative to the home tile row (+3).
-;@ test: watch a person walking in a square in a town
+;@ test: skip works on the actor record at hNumber
 MoveActorY::
 ;> if wFieldFlags & 0x01: return
 	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-;> yp = actor + 0x1A                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; yp = actor + 0x1A
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
@@ -2586,13 +2586,13 @@ jr_006_4a47:
 
 
 ;@ def FinishActorUpdate()
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Common end of the behaviours: counts the wait timer (+7) down (and clears the moving flag
 ;@ while waiting), clears the talking flag when no script runs, turns a talking actor to face
 ;@ Terry, then sets its mirror attribute (SetActorMirror) and animates it (AnimateActor).
-;@ test: talk to a walking person in a town; it turns to face Terry
+;@ test: skip works on the actor record at hNumber
 FinishActorUpdate::
-;> timer = actor + 7                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; timer = actor + 7
 	ldh a, [hNumber]
 	add $07
 	ld l, a
@@ -2646,13 +2646,13 @@ jr_006_4a6d:
 	ld [hl], a
 
 ;@ def SetActorMirror()
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Sets the actor's sprite attribute (+$17) for its facing from ActorDirAttrs (X flip when facing
 ;@ left), then animates it (AnimateActor).
-;@ test: watch a person walk left and right in a town
+;@ test: skip works on the actor record at hNumber
 SetActorMirror::
 jr_006_4a83:
-;> dirp = actor + 6                         # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; dirp = actor + 6
 	ldh a, [hNumber]
 	add $06
 	ld l, a
@@ -2680,14 +2680,14 @@ jr_006_4a83:
 	ld [hl], a
 
 ;@ def AnimateActor()
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Picks the actor's animation (ActorAnimBases by facing, +3 while moving, +6 while talking; none
 ;@ when flags bit 7 is set), restarts it when it changed (+$12, frame data +$13/+$14, +$10), and
 ;@ steps it with StepAnimation. While a field event runs an unchanged animation is not stepped.
 ;@ If byte +$0F is set, +$11 is zeroed during the step.
-;@ test: watch people march in place in a town
+;@ test: skip works on the actor record at hNumber
 AnimateActor::
-;> flags = actor + 5                        # actor = mem16[hNumber]
+;> actor = mem16[hNumber]; flags = actor + 5
 	ldh a, [hNumber]
 	add $05
 	ld l, a
@@ -2783,7 +2783,7 @@ jr_006_4af7:
 	or a
 	jr nz, jr_006_4b09
 
-;>     far_StepAnimation()
+;>     StepAnimation()
 	ld hl, far_StepAnimation
 	rst $10
 ;>     return
@@ -2797,7 +2797,7 @@ jr_006_4b09:
 	push af
 	push hl
 	ld [hl], $00
-;> far_StepAnimation()
+;> StepAnimation()
 	ld hl, far_StepAnimation
 	rst $10
 ;> mem[actor + 0x11] = keep
@@ -2807,22 +2807,22 @@ jr_006_4b09:
 	ret
 
 
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Animation number per facing (down, left, up, right; left and right share one, mirrored);
 ;@ AnimateActor adds 3 while moving and 6 while talking.
 ActorAnimBases::
 	db $00, $01, $02, $01
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Sprite attribute per facing (down, left, up, right): $20 = X flip for facing left.
 ActorDirAttrs::
 	db $00, $20, $00, $00
 
 ;@ def CheckActorOverlap()
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Far entry 0: clears the overlap flags (hPlayerFlags bit 5, actor +5 bit 5), then, unless a
 ;@ script runs, looks for actors on Terry's tile (FindActorsAround). A hit sets both flags again
 ;@ and stores the actor's number in wTouchedActor.
-;@ test: walk into a person in a town
+;@ test: skip works on the actor record at hNumber
 CheckActorOverlap::
 ;> hPlayerFlags &= ~0x20
 	ld hl, hPlayerFlags
@@ -2861,7 +2861,7 @@ jr_006_4b40:
 	or a
 	ret nz
 
-;> p = hFindX
+;> p = hDivisorHigh
 	ld hl, hDivisorHigh
 ;> mem16[p] = mem16[hPlayerX]
 	ldh a, [hPlayerX]
@@ -2880,15 +2880,15 @@ jr_006_4b40:
 
 
 ;@ def FindActorsAround()
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Looks for actors on the tile at pixel (hFindX, hFindY) (hFindX is hDivisorHigh/$FFDC,
 ;@ hFindY $FFDD/$FFDE). When the point lies between two tiles both are checked (+8 and -8).
-;@ test: walk into a person in a town
+;@ test: skip works on the actor record at hNumber
 FindActorsAround::
-;> if mem[hFindX] & 0x0F != 8:              # between two columns
-;>@a     mem16[hFindX] += 8
+;> if mem[hDivisorHigh] & 0x0F != 8:              # between two columns
+;>@a     mem16[hDivisorHigh] += 8
 ;>@b     FindActorOnTile()
-;>@c     mem16[hFindX] -= 0x10
+;>@c     mem16[hDivisorHigh] -= 0x10
 ;>@d     FindActorOnTile()
 ;>@e     return
 	ldh a, [hDivisorHigh]
@@ -2968,12 +2968,12 @@ jr_006_4b89:
 
 
 ;@ def FindActorOnTile()
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Turns (hFindX, hFindY) into tile coordinates (pixel / 16, kept in hNumber/hNumber+1) and runs
 ;@ CheckActorOnTile for every visible actor except those with sprite byte +1 = $4D.
-;@ test: walk into a person in a town
+;@ test: skip works on the actor record at hNumber
 FindActorOnTile::
-;> x = mem16[hFindX]
+;> x = mem16[hDivisorHigh]
 	ldh a, [hDivisorHigh]
 	ld l, a
 	ldh a, [$ffdc]
@@ -3045,11 +3045,11 @@ jr_006_4be4:
 	db $c9
 
 ;@ def CheckActorOnTile(actor: hl, index: d)
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ When the actor (or, between tiles, either tile it covers) stands on the tile in
 ;@ hNumber/hNumber+1, sets hPlayerFlags bit 5 and the actor's +5 bit 5 and stores `index` in
 ;@ wTouchedActor.
-;@ test: walk into a person in a town
+;@ test: skip works on the actor record at hNumber
 CheckActorOnTile::
 ;>@p p = actor + 0x18
 	push hl
@@ -3182,9 +3182,9 @@ jr_006_4c6e:
 
 
 ;@ def TileMatchesFind(x: de, y: hl) -> zero
-;@ path: field/actors/talk
+;@ path: field/npcs/talk
 ;@ Zero flag set when pixel (x, y) lies on the tile (hNumber, hNumber+1).
-;@ test: walk into a person in a town
+;@ test: skip works on the actor record at hNumber
 TileMatchesFind::
 ;>@t tx = (x >> 4) & 0xFF
 	swap d
@@ -3229,11 +3229,11 @@ UnusedCode_06_4C94::
 	db $e0, $dc, $7e, $e6, $0f, $e0, $de, $c9
 
 ;@ def DrawFieldActors()
-;@ path: field/actors/draw
+;@ path: field/npcs/draw
 ;@ Far entry 1: draws the sprites of all visible actors (DrawActorSpriteEntry), unless a menu
 ;@ overlay is up, the field is busy (wFieldFlags bits 1, 3, 7), script menu $0F is open, or the
 ;@ screen scroll is at step 1 (outside gate floors).
-;@ test: walk around a town; the people are drawn
+;@ test: skip works on the actor record at hNumber
 DrawFieldActors::
 ;> if wMenuOverlay: return
 	ld a, [wMenuOverlay]
@@ -3316,11 +3316,11 @@ jr_006_4cff:
 	db $c9
 
 ;@ def DrawActorSpriteEntry(actor: de)
-;@ path: field/actors/draw
+;@ path: field/npcs/draw
 ;@ Fills the 8-byte sprite request at hSpriteX for one actor - X (+$18), Y + 8 (+$1A), then
 ;@ bytes +$11, +$14 (the frame; $FF = draw nothing), +$16 and the attribute +$17 - and draws it:
 ;@ with far_DrawCharacterSprite when byte +$0F is 0, else with DrawActorSprite (bank 4).
-;@ test: walk around a town; the people are drawn
+;@ test: skip works on the actor record at hNumber
 DrawActorSpriteEntry::
 ;>@p p = actor + 0x18
 	push bc
@@ -3394,13 +3394,13 @@ DrawActorSpriteEntry::
 	or a
 	jr nz, jr_006_4d54
 
-;>         far_DrawCharacterSprite()
+;>         DrawCharacterSprite()
 	ld hl, far_DrawCharacterSprite
 	rst $10
 ;>     else:
 	jr jr_006_4d58
 
-;>         far_DrawActorSprite()
+;>         DrawActorSprite()
 jr_006_4d54:
 	ld hl, far_DrawActorSprite
 	rst $10
@@ -3412,14 +3412,14 @@ jr_006_4d58:
 
 
 ;@ def LoadFieldActorGfx()
-;@ path: field/actors/draw
+;@ path: field/npcs/draw
 ;@ Far entry 4: decompresses the sprite graphics of the (up to 6) entries of wActorGfxSlots into
 ;@ VRAM, one $100-byte slot each, from $8000 + $500 (towns), $8200 (map $45) or $8700 (gate
 ;@ floors). An entry is (graphics number, source): source 0 takes the graphics id from the
 ;@ bank-0 list at $2ADF, anything else from ActorGfxIds. Numbers $15 and $55 from the bank-0
 ;@ list take two slots. On map $08 the slot address becomes $0800 + slot * $100 (the map id is
 ;@ used as the address byte), which looks like a bug.
-;@ test: enter a town and check the people's sprites
+;@ test: skip works on the actor record at hNumber
 LoadFieldActorGfx::
 ;> slot = wActorGfxSlots; n = 6
 	ld hl, wActorGfxSlots
@@ -3552,7 +3552,7 @@ jr_006_4dc5:
 ;> return
 	ret
 
-;@ path: field/actors/draw
+;@ path: field/npcs/draw
 ;@ Graphics ids (u16, passed to DecompressVRAM) of the actor sprites with a non-zero source in
 ;@ wActorGfxSlots, indexed by graphics number (231 entries).
 ActorGfxIds::
@@ -3587,7 +3587,7 @@ ActorGfxIds::
 	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
 
 ;@ def FindLearnableSkill()
-;@ path: monsters/skills
+;@ path: monster/skills
 ;@ Far entry 5: finds the next skill the current party monster (wCurPartyMember) learns now.
 ;@ It walks SkillTable (218 skills) and skips skills already in the wSceneObjects scratch list,
 ;@ skills whose level (minus 1) or stat requirements the monster does not meet, and then takes
@@ -3595,7 +3595,7 @@ ActorGfxIds::
 ;@ whose prerequisite skills it all knows. Result in hNumber+2 ($FFD8) = skill and hNumber+3 =
 ;@ how: 0 own list, 1 grown from the one skill in hNumber+4, 2 from several skills;
 ;@ both $FF when there is none.
-;@ test: level up a monster until it learns a new skill
+;@ test: skip reads the party monster records
 FindLearnableSkill::
 ;> lvl = MonsterField(wCurPartyMember, wMonLevel)   # address of its level field
 	ld a, [wCurPartyMember]
@@ -3903,9 +3903,9 @@ Jump_006_50b5:
 
 
 ;@ def SkillPrereqKnown(pre: hl, known: de) -> zero
-;@ path: monsters/skills
+;@ path: monster/skills
 ;@ Zero flag set when the monster knows skill mem[pre] (MonKnowsSkill); `pre` moves on by one.
-;@ test: level up a monster until it learns a new skill
+;@ test: skip reads the party monster records
 SkillPrereqKnown::
 ;> r = MonKnowsSkill(pre, known)
 	push de
@@ -3918,9 +3918,9 @@ SkillPrereqKnown::
 
 
 ;@ def MonKnowsSkill(pre: hl, known: de) -> zero
-;@ path: monsters/skills
+;@ path: monster/skills
 ;@ Zero flag set when skill mem[pre] is one of the 8 skills at `known`.
-;@ test: level up a monster until it learns a new skill
+;@ test: skip reads the party monster records
 MonKnowsSkill::
 ;>@i for i in range(8):
 	ld b, $08
@@ -3942,10 +3942,10 @@ jr_006_50c9:
 
 
 ;@ def SkillAlreadyListed(skill: c) -> zero
-;@ path: monsters/skills
+;@ path: monster/skills
 ;@ Zero flag set when `skill` is among the 40 bytes of the scratch list at wSceneObjects (skills
 ;@ already handled during this level-up).
-;@ test: level up a monster until it learns a new skill
+;@ test: skip reads the party monster records
 SkillAlreadyListed::
 ;>@i for i in range(0x28):
 	ld de, wSceneObjects
@@ -3966,7 +3966,7 @@ jr_006_50d7:
 	inc b
 	ret
 
-;@ path: monsters/skills
+;@ path: monster/skills
 ;@ The 218 skills ($00-$D9), $12 bytes each: level needed (the monster learns it from one level
 ;@ before), then the minimum max HP, max MP, attack, defense, agility and intelligence (u16
 ;@ each), then up to 5 prerequisite skills ($FF = none / end). A skill with prerequisites can be
@@ -4199,7 +4199,7 @@ SkillTable::
 ;@ Terry is free, reads the buttons: Start switches the status bar, Select opens the map (gate
 ;@ floors and some maps), A talks to whoever stands in front (or on a gate floor touches the floor
 ;@ object there), and A with nothing to talk to opens the field menu.
-;@ test: in a town press Start, Select and A next to a person and in the open
+;@ test: skip dispatches to the field handlers
 FieldInput::
 ;> if wMapLoadState: return
 	ld a, [wMapLoadState]
@@ -4228,7 +4228,7 @@ FieldInput::
 	bit 1, a
 	jr z, jr_006_6059
 
-;>     return far_FieldMenu()
+;>     return FieldMenu()
 	ld hl, far_FieldMenu
 	rst $10
 	ret
@@ -4239,7 +4239,7 @@ jr_006_6059:
 	bit 3, a
 	jr z, jr_006_6062
 
-;>     return far_RunGateMap()
+;>     return RunGateMap()
 	ld hl, far_RunGateMap
 	rst $10
 	ret
@@ -4250,7 +4250,7 @@ jr_006_6062:
 	bit 6, a
 	jr z, jr_006_606b
 
-;>     return far_RunBattleWipe()
+;>     return RunBattleWipe()
 	ld hl, far_RunBattleWipe
 	rst $10
 	ret
@@ -4408,7 +4408,7 @@ jr_006_611d:
 	and $01
 	jp z, Jump_006_6247
 
-;>@x     mem16[hFindX] = mem16[hPlayerX]      # hFindX = hDivisorHigh
+;>@x     mem16[hDivisorHigh] = mem16[hPlayerX]      # hDivisorHigh = hDivisorHigh
 	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
@@ -4428,7 +4428,7 @@ jr_006_611d:
 ;=@y
 	ld a, h
 	ldh [$ffde], a
-;>     far(0x0B04)()                        # FindObjectAtPosition -> hNumber, hNumber + 1
+;>     FindObjectAtPosition()                        # FindObjectAtPosition -> hNumber, hNumber + 1
 	ld hl, $0b04
 	rst $10
 ;>     if hNumber == 0xFF:                  # nobody on Terry's tile: look in front
@@ -4462,7 +4462,7 @@ jr_006_611d:
 	ldh a, [$ff93]
 	ld h, a
 	add hl, bc
-;>         mem16[hFindX] = t
+;>         mem16[hDivisorHigh] = t
 	ld a, l
 	ldh [hDivisorHigh], a
 	ld a, h
@@ -4478,7 +4478,7 @@ jr_006_611d:
 	ldh [hFindY], a
 	ld a, h
 	ldh [$ffde], a
-;>         far(0x0B04)()
+;>         FindObjectAtPosition()
 	ld hl, $0b04
 	rst $10
 ;>     if hNumber != 0xFF:                  # somebody to talk to
@@ -4523,7 +4523,7 @@ jr_006_61b7:
 	ld hl, wScriptFlags
 	res 0, [hl]
 	res 1, [hl]
-;>         wScriptRunning = 0; far_StartScript()
+;>         wScriptRunning = 0; StartScript()
 	xor a
 	ld [wScriptRunning], a
 	ld hl, far_StartScript
@@ -4582,7 +4582,7 @@ Jump_006_61e9:
 	ldh a, [$ff93]
 	ld h, a
 	add hl, bc
-;>         mem16[hFindX] = t
+;>         mem16[hDivisorHigh] = t
 	ld a, l
 	ldh [hDivisorHigh], a
 	ld a, h
@@ -4598,7 +4598,7 @@ Jump_006_61e9:
 	ldh [hFindY], a
 	ld a, h
 	ldh [$ffde], a
-;>@u         mem[hFindX] = (mem16[hFindX] >> 4) & 0xFF    # pixel -> tile
+;>@u         mem[hDivisorHigh] = (mem16[hDivisorHigh] >> 4) & 0xFF    # pixel -> tile
 	ldh a, [hDivisorHigh]
 	swap a
 	and $0f
@@ -4623,7 +4623,7 @@ Jump_006_61e9:
 ;>         wFloorObjectItem = 1
 	ld a, $01
 	ld [wFloorObjectItem], a
-;>         far_TouchFloorObject()
+;>         TouchFloorObject()
 	ld hl, far_TouchFloorObject
 	rst $10
 
@@ -4685,11 +4685,11 @@ FacingOffsets::
 ;@ path: field/input
 ;@ wFieldFlags bit 7: runs one frame of the name entry screen (bank 9), with the menu state
 ;@ bytes swapped out around it (SwapMenuState).
-;@ test: name a new monster
+;@ test: skip dispatches to the field handlers
 RunNameEntry::
 ;> SwapMenuState()
 	call SwapMenuState
-;> far_NameEntryMenu()
+;> NameEntryMenu()
 	ld hl, far_NameEntryMenu
 	rst $10
 ;> SwapMenuState()
@@ -4701,7 +4701,7 @@ RunNameEntry::
 ;@ def SwapMenuState()
 ;@ path: field/input
 ;@ Swaps the 8 menu state bytes from wMenuStep with the 8 bytes at $C876.
-;@ test: name a new monster
+;@ test: skip dispatches to the field handlers
 SwapMenuState::
 ;> p = wMenuStep; q = 0xC876
 	ld hl, wMenuStep
@@ -4728,9 +4728,9 @@ jr_006_62a8:
 ;@ def RunScriptMenu()
 ;@ path: field/input
 ;@ wFieldFlags bit 4: runs one frame of the script menu in wScriptMenu (bank 9's dispatcher).
-;@ test: talk to the shop keeper
+;@ test: skip dispatches to the field handlers
 RunScriptMenu::
-;> far(0x0900)()                            # ScriptMenuTable9[wScriptMenu]
+;> far_call(0x09, 0x00)                            # ScriptMenuTable9[wScriptMenu]
 	ld hl, $0900
 	rst $10
 	ret
@@ -4740,7 +4740,7 @@ RunScriptMenu::
 ;@ path: field/partybar
 ;@ Shows the window at line $80 and copies the two rows of the party bar (wPartyBarTiles, 20 of
 ;@ each 32-tile row) to the window map $9C00.
-;@ test: press Select on a gate floor
+;@ test: skip writes VRAM
 DrawPartyBarWindow::
 ;> hWY = 0x80
 	ld a, $80
@@ -4809,15 +4809,15 @@ jr_006_62c6:
 
 
 ;@ def ScrollToNextScreen()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ wFieldFlags bit 2: one frame of the scroll to the neighbouring map screen in wScrollDir.
-;@ test: walk off the edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollToNextScreen::
 ;> return ScrollDirections[wScrollDir]()
 	ld a, [wScrollDir]
 	rst $00
 
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Scroll handlers by wScrollDir: left, right, up, down.
 ScrollDirections::
 	dw ScrollLeft
@@ -4826,15 +4826,15 @@ ScrollDirections::
 	dw ScrollDown
 
 ;@ def ScrollLeft()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Scroll to the screen on the left, step wScrollStep of ScrollLeftSteps.
-;@ test: walk off the left edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollLeft::
 ;> return ScrollLeftSteps[wScrollStep]()
 	ld a, [wScrollStep]
 	rst $00
 
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Steps of the scroll to the left: start, load the screen's objects, run its map script,
 ;@ column by column, finish.
 ScrollLeftSteps::
@@ -4845,10 +4845,10 @@ ScrollLeftSteps::
 	dw ScrollFinish
 
 ;@ def ScrollLeftStart()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 0 of the scroll left: wMapScreen -= 1, shows the party bar in the window, builds the new
 ;@ screen in the buffers (bank $0B entry 3) and starts at column $13.
-;@ test: walk off the left edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollLeftStart::
 ;> wMapScreen -= 1
 	ld a, [wMapScreen]
@@ -4856,7 +4856,7 @@ ScrollLeftStart::
 	ld [wMapScreen], a
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
-;> far(0x0B03)()                            # RedrawScreenBuffer
+;> RedrawScreenBuffer()                            # RedrawScreenBuffer
 	ld hl, $0b03
 	rst $10
 ;> wScrollColumn = 0x13
@@ -4869,12 +4869,12 @@ ScrollLeftStart::
 
 
 ;@ def ScrollLeftColumn()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 3 of the scroll left, every frame: queues column wScrollColumn of the new screen
 ;@ (16 tiles from wTilemapBuffer and their attributes from wScreenMap) for the BG map column just
 ;@ left of the view, scrolls 8 pixels left and counts the column down; after column 0 the next
 ;@ step follows.
-;@ test: walk off the left edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollLeftColumn::
 ;>@a row = (hScrollY & 0xF8) * 4
 	ldh a, [hScrollY]
@@ -5036,12 +5036,12 @@ jr_006_63af:
 
 
 ;@ def ScrollFinish()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Last step of every screen scroll: saves the new background (wTilemapBuffer to wSavedTilemap),
 ;@ ends the scroll (wFieldFlags bit 2), puts the party bar back on the BG map, fills all 49
 ;@ entries of Terry's trail ($C973, X, Y, high nibbles, frame | attribute) with his position,
 ;@ checks the tile under him for conveyors and clears $D9E8.
-;@ test: walk off the edge of a town screen with monsters following
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollFinish::
 ;> dst = wSavedTilemap; src = wTilemapBuffer
 	ld hl, wSavedTilemap
@@ -5126,7 +5126,7 @@ jr_006_6427:
 	ldh [hTestY], a
 	ldh a, [$ff96]
 	ldh [$ffa8], a
-;> GetCollisionAt(); far_HandleConveyor()
+;> GetCollisionAt(); HandleConveyor()
 	call GetCollisionAt
 	ld hl, far_HandleConveyor
 	rst $10
@@ -5137,15 +5137,15 @@ jr_006_6427:
 
 
 ;@ def ScrollRight()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Scroll to the screen on the right, step wScrollStep of ScrollRightSteps.
-;@ test: walk off the right edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollRight::
 ;> return ScrollRightSteps[wScrollStep]()
 	ld a, [wScrollStep]
 	rst $00
 
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Steps of the scroll to the right: start, load the screen's objects, run its map script,
 ;@ column by column, finish.
 ScrollRightSteps::
@@ -5156,10 +5156,10 @@ ScrollRightSteps::
 	dw ScrollFinish
 
 ;@ def ScrollRightStart()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 0 of the scroll right: wMapScreen += 1, shows the party bar in the window, builds the new
 ;@ screen in the buffers (bank $0B entry 3) and starts at column 0.
-;@ test: walk off the right edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollRightStart::
 ;> wMapScreen += 1
 	ld a, [wMapScreen]
@@ -5167,7 +5167,7 @@ ScrollRightStart::
 	ld [wMapScreen], a
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
-;> far(0x0B03)()                            # RedrawScreenBuffer
+;> RedrawScreenBuffer()                            # RedrawScreenBuffer
 	ld hl, $0b03
 	rst $10
 ;> wScrollColumn = 0
@@ -5180,11 +5180,11 @@ ScrollRightStart::
 
 
 ;@ def ScrollRightColumn()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 3 of the scroll right, every frame: queues column wScrollColumn of the new screen for the
 ;@ BG map column just right of the view (20 columns on), scrolls 8 pixels right and counts the
 ;@ column up; after column $13 the next step follows.
-;@ test: walk off the right edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollRightColumn::
 ;>@a row = (hScrollY & 0xF8) * 4
 	ldh a, [hScrollY]
@@ -5346,15 +5346,15 @@ jr_006_64f3:
 
 
 ;@ def ScrollUp()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Scroll to the screen above, step wScrollStep of ScrollUpSteps.
-;@ test: walk off the top edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollUp::
 ;> return ScrollUpSteps[wScrollStep]()
 	ld a, [wScrollStep]
 	rst $00
 
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Steps of the scroll up: start, load the screen's objects, run its map script, row by row,
 ;@ finish.
 ScrollUpSteps::
@@ -5365,10 +5365,10 @@ ScrollUpSteps::
 	dw ScrollFinish
 
 ;@ def ScrollUpStart()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 0 of the scroll up: wMapScreen -= 4 (maps are 4 screens wide), shows the party bar in
 ;@ the window, builds the new screen in the buffers and starts at row $0F.
-;@ test: walk off the top edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollUpStart::
 ;> wMapScreen -= 4
 	ld a, [wMapScreen]
@@ -5376,7 +5376,7 @@ ScrollUpStart::
 	ld [wMapScreen], a
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
-;> far(0x0B03)()                            # RedrawScreenBuffer
+;> RedrawScreenBuffer()                            # RedrawScreenBuffer
 	ld hl, $0b03
 	rst $10
 ;> wScrollColumn = 0x0F
@@ -5389,11 +5389,11 @@ ScrollUpStart::
 
 
 ;@ def ScrollUpRow()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 3 of the scroll up, every frame: queues row wScrollColumn of the new screen (20 tiles from
 ;@ wTilemapBuffer, attributes from wScreenMap) for the BG map row just above the view, scrolls
 ;@ 8 pixels up and counts the row down; after row 0 the next step follows.
-;@ test: walk off the top edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollUpRow::
 ;>@a row = (hScrollY & 0xF8) * 4
 	ldh a, [hScrollY]
@@ -5550,15 +5550,15 @@ jr_006_65b4:
 
 
 ;@ def ScrollDown()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Scroll to the screen below, step wScrollStep of ScrollDownSteps.
-;@ test: walk off the bottom edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollDown::
 ;> return ScrollDownSteps[wScrollStep]()
 	ld a, [wScrollStep]
 	rst $00
 
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Steps of the scroll down: start, load the screen's objects, run its map script, row by row,
 ;@ finish.
 ScrollDownSteps::
@@ -5569,10 +5569,10 @@ ScrollDownSteps::
 	dw ScrollFinish
 
 ;@ def ScrollDownStart()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 0 of the scroll down: wMapScreen += 4, shows the party bar in the window, builds the new
 ;@ screen in the buffers and starts at row 0.
-;@ test: walk off the bottom edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollDownStart::
 ;> wMapScreen += 4
 	ld a, [wMapScreen]
@@ -5580,7 +5580,7 @@ ScrollDownStart::
 	ld [wMapScreen], a
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
-;> far(0x0B03)()                            # RedrawScreenBuffer
+;> RedrawScreenBuffer()                            # RedrawScreenBuffer
 	ld hl, $0b03
 	rst $10
 ;> wScrollColumn = 0
@@ -5593,11 +5593,11 @@ ScrollDownStart::
 
 
 ;@ def ScrollDownRow()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 3 of the scroll down, every frame: queues row wScrollColumn of the new screen for the BG
 ;@ map row just below the view (16 rows on), scrolls 8 pixels down and counts the row up; after
 ;@ row $0F the next step follows.
-;@ test: walk off the bottom edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollDownRow::
 ;>@a row = (hScrollY & 0xF8) * 4
 	ldh a, [hScrollY]
@@ -5754,11 +5754,11 @@ jr_006_6682:
 
 
 ;@ def ScrollLoadScreen()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 1 of every screen scroll: places the new screen's objects (bank $0B), not on gate floors.
-;@ test: walk off the edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollLoadScreen::
-;> if not wOnGateFloor: far_SpawnMapObjects()
+;> if not wOnGateFloor: SpawnMapObjects()
 	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_006_66c2
@@ -5774,10 +5774,10 @@ jr_006_66c2:
 
 
 ;@ def ScrollRunMapScript()
-;@ path: field/scroll
+;@ path: field/scrolling
 ;@ Step 2 of every screen scroll: starts script 0 of the map (its screen-entry script), unless on
 ;@ a gate floor or a script already runs.
-;@ test: walk off the edge of a town screen
+;@ test: skip builds the BG map updates for the VBlank handler
 ScrollRunMapScript::
 ;> wScrollStep += 1
 	ld hl, wScrollStep
@@ -5797,7 +5797,7 @@ ScrollRunMapScript::
 	ld [wScriptId], a
 	ld a, [wMapId]
 	ld [wScriptMap], a
-;> far_StartScript()
+;> StartScript()
 	ld hl, far_StartScript
 	rst $10
 	ret
@@ -5806,7 +5806,7 @@ ScrollRunMapScript::
 ;@ def ShowPartyBarWindow()
 ;@ path: field/partybar
 ;@ Shows the party bar in the window (line $80, map $9C00) while the screen scrolls.
-;@ test: walk off the edge of a town screen
+;@ test: skip writes VRAM
 ShowPartyBarWindow::
 ;> hWY = 0x80
 	ld a, $80
@@ -5820,7 +5820,7 @@ ShowPartyBarWindow::
 ;@ def RestorePartyBarRows()
 ;@ path: field/partybar
 ;@ Hides the window again and draws the party bar into the BG map rows 16 and 17 below the view.
-;@ test: walk off the edge of a town screen
+;@ test: skip writes VRAM
 RestorePartyBarRows::
 ;> hWY = 0xFF
 	ld a, $ff
@@ -5869,7 +5869,7 @@ RestorePartyBarRows::
 ;@ path: field/partybar
 ;@ Copies the two party bar rows to the BG map at `dest` (CopyPartyBarTiles) and, on a Game Boy
 ;@ Color, sets their attributes to palette 7.
-;@ test: walk off the edge of a town screen
+;@ test: skip writes VRAM
 DrawPartyBarAt::
 ;> CopyPartyBarTiles(dest)
 	push hl
@@ -5954,7 +5954,7 @@ jr_006_6737:
 ;@ path: field/partybar
 ;@ Copies the two rows of the party bar (20 tiles of each 32-tile row of wPartyBarTiles) to the
 ;@ BG or window map at `dest`.
-;@ test: walk off the edge of a town screen
+;@ test: skip writes VRAM
 CopyPartyBarTiles::
 ;> src = wPartyBarTiles
 	ld de, wPartyBarTiles
@@ -6019,11 +6019,11 @@ jr_006_6779:
 
 
 ;@ def RunFieldEvent()
-;@ path: field/event
+;@ path: event/textbox
 ;@ wFieldFlags bit 0: one step (wEventStep) of a field event - a text box drawn into the BG map
 ;@ (saving and later restoring the tiles under it) around the event routine in wEventRoutine
 ;@ ($FFFF = the running script's message). The scroll is first rounded to whole tiles.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 RunFieldEvent::
 ;> RoundScroll(hScrollX)
 	ld hl, hScrollX
@@ -6035,7 +6035,7 @@ RunFieldEvent::
 	ld a, [wEventStep]
 	rst $00
 
-;@ path: field/event
+;@ path: event/textbox
 ;@ The 21 steps of a field event: open the box (+ save the BG), save the BG, draw the middle row,
 ;@ wait, wait, wait, draw rows 1 and 3, wait, wait, draw the frame, show the text, run the event,
 ;@ restore rows 0 and 4, wait, wait, restore rows 1 and 3, wait, wait, wait, restore row 2, end.
@@ -6063,9 +6063,9 @@ FieldEventSteps::
 	dw EventEnd
 
 ;@ def RoundScroll(p: hl)
-;@ path: field/event
+;@ path: event/textbox
 ;@ Rounds the u16 scroll value at `p` to the nearest multiple of 8.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 RoundScroll::
 ;> mem16[p] += 4
 	ld a, [hl]
@@ -6082,9 +6082,9 @@ RoundScroll::
 
 
 ;@ def NextBoxMapColumn(dest: hl) -> hl
-;@ path: field/event
+;@ path: event/textbox
 ;@ Moves a BG map address one column right, wrapping inside its 32-tile row (keeps a).
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 NextBoxMapColumn::
 ;>@c dest = (dest & ~0x1F) | ((dest + 1) & 0x1F)
 	push af
@@ -6105,13 +6105,13 @@ NextBoxMapColumn::
 
 
 ;@ def EventShowText()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 10: prepares the text window (bank $56), prints system text wEventRoutine
 ;@ unless it is $FFFF (the script's own message), and sets the box's inner area for the text
 ;@ (DrawTextBoxTiles at row 1, column 1).
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventShowText::
-;> mem[0xC83B] = 0xFD; far_Call_56_4485()
+;> mem[0xC83B] = 0xFD; Call_56_4485()
 	ld a, $fd
 	ld [$c83b], a
 	ld hl, far_Call_56_4485
@@ -6144,9 +6144,9 @@ jr_006_6819:
 
 
 ;@ def EventNextStep()
-;@ path: field/event
+;@ path: event/textbox
 ;@ A waiting step of the field event: just goes on to the next step.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventNextStep::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6155,9 +6155,9 @@ EventNextStep::
 
 
 ;@ def EventBoxMapAddress(offset: hl) -> hl
-;@ path: field/event
+;@ path: event/textbox
 ;@ BG map address wEventBoxMap + offset, wrapped inside the 1 KiB map.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventBoxMapAddress::
 ;>@a a = wEventBoxMap + offset
 	ld a, [wEventBoxMap]
@@ -6177,13 +6177,13 @@ EventBoxMapAddress::
 
 
 ;@ def EventOpenBox()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 0: picks where the 5-row box goes - at the top of the view (offset 0) or at
 ;@ row 13 ($1A0) - from the script's wScriptFlags (bit 0 bottom, bit 1 top) or else from Terry's
 ;@ height on screen (in the upper part the box goes to the bottom); sets hSpriteClip (1 top,
 ;@ 2 bottom, 0 on map $08 and $5D) and $C83D accordingly, stores the box address in wEventBoxMap
 ;@ and goes on with EventSaveBG.
-;@ test: talk to a person near the top and near the bottom of the screen
+;@ test: skip writes VRAM
 EventOpenBox::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6302,10 +6302,10 @@ jr_006_68a7:
 	ld [$c91a], a
 
 ;@ def EventSaveBG()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 1 (also run right after EventOpenBox): saves the 5 BG map rows under the box
 ;@ (20 tiles each) to $C100, $C114, $C128, $C13C and $C150.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventSaveBG::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6336,9 +6336,9 @@ EventSaveBG::
 	ld de, $c150
 
 ;@ def SaveBGRow(offset: bc, buf: de)
-;@ path: field/event
+;@ path: event/textbox
 ;@ Copies the 20 BG map tiles of the box row at wEventBoxMap + offset into `buf`.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 SaveBGRow::
 ;>@a src = wEventBoxMap + offset
 	ld a, [wEventBoxMap]
@@ -6377,9 +6377,9 @@ jr_006_6920:
 
 
 ;@ def EventDrawBoxMiddle()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 2: draws the box's middle row (row 2) - the box opens from the middle.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventDrawBoxMiddle::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6389,9 +6389,9 @@ EventDrawBoxMiddle::
 	call EventBoxMapAddress
 
 ;@ def DrawBoxSideRow(dest: hl)
-;@ path: field/event
+;@ path: event/textbox
 ;@ Draws one inner row of the box: border tile $FE, 18 blank tiles $E0, border tile $FF.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 DrawBoxSideRow::
 ;> WriteVRAM(dest, 0xFE); dest = NextBoxMapColumn(dest)
 	ld a, $fe
@@ -6407,9 +6407,9 @@ DrawBoxSideRow::
 
 
 ;@ def FillMapTiles(dest: hl, tile: a, count: b) -> hl
-;@ path: field/event
+;@ path: event/textbox
 ;@ Writes `count` copies of `tile` to the BG map from `dest` on, rightwards (wrapping in the row).
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 FillMapTiles::
 ;>@i for i in range(count):
 ;>     WriteVRAM(dest, tile); dest = NextBoxMapColumn(dest)
@@ -6424,9 +6424,9 @@ FillMapTiles::
 
 
 ;@ def RoundScroll2(p: hl)
-;@ path: field/event
+;@ path: event/textbox
 ;@ Same as RoundScroll: rounds the u16 scroll value at `p` to the nearest multiple of 8.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 RoundScroll2::
 ;> mem16[p] += 4
 	ld a, [hl]
@@ -6443,9 +6443,9 @@ RoundScroll2::
 
 
 ;@ def EventDrawBoxRows()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 6: draws the inner rows 1 and 3 of the box.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventDrawBoxRows::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6460,11 +6460,11 @@ EventDrawBoxRows::
 	jr DrawBoxSideRow
 
 ;@ def EventDrawBoxFrame()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 9: draws the top row ($FA, 18 x $EF, $FB) and bottom row ($FC, 18 x $EE,
 ;@ $FD) of the box, then on the Super Game Boy gives the box area (19 x 4 at row 0 or 13)
 ;@ palette 1.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventDrawBoxFrame::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6521,14 +6521,14 @@ jr_006_69c2:
 
 
 ;@ def EventRun()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 11, once the text is shown and nothing fades: for the script's own message
 ;@ ($FFFF) it keeps the script going (bank 4 entry 6, PrintScriptMessage); events $0211 (clears
 ;@ the floor objects' bit 5) and $0217 (boss battle) are handled here; event $1A is the party's
 ;@ defeat: Terry is sent home to map 0 at ($E8, $58) with half his gold and only the items whose
 ;@ item data has bit 2 set; any other event just goes on (and sets the SGB field palettes).
 ;@ Only the low byte is compared for $1A.
-;@ test: lose a battle with the whole party
+;@ test: skip writes VRAM
 EventRun::
 ;> if wFieldPaused: return
 	ld a, [wFieldPaused]
@@ -6569,7 +6569,7 @@ EventRun::
 	bit 4, a
 	ret nz
 
-;>     return far(0x0406)()                 # PrintScriptMessage: the script goes on
+;>     return PrintScriptMessage()                 # PrintScriptMessage: the script goes on
 	ld hl, $0406
 	rst $10
 	ret
@@ -6605,7 +6605,7 @@ jr_006_6a1a:
 
 ;> if wEventRoutine & 0xFF != 0x1A:
 ;>@n     wEventStep += 1
-;>@o     far_SGBSetFieldPalettes()
+;>@o     SGBSetFieldPalettes()
 ;>@q     return
 jr_006_6a25:
 	ld a, [wEventRoutine]
@@ -6677,7 +6677,7 @@ jr_006_6a8b:
 	cp $ff
 	jr z, jr_006_6aa7
 
-;>         wItemId = mem[item]; far_GetItemData()
+;>         wItemId = mem[item]; GetItemData()
 	ld [wItemId], a
 	push hl
 	push bc
@@ -6700,7 +6700,7 @@ jr_006_6aa7:
 	dec b
 	jr nz, jr_006_6a8b
 
-;> far_CompactBag()
+;> CompactBag()
 	ld hl, far_CompactBag
 	rst $10
 ;> StartFade(4)
@@ -6724,9 +6724,9 @@ Jump_006_6ab9:
 
 
 ;@ def ClearFloorObjectFlags()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Clears bit 5 of every gate floor object (4-byte records in wFloorObjects, $FF ends).
-;@ test: on a gate floor, trigger event $0211
+;@ test: skip writes VRAM
 ClearFloorObjectFlags::
 ;> obj = wFloorObjects
 	ld de, wFloorObjects
@@ -6752,10 +6752,10 @@ jr_006_6ac5:
 	jr jr_006_6ac5
 
 ;@ def StartEventBossBattle()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Event $0217: ends the field event and starts the battle with boss wScriptBossIndex of
 ;@ EventBossBattles (wEncSpecies and $DA04), one opponent, via the battle wipe (wFieldFlags bit 6).
-;@ test: reach a gate's boss
+;@ test: skip writes VRAM
 StartEventBossBattle::
 ;> wFieldFlags &= ~0x01
 	ld hl, wFieldFlags
@@ -6792,16 +6792,16 @@ StartEventBossBattle::
 	ld [wBattleKind], a
 	ret
 
-;@ path: field/event
+;@ path: event/textbox
 ;@ Boss of each gate for StartEventBossBattle: (species, $DA04 value) per wScriptBossIndex.
 EventBossBattles::
 	db $3d, $01, $3e, $01, $3f, $01, $40, $01, $41, $01, $42, $01, $43, $01, $44, $01
 	db $44, $01
 
 ;@ def EventRestoreBG1()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 12: puts the saved BG tiles back into the box's rows 0 and 4.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventRestoreBG1::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6823,9 +6823,9 @@ EventRestoreBG1::
 	ld b, $14
 
 ;@ def RestoreBGRow(dest: hl, buf: de, count: b)
-;@ path: field/event
+;@ path: event/textbox
 ;@ Writes `count` saved tiles from `buf` to the BG map from `dest` on (wrapping in the row).
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 RestoreBGRow::
 ;>@i for i in range(count):
 ;>     WriteVRAM(dest, mem[buf]); buf += 1
@@ -6843,9 +6843,9 @@ RestoreBGRow::
 
 
 ;@ def EventRestoreBG2()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 15: lifts the sprite clipping and restores rows 1 and 3.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventRestoreBG2::
 ;> hSpriteClip = 0
 	ld a, $00
@@ -6867,9 +6867,9 @@ EventRestoreBG2::
 	jr RestoreBGRow
 
 ;@ def EventRestoreBG3()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 19: restores the middle row 2.
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventRestoreBG3::
 ;> wEventStep += 1
 	ld hl, wEventStep
@@ -6882,9 +6882,9 @@ EventRestoreBG3::
 	jr RestoreBGRow
 
 ;@ def EventEnd()
-;@ path: field/event
+;@ path: event/textbox
 ;@ Field event step 20: the event is over (wFieldFlags bit 0 off, step 0).
-;@ test: talk to a person in a town
+;@ test: skip writes VRAM
 EventEnd::
 ;> wFieldFlags &= ~0x01
 	ld hl, wFieldFlags
@@ -6896,11 +6896,11 @@ EventEnd::
 
 
 ;@ def RunFieldTransition()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ wFieldFlags bit 5: one frame (step wMenuStep) of the effect that leads from the field into a
 ;@ new map. Towns and most maps below $50 (and $52, $60) use the wave (steps 0-6); gate floors and
 ;@ the other maps from $50 the squeeze and wipe (steps $10-$17).
-;@ test: walk through a door in a town; take a gate
+;@ test: skip drives the LCD effects and writes VRAM
 RunFieldTransition::
 ;> if wMenuStep == 0:
 	ld a, [wMenuStep]
@@ -6933,7 +6933,7 @@ jr_006_6ba7:
 	ld a, [wMenuStep]
 	rst $00
 
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Transition steps: 0-6 start, blink, wave, wave and fade, load, reset LCD, blink in;
 ;@ 7-15 unused; $10-$17 start, blink, squeeze, wipe, wave and fade, load, reset LCD, blink in.
 FieldTransitionSteps::
@@ -6963,7 +6963,7 @@ FieldTransitionSteps::
 	dw TransitionBlinkEnd
 
 ;@ def TransitionNop()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Unused transition steps 7-15: nothing.
 ;@ test: skip (never used)
 TransitionNop::
@@ -6972,11 +6972,11 @@ TransitionNop::
 
 
 ;@ def TransitionStart()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step 0 of the wave: music 2, sound $52, scroll rounded to tiles, the base BG map address of the
 ;@ view in $C90B, the 12 x 16 tiles right of the view blanked, every line of the line-scroll table
 ;@ wLineScroll set to hScrollX, and $1E blink frames.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionStart::
 ;> QueueMusic(2); InitSound()
 	ld a, $02
@@ -6991,8 +6991,8 @@ TransitionStart::
 ;> RoundScroll3(hScrollY)
 	ld hl, hScrollY
 	call RoundScroll3
-;> FillMemory(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7083,10 +7083,10 @@ jr_006_6c4a:
 
 
 ;@ def TransitionBlink()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step 1: blinks the menu overlay every frame for wMenuSubStep frames, then starts the wave
 ;@ (amplitude 1 in wItemsHandedIn, the line-scroll LCD effect 2 from line 2).
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionBlink::
 ;> wMenuOverlay = wMenuSubStep & 1
 	ld a, [wMenuSubStep]
@@ -7117,9 +7117,9 @@ TransitionBlink::
 
 
 ;@ def TransitionWave()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step 2: every 8 frames the wave amplitude grows by amp / 16 + 1; at $38 the fade begins.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionWave::
 ;> wMenuOverlay = 1
 	ld a, $01
@@ -7150,11 +7150,11 @@ TransitionWave::
 	ld [wHatchSlot], a
 
 ;@ def UpdateWaveScroll()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Updates a quarter of wLineScroll (32 lines, which one by wFieldTimer & 3): every pair of lines
 ;@ gets hScrollX +/- WaveOffsets[e] * amplitude / 256 (minus in the second half of the wave),
 ;@ with e stepping along the 16-entry wave from (wFieldTimer >> 2).
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 UpdateWaveScroll::
 ;> mem[hNumber] = wItemsHandedIn            # amplitude
 	ld a, [wItemsHandedIn]
@@ -7256,16 +7256,16 @@ jr_006_6d05:
 
 	ret
 
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ The wave of UpdateWaveScroll: 16 offsets (0-255, scaled by the amplitude), half a sine twice.
 WaveOffsets::
 	db $00, $60, $b6, $ec, $ff, $ec, $b6, $60, $00, $60, $b6, $ec, $ff, $ec, $b6, $60
 
 ;@ def TransitionWaveFade()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Steps 3 and $14: keeps the wave going while the BG palette fades through FadePalettes, one
 ;@ step every 16 frames; after the 4th the line effect is turned off and the next step follows.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionWaveFade::
 ;> if wFieldTimer & 0x0F == 0:
 	ld a, [wFieldTimer]
@@ -7302,17 +7302,17 @@ jr_006_6d3a:
 	call UpdateWaveScroll
 	ret
 
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ BG palettes of TransitionWaveFade, from normal to black-free white.
 FadePalettes::
 	db $d2, $81, $40, $00, $00
 
 ;@ def TransitionLoad()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Steps 4 and $15: asks for the new map (wMapLoadState), blanks all palettes and hides the
 ;@ sprites for $28 frames. When the warp goes to map 0 (not a gate floor) and $D92B is not 1-5,
 ;@ the transition ends right here.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionLoad::
 ;> wMenuStep += 1
 	ld hl, wMenuStep
@@ -7394,10 +7394,10 @@ UnusedCode_06_6DAA::
 	db $3e, $3c, $ea, $06, $c9, $c3, $a3, $6c
 
 ;@ def TransitionResetLCD()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Steps 5 and $16: back to the normal LCD interrupt (line $7F, effect 1); on gate floors Terry's
 ;@ flags are cleared.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionResetLCD::
 ;> rLYC = 0x7F; wLCDEffect = 1
 	di
@@ -7422,10 +7422,10 @@ jr_006_6e26:
 
 
 ;@ def TransitionBlinkEnd()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Steps 6 and $17: once the fade-in is over, blinks the overlay for wMenuSubStep frames and ends
 ;@ the transition (wFieldFlags bit 5 off).
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionBlinkEnd::
 ;> if wFadeState: return
 	ld a, [wFadeState]
@@ -7455,9 +7455,9 @@ TransitionBlinkEnd::
 
 
 ;@ def RoundScroll3(p: hl)
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Same as RoundScroll: rounds the u16 scroll value at `p` to the nearest multiple of 8.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 RoundScroll3::
 ;> mem16[p] += 4
 	ld a, [hl]
@@ -7474,9 +7474,9 @@ RoundScroll3::
 
 
 ;@ def NextTransitionMapColumn(dest: hl) -> hl
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Same as NextBoxMapColumn: one BG map column right, wrapping inside the row (keeps a).
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 NextTransitionMapColumn::
 ;>@c dest = (dest & ~0x1F) | ((dest + 1) & 0x1F)
 	push af
@@ -7497,9 +7497,9 @@ NextTransitionMapColumn::
 
 
 ;@ def TransitionMapAddress(offset: hl) -> hl
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ BG map address mem16[$C90B] (the view's top left) + offset, wrapped inside the 1 KiB map.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionMapAddress::
 ;>@a a = mem16[0xC90B] + offset
 	ld a, [$c90b]
@@ -7519,9 +7519,9 @@ TransitionMapAddress::
 
 
 ;@ def ClearMapTile(pos: hl)
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Writes the blank tile $E0 at view position `pos` (row * 32 + column).
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 ClearMapTile::
 ;> WriteVRAM(TransitionTileAddress(pos), 0xE0)
 	call TransitionTileAddress
@@ -7531,9 +7531,9 @@ ClearMapTile::
 
 
 ;@ def TransitionTileAddress(pos: hl) -> hl
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ BG map address of view position `pos` (row * 32 + column), wrapping both ways.
-;@ test: walk through a door in a town
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionTileAddress::
 ;> col = pos & 0x1F
 	push bc
@@ -7566,11 +7566,11 @@ jr_006_6e9d:
 
 
 ;@ def TransitionStart2()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step $10 (gate floors and the like): sound $55, scroll rounded to tiles, the view base in
 ;@ $C90B, the 20 x 14 tiles below the view (from row 18) blanked, every line of wLineScroll set to
 ;@ hScrollY, $1E blink frames, and the party bar shown in the window.
-;@ test: take a gate
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionStart2::
 ;> QueueSound(0x55)
 	ld a, $55
@@ -7581,8 +7581,8 @@ TransitionStart2::
 ;> RoundScroll3(hScrollY)
 	ld hl, hScrollY
 	call RoundScroll3
-;> FillMemory(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7675,10 +7675,10 @@ jr_006_6f05:
 
 
 ;@ def TransitionBlink2()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step $11: blinks the menu overlay for wMenuSubStep frames, then starts the squeeze (speed 0 in
 ;@ wItemsHandedIn/wHatchSlot, the per-line Y scroll effect 3 from line 2).
-;@ test: take a gate
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionBlink2::
 ;> wMenuOverlay = wMenuSubStep & 1
 	ld a, [wMenuSubStep]
@@ -7712,11 +7712,11 @@ TransitionBlink2::
 
 
 ;@ def TransitionSqueeze()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step $12: fills wLineScroll from the middle line (64) outwards with Y scroll values that pull
 ;@ the picture apart, each line by the accumulated speed (lines past $7C show blank rows); the
 ;@ speed grows by speed / 8 + 2 per frame until its high byte reaches $20.
-;@ test: take a gate
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionSqueeze::
 ;> y = hScrollY + 0x20; wTextArg0 = y      # lines 128-131
 	ldh a, [hScrollY]
@@ -7833,10 +7833,10 @@ jr_006_6fbe:
 
 
 ;@ def TransitionWipe()
-;@ path: field/transition
+;@ path: field/doors/transition
 ;@ Step $13: blanks two 16-tile columns per frame, closing in from both edges of the view
 ;@ (columns n and $13 - n); after 10 frames the scroll and LCD interrupt are back to normal.
-;@ test: take a gate
+;@ test: skip drives the LCD effects and writes VRAM
 TransitionWipe::
 ;>@p dest = TransitionTileAddress(wHatchSlot)   # column n
 	ld hl, $0000
@@ -7929,7 +7929,7 @@ jr_006_6ffb:
 ;@ path: field/partybar
 ;@ Same as ShowPartyBarWindow with DrawPartyBarAt built in: the party bar in the window at line
 ;@ $80 (map $9C00), palette 7 on the Game Boy Color.
-;@ test: take a gate
+;@ test: skip writes VRAM
 ShowPartyBarWindow2::
 ;> hWY = 0x80
 	ld a, $80
@@ -8017,7 +8017,7 @@ jr_006_7050:
 ;@ def CopyPartyBarTiles2(dest: hl)
 ;@ path: field/partybar
 ;@ Same as CopyPartyBarTiles: the two party bar rows (20 tiles each) to the map at `dest`.
-;@ test: take a gate
+;@ test: skip writes VRAM
 CopyPartyBarTiles2::
 ;> src = wPartyBarTiles
 	ld de, wPartyBarTiles

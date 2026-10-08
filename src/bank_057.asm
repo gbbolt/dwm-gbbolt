@@ -1471,7 +1471,7 @@ jr_057_6e50:
 	cp $01
 	jr nz, jr_057_6e22
 
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	ld bc, $0007
 	xor a
 	call FillMemory
@@ -1527,7 +1527,7 @@ jr_057_6ec1:
 	or a
 	jr nz, jr_057_6ecc
 
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	jr jr_057_6edb
 
 jr_057_6ecc:
@@ -1884,7 +1884,7 @@ jr_057_713b:
 	jr jr_057_7143
 
 jr_057_7140:
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 
 jr_057_7143:
 	cp $81
@@ -1948,12 +1948,12 @@ Call_57_719B::
 	cp $04
 	jr nc, jr_057_71a8
 
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	cp $81
 	ret z
 
 jr_057_71a8:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	cp $1e
 	jr nc, jr_057_71b3
 
@@ -1964,7 +1964,7 @@ jr_057_71b3:
 	sub $1e
 
 jr_057_71b5:
-	ld [$dcfe], a
+	ld [wSkillFlags2], a
 	ret
 
 
@@ -1993,7 +1993,7 @@ jr_057_71cf:
 	adc h
 	ld h, a
 	ld b, [hl]
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	call Call_57_72CE
 	ld a, d
 	or a
@@ -2006,7 +2006,7 @@ jr_057_71e8:
 	or a
 	jr nz, jr_057_71f3
 
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	jr jr_057_7202
 
 jr_057_71f3:
@@ -2047,7 +2047,7 @@ jr_057_7206:
 
 jr_057_7221:
 	ld a, $1e
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add [hl]
 	ld [hl], a
 
@@ -2062,7 +2062,7 @@ jr_057_7228:
 	adc h
 	ld h, a
 	ld b, [hl]
-	ld hl, $dcfd
+	ld hl, wSkillFlags1
 	call Call_57_72CE
 	ld a, [$db52]
 	ld c, a
@@ -2074,7 +2074,7 @@ jr_057_7228:
 	adc h
 	ld h, a
 	ld b, [hl]
-	ld hl, $dcfe
+	ld hl, wSkillFlags2
 	call Call_57_72CE
 	ld a, [wSkillUser]
 	ld d, a
@@ -2170,7 +2170,7 @@ jr_057_72c1:
 
 jr_057_72c6:
 	ld a, $1e
-	ld hl, $dcfe
+	ld hl, wSkillFlags2
 	add [hl]
 	ld [hl], a
 	ret
@@ -2243,14 +2243,14 @@ jr_057_7318:
 
 Call_57_7322::
 	ld a, $01
-	ld [$dcff], a
+	ld [wSkillFlags3], a
 	ld a, $02
 	ld [$dd00], a
 	ld a, $03
 	ld [$dd01], a
-	ld a, [$dcfc]
+	ld a, [wSkillTargeting]
 	ld l, a
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	ld c, a
 	xor a
 	ld h, a
@@ -2261,21 +2261,21 @@ Call_57_7322::
 	ld l, c
 	ld h, b
 	ld a, $02
-	ld [$dcff], a
+	ld [wSkillFlags3], a
 	ld a, $01
 	ld [$dd00], a
 
 jr_057_734d:
-	ld a, [$dcfe]
+	ld a, [wSkillFlags2]
 	ld c, a
 	ld b, $00
 	call CompareHLBC
 	jr nc, jr_057_7366
 
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	ld b, a
 	ld a, [$dd01]
-	ld [$dcff], a
+	ld [wSkillFlags3], a
 	ld a, b
 	ld [$dd01], a
 
@@ -2284,7 +2284,7 @@ jr_057_7366:
 	call z, Call_57_73B1
 	ld a, [$dd01]
 	dec a
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
@@ -2294,7 +2294,7 @@ jr_057_7366:
 	ld b, $00
 	ld a, [$dd00]
 	dec a
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
@@ -2329,7 +2329,7 @@ Call_57_73A5::
 
 
 Call_57_73B1::
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	ld a, $1e
 	add [hl]
 	ld [hl], a
@@ -2349,7 +2349,7 @@ Jump_57_73B9::
 
 	ld b, a
 	dec a
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
@@ -2362,7 +2362,7 @@ Jump_57_73B9::
 	ld a, b
 
 jr_057_73d9:
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
@@ -2380,7 +2380,7 @@ jr_057_73ed:
 	jr jr_057_7418
 
 jr_057_73f1:
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	cp $01
 	jr z, jr_057_73ed
 
@@ -2449,7 +2449,7 @@ Jump_057_7441:
 	ld [wBattleArg1], a
 	ld a, $07
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	ld [wSkillMsgMode], a
@@ -2554,7 +2554,7 @@ jr_057_753a:
 	ld a, $03
 	ld [wBattleArg2], a
 	push bc
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	pop bc
 	ld a, c
@@ -2687,7 +2687,7 @@ jr_057_75f5:
 
 jr_057_75fa:
 	ld a, [$dd02]
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
@@ -2867,7 +2867,7 @@ jr_057_76e5:
 
 jr_057_76e9:
 	ld a, [$dd02]
-	ld hl, $dcfc
+	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
@@ -3395,7 +3395,7 @@ jr_057_7988:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$db53], a
+	ld [wBattleItemUsedUp], a
 	ret
 
 
@@ -3509,7 +3509,7 @@ Call_57_7A5D::
 	ld a, [wBattleArg1]
 	add c
 	ld c, a
-	ld a, [$db53]
+	ld a, [wBattleItemUsedUp]
 	add c
 	sub b
 	ret

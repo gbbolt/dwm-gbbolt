@@ -53,7 +53,7 @@ ScriptMenuNone::
 ;@ path: menu/window
 ;@ Rounds the 16-bit position at `coord` (a scroll position) to the nearest multiple of 8,
 ;@ so menu windows line up with the background tiles.
-;@ test: hl = rand(0xD000, 0xD0FE)
+;@ test: skip the test harness cannot run the original (it stops inside the next routine)
 SnapToTile::
 ;> value = mem16[coord] + 4
 	ld a, [hl]
@@ -1128,8 +1128,8 @@ FarmKeeperInit::
 ;> SnapToTile(addr(hScrollY))
 	ld hl, hScrollY
 	call SnapToTile
-;> fill(addr(wLinkChoice), 0, 8)                            # wLinkChoice .. wListLastRows: the menu cursors
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)                            # wMenuChoice .. wListLastRows: the menu cursors
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -1226,7 +1226,8 @@ FarmKeeperOpenMenu::
 ;@ def DrawFarmMainMenu()
 ;@ path: menu/farm
 ;@ Draws the farm menu window (six options) and the message window into wTilemapBuffer,
-;@ with the cursor on the option in wLinkChoice (the menu choice byte).
+;@ with the cursor on the option in wMenuChoice (the menu choice byte).
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawFarmMainMenu::
 ;> DrawWindowLayout(FarmMainMenuWindow)
 	ld de, FarmMainMenuWindow
@@ -1236,9 +1237,9 @@ DrawFarmMainMenu::
 	call DrawWindowLayout
 ;> ResetCursorBlink()
 	call ResetCursorBlink
-;> DrawCursorAt(wLinkChoice, FarmMainMenuCursorPos)
+;> DrawCursorAt(wMenuChoice, FarmMainMenuCursorPos)
 	ld de, FarmMainMenuCursorPos
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt
 	ret
 
@@ -1249,9 +1250,9 @@ DrawFarmMainMenu::
 ;@ the option (after clearing the cursors the options use).
 ;@ test: skip draws into VRAM
 FarmMainMenuInput::
-;> UpdateMenuCursor(addr(wLinkChoice), 6, FarmMainMenuCursorPos)
+;> UpdateMenuCursor(addr(wMenuChoice), 6, FarmMainMenuCursorPos)
 	ld de, FarmMainMenuCursorPos
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $06
 	call UpdateMenuCursor
 ;> if wJoyPressed & 0x0A:                             # B or Start: close
@@ -1278,8 +1279,8 @@ FarmMainMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80                              # shown as chosen
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80                              # shown as chosen
+	ld hl, wMenuChoice
 	set 7, [hl]
 ;>     fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
@@ -1306,8 +1307,8 @@ FarmMainMenuCursorPos::
 ;@ Runs the chosen farm menu option.
 ;@ test: skip jumps through a table to routines that call other banks
 FarmRunOption::
-;> return FarmOptionTable[wLinkChoice]()             # bit 7 doubles away in the table index
-	ld a, [wLinkChoice]
+;> return FarmOptionTable[wMenuChoice]()             # bit 7 doubles away in the table index
+	ld a, [wMenuChoice]
 	rst $00
 
 ;@ path: menu/farm
@@ -1359,7 +1360,7 @@ FarmKeeperClose::
 ;@ def CopyPartyBarRow(dest: hl, src: de)
 ;@ path: menu/farm
 ;@ Copies one 20-tile row.
-;@ test: hl = rand(0xD000, 0xD100); de = rand(0xD200, 0xD300)
+;@ test: skip the test harness cannot run the original (it stops in VRAM)
 CopyPartyBarRow::
 ;>@cp copy(dest, src, 20)
 	ld b, $14
@@ -1867,6 +1868,7 @@ FarmDepositShowChoice::
 ;@ def DrawDepositChoice()
 ;@ path: menu/farm/deposit
 ;@ Draws the two-choice window of the deposit with the cursor on wConfirmChoice.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawDepositChoice::
 ;> DrawWindowLayout(StatusOrOkWindow)
 	ld de, StatusOrOkWindow
@@ -2138,6 +2140,7 @@ FarmSwapShowYesNo::
 ;@ def DrawSwapYesNo()
 ;@ path: menu/farm/deposit
 ;@ Draws the yes/no window of the exchange offer with the cursor on wConfirmChoice2.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawSwapYesNo::
 ;> DrawWindowLayout(FarmYesNoWindow)
 	ld de, FarmYesNoWindow
@@ -2469,6 +2472,7 @@ FarmSwapShowChoice::
 ;@ def DrawSwapChoice()
 ;@ path: menu/farm/deposit
 ;@ Draws the two-choice window of the exchange with the cursor on wConfirmChoice.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawSwapChoice::
 ;> DrawWindowLayout(StatusOrOkWindow)
 	ld de, StatusOrOkWindow
@@ -3220,6 +3224,7 @@ FarmWithdrawShowChoice::
 ;@ def DrawWithdrawChoice()
 ;@ path: menu/farm/withdraw
 ;@ Draws the two-choice window of the withdrawal with the cursor on wConfirmChoice.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawWithdrawChoice::
 ;> DrawWindowLayout(StatusOrOkWindow)
 	ld de, StatusOrOkWindow
@@ -3545,6 +3550,7 @@ FarmPartyFullShowYesNo::
 ;@ def DrawPartyFullYesNo()
 ;@ path: menu/farm/withdraw
 ;@ Draws the yes/no window of the exchange offer with the cursor on wConfirmChoice2.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawPartyFullYesNo::
 ;> DrawWindowLayout(FarmYesNoWindow)
 	ld de, FarmYesNoWindow
@@ -3818,6 +3824,7 @@ FarmExchangeShowChoice::
 ;@ def DrawExchangeChoice()
 ;@ path: menu/farm/withdraw
 ;@ Draws the two-choice window of the exchange with the cursor on wConfirmChoice.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawExchangeChoice::
 ;> DrawWindowLayout(StatusOrOkWindow)
 	ld de, StatusOrOkWindow
@@ -4329,6 +4336,7 @@ FarmExchangeShowPartyChoice::
 ;@ def DrawExchangePartyChoice()
 ;@ path: menu/farm/withdraw
 ;@ Draws the two-choice window for the party monster with the cursor on wConfirmChoice.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawExchangePartyChoice::
 ;> DrawWindowLayout(StatusOrOkWindow)
 	ld de, StatusOrOkWindow
@@ -6142,6 +6150,7 @@ FarmReleaseShowChoice::
 ;@ path: menu/farm/release
 ;@ Draws the two-choice window of the release (the egg variant for eggs) with the cursor on
 ;@ wMenuChoice3.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawReleaseChoice::
 ;> window = EggStatusOrOkWindow if wMenuChoice2 & 1 else StatusOrOkWindow
 	ld de, StatusOrOkWindow
@@ -7045,8 +7054,8 @@ LibraryInit::
 ;> SnapToTile(addr(hScrollY))
 	ld hl, hScrollY
 	call SnapToTile
-;> fill(addr(wLinkChoice), 0, 8)                            # the menu cursors
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)                            # the menu cursors
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7121,8 +7130,8 @@ LibraryResetCursors::
 ;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;> fill(addr(wLinkChoice), 0x00, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0x00, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7239,7 +7248,8 @@ LibraryShowFamilies::
 ;@ def DrawLibraryWindows()
 ;@ path: menu/library
 ;@ Draws the message window and the family list window (10 families, 5 a page) with its
-;@ cursor (wLinkChoice row, wMenuChoice2 page) into the cleared wTilemapBuffer.
+;@ cursor (wMenuChoice row, wMenuChoice2 page) into the cleared wTilemapBuffer.
+;@ test: skip leaves its scratch row pointer in hNumber and draws with the home cursor routine
 DrawLibraryWindows::
 ;> ClearTilemapBuffer()
 	call ClearTilemapBuffer
@@ -7251,11 +7261,11 @@ DrawLibraryWindows::
 	call DrawWindowLayout
 ;> ResetCursorBlink()
 	call ResetCursorBlink
-;> DrawListFrame(addr(wLinkChoice), FamilyCursorPos, 5, 10)
+;> DrawListFrame(addr(wMenuChoice), FamilyCursorPos, 5, 10)
 	ld de, FamilyCursorPos
 	ld b, $05
 	ld c, $0a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	call DrawListFrame
 	ret
 
@@ -7338,9 +7348,9 @@ ShowFamilyMonsters::
 ;@ of it is known yet), B closes the library.
 ;@ test: skip draws into VRAM
 LibraryFamilyInput::
-;>@old old_row, old_page = wLinkChoice, wMenuChoice2
+;>@old old_row, old_page = wMenuChoice, wMenuChoice2
 	ld de, FamilyCursorPos
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld c, $0a
 	ld b, $05
 	ld a, [hli]
@@ -7348,7 +7358,7 @@ LibraryFamilyInput::
 ;=@old
 	ld a, [hld]
 	push af
-;> UpdatePagedList(addr(wLinkChoice), 5, 10, FamilyCursorPos)
+;> UpdatePagedList(addr(wMenuChoice), 5, 10, FamilyCursorPos)
 	call UpdatePagedList
 ;> if wMenuChoice2 != old_page:
 	pop af
@@ -7362,9 +7372,9 @@ LibraryFamilyInput::
 ;>     CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
 .samePage
-;> if wLinkChoice != old_row:
+;> if wMenuChoice != old_row:
 	pop af
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	cp [hl]
 	jr z, .keys
 ;>     ShowFamilyMonsters()
@@ -7447,7 +7457,7 @@ BuildFamilyList::
 	ld bc, $0020
 	ld a, $ff
 	call FillMemory
-;>@f family = wMenuChoice2 * 5 + (wLinkChoice & 0x7F)
+;>@f family = wMenuChoice2 * 5 + (wMenuChoice & 0x7F)
 	ld a, [wMenuChoice2]
 	ld b, a
 	add a
@@ -7455,7 +7465,7 @@ BuildFamilyList::
 	add b
 	ld b, a
 ;=@f
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 	add b
 ;> wCurPartyMember = family
@@ -7855,7 +7865,7 @@ DrawMonsterPage::
 ;> mem16[0xC820] = 0x0021
 	ld hl, $0021
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 ;> wPaletteSet = wCurPartyMember
@@ -7863,7 +7873,7 @@ DrawMonsterPage::
 	ld [wPaletteSet], a
 ;> mem[0xC81F] = 4
 	ld a, $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 ;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
@@ -8402,8 +8412,8 @@ ChooseMonsterInit::
 ;> wChosenMonPic = 0xFF                               # nothing chosen
 	ld a, $ff
 	ld [wChosenMonPic], a
-;> fill(addr(wLinkChoice), 0, 8)                            # the menu cursors
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)                            # the menu cursors
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -8467,8 +8477,8 @@ ChooseMonsterResetCursors::
 ;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;> fill(addr(wLinkChoice), 0x00, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0x00, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory

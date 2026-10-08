@@ -212,7 +212,7 @@ DEF wLinkPhase EQU $C866 ;@ u8 Link transfer phase: 0 send, 1 receive
 DEF wLinkReceived EQU $C86A ;@ u8 Last byte received over the link
 DEF wLinkReceivedLast EQU $C86E ;@ u8 Copy of the last single byte received
 DEF wLinkRecvPtr EQU $C86F ;@ u16 Write pointer into the link receive buffer
-DEF wLinkChoice EQU $C8DA ;@ u8 Title menu cursor: 0 continue, 1 new game, 2 VS mode, 3 breeding (without a save only new game); bit 7 set once chosen
+DEF wMenuChoice EQU $C8DA ;@ u8 Cursor position / choice of the current menu, shared by most menus. On the title menu: 0 continue, 1 new game, 2 VS mode, 3 breeding (without a save only new game); bit 7 set once chosen
 DEF wLinkRefused EQU $C8DF ;@ u8 Set to $FF when the partner's handshake byte did not match
 DEF wLinkPartnerChoice EQU $C8E0 ;@ u8 Link mode the partner asked for (2 or 3) when ours differs
 DEF wLinkNoEnd EQU $C8C7 ;@ u8 Nonzero: the partner's end byte $F3 is not looked for
@@ -583,14 +583,14 @@ DEF wBattleStepArg0 EQU $D9EF ;@ u8 Battle step scratch: a counter of the step, 
 DEF wBattleStepArg1 EQU $D9F0 ;@ u8 Battle step scratch: a counter of the step, or the wBattleSubStep2 to go on with after a message ($FF = keep)
 DEF wHitCount EQU $DD69 ;@ u8 Hits or targets done so far by a skill that strikes several times
 DEF wSkillResult EQU $DD6F ;@ u8 Kind of result of the skill just worked out (message and effect flags; bit 5: the amount is HP damage taken from the target)
-DEF wSkillResultValue EQU $DD70 ;@ u16 Value belonging to wSkillResult
+DEF wSkillResultValue EQU $DD70 ;@ u16 Battle message (bank $4C) shown when the skill works (low byte; the high byte is wSkillMsgMiss, the message when it fails)
 DEF wStatCapPos EQU $DD74 ;@ u8 Battle position whose stat limit StatLimitTimes is working out
 DEF wSkillMsgMiss EQU $DD71 ;@ u8 Battle message (bank $4C) shown when the skill fails
 DEF wSkillMsgMode EQU $DD6B ;@ u8 Kind of the battle message being set up (0, 1 or 2)
 DEF wJoinPoints EQU $DB83 ;@ u16 Points toward the enemy monster asking to join (meat raises them, healing an enemy adds, hurting it takes away; capped at 1600)
 DEF wSkillTempPtr EQU $DB5C ;@ u16 Scratch pointer of the skill effects (a battler's HP)
 DEF wStatPtr EQU $DB63 ;@ u16 Scratch pointer of the skill effects (the user's attack)
-DEF wItemMsgGroup EQU $DB54 ;@ u8 Battle items: text group of the item message
+DEF wItemMsgGroup EQU $DB54 ;@ u8 Battle items: text group of the item message; skill animations: screen place of the monster the animation is drawn at (1 single or middle of three, 2/3 left/right of two, 4/6 left/right of three, 8 none; $80 plays sound $6C, then $FF)
 DEF wBattleTempHigh EQU $DD73 ;@ u8 High byte of the 16-bit result in wBattleTemp (the stat routines of bank $57)
 DEF wSideFlags EQU $DB00 ;@ u8[2] Flags per side (0 own, 1 enemy): bit 2 a dragon was called (TatsuCall), 5 a wind blows (StormWind), 6 SuckAll was used
 DEF wSuckAllUsers EQU $DB4A ;@ u8[2] Per side: which positions used SuckAll (bit 2 + position)
@@ -601,3 +601,23 @@ DEF wBattlerStatus4 EQU $DB06 ;@ u8 Status byte 4 of each battle position (8 byt
 DEF wBattlerStatus5 EQU $DB07 ;@ u8 Status byte 5 of each battle position (8 bytes apart): bits 0-1 blinded (SandStorm), 2-3 side-stepping (SideStep), 4-5 LifeSong, 6-7 iron lump (Ironize)
 DEF wBattlerStatus6 EQU $DB08 ;@ u8 Status byte 6 of each battle position (8 bytes apart): bit 0 called for help, 1 SuckAll, 2 Beserker, 3 Imitate, 5 Dodge, 6 a stat went up, 7 a stat went down
 DEF wBattlerStatus7 EQU $DB09 ;@ u8 Status byte 7 of each battle position (8 bytes apart): low nibble the defence stance (1 Defence, 2 StrongD, 4 BladeD)
+DEF wSkillTargeting EQU $DCFC ;@ u8 Skill record byte 2 of the skill being used: targets (high nibble 1 enemies, 2 allies, 3 either, 4 the user; low nibble 1 one, 2 all)
+DEF wSkillFlags1 EQU $DCFD ;@ u8 Skill record byte 7 of the skill being used (flags)
+DEF wSkillFlags2 EQU $DCFE ;@ u8 Skill record byte 8 of the skill being used (flags)
+DEF wSkillFlags3 EQU $DCFF ;@ u8 Skill record byte 9 of the skill being used (flags)
+DEF wBattleItemUsedUp EQU $DB53 ;@ u8 Set when the battle item just used is gone from the bag (its name is in wTextArg1)
+DEF wLinkPartnerName EQU $C8BB ;@ u8[8] Name of the link partner (the other player), received at the end of a VS battle
+DEF wMonPicPalette EQU $C81F ;@ u8 BG palette (0-7) LoadMonPicPalette fills for a monster picture
+DEF wMonPicPos EQU $C820 ;@ u16 Screen offset (row * 32 + column) of the monster picture whose attributes DrawMonPicAttrs sets
+DEF wScreenEffect EQU $DA83 ;@ u8 Battle screen effect UpdateScreenEffect runs: 0-1 none, 2 blink the target's picture, 3 shake up and down, 4 flash, 5 darken, 6 invert, 7 darken twice, 8 quake, 9 wave, 10 lighten, 11 long flash, 12 shake sideways, 13 blink the user's picture
+DEF wScreenEffectStep EQU $DA84 ;@ u8 Step of the battle screen effect
+DEF wScreenEffectTimer EQU $DA85 ;@ u8 Battle screen effect counter (frames held, quake step; the width of the picture being redrawn)
+DEF wScreenEffectAux EQU $DA86 ;@ u8 Battle screen effect scratch byte (cleared at every palette step)
+DEF wScreenEffectFrame EQU $DA87 ;@ u8 Battle screen effect frame count (palette steps done, wave phase)
+DEF wDebugStatsShown EQU $DA88 ;@ u8 Nonzero while the debug window with the battlers' personality numbers is open (Select in battle)
+DEF wSkillAnimSet EQU $DAA4 ;@ u8 Animation the skill animation's sprite plays (StartSkillAnimSprite_5C...; from the same tables as wSkillAnim)
+DEF wBattleAnimSet EQU $DD63 ;@ u8 Animation set of the battle animation object that starts at wBattleAnimRunning
+DEF wBattleAnimIndex EQU $DD64 ;@ u8 Animation within the set of the battle animation object
+DEF wSkillAnimPhase EQU $DD68 ;@ u8 Skill animation sprite phase: 0 flies in from the left, 1 or 2 starts at the place of the target (wItemMsgGroup holds that place)
+DEF wOpeningScene EQU $C88C ;@ u8 Opening scene: 0 logos, 1-3 shooting stars, 4 picture, 5 two stars, 6 title screen (the title menu returns here)
+DEF wOpeningLogo EQU $C88D ;@ u8 Logo screen of the opening (0-2)

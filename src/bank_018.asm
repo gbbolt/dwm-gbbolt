@@ -4,147 +4,206 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $018", ROMX[$4000], BANK[$18]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_18::
 	db $18
 
+;@ path: link/result
+;@ Entry points of bank $18: the start and the per-frame routine of game mode 6 (the screen after
+;@ a VS battle over the link cable, where the prize monster changes hands), then the three text
+;@ routines of the texts kept in this bank.
 FarTable_18::
-	dw Call_18_400B
-	dw Call_18_42DE
-	dw Call_18_567F
-	dw Call_18_5686
-	dw Call_18_568D
+	dw VSResultInit
+	dw VSResultUpdate
+	dw StartText_18
+	dw CopyText_18
+	dw PrintText_18
 
-Call_18_400B::
+;@ def VSResultInit()
+;@ path: link/result
+;@ Starts game mode 6, the result screen of a VS battle over the link cable: clears the menu
+;@ variables, loads the banner letters, window and Terry sprite tiles, restores the party from
+;@ the VS team, unpacks the prize monster's walking sprite (or the egg sprite), sets up the text
+;@ box, reloads the monsters from the save and the party's pictures, and turns the screen on.
+;@ test: skip calls routines in other banks
+VSResultInit::
+;> fill(wMenuChoice, 8, 0)
 	xor a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
+;> fill(wTextTiles, 0x12, 0)
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
+;> fill(wTitleStep, 8, 0)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
 	call FillMemory
+;> wTitleBgMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wTitleBgMap], a
 	ld a, h
-	ld [$c8d7], a
+	ld [wTitleBgMap + 1], a
+;> wSGBPalSet = 0; mem[wSGBPalSet + 1] = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> LoadFieldObjPalettes()
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
+;> SetSharedBGColors()
 	ld hl, far_SetSharedBGColors
 	rst $10
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> StartFade(0xFC)                       # fade in
 	ld a, $fc
 	call StartFade
+;> fill(0x9800, 0x400, 0xE0)             # blank BG map
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $e0
 	call FillMemory
+;> Decompress(0x3F, 0x03, 0x8800)        # the big banner letters (tiles $80 on)
 	ld de, $3f03
 	ld hl, $8800
 	call Decompress
+;> Decompress(0x2E, 0x00, 0x8D00)        # window frame and symbols
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> Decompress(0x2F, 0x00, 0x8000)        # Terry's sprite
 	ld de, $2f00
 	ld hl, $8000
 	call Decompress
+;> wPartyCount = wVSTeamCount           # the party again as it was before the battle
 	ld a, [wVSTeamCount]
 	ld [wPartyCount], a
+;> wParty[0] = wVSTeamSlots[0]
 	ld a, [wVSTeamSlots]
 	ld [wParty], a
-	ld a, [$c8c5]
-	ld [$ca8f], a
-	ld a, [$c8c6]
-	ld [$ca90], a
-	call Call_18_42D1
+;> wParty[1] = wVSTeamSlots[1]
+	ld a, [wVSTeamSlots + 1]
+	ld [wParty + 1], a
+;> wParty[2] = wVSTeamSlots[2]
+	ld a, [wVSTeamSlots + 2]
+	ld [wParty + 2], a
+;> slot = VSPrizeRecordSlot()
+	call VSPrizeRecordSlot
+;>@np if slot != 0xFF and mem[MonsterField(slot, wMonsters)]:
 	cp $ff
-	jr z, jr_018_40d0
+	jr z, .noPrize
 
 	ld hl, wMonsters
 	call MonsterField
+;=@np
 	ld a, [hl]
 	or a
-	jr z, jr_018_40d0
+	jr z, .noPrize
 
+;>     gfx = 0x313F                      # the egg sprite
 	ld de, $313f
 	push de
-	call Call_18_42D1
+;>@egg     if mem[MonsterField(VSPrizeRecordSlot(), wMonEgg)] == 0:
+	call VSPrizeRecordSlot
 	ld hl, wMonEgg
 	call MonsterField
 	pop de
+;=@egg
 	ld a, [hl]
 	or a
-	jr nz, jr_018_40ca
+	jr nz, .load
 
-	call Call_18_42D1
+;>         species = mem[MonsterField(VSPrizeRecordSlot(), wMonRecSpecies)]
+	call VSPrizeRecordSlot
 	ld hl, wMonRecSpecies
 	call MonsterField
+;>@gfx         gfx = mem16[MonsterSpriteGfx_18 + 2 * species]
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $23
+	add LOW(MonsterSpriteGfx_18)
 	ld l, a
+;=@gfx
 	ld a, h
-	adc $41
+	adc HIGH(MonsterSpriteGfx_18)
 	ld h, a
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
 
-jr_018_40ca:
+.load
+;>     Decompress(hi(gfx), lo(gfx), 0x8200)   # sprite tiles $20 on
 	ld hl, $8200
 	call Decompress
 
-jr_018_40d0:
+.noPrize
+;> SetUpTextBox(0x8B00, 2, 0x12)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> wTextBoxMap = 0x99C1
 	ld hl, $99c1
 	ld a, l
 	ld [wTextBoxMap], a
 	ld a, h
-	ld [$c83f], a
+	ld [wTextBoxMap + 1], a
+;> CopyFromSRAM_18(wMonsters, sMonsters, 0xBA4)   # the monsters as saved
 	ld hl, wMonsters
 	ld de, sMonsters
 	ld bc, $0ba4
-	call Call_18_4604
-	call Call_18_5340
+	call CopyFromSRAM_18
+;> LoadPartyPictures_18()
+	call LoadPartyPictures_18
+;> hWX = 7; hWY = 0xFF                  # no window
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollY = 0; hScrollX = 0
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
+;> DisableSTATInterrupts()
 	call DisableSTATInterrupts
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLinkMode = 0
 	xor a
 	ld [wLinkMode], a
+;> wLCDC = 0x03
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x01)          # VBlank only
 	ld a, $01
 	jp EnableLCDAndInterrupts
 
 
+;@ path: gfx/sprites
+;@ Walking sprite graphics of each monster species, 2 bytes per species: the entry number, then the
+;@ bank, of the compressed tiles (as Decompress takes them in e and d). The first 16 point into bank
+;@ $2F, the others into banks $38, $39 and $3A.
+MonsterSpriteGfx_18::
 	db $01, $2f, $02, $2f, $03, $2f, $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f
 	db $09, $2f, $0a, $2f, $0b, $2f, $0c, $2f, $0d, $2f, $0e, $2f, $0f, $2f, $10, $2f
 	db $00, $38, $01, $38, $02, $38, $03, $38, $04, $38, $05, $38, $06, $38, $07, $38
@@ -173,418 +232,637 @@ jr_018_40d0:
 	db $28, $3a, $29, $3a, $2a, $3a, $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a
 	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
 
-Call_18_42D1::
+;@ def VSPrizeRecordSlot() -> a
+;@ path: link/result
+;@ Record slot of the monster that changes hands after a VS battle: $15 (the record just after
+;@ the 20 monsters, wBreedParent2, which holds the monster received from the partner) when we
+;@ won, else wLinkPrizeSlot (after a lost battle $14, wBreedParent1, the copy of the monster we
+;@ gave away; $FF when no prize was offered). wBattlerReload is nonzero after a lost battle.
+VSPrizeRecordSlot::
+;> if not wBattlerReload:              # we won
+;>     return 0x15
 	ld a, [wBattlerReload]
 	or a
-	jr nz, jr_018_42da
+	jr nz, .lost
 
 	ld a, $15
 	ret
 
 
-jr_018_42da:
+.lost
+;> return wLinkPrizeSlot
 	ld a, [wLinkPrizeSlot]
 	ret
 
 
-Call_18_42DE::
-	call Call_18_4DDA
+;@ def VSResultUpdate()
+;@ path: link/result
+;@ Per-frame routine of game mode 6: draws the old master's sprite, then runs step wTitleStep
+;@ of the result screen (VSResultSteps).
+;@ test: skip jumps through a table
+VSResultUpdate::
+;> VSResultDrawGiver()
+	call VSResultDrawGiver
+;> VSResultSteps[wTitleStep]()
 	ld a, [wTitleStep]
 	rst $00
 
-JumpTable_18_42E5::
-	dw Jump_18_4325
-	dw Jump_18_434F
-	dw Jump_18_4369
-	dw Jump_18_4379
-	dw Jump_18_4395
-	dw Jump_18_43B1
-	dw Jump_18_43CD
-	dw Jump_18_4405
-	dw Jump_18_4468
-	dw Jump_18_44AD
-	dw Jump_18_44E1
-	dw Jump_18_4515
-	dw Jump_18_458B
-	dw Jump_18_462A
-	dw Jump_18_4659
-	dw Jump_18_4696
-	dw Jump_18_46A1
-	dw Jump_18_46AC
-	dw Jump_18_47BB
-	dw Jump_18_4A5A
-	dw Jump_18_4B04
-	dw Jump_18_4B09
-	dw Jump_18_4B46
-	dw Jump_18_4BE3
-	dw Jump_18_4BF9
-	dw Jump_18_4C49
-	dw Jump_18_4CDD
-	dw Jump_18_4D1A
-	dw Jump_18_4D25
-	dw Jump_18_4D4E
-	dw Jump_18_4D96
-	dw Jump_18_4DB0
+;@ path: link/result
+;@ The steps of the VS result screen (wTitleStep): the "YOU WIN" / "YOU LOSE" banner, the scene
+;@ where the prize monster walks over to its new master, storing a won monster (or asking which
+;@ monster or egg it replaces when all 20 slots are full), and the way back to the title.
+VSResultSteps::
+	dw VSResultStart
+	dw VSResultSayOutcome
+	dw VSResultWaitOutcome
+	dw VSResultRevealLetters1
+	dw VSResultRevealLetters2
+	dw VSResultRevealLetters3
+	dw VSResultRevealLetters4
+	dw VSResultWipePictures
+	dw VSResultGiverWalksIn
+	dw VSResultMonsterWalks
+	dw VSResultTakerWalksIn
+	dw VSResultTakerLeaves
+	dw VSResultKeepPrize
+	dw VSResultShowReplaceYesNo
+	dw VSResultReplaceYesNoInput
+	dw VSResultReleasePrize
+	dw VSResultReleaseWait
+	dw VSResultStartReplaceList
+	dw VSResultShowReplaceList
+	dw VSResultReplaceListInput
+	dw VSResultReplacePicked
+	dw VSResultShowInfoOk
+	dw VSResultInfoOkInput
+	dw VSResultShowStatus
+	dw VSResultStatusDone
+	dw VSResultReplaceMonster
+	dw VSResultEnd
+	dw VSResultAskKind
+	dw VSResultShowKindMenu
+	dw VSResultKindInput
+	dw VSResultNoEgg
+	dw VSResultBackToList
 
-Jump_18_4325::
+;@ def VSResultStart()
+;@ path: link/result
+;@ Step 0: prints the menu words "WHO", "INFO", "OK", "MON" and "EGG" (system text $024A) into the
+;@ tiles from $96C0 on (tiles $6C-$7A, used by the windows later), draws the party's monster
+;@ pictures and the text box frame and copies the screen to the BG map.
+;@ test: skip calls routines in other banks
+VSResultStart::
+;> wTextGroup = 2; wTextIndex = 0x4A
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $4a
 	ld [wTextIndex], a
+;> DrawTextTiles_18(0x96C0, 1, 16)
 	ld hl, $96c0
 	ld de, $1001
-	call Call_18_503B
-	call Call_18_5142
-	call Call_18_5390
+	call DrawTextTiles_18
+;> ClearTilemapBuffer_18()
+	call ClearTilemapBuffer_18
+;> DrawPartyPictures_18()
+	call DrawPartyPictures_18
+;> DrawWindowLayout_18(0x2E07)          # the text box frame
 	ld de, $2e07
-	call Call_18_4FD5
-	call Call_18_5006
-	call Call_18_5244
+	call DrawWindowLayout_18
+;> CopyTilemapBufferToVram_18()
+	call CopyTilemapBufferToVram_18
+;> MenuResetBlink_18()
+	call MenuResetBlink_18
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_18_434F::
+;@ def VSResultSayOutcome()
+;@ path: link/result
+;@ Step 1: once the fade-in is over, prints "You win!" or "You lose!".
+;@ test: skip calls routines in other banks
+VSResultSayOutcome::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
-	jr nz, jr_018_4368
+	jr nz, .done
 
+;>@text PrintSystemText(0x0247 if wBattlerReload else 0x0246)   # "You lose!" / "You win!"
 	ld hl, $0246
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_018_4361
+	jr z, .print
 
 	ld hl, $0247
 
-jr_018_4361:
+.print
+;=@text
 	call PrintSystemText
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 
-jr_018_4368:
+.done
 	ret
 
 
-Jump_18_4369::
+;@ def VSResultWaitOutcome()
+;@ path: link/result
+;@ Step 2: waits for the text, then starts the 12-frame timer of the banner (wMenuChoice).
+VSResultWaitOutcome::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
-	jr nz, jr_018_4378
+	jr nz, .done
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wMenuChoice = 12                     # frames until the first letters
 	ld a, $0c
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 
-jr_018_4378:
+.done
 	ret
 
 
-Jump_18_4379::
-	ld a, [wLinkChoice]
+;@ def VSResultRevealLetters1()
+;@ path: link/result
+;@ Step 3: after 12 frames draws the first and last banner letters ("Y" and "!" / "E").
+VSResultRevealLetters1::
+;> wMenuChoice -= 1
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> if wMenuChoice:
+;>     return
 	ret nz
 
+;> DrawBannerLetter(0)
 	ld a, $00
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> DrawBannerLetter(7)
 	ld a, $07
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wMenuChoice = 12
 	ld a, $0c
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ret
 
 
-Jump_18_4395::
-	ld a, [wLinkChoice]
+;@ def VSResultRevealLetters2()
+;@ path: link/result
+;@ Step 4: after 12 frames draws banner letters 1 and 6.
+VSResultRevealLetters2::
+;> wMenuChoice -= 1
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> if wMenuChoice:
+;>     return
 	ret nz
 
+;> DrawBannerLetter(1)
 	ld a, $01
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> DrawBannerLetter(6)
 	ld a, $06
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wMenuChoice = 12
 	ld a, $0c
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ret
 
 
-Jump_18_43B1::
-	ld a, [wLinkChoice]
+;@ def VSResultRevealLetters3()
+;@ path: link/result
+;@ Step 5: after 12 frames draws banner letters 2 and 5.
+VSResultRevealLetters3::
+;> wMenuChoice -= 1
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> if wMenuChoice:
+;>     return
 	ret nz
 
+;> DrawBannerLetter(2)
 	ld a, $02
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> DrawBannerLetter(5)
 	ld a, $05
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wMenuChoice = 12
 	ld a, $0c
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ret
 
 
-Jump_18_43CD::
-	ld a, [wLinkChoice]
+;@ def VSResultRevealLetters4()
+;@ path: link/result
+;@ Step 6: after 12 frames draws the middle banner letters 3 and 4, completing "YOU WIN!" or
+;@ "YOU LOSE". Without a prize monster the screen ends here (step $1A); else 32 frames later the
+;@ pictures are wiped.
+;@ test: skip reads monster records
+VSResultRevealLetters4::
+;> wMenuChoice -= 1
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> if wMenuChoice:
+;>     return
 	ret nz
 
+;> DrawBannerLetter(3)
 	ld a, $03
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> DrawBannerLetter(4)
 	ld a, $04
-	call Call_18_4E8F
+	call DrawBannerLetter
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wMenuChoice = 32                     # timer
 	ld a, $20
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> wMenuChoice2 = 0                     # column the wipe reached
 	ld a, $00
 	ld [wMenuChoice2], a
-	call Call_18_42D1
+;> slot = VSPrizeRecordSlot()
+	call VSPrizeRecordSlot
+;>@np if slot != 0xFF and mem[MonsterField(slot, wMonsters)]:
 	cp $ff
-	jr z, jr_018_43ff
+	jr z, .noPrize
 
 	ld hl, wMonsters
 	call MonsterField
+;=@np
 	ld a, [hl]
 	or a
-	jr z, jr_018_43ff
+	jr z, .noPrize
 
+;>     return
 	ret
 
 
-jr_018_43ff:
+.noPrize
+;> wTitleStep = 0x1A                    # no prize: leave
 	ld a, $1a
 	ld [wTitleStep], a
 	ret
 
 
-Jump_18_4405::
-	ld a, [wLinkChoice]
+;@ def VSResultWipePictures()
+;@ path: link/result
+;@ Step 7: every 4 frames blanks one column on each side of the monster pictures (rows 6-11),
+;@ moving inwards, until all 20 columns are gone; then places the scene's sprites: the old
+;@ master (wMenuChoice = X $B0), the prize monster (wMenuChoice2 = X $C0) and the new master
+;@ (wConfirmChoice = X $F8, off screen), with a 30-frame pause (wConfirmChoice2).
+;@ test: skip writes VRAM
+VSResultWipePictures::
+;> wMenuChoice -= 1
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> if wMenuChoice:
+;>     return
 	ret nz
 
+;>@l ClearBgColumn6_18(0x98C0 + wMenuChoice2)            # left side
 	ld hl, $98c0
 	ld a, [wMenuChoice2]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@l
 	ld h, a
-	call Call_18_4455
+	call ClearBgColumn6_18
+;>@r ClearBgColumn6_18(0x98D3 - wMenuChoice2)            # right side
 	ld hl, $98d3
 	ld a, [wMenuChoice2]
 	ld b, a
 	ld a, l
 	sub b
 	ld l, a
+;=@r
 	ld a, h
 	sbc $00
 	ld h, a
-	call Call_18_4455
+	call ClearBgColumn6_18
+;> wMenuChoice = 4
 	ld a, $04
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> wMenuChoice2 += 1
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
+;> if wMenuChoice2 != 10:
+;>     return
 	cp $0a
 	ret nz
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wMenuChoice = 0xB0                   # old master X
 	ld a, $b0
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
+;> wMenuChoice2 = 0xC0                  # prize monster X
 	ld a, $c0
 	ld [wMenuChoice2], a
+;> wConfirmChoice = 0xF8                # new master X (off screen)
 	ld a, $f8
 	ld [wConfirmChoice], a
+;> wConfirmChoice2 = 30                 # pause
 	ld a, $1e
 	ld [wConfirmChoice2], a
 	ret
 
 
-Call_18_4455::
+;@ def ClearBgColumn6_18(pos: hl)
+;@ path: gfx/tilemap
+;@ Writes the blank tile $E0 into 6 BG map rows from `pos` down.
+;@ test: skip writes VRAM
+ClearBgColumn6_18::
+;> for i in range(6):
 	ld b, $06
 
-jr_018_4457:
+.loop
+;>     WriteVRAM(0xE0, pos)
 	ld a, $e0
 	call WriteVRAM
+;>@down     pos += 32
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@down
 	dec b
-	jr nz, jr_018_4457
+	jr nz, .loop
 
 	ret
 
 
-Jump_18_4468::
+;@ def VSResultGiverWalksIn()
+;@ path: link/result
+;@ Step 8: after the pause, the old master and the prize monster walk in from the right, one
+;@ pixel a frame, until the old master stands at X $60.
+;@ test: skip draws sprites through far calls
+VSResultGiverWalksIn::
+;> wConfirmChoice2 -= 1
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
-	jr nz, jr_018_449a
+;> if wConfirmChoice2:
+;>     return VSResultDrawScene()       # still pausing
+	jr nz, VSResultDrawScene
 
+;> wConfirmChoice2 = 1                  # from now on move every frame
 	ld a, $01
 	ld [wConfirmChoice2], a
-	ld a, [wLinkChoice]
+;> wMenuChoice -= 1
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
-	call Call_18_4DFC
+	ld [wMenuChoice], a
+;> DrawTrainerSpriteFlipped(wMenuChoice)
+	call DrawTrainerSpriteFlipped
+;> wMenuChoice2 -= 1
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
-	call Call_18_4E2C
-	ld a, [wLinkChoice]
+;> DrawPrizeMonsterSprite(wMenuChoice2)
+	call DrawPrizeMonsterSprite
+;> if wMenuChoice != 0x60:
+;>     return
+	ld a, [wMenuChoice]
 	cp $60
 	ret nz
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wConfirmChoice2 = 30
 	ld a, $1e
 	ld [wConfirmChoice2], a
 	ret
 
 
-Jump_018_449a:
-jr_018_449a:
-	ld a, [wLinkChoice]
-	call Call_18_4DFC
+;@ def VSResultDrawScene()
+;@ path: link/result
+;@ Draws the three sprites of the scene where they stand: the old master (facing left), the
+;@ prize monster and the new master (facing right).
+;@ test: skip draws sprites through far calls
+VSResultDrawScene::
+;> DrawTrainerSpriteFlipped(wMenuChoice)
+	ld a, [wMenuChoice]
+	call DrawTrainerSpriteFlipped
+;> DrawPrizeMonsterSprite(wMenuChoice2)
 	ld a, [wMenuChoice2]
-	call Call_18_4E2C
+	call DrawPrizeMonsterSprite
+;> DrawTrainerSprite(wConfirmChoice)
 	ld a, [wConfirmChoice]
-	call Call_18_4E00
+	call DrawTrainerSprite
 	ret
 
 
-Jump_18_44AD::
+;@ def VSResultMonsterWalks()
+;@ path: link/result
+;@ Step 9: after a 30-frame pause the prize monster walks on alone, until X $50.
+;@ test: skip draws sprites through far calls
+VSResultMonsterWalks::
+;> wConfirmChoice2 -= 1
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
-	jr nz, jr_018_449a
+;> if wConfirmChoice2:
+;>     return VSResultDrawScene()
+	jr nz, VSResultDrawScene
 
+;> wConfirmChoice2 = 1
 	ld a, $01
 	ld [wConfirmChoice2], a
-	ld a, [wLinkChoice]
-	call Call_18_4DFC
+;> DrawTrainerSpriteFlipped(wMenuChoice)
+	ld a, [wMenuChoice]
+	call DrawTrainerSpriteFlipped
+;> DrawTrainerSprite(wConfirmChoice)
 	ld a, [wConfirmChoice]
-	call Call_18_4E00
+	call DrawTrainerSprite
+;> wMenuChoice2 -= 1
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
-	call Call_18_4E2C
+;> DrawPrizeMonsterSprite(wMenuChoice2)
+	call DrawPrizeMonsterSprite
+;> if wMenuChoice2 != 0x50:
+;>     return
 	ld a, [wMenuChoice2]
 	cp $50
 	ret nz
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wConfirmChoice2 = 30
 	ld a, $1e
 	ld [wConfirmChoice2], a
 	ret
 
 
-Jump_18_44E1::
+;@ def VSResultTakerWalksIn()
+;@ path: link/result
+;@ Step 10: after a 30-frame pause the new master walks in from the left edge to X $40; then a
+;@ 60-frame pause.
+;@ test: skip draws sprites through far calls
+VSResultTakerWalksIn::
+;> wConfirmChoice2 -= 1
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
-	jr nz, jr_018_449a
+;> if wConfirmChoice2:
+;>     return VSResultDrawScene()
+	jr nz, VSResultDrawScene
 
+;> wConfirmChoice2 = 1
 	ld a, $01
 	ld [wConfirmChoice2], a
-	ld a, [wLinkChoice]
-	call Call_18_4DFC
+;> DrawTrainerSpriteFlipped(wMenuChoice)
+	ld a, [wMenuChoice]
+	call DrawTrainerSpriteFlipped
+;> DrawPrizeMonsterSprite(wMenuChoice2)
 	ld a, [wMenuChoice2]
-	call Call_18_4E2C
+	call DrawPrizeMonsterSprite
+;> wConfirmChoice += 1
 	ld a, [wConfirmChoice]
 	inc a
 	ld [wConfirmChoice], a
-	call Call_18_4E00
+;> DrawTrainerSprite(wConfirmChoice)
+	call DrawTrainerSprite
+;> if wConfirmChoice != 0x40:
+;>     return
 	ld a, [wConfirmChoice]
 	cp $40
 	ret nz
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
+;> wConfirmChoice2 = 60
 	ld a, $3c
 	ld [wConfirmChoice2], a
 	ret
 
 
-Jump_18_4515::
+;@ def VSResultTakerLeaves()
+;@ path: link/result
+;@ Step 11: the new master stands for 30 frames, turns round for 30 more, then walks off to the
+;@ left with the prize monster. When the monster is gone: "<partner> surrendered <monster>."
+;@ after a won battle, "<monster> was taken by <partner>." after a lost one.
+;@ test: skip draws sprites through far calls
+VSResultTakerLeaves::
+;> wConfirmChoice2 -= 1
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
-	jr z, jr_018_4525
+;> if wConfirmChoice2:
+	jr z, .walk
 
+;>     if wConfirmChoice2 >= 30:
+;>         return VSResultDrawScene()
 	cp $1e
-	jr c, jr_018_4578
+	jr c, .turned
 
-	jp Jump_018_449a
+	jp VSResultDrawScene
 
 
-jr_018_4525:
+;>@t1     DrawTrainerSpriteFlipped(wMenuChoice)   # the new master has turned round
+;>@t2     DrawPrizeMonsterSprite(wMenuChoice2)
+;>@t3     DrawTrainerSpriteFlipped(wConfirmChoice)
+;>@t4     return
+;> wConfirmChoice2 = 1
+.walk
 	ld a, $01
 	ld [wConfirmChoice2], a
-	ld a, [wLinkChoice]
-	call Call_18_4DFC
+;> DrawTrainerSpriteFlipped(wMenuChoice)
+	ld a, [wMenuChoice]
+	call DrawTrainerSpriteFlipped
+;> wConfirmChoice -= 1
 	ld a, [wConfirmChoice]
 	dec a
 	ld [wConfirmChoice], a
-	call Call_18_4DFC
+;> DrawTrainerSpriteFlipped(wConfirmChoice)
+	call DrawTrainerSpriteFlipped
+;> wMenuChoice2 -= 1
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
-	call Call_18_4E2C
+;> DrawPrizeMonsterSprite(wMenuChoice2)
+	call DrawPrizeMonsterSprite
+;> if wMenuChoice2 != 0xFE:
+;>     return
 	ld a, [wMenuChoice2]
 	cp $fe
 	ret nz
 
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
-	ld de, $c8bb
+;> CopyName(wLinkPartnerName, wTextArg0)
+	ld de, wLinkPartnerName
 	ld hl, wTextArg0
 	call CopyName
-	call Call_18_42D1
+;>@name CopyName(MonsterField(VSPrizeRecordSlot(), wMonName), wTextArg1)
+	call VSPrizeRecordSlot
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	ld hl, wTextArg1
 	call CopyName
+;>@text PrintSystemText(0x0249 if wBattlerReload else 0x0248)   # "was taken by" / "surrendered"
 	ld hl, $0248
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_018_4574
+	jr z, .print
 
 	ld hl, $0249
 
-jr_018_4574:
+.print
+;=@text
 	call PrintSystemText
 	ret
 
 
-jr_018_4578:
-	ld a, [wLinkChoice]
-	call Call_18_4DFC
+.turned
+;=@t1
+	ld a, [wMenuChoice]
+	call DrawTrainerSpriteFlipped
+;=@t2
 	ld a, [wMenuChoice2]
-	call Call_18_4E2C
+	call DrawPrizeMonsterSprite
+;=@t3
 	ld a, [wConfirmChoice]
-	call Call_18_4DFC
+	call DrawTrainerSpriteFlipped
+;=@t4
 	ret
 
 
-Jump_18_458B::
+VSResultKeepPrize::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -635,11 +913,11 @@ jr_018_45c0:
 	ld hl, wPartyCount
 	ld de, sPartyCount
 	ld bc, $0007
-	call Call_18_4604
+	call CopyFromSRAM_18
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
-	call Call_18_4604
+	call CopyFromSRAM_18
 	ei
 	ld hl, wLibraryFlags
 	ld a, [$d703]
@@ -650,7 +928,7 @@ jr_018_45c0:
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
-	call Call_18_4617
+	call CopyToSRAM_18
 	call SaveMonsters
 	ei
 
@@ -660,7 +938,7 @@ jr_018_45fe:
 	ret
 
 
-Call_18_4604::
+CopyFromSRAM_18::
 	ld a, $0a
 	ld [$0100], a
 
@@ -678,7 +956,7 @@ jr_018_4609:
 	ret
 
 
-Call_18_4617::
+CopyToSRAM_18::
 	ld a, $0a
 	ld [$0100], a
 
@@ -696,37 +974,37 @@ jr_018_461c:
 	ret
 
 
-Jump_18_462A::
+VSResultShowReplaceYesNo::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_18_5142
-	call Call_18_463D
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawReplaceYesNo
+	call CopyTilemapBufferToVram_18
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_18_463D::
-	call Call_18_4EEE
+VSResultDrawReplaceYesNo::
+	call DrawBannerToBuffer
 	ld de, $2e07
-	call Call_18_4FD5
+	call DrawWindowLayout_18
 	ld de, $547a
-	call Call_18_4FD5
-	call Call_18_5244
+	call DrawWindowLayout_18
+	call MenuResetBlink_18
 	ld de, $4690
 	ld a, [wMenuChoice3]
-	call Call_18_5303
+	call MenuDrawCursorAt_18
 	ret
 
 
-Jump_18_4659::
+VSResultReplaceYesNoInput::
 	ld de, $4690
 	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_18_51EB
+	call MoveMenuCursor_18
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4672
@@ -757,9 +1035,10 @@ Jump_018_468f:
 	ret
 
 
+VSReplaceYesNoCursor::
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_18_4696::
+VSResultReleasePrize::
 	ld hl, $024c
 	call PrintSystemText
 	ld hl, wTitleStep
@@ -767,7 +1046,7 @@ Jump_18_4696::
 	ret
 
 
-Jump_18_46A1::
+VSResultReleaseWait::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -777,8 +1056,8 @@ Jump_18_46A1::
 	ret
 
 
-Jump_18_46AC::
-	call Call_18_46D6
+VSResultStartReplaceList::
+	call CountReplaceCandidates
 	or a
 	jr nz, jr_018_46be
 
@@ -790,7 +1069,7 @@ Jump_18_46AC::
 
 
 jr_018_46be:
-	call Call_18_471E
+	call ListReplaceCandidates
 	ld hl, $024d
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -805,7 +1084,7 @@ jr_018_46ce:
 	ret
 
 
-Call_18_46D6::
+CountReplaceCandidates::
 	ld de, wMonsters
 	ld b, $00
 	ld c, $00
@@ -822,7 +1101,7 @@ jr_018_46dd:
 	push bc
 	push de
 	push hl
-	call Call_18_4774
+	call IsInStashedParty_18
 	pop hl
 	pop de
 	pop bc
@@ -865,7 +1144,7 @@ jr_018_470a:
 	ret
 
 
-Call_18_471E::
+ListReplaceCandidates::
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -887,7 +1166,7 @@ jr_018_4733:
 	push bc
 	push de
 	push hl
-	call Call_18_4774
+	call IsInStashedParty_18
 	pop hl
 	pop de
 	pop bc
@@ -932,7 +1211,7 @@ jr_018_4763:
 	ret
 
 
-Call_18_4774::
+IsInStashedParty_18::
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	or a
@@ -979,36 +1258,36 @@ jr_018_47b7:
 	ret
 
 
-Jump_18_47BB::
+VSResultShowReplaceList::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_18_5142
-	call Call_18_4970
-	call Call_18_480D
-	call Call_18_47D4
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawCursorMonName
+	call VSResultDrawListNames
+	call VSResultDrawListWindows
+	call CopyTilemapBufferToVram_18
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_18_47D4::
-	call Call_18_4D38
+VSResultDrawListWindows::
+	call VSResultDrawKindMenu
 	ld de, $5577
 	ld a, [wLinkPartnerChoice]
 	and $01
 	jr nz, jr_018_47ed
 
 	ld de, $55f7
-	call Call_18_4FD5
-	call Call_18_49F8
+	call DrawWindowLayout_18
+	call VSResultDrawCursorMonLevel
 	ld de, $549f
 
 jr_018_47ed:
-	call Call_18_4FD5
-	call Call_18_5244
+	call DrawWindowLayout_18
+	call MenuResetBlink_18
 	ld de, $4aec
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -1021,11 +1300,11 @@ jr_018_4800:
 	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wListCursor
-	call Call_18_52E1
+	call MenuDrawListCursor_18
 	ret
 
 
-Call_18_480D::
+VSResultDrawListNames::
 	ld a, [wListPage]
 	add a
 	add a
@@ -1040,11 +1319,11 @@ Call_18_480D::
 	jr nz, jr_018_4869
 
 	ld hl, $9000
-	call Call_18_482E
-	call Call_18_482E
-	call Call_18_482E
+	call VSResultDrawListName
+	call VSResultDrawListName
+	call VSResultDrawListName
 
-Call_18_482E::
+VSResultDrawListName::
 	push de
 	push hl
 	ld a, [de]
@@ -1058,7 +1337,7 @@ Call_18_482E::
 	ld d, h
 	pop hl
 	push hl
-	call Call_18_5074
+	call DrawNameTiles_18
 	pop hl
 	ld a, l
 	add $40
@@ -1096,15 +1375,15 @@ jr_018_4851:
 
 jr_018_4869:
 	ld hl, $9000
-	call Call_18_487C
-	call Call_18_487C
-	call Call_18_487C
-	call Call_18_487C
-	call Call_18_48C0
+	call VSResultDrawEggName
+	call VSResultDrawEggName
+	call VSResultDrawEggName
+	call VSResultDrawEggName
+	call VSResultDrawEggGenders
 	ret
 
 
-Call_18_487C::
+VSResultDrawEggName::
 	push de
 	push hl
 	ld a, [de]
@@ -1120,7 +1399,7 @@ Call_18_487C::
 	ld de, $0901
 	pop hl
 	push hl
-	call Call_18_503B
+	call DrawTextTiles_18
 	pop hl
 	ld a, l
 	add $90
@@ -1156,7 +1435,7 @@ jr_018_48a8:
 	ret
 
 
-Call_18_48C0::
+VSResultDrawEggGenders::
 	ld a, [wListPage]
 	add a
 	add a
@@ -1167,11 +1446,11 @@ Call_18_48C0::
 	adc d
 	ld d, a
 	ld hl, $9240
-	call Call_18_48DA
-	call Call_18_48DA
-	call Call_18_48DA
+	call VSResultDrawEggGender
+	call VSResultDrawEggGender
+	call VSResultDrawEggGender
 
-Call_18_48DA::
+VSResultDrawEggGender::
 	push de
 	push hl
 	ld a, [de]
@@ -1271,7 +1550,7 @@ jr_018_4958:
 	ret
 
 
-Call_18_4970::
+VSResultDrawCursorMonName::
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ret nz
@@ -1296,7 +1575,7 @@ Call_18_4970::
 	ld e, l
 	ld d, h
 	ld hl, $9100
-	call Call_18_5074
+	call DrawNameTiles_18
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -1345,7 +1624,7 @@ Call_18_4970::
 	ret
 
 
-Call_18_49F8::
+VSResultDrawCursorMonLevel::
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ret nz
@@ -1370,14 +1649,14 @@ Call_18_49F8::
 	ld c, [hl]
 	ld b, $00
 	ld hl, $0161
-	call Call_18_4F79
+	call TilemapBufferAddr_18
 	ld a, $de
 	ld [hli], a
 	ld a, $e0
 	ld [hli], a
 	ld a, $e0
 	ld [hld], a
-	call Call_18_5434
+	call PrintTwoDigits_18
 	pop af
 	push af
 	ld hl, wMonsters
@@ -1388,14 +1667,14 @@ Call_18_49F8::
 	cp $02
 	jr z, jr_018_4a46
 
-	call Call_18_4774
+	call IsInStashedParty_18
 	jr nz, jr_018_4a46
 
 	jr jr_018_4a50
 
 jr_018_4a46:
 	ld hl, $0169
-	call Call_18_4F79
+	call TilemapBufferAddr_18
 	ld a, $e3
 	ld [hl], a
 	ret
@@ -1403,13 +1682,13 @@ jr_018_4a46:
 
 jr_018_4a50:
 	ld hl, $0169
-	call Call_18_4F79
+	call TilemapBufferAddr_18
 	ld a, $e0
 	ld [hl], a
 	ret
 
 
-Jump_18_4A5A::
+VSResultReplaceListInput::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -1431,15 +1710,15 @@ jr_018_4a6c:
 	push af
 	ld a, [hl]
 	push af
-	call Call_18_5162
+	call MovePagedListCursor_18
 	pop af
 	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_018_4a8d
 
-	call Call_18_4970
-	call Call_18_49F8
-	call Call_18_5006
+	call VSResultDrawCursorMonName
+	call VSResultDrawCursorMonLevel
+	call CopyTilemapBufferToVram_18
 
 jr_018_4a8d:
 	pop af
@@ -1447,10 +1726,10 @@ jr_018_4a8d:
 	cp [hl]
 	jr z, jr_018_4aa0
 
-	call Call_18_480D
-	call Call_18_4970
-	call Call_18_49F8
-	call Call_18_5006
+	call VSResultDrawListNames
+	call VSResultDrawCursorMonName
+	call VSResultDrawCursorMonLevel
+	call CopyTilemapBufferToVram_18
 
 jr_018_4aa0:
 	ld a, [wJoyPressed]
@@ -1459,9 +1738,9 @@ jr_018_4aa0:
 
 	ld hl, $0251
 	call PrintSystemText
-	call Call_18_5142
-	call Call_18_4D38
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawKindMenu
+	call CopyTilemapBufferToVram_18
 	ld a, $1d
 	ld [wTitleStep], a
 	jr jr_018_4aeb
@@ -1498,30 +1777,34 @@ jr_018_4aeb:
 	ret
 
 
-	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff, $0b, $01, $21, $00
+VSReplaceListCursor::
+	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
+
+VSReplaceEggListCursor::
+	db $0b, $01, $21, $00
 	db $61, $00, $a1, $00, $e1, $00, $ff, $ff
 
-Jump_18_4B04::
+VSResultReplacePicked::
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Jump_18_4B09::
+VSResultShowInfoOk::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_18_5142
-	call Call_18_4B1C
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawInfoOk
+	call CopyTilemapBufferToVram_18
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_18_4B1C::
-	call Call_18_47D4
+VSResultDrawInfoOk::
+	call VSResultDrawListWindows
 	ld de, $54f9
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -1530,8 +1813,8 @@ Call_18_4B1C::
 	ld de, $5523
 
 jr_018_4b2c:
-	call Call_18_4FD5
-	call Call_18_5244
+	call DrawWindowLayout_18
+	call MenuResetBlink_18
 	ld de, $4bb8
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -1541,11 +1824,11 @@ jr_018_4b2c:
 
 jr_018_4b3f:
 	ld a, [wLinkRefused]
-	call Call_18_5303
+	call MenuDrawCursorAt_18
 	ret
 
 
-Jump_18_4B46::
+VSResultInfoOkInput::
 	ld de, $4bb8
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -1556,16 +1839,16 @@ Jump_18_4B46::
 jr_018_4b53:
 	ld hl, wLinkRefused
 	ld b, $02
-	call Call_18_51EB
+	call MoveMenuCursor_18
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4b80
 
-	call Call_18_5142
-	call Call_18_4970
-	call Call_18_480D
-	call Call_18_47D4
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawCursorMonName
+	call VSResultDrawListNames
+	call VSResultDrawListWindows
+	call CopyTilemapBufferToVram_18
 	ld hl, wTitleStep
 	dec [hl]
 	ld hl, wTitleStep
@@ -1611,11 +1894,18 @@ jr_018_4bb7:
 	ret
 
 
-	db $2e, $00, $6e, $00, $ff, $ff, $2d, $00, $6d, $00, $ff, $ff, $c5, $cd, $ee, $20
+VSInfoOkCursor::
+	db $2e, $00, $6e, $00, $ff, $ff
+
+VSEggInfoOkCursor::
+	db $2d, $00, $6d, $00, $ff, $ff
+
+UnusedCountSlot_18::
+	db $c5, $cd, $ee, $20
 	db $c1, $fe, $ff, $c8, $4f, $fa, $c0, $ca, $b9, $c8, $c5, $79, $21, $45, $a2, $cd
 	db $3b, $22, $cd, $ee, $20, $c1, $cb, $7f, $c0, $04, $c9
 
-Jump_18_4BE3::
+VSResultShowStatus::
 	xor a
 	ld [wMenuSubStep], a
 	xor a
@@ -1631,7 +1921,7 @@ Jump_18_4BE3::
 	ret
 
 
-Jump_18_4BF9::
+VSResultStatusDone::
 	ld de, $3f03
 	ld hl, $8800
 	call DecompressVRAM
@@ -1647,7 +1937,7 @@ Jump_18_4BF9::
 	ld [wTextIndex], a
 	ld hl, $96c0
 	ld de, $1001
-	call Call_18_503B
+	call DrawTextTiles_18
 	ld hl, $024d
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -1658,15 +1948,15 @@ Jump_18_4BF9::
 jr_018_4c34:
 	call PrintSystemText
 	call RunTextToEnd
-	call Call_18_5142
-	call Call_18_4970
-	call Call_18_480D
+	call ClearTilemapBuffer_18
+	call VSResultDrawCursorMonName
+	call VSResultDrawListNames
 	ld a, $14
 	ld [wTitleStep], a
 	ret
 
 
-Jump_18_4C49::
+VSResultReplaceMonster::
 	ld a, [wListPage]
 	add a
 	add a
@@ -1700,11 +1990,11 @@ jr_018_4c76:
 	ld hl, wPartyCount
 	ld de, sPartyCount
 	ld bc, $0007
-	call Call_18_4604
+	call CopyFromSRAM_18
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
-	call Call_18_4604
+	call CopyFromSRAM_18
 	ei
 	ld hl, wLibraryFlags
 	ld a, [$d703]
@@ -1733,7 +2023,7 @@ jr_018_4cb0:
 	ld hl, wLibraryFlags
 	ld de, sLibraryFlags
 	ld bc, $0020
-	call Call_18_4617
+	call CopyToSRAM_18
 	call SaveMonsters
 	ei
 	ld a, [wLinkPartnerChoice]
@@ -1749,7 +2039,7 @@ jr_018_4cd8:
 	ret
 
 
-Jump_18_4CDD::
+VSResultEnd::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -1783,7 +2073,7 @@ Jump_18_4CDD::
 	ret
 
 
-Jump_18_4D1A::
+VSResultAskKind::
 	ld hl, $0251
 	call PrintSystemText
 	ld hl, wTitleStep
@@ -1791,44 +2081,44 @@ Jump_18_4D1A::
 	ret
 
 
-Jump_18_4D25::
+VSResultShowKindMenu::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_18_5142
-	call Call_18_4D38
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawKindMenu
+	call CopyTilemapBufferToVram_18
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
-Call_18_4D38::
-	call Call_18_463D
+VSResultDrawKindMenu::
+	call VSResultDrawReplaceYesNo
 	ld de, $5552
-	call Call_18_4FD5
-	call Call_18_5244
+	call DrawWindowLayout_18
+	call MenuResetBlink_18
 	ld de, $4d90
 	ld a, [wLinkPartnerChoice]
-	call Call_18_5303
+	call MenuDrawCursorAt_18
 	ret
 
 
-Jump_18_4D4E::
+VSResultKindInput::
 	ld de, $4d90
 	ld hl, wLinkPartnerChoice
 	ld b, $02
-	call Call_18_51EB
+	call MoveMenuCursor_18
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4d76
 
 	ld hl, $024f
 	call PrintSystemText
-	call Call_18_5142
-	call Call_18_463D
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawReplaceYesNo
+	call CopyTilemapBufferToVram_18
 	ld a, $0e
 	ld [wTitleStep], a
 	jr jr_018_4d8f
@@ -1851,33 +2141,34 @@ jr_018_4d8f:
 	ret
 
 
+VSKindMenuCursor::
 	db $2f, $00, $6f, $00, $ff, $ff
 
-Jump_18_4D96::
+VSResultNoEgg::
 	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0251
 	call PrintSystemText
-	call Call_18_5142
-	call Call_18_4D38
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawKindMenu
+	call CopyTilemapBufferToVram_18
 	ld a, $1d
 	ld [wTitleStep], a
 	ret
 
 
-Jump_18_4DB0::
+VSResultBackToList::
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_18_5142
-	call Call_18_4970
-	call Call_18_480D
-	call Call_18_47D4
-	call Call_18_5006
+	call ClearTilemapBuffer_18
+	call VSResultDrawCursorMonName
+	call VSResultDrawListNames
+	call VSResultDrawListWindows
+	call CopyTilemapBufferToVram_18
 	ld hl, $024d
 	ld a, [wLinkPartnerChoice]
 	and $01
@@ -1892,8 +2183,8 @@ jr_018_4dd1:
 	ret
 
 
-Call_18_4DDA::
-	call Call_18_42D1
+VSResultDrawGiver::
+	call VSPrizeRecordSlot
 	cp $ff
 	ret z
 
@@ -1913,16 +2204,16 @@ Call_18_4DDA::
 	cp $18
 	ret z
 
-	ld a, [wLinkChoice]
-	call Call_18_4DFC
+	ld a, [wMenuChoice]
+	call DrawTrainerSpriteFlipped
 	ret
 
 
-Call_18_4DFC::
+DrawTrainerSpriteFlipped::
 	ld c, $20
 	jr jr_018_4e02
 
-Call_18_4E00::
+DrawTrainerSprite::
 	ld c, $00
 
 jr_018_4e02:
@@ -1958,7 +2249,7 @@ jr_018_4e20:
 	ret
 
 
-Call_18_4E2C::
+DrawPrizeMonsterSprite::
 	ld c, $20
 	jr jr_018_4e32
 
@@ -1979,7 +2270,7 @@ jr_018_4e32:
 	push bc
 	push de
 	push hl
-	call Call_18_42D1
+	call VSPrizeRecordSlot
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
@@ -1992,7 +2283,7 @@ jr_018_4e32:
 	push bc
 	push de
 	push hl
-	call Call_18_42D1
+	call VSPrizeRecordSlot
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
@@ -2034,7 +2325,7 @@ jr_018_4e7f:
 	ret
 
 
-Call_18_4E8F::
+DrawBannerLetter::
 	push af
 	ld de, $4f46
 	ld a, [wBattlerReload]
@@ -2064,10 +2355,10 @@ jr_018_4e9c:
 	ret z
 
 	add $80
-	call Call_18_4ED1
+	call PutBufferAndBgTile
 	inc hl
 	inc a
-	call Call_18_4ED1
+	call PutBufferAndBgTile
 	push af
 	ld a, l
 	add $1f
@@ -2077,14 +2368,14 @@ jr_018_4e9c:
 	ld h, a
 	pop af
 	inc a
-	call Call_18_4ED1
+	call PutBufferAndBgTile
 	inc hl
 	inc a
-	call Call_18_4ED1
+	call PutBufferAndBgTile
 	ret
 
 
-Call_18_4ED1::
+PutBufferAndBgTile::
 	push hl
 	push af
 	ld a, l
@@ -2110,22 +2401,22 @@ Call_18_4ED1::
 	ret
 
 
-Call_18_4EEE::
+DrawBannerToBuffer::
 	ld a, $00
-	call Call_18_4F0E
+	call DrawBannerLetterToBuffer
 	ld a, $01
-	call Call_18_4F0E
+	call DrawBannerLetterToBuffer
 	ld a, $02
-	call Call_18_4F0E
+	call DrawBannerLetterToBuffer
 	ld a, $04
-	call Call_18_4F0E
+	call DrawBannerLetterToBuffer
 	ld a, $05
-	call Call_18_4F0E
+	call DrawBannerLetterToBuffer
 	ld a, $06
-	call Call_18_4F0E
+	call DrawBannerLetterToBuffer
 	ld a, $07
 
-Call_18_4F0E::
+DrawBannerLetterToBuffer::
 	push af
 	ld de, $4f46
 	ld a, [wBattlerReload]
@@ -2173,9 +2464,13 @@ jr_018_4f1b:
 	ret
 
 
-	db $00, $04, $08, $ff, $0c, $10, $14, $18, $00, $04, $08, $ff, $1c, $04, $20, $24
+WinBannerLetters::
+	db $00, $04, $08, $ff, $0c, $10, $14, $18
 
-Call_18_4F56::
+LoseBannerLetters::
+	db $00, $04, $08, $ff, $1c, $04, $20, $24
+
+NextBgColumn_18::
 	push af
 	ld a, l
 	and $e0
@@ -2191,7 +2486,7 @@ Call_18_4F56::
 	ret
 
 
-Call_18_4F65::
+TitleBgAddr_18::
 	ld a, [wTitleBgMap]
 	add l
 	ld l, a
@@ -2206,7 +2501,7 @@ Call_18_4F65::
 	ret
 
 
-Call_18_4F79::
+TilemapBufferAddr_18::
 	ld a, l
 	add $00
 	ld l, a
@@ -2216,13 +2511,13 @@ Call_18_4F79::
 	ret
 
 
-Call_18_4F82::
+TitleBgAddrWrapped_18::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_18_4F65
+	call TitleBgAddr_18
 	ld a, b
 	and $1f
 	jr z, jr_018_4f97
@@ -2230,7 +2525,7 @@ Call_18_4F82::
 	ld b, a
 
 jr_018_4f91:
-	call Call_18_4F56
+	call NextBgColumn_18
 	dec b
 	jr nz, jr_018_4f91
 
@@ -2239,19 +2534,20 @@ jr_018_4f97:
 	ret
 
 
+DrawLayoutToVram_18::
 	db $1a, $6f, $13, $1a, $67, $13, $cd, $82, $4f, $7d, $e0, $d5, $7c, $e0, $d6, $1a
 	db $13, $fe, $d9, $c8, $fe, $d8, $20, $1c, $f0, $d5, $6f, $f0, $d6, $67, $7d, $c6
 	db $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67, $7d, $e0, $d5, $7c
 	db $e0, $d6, $18, $db, $cd, $ad, $1a, $cd, $56, $4f, $18, $d3
 
-Call_18_4FD5::
+DrawWindowLayout_18::
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_18_4F79
+	call TilemapBufferAddr_18
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
@@ -2286,7 +2582,7 @@ jr_018_5003:
 	ld [hli], a
 	jr jr_018_4fe4
 
-Call_18_5006::
+CopyTilemapBufferToVram_18::
 	ld a, [wTitleBgMap]
 	ld l, a
 	ld a, [$c8d7]
@@ -2330,7 +2626,7 @@ jr_018_5016:
 	ret
 
 
-Call_18_503B::
+DrawTextTiles_18::
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
@@ -2364,7 +2660,7 @@ Call_18_503B::
 	ret
 
 
-Call_18_5074::
+DrawNameTiles_18::
 	push hl
 	ld hl, wTextArg0
 	call CopyName
@@ -2407,16 +2703,20 @@ Call_18_5074::
 	ret
 
 
+DrawCharTile_18::
 	db $ea, $80, $c1, $3e, $f0, $ea, $81, $c1, $fa, $27, $c8, $4f, $fa, $28, $c8, $47
 	db $c5, $fa, $29, $c8, $4f, $fa, $2a, $c8, $47, $c5, $7d, $ea, $27, $c8, $7c, $ea
 	db $28, $c8, $11, $01, $01, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $3e, $02, $ea
 	db $22, $c8, $3e, $00, $ea, $23, $c8, $21, $02, $41, $d7, $d1, $e1, $7d, $ea, $27
-	db $c8, $7c, $ea, $28, $c8, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $c9, $21, $00
+	db $c8, $7c, $ea, $28, $c8, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $c9
+
+UnusedCopyScreen_18::
+	db $21, $00
 	db $c5, $11, $00, $c3, $01, $00, $02, $1a, $13, $22, $0b, $78, $b1, $20, $f8, $11
 	db $c0, $c1, $0e, $02, $06, $14, $1a, $13, $22, $05, $20, $fa, $7b, $c6, $0c, $5f
 	db $7a, $ce, $00, $57, $7d, $c6, $0c, $6f, $7c, $ce, $00, $67, $0d, $20, $e5, $c9
 
-Call_18_5142::
+ClearTilemapBuffer_18::
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
@@ -2431,10 +2731,11 @@ jr_018_5148:
 	ret
 
 
+ClearBgMap_18::
 	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
 	db $c9
 
-Call_18_5162::
+MovePagedListCursor_18::
 	ld a, c
 	ld [wListLastRows], a
 	inc de
@@ -2526,7 +2827,7 @@ jr_018_51c9:
 	push bc
 	push de
 	push hl
-	call Call_18_52A8
+	call DrawListPageNumber_18
 	pop hl
 	pop de
 	pop bc
@@ -2544,13 +2845,13 @@ jr_018_51c9:
 	inc hl
 	ld a, [hld]
 	cp c
-	jr nz, Call_18_51EB
+	jr nz, MoveMenuCursor_18
 
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
-Call_18_51EB::
+MoveMenuCursor_18::
 	res 7, [hl]
 	ld a, [wJoyRepeat]
 	bit 6, a
@@ -2597,21 +2898,22 @@ jr_018_5214:
 
 jr_018_521d:
 	ld a, [hl]
-	call Call_18_5249
+	call MenuDrawCursorMarks_18
 	ret
 
 
+MoveMenuCursorSideways_18::
 	db $cb, $be, $fa, $47, $c8, $cb, $6f, $28, $09, $7e, $3d, $b8, $38, $db, $05, $78
 	db $18, $d7, $fa, $47, $c8, $cb, $67, $28, $d9, $7e, $3c, $b8, $38, $cb, $3e, $00
 	db $18, $c7
 
-Call_18_5244::
+MenuResetBlink_18::
 	xor a
 	ld [wTitleBlink], a
 	ret
 
 
-Call_18_5249::
+MenuDrawCursorMarks_18::
 	ld c, a
 	bit 7, a
 	jr nz, jr_018_525e
@@ -2647,7 +2949,7 @@ jr_018_5261:
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_18_4F82
+	call TitleBgAddrWrapped_18
 	pop bc
 	pop de
 	ld a, c
@@ -2685,7 +2987,7 @@ jr_018_5291:
 	inc b
 	jr jr_018_5261
 
-Call_18_52A8::
+DrawListPageNumber_18::
 	ld a, b
 	cp c
 	ret nc
@@ -2711,7 +3013,7 @@ Call_18_52A8::
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_18_4F82
+	call TitleBgAddrWrapped_18
 	pop bc
 	pop de
 	ld a, c
@@ -2734,7 +3036,7 @@ Call_18_52A8::
 	ret
 
 
-Call_18_52E1::
+MenuDrawListCursor_18::
 	ld a, [hli]
 	push af
 	push hl
@@ -2769,7 +3071,7 @@ jr_018_52fa:
 jr_018_5302:
 	pop af
 
-Call_18_5303::
+MenuDrawCursorAt_18::
 	ld c, a
 	add a
 	add e
@@ -2788,7 +3090,7 @@ Call_18_5303::
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_18_4F82
+	call TitleBgAddrWrapped_18
 	pop bc
 	pop de
 	ld a, $e9
@@ -2819,7 +3121,7 @@ jr_018_532e:
 	ret
 
 
-Call_18_5340::
+LoadPartyPictures_18::
 	ld a, [wPartyCount]
 	or a
 	ret z
@@ -2828,7 +3130,7 @@ Call_18_5340::
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	ld hl, $9000
-	call Call_18_5378
+	call LoadMonsterPicture_18
 	ld a, [wPartyCount]
 	cp $01
 	ret z
@@ -2837,7 +3139,7 @@ Call_18_5340::
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	ld hl, $9240
-	call Call_18_5378
+	call LoadMonsterPicture_18
 	ld a, [wPartyCount]
 	cp $02
 	ret z
@@ -2847,7 +3149,7 @@ Call_18_5340::
 	call GetPartyMonsterByte
 	ld hl, $9480
 
-Call_18_5378::
+LoadMonsterPicture_18::
 	cp $ff
 	ret z
 
@@ -2869,7 +3171,7 @@ Call_18_5378::
 	ret
 
 
-Call_18_5390::
+DrawPartyPictures_18::
 	ld a, [wPartyCount]
 	cp $03
 	jr z, jr_018_53cb
@@ -2879,55 +3181,55 @@ Call_18_5390::
 
 	ld a, $00
 	ld hl, $00c7
-	call Call_18_53F8
+	call DrawPictureTiles_18
 	ld a, $00
 	ld hl, $00c7
-	call Call_18_5410
+	call SetPartyPicturePalette_18
 	ret
 
 
 jr_018_53ac:
 	ld a, $00
 	ld hl, $00c4
-	call Call_18_53F8
+	call DrawPictureTiles_18
 	ld hl, $00ca
-	call Call_18_53F8
+	call DrawPictureTiles_18
 	ld a, $00
 	ld hl, $00c4
-	call Call_18_5410
+	call SetPartyPicturePalette_18
 	ld a, $01
 	ld hl, $00ca
-	call Call_18_5410
+	call SetPartyPicturePalette_18
 	ret
 
 
 jr_018_53cb:
 	ld a, $00
 	ld hl, $00c1
-	call Call_18_53F8
+	call DrawPictureTiles_18
 	ld hl, $00c7
-	call Call_18_53F8
+	call DrawPictureTiles_18
 	ld hl, $00cd
-	call Call_18_53F8
+	call DrawPictureTiles_18
 	ld a, $00
 	ld hl, $00c1
-	call Call_18_5410
+	call SetPartyPicturePalette_18
 	ld a, $01
 	ld hl, $00c7
-	call Call_18_5410
+	call SetPartyPicturePalette_18
 	ld a, $02
 	ld hl, $00cd
-	call Call_18_5410
+	call SetPartyPicturePalette_18
 	ret
 
 
-Call_18_53F8::
+DrawPictureTiles_18::
 	ld c, $06
 
 jr_018_53fa:
 	push hl
 	push af
-	call Call_18_4F79
+	call TilemapBufferAddr_18
 	pop af
 	ld b, $06
 
@@ -2946,10 +3248,10 @@ jr_018_5402:
 	ret
 
 
-Call_18_5410::
+SetPartyPicturePalette_18::
 	push af
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 	pop af
@@ -2960,7 +3262,7 @@ Call_18_5410::
 	ld [wPaletteSet], a
 	pop af
 	add $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 	ld hl, far_LoadMonPicPalette
 	rst $10
 	ld hl, far_UploadCGBPalettes
@@ -2968,26 +3270,26 @@ Call_18_5410::
 	ret
 
 
-Call_18_5434::
+PrintTwoDigits_18::
 	ld de, $000a
 	push bc
-	call Call_18_5450
+	call DivideBCByDE_18
 	pop bc
 	or a
 	jr z, jr_018_544b
 
 	ld de, $000a
-	call Call_18_5450
-	call Call_18_5465
-	call Call_18_546B
+	call DivideBCByDE_18
+	call WriteDigitTile_18
+	call NextBgColumn2_18
 
 jr_018_544b:
 	ld a, c
-	call Call_18_5465
+	call WriteDigitTile_18
 	ret
 
 
-Call_18_5450::
+DivideBCByDE_18::
 	push hl
 	ld h, $ff
 
@@ -3012,13 +3314,13 @@ jr_018_5453:
 	ret
 
 
-Call_18_5465::
+WriteDigitTile_18::
 	add $f0
 	call WriteVRAM
 	ret
 
 
-Call_18_546B::
+NextBgColumn2_18::
 	push af
 	ld a, l
 	and $e0
@@ -3034,22 +3336,38 @@ Call_18_546B::
 	ret
 
 
+VSReplaceYesNoWindow::
 	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $a9, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
+	db $ee, $ee, $ee, $fd, $d9
+
+VSReplaceListWindow::
+	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $6c, $6d, $6e, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe
 	db $e0, $00, $01, $02, $03, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $04, $05, $06, $07, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $08, $09, $0a, $0b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $0c, $0d, $0e, $0f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0d
+	db $e0, $0c, $0d, $0e, $0f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+VSInfoOkWindow::
+	db $0d
 	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $6f, $70, $71, $72, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $73, $74, $e0, $e0, $ff
-	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0c, $00, $fa, $ef, $ef, $ef, $ef
+	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+VSEggInfoOkWindow::
+	db $0c, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $6f, $70, $71, $72, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $73, $74, $e0, $e0, $e0, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $0e, $00, $fa, $ef, $ef, $ef, $ef, $fb
+	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+VSKindWindow::
+	db $0e, $00, $fa, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $75, $76, $77, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $78, $79, $7a, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa
+	db $e0, $78, $79, $7a, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+VSEggListWindow::
+	db $00, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $00
 	db $01, $02, $03, $04, $05, $06, $07, $08, $24, $ff, $d8, $fe, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $09, $0a, $0b, $0c, $0d
@@ -3057,10 +3375,19 @@ Call_18_546B::
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $12, $13, $14, $15, $16, $17, $18, $19, $1a
 	db $26, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $1b, $1c, $1d, $1e, $1f, $20, $21, $22, $23, $27, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $40, $01, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+VSCursorMonWindow::
+	db $40, $01, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $10
 	db $11, $12, $13, $14, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9, $1f, $56, $94, $56, $89, $58, $51, $5a, $a8, $5a, $a2, $5b, $31
+	db $ee, $fd, $d9
+
+TextGroups_18::
+	db $1f, $56
+
+TextGroup_18_0::
+	db $94, $56, $89, $58, $51, $5a, $a8, $5a, $a2, $5b, $31
 	db $5c, $dd, $5c, $15, $5d, $c2, $5d, $8a, $5e, $7a, $5f, $a6, $5f, $b8, $60, $4b
 	db $61, $90, $61, $3e, $62, $47, $63, $a7, $63, $bf, $64, $e9, $64, $61, $65, $c9
 	db $65, $ca, $66, $ea, $66, $09, $67, $2a, $67, $48, $67, $69, $67, $89, $67, $b1
@@ -3068,24 +3395,25 @@ Call_18_546B::
 	db $6b, $55, $6b, $b0, $6b, $a0, $6c, $32, $6d, $75, $6d, $b6, $6d, $3d, $6e, $f3
 	db $6e, $31, $6f, $4e, $6f
 
-Call_18_567F::
+StartText_18::
 	ld de, $561d
 	call StartText
 	ret
 
 
-Call_18_5686::
+CopyText_18::
 	ld de, $561d
 	call CopyTextString
 	ret
 
 
-Call_18_568D::
-	call Call_18_567F
+PrintText_18::
+	call StartText_18
 	call RunTextToEnd
 	ret
 
 
+Texts_18::
 	db $ea, $9f, $a3, $2b, $3e, $62, $45, $3e, $62, $45, $3e, $63, $ef, $ee, $fa, $f7
 	db $ef, $ee, $9f, $a3, $2d, $52, $50, $51, $62, $3f, $42, $40, $3e, $52, $50, $42
 	db $62, $2c, $ef, $ee, $49, $42, $51, $62, $56, $4c, $52, $62, $4d, $49, $3e, $56

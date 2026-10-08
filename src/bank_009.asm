@@ -1681,8 +1681,8 @@ ShopInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(addr(wLinkChoice), 0, 8)              # the menu cursors
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)              # the menu cursors
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -1747,7 +1747,7 @@ ShopOpenMenu::
 ;@ def DrawShopMainMenu()
 ;@ path: item/shop
 ;@ Draws the Buy / Sell / Quit window, the gold window with the purse, and the message window
-;@ (layout $2E07 in bank 0) into wTilemapBuffer, with the cursor at wLinkChoice.
+;@ (layout $2E07 in bank 0) into wTilemapBuffer, with the cursor at wMenuChoice.
 ;@ test: skip uses the home number routines
 DrawShopMainMenu::
 ;> DrawWindowLayout9(ShopMainMenuLayout)
@@ -1772,21 +1772,21 @@ DrawShopMainMenu::
 	call PrintNumber5
 ;> ResetCursorBlink9()
 	call ResetCursorBlink9
-;> DrawCursorAt9(wLinkChoice, ShopMainMenuCursor)
+;> DrawCursorAt9(wMenuChoice, ShopMainMenuCursor)
 	ld de, ShopMainMenuCursor
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt9
 	ret
 
 
 ;@ def ShopMainMenuInput()
 ;@ path: item/shop
-;@ Buy / Sell / Quit: B or Start leaves the shop, A picks the option (wLinkChoice gets bit 7).
+;@ Buy / Sell / Quit: B or Start leaves the shop, A picks the option (wMenuChoice gets bit 7).
 ;@ test: skip draws to VRAM
 ShopMainMenuInput::
-;> UpdateMenuCursor9(wLinkChoice, 3, ShopMainMenuCursor)
+;> UpdateMenuCursor9(wMenuChoice, 3, ShopMainMenuCursor)
 	ld de, ShopMainMenuCursor
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $03
 	call UpdateMenuCursor9
 ;> if wJoyPressed & 0x0A:               # B or Start
@@ -1816,8 +1816,8 @@ ShopMainMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
 ;>     fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
@@ -1846,8 +1846,8 @@ ShopMainMenuCursor::
 ;@ Runs the chosen shop option.
 ;@ test: skip jumps through a table
 ShopRunOption::
-;> return ShopOptionTable[wLinkChoice & 0x7F]()     # (bit 7 is ignored by the jump)
-	ld a, [wLinkChoice]
+;> return ShopOptionTable[wMenuChoice & 0x7F]()     # (bit 7 is ignored by the jump)
+	ld a, [wMenuChoice]
 	rst $00
 
 ;@ path: item/shop
@@ -3682,8 +3682,8 @@ VaultInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(addr(wLinkChoice), 0, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -3754,7 +3754,7 @@ VaultOpenMenu::
 ;@ def DrawVaultMainMenu()
 ;@ path: item/vault
 ;@ Renders the menu words (system text $020B) into tiles $8A40 and draws the vault's menu window,
-;@ the gold window with the purse and the message window, cursor at wLinkChoice.
+;@ the gold window with the purse and the message window, cursor at wMenuChoice.
 ;@ test: skip far call
 DrawVaultMainMenu::
 ;> wTextGroup = 2
@@ -3789,9 +3789,9 @@ DrawVaultMainMenu::
 	call PrintNumber5
 ;> ResetCursorBlink9()
 	call ResetCursorBlink9
-;> DrawCursorAt9(wLinkChoice, VaultMainMenuCursor)
+;> DrawCursorAt9(wMenuChoice, VaultMainMenuCursor)
 	ld de, VaultMainMenuCursor
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt9
 	ret
 
@@ -3808,9 +3808,9 @@ VaultMainMenuInput::
 	or a
 	ret nz
 
-;> UpdateMenuCursor9(wLinkChoice, 3, VaultMainMenuCursor)
+;> UpdateMenuCursor9(wMenuChoice, 3, VaultMainMenuCursor)
 	ld de, VaultMainMenuCursor
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld b, $03
 	call UpdateMenuCursor9
 ;> if wJoyPressed & 0x0A:               # B or Start
@@ -3839,9 +3839,9 @@ VaultMainMenuInput::
 ;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;>     if wLinkChoice == 0x82:         # Quit
+;>     if wMenuChoice == 0x82:         # Quit
 ;>         return VaultClose()
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	cp $82
 	jp z, VaultClose
 
@@ -3851,17 +3851,17 @@ VaultMainMenuInput::
 ;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
 ;>     fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
-;>@pm     PrintMenuText9(3 if (wLinkChoice & 0x7F) == 0 else 14)
+;>@pm     PrintMenuText9(3 if (wMenuChoice & 0x7F) == 0 else 14)
 	ld hl, $0003
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $7f
 	jr z, .print
 
@@ -4030,8 +4030,8 @@ VaultWhatMenuInput::
 ;@ Runs Deposit or Withdraw.
 ;@ test: skip jumps through a table
 VaultRunOption::
-;> return VaultDirectionTable[wLinkChoice & 0x7F]()
-	ld a, [wLinkChoice]
+;> return VaultDirectionTable[wMenuChoice & 0x7F]()
+	ld a, [wMenuChoice]
 	rst $00
 
 ;@ path: item/vault
@@ -6393,8 +6393,8 @@ ArenaEntryInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(addr(wLinkChoice), 0, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -6458,8 +6458,8 @@ ArenaEntryOpen::
 ;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
-;> fill(addr(wLinkChoice), 0, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7160,8 +7160,8 @@ GalleryInit::
 ;> SnapToTile9(hScrollY)
 	ld hl, hScrollY
 	call SnapToTile9
-;> fill(addr(wLinkChoice), 0, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -7531,7 +7531,7 @@ GalleryEntryFlags::
 GalleryInput::
 ;>@pg pages = 2 if wListLength >= 9 else 1
 	ld de, GalleryPageCursor
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld c, $01
 	ld a, [wListLength]
 	cp $09
@@ -7545,7 +7545,7 @@ GalleryInput::
 	ld b, $01
 	ld a, [wMenuChoice2]
 	push af
-;> UpdatePagedList9(wLinkChoice, GalleryPageCursor, 1, pages)    # one "row" per page
+;> UpdatePagedList9(wMenuChoice, GalleryPageCursor, 1, pages)    # one "row" per page
 	call UpdatePagedList9
 ;> if wMenuChoice2 != old_page:
 ;>     LoadGalleryPage()
@@ -7744,8 +7744,8 @@ NameEntryInit::
 	call FillMemory
 ;> LoadCurrentName()
 	call LoadCurrentName
-;> fill(addr(wLinkChoice), 0, 8)
-	ld hl, wLinkChoice
+;> fill(addr(wMenuChoice), 0, 8)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -8030,7 +8030,7 @@ DrawNameEntryScreen::
 
 ;@ def NameEntryInput()
 ;@ path: menu/names
-;@ One frame of typing a name. The keyboard is 5 rows (wMenuChoice2) of 17 columns (wLinkChoice),
+;@ One frame of typing a name. The keyboard is 5 rows (wMenuChoice2) of 17 columns (wMenuChoice),
 ;@ key = row * 17 + column; some keys are gaps the cursor jumps over (row 4 columns 7-12, rows 3-4
 ;@ columns 14-16). Key $40 is Back, $51 End. B or Back erases (the first B on Terry's default name
 ;@ erases all of it), A types the letter shown on the key, Start puts the cursor on End. A name
@@ -8048,32 +8048,32 @@ NameEntryInput::
 	cp $03
 	jr c, .leftUpper
 
-;>         wLinkChoice = u8(wLinkChoice - 1)
-;>@la         if wLinkChoice >= 17: wLinkChoice = 13
-	ld a, [wLinkChoice]
+;>         wMenuChoice = u8(wMenuChoice - 1)
+;>@la         if wMenuChoice >= 17: wMenuChoice = 13
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	cp $11
 	jp c, .moved
 
 ;=@la
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jp .moved
 
 .leftUpper
 ;>     else:
-;>         wLinkChoice = u8(wLinkChoice - 1)
-;>@lb         if wLinkChoice >= 17: wLinkChoice = 16
-	ld a, [wLinkChoice]
+;>         wMenuChoice = u8(wMenuChoice - 1)
+;>@lb         if wMenuChoice >= 17: wMenuChoice = 16
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	cp $11
 	jp c, .moved
 
 ;=@lb
 	ld a, $10
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jp .moved
 
 .right
@@ -8082,17 +8082,17 @@ NameEntryInput::
 	bit 4, a
 	jr z, .up
 
-;>     wLinkChoice += 1
-;>@rr     if wLinkChoice >= 17: wLinkChoice = 0
-	ld a, [wLinkChoice]
+;>     wMenuChoice += 1
+;>@rr     if wMenuChoice >= 17: wMenuChoice = 0
+	ld a, [wMenuChoice]
 	inc a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	cp $11
 	jp c, .moved
 
 ;=@rr
 	ld a, $00
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jp .moved
 
 .up
@@ -8101,15 +8101,15 @@ NameEntryInput::
 	bit 6, a
 	jr z, .down
 
-;>     if wLinkChoice < 6:
+;>     if wMenuChoice < 6:
 ;>@ul         wMenuChoice2 = 4 if wMenuChoice2 == 0 else wMenuChoice2 - 1
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	cp $06
 	jr c, .upLeft
 
-;>     elif wLinkChoice >= 13:         # the Back / End column
+;>     elif wMenuChoice >= 13:         # the Back / End column
 ;>@ur         wMenuChoice2 = u8(wMenuChoice2 - 1)
-;>@us         if wMenuChoice2 >= 5: wMenuChoice2 = 4; wLinkChoice = 13
+;>@us         if wMenuChoice2 >= 5: wMenuChoice2 = 4; wMenuChoice = 13
 	cp $0d
 	jp nc, .upRight
 
@@ -8138,7 +8138,7 @@ NameEntryInput::
 	ld a, $04
 	ld [wMenuChoice2], a
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jr .moved
 
 .upLeft
@@ -8160,16 +8160,16 @@ NameEntryInput::
 	bit 7, a
 	jp z, .input
 
-;>@d1     if wLinkChoice < 6 or (wLinkChoice >= 13 and wMenuChoice2 < 2):
+;>@d1     if wMenuChoice < 6 or (wMenuChoice >= 13 and wMenuChoice2 < 2):
 ;>@dl         wMenuChoice2 = (wMenuChoice2 + 1) % 5
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	cp $06
 	jr c, .downLeft
 
 	cp $0d
 	jr nc, .downRight
 
-;>     elif wLinkChoice < 13:
+;>     elif wMenuChoice < 13:
 ;>@dm         wMenuChoice2 = (wMenuChoice2 + 1) % 4     # rows 0-3
 	ld a, [wMenuChoice2]
 	inc a
@@ -8184,16 +8184,16 @@ NameEntryInput::
 
 .downRight
 ;>     else:
-;>@dr         wLinkChoice = 13; wMenuChoice2 = (wMenuChoice2 + 1) % 5
+;>@dr         wMenuChoice = 13; wMenuChoice2 = (wMenuChoice2 + 1) % 5
 ;=@d1
 	ld a, [wMenuChoice2]
 	cp $02
 	jr c, .downLeft
 
 ;=@dr
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
@@ -8223,26 +8223,26 @@ NameEntryInput::
 ;>     wCursorBlink = 0
 	xor a
 	ld [wCursorBlink], a
-;>     key = wMenuChoice2 * 17 + wLinkChoice
+;>     key = wMenuChoice2 * 17 + wMenuChoice
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	add l
 ;>     if key == 0x4A:                 # row 4, column 6
 	cp $4a
 	jr nz, .not4A
 
-;>@g1         wLinkChoice = 13 if wJoyRepeat & 0x10 else 6
+;>@g1         wMenuChoice = 13 if wJoyRepeat & 0x10 else 6
 	ld a, $06
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, .input
 
 ;=@g1
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jr .input
 
 .not4A
@@ -8250,21 +8250,21 @@ NameEntryInput::
 	cp $50
 	jr nz, .not50
 
-;>@g2         wLinkChoice = 5 if wJoyRepeat & 0x20 else 13
+;>@g2         wMenuChoice = 5 if wJoyRepeat & 0x20 else 13
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, [wJoyRepeat]
 	bit 5, a
 	jr z, .input
 
 ;=@g2
 	ld a, $05
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jr .input
 
 .not50
 ;>@g3     elif key in (0x41, 0x42, 0x43, 0x52, 0x53, 0x54):   # rows 3-4, columns 14-16
-;>@g4         wLinkChoice = 0 if wJoyRepeat & 0x10 else 10
+;>@g4         wMenuChoice = 0 if wJoyRepeat & 0x10 else 10
 	cp $41
 	jr z, .gap
 
@@ -8290,20 +8290,20 @@ NameEntryInput::
 .gap
 ;=@g4
 	ld a, $0a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, .input
 
 ;=@g4
 	ld a, $00
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	jr .input
 
 .input
 ;> DrawKeyboardCursor()
 	call DrawKeyboardCursor
-;> if wJoyPressed & 0x02 or (wJoyPressed & 0x01 and wMenuChoice2 * 17 + wLinkChoice == 0x40):   # B, or A on Back: erase
+;> if wJoyPressed & 0x02 or (wJoyPressed & 0x01 and wMenuChoice2 * 17 + wMenuChoice == 0x40):   # B, or A on Back: erase
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .checkA
@@ -8362,11 +8362,11 @@ NameEntryInput::
 	bit 0, a
 	jp z, .checkStart
 
-;>     key = wMenuChoice2 * 17 + wLinkChoice
+;>     key = wMenuChoice2 * 17 + wMenuChoice
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	add l
 ;>     if key == 0x51:                 # End: the name is done
 ;>         wMenuStep += 1; return
@@ -8502,10 +8502,10 @@ NameEntryInput::
 	cp $04
 	jr nz, .notFull
 
-;>         wLinkChoice = 13
+;>         wMenuChoice = 13
 ;>         wMenuChoice2 = 4            # cursor to End
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $04
 	ld [wMenuChoice2], a
 ;>         if ch not in (0x8D, 0x8E):
@@ -8632,7 +8632,7 @@ NameEntryInput::
 	ld c, $11
 	call Multiply
 ;=@rw
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	add l
 	ld b, a
 	ld a, $05
@@ -8647,10 +8647,10 @@ NameEntryInput::
 	cp $04
 	jr nz, .done
 
-;>         wLinkChoice = 13
+;>         wMenuChoice = 13
 ;>         wMenuChoice2 = 4
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $04
 	ld [wMenuChoice2], a
 	jr .done
@@ -8661,10 +8661,10 @@ NameEntryInput::
 	bit 3, a
 	jr z, .done
 
-;>     wLinkChoice = 13
+;>     wMenuChoice = 13
 ;>     wMenuChoice2 = 4
 	ld a, $0d
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $04
 	ld [wMenuChoice2], a
 	jr .done
@@ -9378,18 +9378,18 @@ ForbiddenNames::
 
 ;@ def DrawKeyboardCursor()
 ;@ path: menu/names
-;@ Draws the keyboard cursor: tile $A0 under the key wMenuChoice2 * 17 + wLinkChoice (from
+;@ Draws the keyboard cursor: tile $A0 under the key wMenuChoice2 * 17 + wMenuChoice (from
 ;@ KeyboardKeyPositions), tile $E0 under all others. A moving cursor blinks (redrawn every 16 calls,
 ;@ off while wCursorBlink bit 4 is set); one with bit 7 set (chosen) stays on. The wide keys are
 ;@ covered whole: key $40 is four tiles wide, key $51 three, keys $41-$43 and $52-$54 draw nothing.
 ;@ The screen offset is kept in hNumber / $FFD6 and the tile in $FFD7 for the two helpers below.
 ;@ test: skip writes VRAM
 DrawKeyboardCursor::
-;> cur = wMenuChoice2 * 17 + wLinkChoice
+;> cur = wMenuChoice2 * 17 + wMenuChoice
 	ld a, [wMenuChoice2]
 	ld c, $11
 	call Multiply
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	add l
 ;> keys = KeyboardKeyPositions
 	ld de, KeyboardKeyPositions

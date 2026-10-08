@@ -632,7 +632,7 @@ GateMapInit::
 	call RoundToTile_19
 	ld hl, hScrollY
 	call RoundToTile_19
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -894,6 +894,7 @@ GateRoomLayouts1::
 GateRoomLayouts2::
 	db $80, $55, $98, $56, $24, $57, $b0, $57, $3c, $58, $c8, $58, $18, $59, $7c, $59
 	db $e0, $59, $44, $5a, $a8, $5a, $f8, $5a, $34, $5b, $70, $5b, $ac, $5b, $7c, $54
+GateRoomTiles::
 	db $00, $00, $01, $00, $00, $0c, $01, $01, $01, $0d, $0a, $01, $01, $01, $0b, $00
 	db $00, $01, $00, $00, $00, $00, $0b, $00, $00, $07, $0c, $08, $00, $04, $03, $02
 	db $01, $0d, $0b, $00, $00, $01, $00, $00, $00, $00, $01, $00, $00, $07, $01, $01

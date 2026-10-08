@@ -13,52 +13,75 @@ FarTable_13::
 	dw RollLevelUpGains
 	dw RunBattleWipe
 
+;@ def GetExpForNextLevel()
+;@ path: monster/levels
+;@ Puts the experience total party member wCurPartyMember needs for its next level into
+;@ hNumber (24 bits, $FFD5-$FFD7): entry `level` of its species' table in ExpTables (the
+;@ species record byte 2 picks one of the 32 tables).
+;@ test: skip calls GetMonsterStats in another bank
 GetExpForNextLevel::
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da35]
+;> offset = Multiply24(wMonStats[2], 297)          # 99 levels x 3 bytes per table
+	ld a, [wMonStats + 2]
 	ld bc, $0129
 	call Multiply24
+;> table = ExpTables + offset
 	ld a, l
-	add $e6
+	add LOW(ExpTables)
 	ld l, a
 	ld a, h
-	adc $41
+	adc HIGH(ExpTables)
 	ld h, a
+;> level = mem[MonsterField(wCurPartyMember, wMonLevel)]
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
+;> entry = table + 2 * level
 	ld b, a
 	add a
 	pop hl
 	add l
 	ld l, a
 	ld a, $00
+;> entry += level                                   # 3 bytes per level
 	adc h
 	ld h, a
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
+;> mem[0xFFD5] = mem[entry]                         # hNumber, low byte first
 	adc h
 	ld h, a
 	ld a, [hli]
 	ldh [hNumber], a
+;> mem[0xFFD6] = mem[entry + 1]
 	ld a, [hli]
 	ldh [$ffd6], a
+;> mem[0xFFD7] = mem[entry + 2]
 	ld a, [hli]
 	ldh [$ffd7], a
 	ret
 
 
+;@ def SetExpForLevel()
+;@ path: monster/levels
+;@ Sets the experience of party member wCurPartyMember (wMonExp) to the minimum of its
+;@ current level: entry level - 1 of its species' table in ExpTables. Nothing for level 0.
+;@ test: skip calls GetMonsterStats in another bank
 SetExpForLevel::
+;> if mem[MonsterField(wCurPartyMember, wMonLevel)] == 0:
+;>     return
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -66,185 +89,247 @@ SetExpForLevel::
 	or a
 	ret z
 
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da35]
+;> offset = Multiply24(wMonStats[2], 297)
+	ld a, [wMonStats + 2]
 	ld bc, $0129
 	call Multiply24
+;> table = ExpTables + offset
 	ld a, l
-	add $e6
+	add LOW(ExpTables)
 	ld l, a
 	ld a, h
-	adc $41
+	adc HIGH(ExpTables)
 	ld h, a
+;> step = mem[MonsterField(wCurPartyMember, wMonLevel)] - 1
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	dec a
+;> entry = table + 2 * step
 	ld b, a
 	add a
 	pop de
 	add e
 	ld e, a
 	ld a, $00
+;> entry += step
 	adc d
 	ld d, a
 	ld a, b
 	add e
 	ld e, a
 	ld a, $00
+;> exp = MonsterField(wCurPartyMember, wMonExp)
 	adc d
 	ld d, a
 	push de
 	ld a, [wCurPartyMember]
 	ld hl, wMonExp
 	call MonsterField
+;> mem[exp] = mem[entry]
 	pop de
 	ld a, [de]
 	ld [hli], a
+;> mem[exp + 1] = mem[entry + 1]
 	inc de
 	ld a, [de]
 	ld [hli], a
+;> mem[exp + 2] = mem[entry + 2]
 	inc de
 	ld a, [de]
 	ld [hl], a
 	ret
 
 
+;@ def RollLevelUpGains()
+;@ path: monster/levels
+;@ Works out how much each stat of party member wCurPartyMember grows at a level-up and puts
+;@ it into wLevelGains (HP, MP, attack, defense, agility, intelligence). Each stat has its own
+;@ growth curve (species record bytes 9-14, see StatGrowthTables). HP and attack also get the
+;@ plus bonuses (AddPlusBonuses). Past the level limit (wMonMaxLevel - 1) the gains change.
+;@ test: skip calls GetMonsterStats in another bank
 RollLevelUpGains::
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
+;> wOverLevelLimit = 0
 	xor a
 	ld [wOverLevelLimit], a
+;> level = MonsterField(wCurPartyMember, wMonLevel)
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
+;> limit = mem[MonsterField(wCurPartyMember, wMonMaxLevel)] - 1
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxLevel
 	call MonsterField
 	ld a, [hl]
 	dec a
+;> if limit < mem[level]:
 	pop hl
 	cp [hl]
-	jr nc, jr_013_40e1
+	jr nc, .gains
 
+;>     wOverLevelLimit = 1
 	ld a, $01
 	ld [wOverLevelLimit], a
 
-jr_013_40e1:
-	ld a, [$da3c]
+.gains
+;> wLevelGains[0] = AddPlusBonuses(GetStatGain(wMonStats[9]))     # HP
+	ld a, [wMonStats + 9]
 	call GetStatGain
 	call AddPlusBonuses
 	ld [wLevelGains], a
-	ld a, [$da3d]
+;> wLevelGains[1] = GetStatGain(wMonStats[10])                    # MP
+	ld a, [wMonStats + 10]
 	call GetStatGain
-	ld [$c8cb], a
-	ld a, [$da3e]
+	ld [wLevelGains + 1], a
+;> wLevelGains[2] = AddPlusBonuses(GetStatGain(wMonStats[11]))    # attack
+	ld a, [wMonStats + 11]
 	call GetStatGain
 	call AddPlusBonuses
-	ld [$c8cc], a
-	ld a, [$da3f]
+	ld [wLevelGains + 2], a
+;> wLevelGains[3] = GetStatGain(wMonStats[12])                    # defense
+	ld a, [wMonStats + 12]
 	call GetStatGain
-	ld [$c8cd], a
-	ld a, [$da40]
+	ld [wLevelGains + 3], a
+;> wLevelGains[4] = GetStatGain(wMonStats[13])                    # agility
+	ld a, [wMonStats + 13]
 	call GetStatGain
-	ld [$c8ce], a
-	ld a, [$da41]
+	ld [wLevelGains + 4], a
+;> wLevelGains[5] = GetStatGain(wMonStats[14])                    # intelligence
+	ld a, [wMonStats + 14]
 	call GetStatGain
-	ld [$c8cf], a
+	ld [wLevelGains + 5], a
 	ret
 
 
+;@ def GetStatGain(curve: a) -> a
+;@ path: monster/levels
+;@ The gain of one stat at this level-up: entry `level` of growth curve `curve` in
+;@ StatGrowthTables (99 bytes per curve). Past the level limit (wOverLevelLimit) it is
+;@ gain * level / 100 + 1 instead. Uses wLevelGains[5] as scratch.
+;@ test: skip reads the party record through MonsterField
 GetStatGain::
+;> offset = Multiply(curve, 99)
 	ld c, $63
 	call Multiply
+;> table = StatGrowthTables + offset
 	ld a, l
-	add $06
+	add LOW(StatGrowthTables)
 	ld l, a
 	ld a, h
-	adc $67
+	adc HIGH(StatGrowthTables)
 	ld h, a
+;> level = mem[MonsterField(wCurPartyMember, wMonLevel)]
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
+;> entry = table + level
 	pop hl
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> wLevelGains[5] = mem[entry]
 	ld a, [hl]
-	ld [$c8cf], a
+	ld [wLevelGains + 5], a
+;> if not wOverLevelLimit:
+;>     return wLevelGains[5]
 	ld a, [wOverLevelLimit]
 	or a
-	jr nz, jr_013_414b
+	jr nz, .overLimit
 
-	ld a, [$c8cf]
+	ld a, [wLevelGains + 5]
 	ret
 
-
-jr_013_414b:
+.overLimit
+;> level = mem[MonsterField(wCurPartyMember, wMonLevel)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
-	ld a, [$c8cf]
+;> quotient, rest = Divide16(Multiply(wLevelGains[5], level), 100)
+	ld a, [wLevelGains + 5]
 	call Multiply
 	ld a, $64
 	call Divide16
+;> return (quotient + 1) & 0xFF
 	ld a, l
 	inc a
 	ret
 
 
+;@ def AddPlusBonuses(gain: a) -> a
+;@ path: monster/levels
+;@ From level 14 on (and not past the level limit) a monster with a high enough plus value
+;@ (wMonPlus) gets up to four random bonuses on top of `gain` (RollPlusBonus): plus at least
+;@ 1-19 adds gain/6, 10-29 adds gain/8, 20-49 adds gain/6, 50-149 adds gain/5 (each at least
+;@ 1; the thresholds are rolled anew each time). The result stops at 255.
+;@ test: skip uses the random number generator
 AddPlusBonuses::
-	ld [$c8cf], a
+;> wLevelGains[5] = gain
+	ld [wLevelGains + 5], a
+;> wBaseGain = gain
 	ld [wBaseGain], a
+;> if wOverLevelLimit == 0:
 	ld a, [wOverLevelLimit]
 	or a
-	jr nz, jr_013_41a1
+	jr nz, .done
 
+;>     if mem[MonsterField(wCurPartyMember, wMonLevel)] >= 14:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	cp $0e
-	jr c, jr_013_41a1
+	jr c, .done
 
+;>         RollPlusBonus(1, 19, 6)
 	ld b, $01
 	ld c, $13
 	ld d, $06
 	call RollPlusBonus
+;>         RollPlusBonus(10, 20, 8)
 	ld b, $0a
 	ld c, $14
 	ld d, $08
 	call RollPlusBonus
+;>         RollPlusBonus(20, 30, 6)
 	ld b, $14
 	ld c, $1e
 	ld d, $06
 	call RollPlusBonus
+;>         RollPlusBonus(50, 100, 5)
 	ld b, $32
 	ld c, $64
 	ld d, $05
 	call RollPlusBonus
 
-jr_013_41a1:
-	ld a, [$c8cf]
+.done
+;> return wLevelGains[5]
+	ld a, [wLevelGains + 5]
 	ret
 
 
@@ -1149,8 +1234,8 @@ BattleWipeStart::
 ;> RoundToTile_13(hScrollY)
 	ld hl, hScrollY
 	call RoundToTile_13
-;> FillMemory(wLinkChoice, 8, 0)
-	ld hl, wLinkChoice
+;> FillMemory(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
@@ -1251,10 +1336,10 @@ BattleWipeEnd::
 	ld [wGameModeStep], a
 ;> mem[0xC88C] = 0
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 ;> mem[0xC88D] = 0
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 ;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]

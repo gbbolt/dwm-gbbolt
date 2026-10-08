@@ -187,7 +187,7 @@ Jump_50_40ED::
 	call DrawWindowLayout_50
 	call ResetCursorBlink_50
 	ld de, $419b
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call DrawCursorAt_50
 	call CopyTilemapBufferToScreen_50
 	ld hl, wCommandStep
@@ -218,7 +218,7 @@ jr_050_4126:
 
 jr_050_412d:
 	ld de, $419b
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	call UpdateGridCursor_50
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -230,13 +230,13 @@ jr_050_412d:
 	inc [hl]
 	xor a
 	ld [wCommandSubStep], a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	set 7, [hl]
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	and $0f
 	cp $01
 	ret nz
@@ -352,7 +352,7 @@ jr_050_4200:
 
 
 jr_050_4207:
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	rst $00
 
 JumpTable_50_420B::
@@ -449,9 +449,9 @@ jr_050_4288:
 	ld [hli], a
 	ld a, [wRandomLow]
 	ld [hli], a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [hli], a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [hli], a
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -606,9 +606,9 @@ jr_050_4361:
 	ld [wLinkRandom], a
 	ld a, [wRandomLow]
 	ld [$c1ee], a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [$c1ef], a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [$c1d5], a
 	jr jr_050_43a2
 
@@ -617,9 +617,9 @@ jr_050_438a:
 	ld [wRandomHigh], a
 	ld a, [$c1ee]
 	ld [wRandomLow], a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [$c1f0], a
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [$c1d6], a
 
 Jump_050_43a2:
@@ -1177,7 +1177,7 @@ TacticDirectOrders::
 	jp z, Call_50_4620
 
 	ld a, $04
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	xor a
 	ld [wOrderStep], a
 	call Call_50_47BE
@@ -1432,7 +1432,7 @@ jr_050_48b7:
 	ld hl, far_Call_55_479B
 	rst $10
 	ld a, $81
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $03
 	ld [wCommandSubStep], a
 	ld a, [wConfirmChoice]
@@ -1758,7 +1758,7 @@ jr_050_4a65:
 	ld [wBattleArg1], a
 	ld a, $02
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	call Call_50_56EB
 	call Call_50_4BD1
@@ -1926,7 +1926,7 @@ Call_50_4BA4::
 	ld [wBattleArg1], a
 	ld a, $04
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	ld c, a
@@ -2402,7 +2402,7 @@ Jump_50_4EAB::
 	jr z, jr_050_4ed7
 
 	ld a, $81
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $04
 	ld [wCommandSubStep], a
 	call Call_50_4620
@@ -2490,7 +2490,7 @@ jr_050_4f16:
 Jump_050_4f36:
 jr_050_4f36:
 	ld a, $81
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $04
 	ld [wCommandSubStep], a
 	call Call_50_46C6
@@ -2651,7 +2651,7 @@ jr_050_4fec:
 	ld [wBattleArg1], a
 	ld a, $0a
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	cp $01
@@ -2820,7 +2820,7 @@ jr_050_50f4:
 	ld a, $af
 	add [hl]
 	ld [wBattleArg0], a
-	ld hl, far_Call_54_535F
+	ld hl, far_GetBattleItemTarget
 	rst $10
 	ld a, [wBattleArg0]
 	or a
@@ -4001,7 +4001,7 @@ jr_050_5892:
 jr_050_5895:
 	xor a
 	ld [wCommandStep], a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld [wCommandSubStep], a
 	ret
 
@@ -4548,19 +4548,19 @@ jr_050_5b84:
 	bit 7, a
 	call nz, Call_50_5BB7
 	call Call_50_5BBC
-	jp nc, Jump_050_7817
+	jp nc, StoreMenuCursor_50
 
 	call Call_50_5BC5
 	ld [hl], a
 	jr nz, jr_050_5b84
 
-	jp Jump_050_7817
+	jp StoreMenuCursor_50
 
 
 Jump_050_5b9a:
 	ld a, [wJoyRepeat]
 	and $80
-	jp z, Jump_050_7820
+	jp z, FinishMenuCursor_50
 
 jr_050_5ba2:
 	ld a, [hl]
@@ -4568,13 +4568,13 @@ jr_050_5ba2:
 	cp b
 	call nc, Call_50_5BBA
 	call Call_50_5BBC
-	jp nc, Jump_050_7817
+	jp nc, StoreMenuCursor_50
 
 	call Call_50_5BC5
 	ld [hl], a
 	jr nz, jr_050_5ba2
 
-	jp Jump_050_7817
+	jp StoreMenuCursor_50
 
 
 Call_50_5BB7::
@@ -5010,7 +5010,7 @@ Call_50_5DC9::
 	ld a, h
 	ld [$da7a], a
 	xor a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
 	xor a
@@ -5153,7 +5153,7 @@ jr_050_5ef9:
 	or a
 	jr z, jr_050_5f17
 
-	ld hl, far_Call_5F_4B1B
+	ld hl, far_UpdateScreenEffect
 	rst $10
 	ld a, [$c87e]
 	or a
@@ -5167,11 +5167,11 @@ jr_050_5f17:
 	or a
 	jr z, jr_050_5f2f
 
-	ld a, [$da83]
+	ld a, [wScreenEffect]
 	cp $09
 	jr nz, jr_050_5f2f
 
-	ld hl, far_Call_5F_4B1B
+	ld hl, far_UpdateScreenEffect
 	rst $10
 	ld a, [$c87e]
 	or a
@@ -5284,7 +5284,7 @@ Jump_50_5FC1::
 	ld hl, wBattleStep
 	inc [hl]
 	xor a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	call Call_50_5D9F
 	call Call_50_600D
 	ld hl, $db42
@@ -5392,7 +5392,7 @@ Jump_50_6051::
 Call_50_6053::
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
-	ld a, [$da88]
+	ld a, [wDebugStatsShown]
 	or a
 	jr nz, jr_050_6063
 
@@ -5430,7 +5430,7 @@ Jump_50_6079::
 	ld [wBattleSubStep2], a
 	ld [$dd75], a
 	ld [$dd6c], a
-	ld [$dd68], a
+	ld [wSkillAnimPhase], a
 	ld a, [wLinkActive]
 	or a
 	jr z, Jump_50_60B6
@@ -5904,7 +5904,7 @@ jr_050_6318:
 	inc [hl]
 	xor a
 	ld [wCommandStep], a
-	ld hl, far_Call_54_55BB
+	ld hl, far_CheckEnemyJoins
 	rst $10
 	ret
 
@@ -6040,9 +6040,9 @@ Jump_50_640A::
 	ld a, $00
 	ld [wGameModeStep], a
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	ld a, [wMapId]
@@ -6311,7 +6311,7 @@ Jump_50_65E6::
 	ld hl, $cd21
 
 jr_050_65f9:
-	ld de, $c8bb
+	ld de, wLinkPartnerName
 	ld b, $08
 	call Call_50_66CC
 	ld a, [wLinkPrizeSlot]
@@ -6366,9 +6366,9 @@ jr_050_6663:
 	ld a, $00
 	ld [wGameModeStep], a
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	xor a
@@ -7773,223 +7773,393 @@ EnemyTargetWindow::
 	db $fe, $e0, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $a7, $a8, $a9, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused
+;@ Window layout (DrawWindowLayout_50 format) that nothing draws: a small 4x3 window at
+;@ row 8, column 0.
 UnusedWindow7177::
-	db $00, $01, $fa, $ef, $ef, $ef, $ef
-	db $fb, $d8, $fe, $e0, $d4, $e0, $d5, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $d5, $d5, $d6, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0100                     ; row 8, column 0
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $e0, $d5, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d5, $d5, $d6, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused
+;@ Window layout that nothing draws: four text rows of tiles $36-$59 at row 2, column 8.
 UnusedWindow719C::
-	db $48, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $36
-	db $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $3f, $40, $41, $42, $43, $44, $45
-	db $46, $47, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $48, $49, $4a, $4b, $4c, $4d, $4e, $4f, $50, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $51, $52, $53
-	db $54, $55, $56, $57, $58, $59, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9
-
-YesNoWindow::
-	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9e
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
-
-UnusedWindow7238::
-	db $40, $00, $fa, $ef, $ef, $ef
-	db $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8, $ec, $eb, $eb, $eb
-	db $eb, $eb, $ed, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $90, $91, $92, $93, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $94, $95, $96, $97, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $98, $99, $9a, $9b, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9
-
-UnusedWindow7292::
-	db $0d, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $89, $8a, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
-
-UnusedWindow72BC::
-	db $20, $01
-	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8
-	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72, $73, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76, $77, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
-
-UnusedWindow7306::
-	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
-	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $0f
-	db $10, $11, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $12, $13, $14, $15, $16, $17
-	db $18, $19, $1a, $1b, $1c, $1d, $1e, $1f, $20, $21, $22, $23, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $2d, $2e, $2f
-	db $30, $31, $32, $33, $34, $35, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
-
-UnusedWindow739B::
-	db $c0, $00, $fa
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9c, $d6, $d5, $e0, $e2, $e3
-	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e5, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9
-
-UnusedWindow73CF::
-	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a0, $a1, $a2, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a3, $a4, $a5, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $fd, $d9
-
-UnusedWindow73F4::
-	db $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $24, $25, $26, $27, $28, $29, $2a, $2b
-	db $2c, $48, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $2d, $2e, $2f, $30, $31, $32, $33, $34, $35, $49, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $36, $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $4a, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $3f, $40, $41, $42
-	db $43, $44, $45, $46, $47, $4b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9
-
-UnusedWindow7474::
-	db $0c, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
-	db $d8, $fe, $e0, $a6, $a7, $a8, $a9, $aa, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $89, $8a, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9
-
-TacticNameWindow::
-	db $c0, $00, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $6c
-	db $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
-
-CommandWindow::
-	db $60, $01, $fa, $ef
-	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $89, $82, $e0, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $82, $86, $81, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $83, $8a, $85, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9
-
-BattleSkillWindow::
-	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $95, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9e, $9f, $a0, $a1, $a2
-	db $a3, $a4, $a5, $a6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
+	dw $0048                     ; row 2, column 8
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $36, $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $3f, $40, $41, $42, $43, $44, $45, $46, $47, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $48, $49, $4a, $4b, $4c, $4d, $4e, $4f, $50, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $51, $52, $53, $54, $55, $56, $57, $58, $59, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/run
+;@ Layout of the small yes/no window (tiles $D4-$D6 and $9D-$9E) at row 8, column 14, used
+;@ when giving up a tournament battle; cursor places in YesNoCursors.
+YesNoWindow::
+	dw $010e                     ; row 8, column 14
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9d, $9e, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: a title and four rows at row 2, column 0.
+UnusedWindow7238::
+	dw $0040                     ; row 2, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $82, $83, $84, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $90, $91, $92, $93, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $94, $95, $96, $97, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $98, $99, $9a, $9b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: two rows at row 8, column 13.
+UnusedWindow7292::
+	dw $010d                     ; row 8, column 13
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $85, $86, $87, $88, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: a title and the three name tiles, at row 9.
+UnusedWindow72BC::
+	dw $0120                     ; row 9, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $82, $83, $84, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $70, $71, $72, $73, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $74, $75, $76, $77, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: a full-width window of three text rows (tiles
+;@ $00-$35) at row 11.
+UnusedWindow7306::
+	dw $0160                     ; row 11, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $0f, $10, $11, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $12, $13, $14, $15, $16, $17, $18, $19, $1a, $1b, $1c, $1d, $1e, $1f, $20, $21, $22, $23, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $2d, $2e, $2f, $30, $31, $32, $33, $34, $35, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: a small window at row 6.
+UnusedWindow739B::
+	dw $00c0                     ; row 6, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $9c, $d6, $d5, $e0, $e2, $e3, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: two rows at row 8, column 14.
+UnusedWindow73CF::
+	dw $010e                     ; row 8, column 14
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a0, $a1, $a2, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a3, $a4, $a5, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: four text rows of tiles $24-$4B at row 4.
+UnusedWindow73F4::
+	dw $0080                     ; row 4, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $48, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $2d, $2e, $2f, $30, $31, $32, $33, $34, $35, $49, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $36, $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $4a, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $3f, $40, $41, $42, $43, $44, $45, $46, $47, $4b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: unused
+;@ Window layout that nothing draws: two rows at row 8, column 12.
+UnusedWindow7474::
+	dw $010c                     ; row 8, column 12
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $a6, $a7, $a8, $a9, $aa, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/tactics
+;@ Name plate (tiles $6C-$6F) of the monster whose tactic is being set, row 6.
+TacticNameWindow::
+	dw $00c0                     ; row 6, column 0
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $6c, $6d, $6e, $6f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/orders
+;@ Layout of the order window for one monster: three rows (attack, skill, defend; text
+;@ tiles $80-$8A), cursor places in CommandCursors.
+CommandWindow::
+	dw $0160                     ; row 11, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $80, $89, $82, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $84, $82, $86, $81, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $83, $8a, $85, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: battle/orders
+;@ Layout of the skill list in battle: four rows of skill names printed into tiles $8C-$AF,
+;@ cursor places in SkillListCursors.
+BattleSkillWindow::
+	dw $0120                     ; row 9, column 0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $95, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9e, $9f, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ def NextBufferColumn_50(addr: hl) -> hl
+;@ path: battle/screen
+;@ Steps a tile address one column to the right, wrapping from column 31 back to column 0
+;@ of the same 32-tile row.
 NextBufferColumn_50::
+;>@r return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@r
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@r
 	ret
 
 
+;@ def BattleOffsetToMap(offset: hl) -> hl
+;@ path: battle/screen
+;@ Turns an offset (row * 32 + column) into a BG map address counted from wBattleBGMap,
+;@ wrapping around inside the 1 KiB map.
 BattleOffsetToMap::
+;> addr = wBattleBGMap + offset
 	ld a, [wBattleBGMap]
 	add l
 	ld l, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	adc h
+;>@r return (wBattleBGMap & 0xFC00) | (addr & 0x03FF)
 	and $03
 	ld h, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	and $fc
 	or h
 	ld h, a
+;=@r
 	ret
 
 
+;@ def TilemapBufferAddr_50(offset: hl) -> hl
+;@ path: battle/screen
+;@ Address of an offset (row * 32 + column) in wTilemapBuffer.
 TilemapBufferAddr_50::
+;>@r return wTilemapBuffer + offset
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;=@r
 	ret
 
 
+;@ def PosToScreenMap_50(pos: hl) -> hl
+;@ path: battle/screen
+;@ BG map address of a screen position (row * 32 + column): the start of its row through
+;@ BattleOffsetToMap, then stepped right column by column so the column wraps within the
+;@ row.
 PosToScreenMap_50::
+;> addr = BattleOffsetToMap(pos & 0xFFE0)
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
 	call BattleOffsetToMap
+;> for i in range(pos & 0x1F):
 	ld a, b
 	and $1f
-	jr z, jr_050_75ac
+	jr z, .done
 
 	ld b, a
-
-jr_050_75a6:
+.column
+;>     addr = NextBufferColumn_50(addr)
 	call NextBufferColumn_50
 	dec b
-	jr nz, jr_050_75a6
+	jr nz, .column
 
-jr_050_75ac:
+.done
+;> return addr
 	pop bc
 	ret
 
 
+;@ def DrawWindowLayoutVRAM_50(layout: de)
+;@ path: unused
+;@ Unused: draws a window layout (see DrawWindowLayout_50) straight to the BG map instead
+;@ of into wTilemapBuffer. Nothing calls it.
+;@ test: skip writes VRAM while waiting for the LCD
 DrawWindowLayoutVRAM_50::
-	db $1a, $6f, $13, $1a, $67, $13, $cd, $97, $75, $7d, $ea, $ea, $d9, $7c, $ea, $eb
-	db $d9, $1a, $13, $fe, $d9, $c8, $fe, $d8, $20, $20, $fa, $ea, $d9, $6f, $fa, $eb
-	db $d9, $67, $7d, $c6, $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67
-	db $7d, $ea, $ea, $d9, $7c, $ea, $eb, $d9, $18, $d7, $cd, $ad, $1a, $cd, $6b, $75
-	db $18, $cf
-
-DrawWindowLayout_50::
+;>@row addr = PosToScreenMap_50(mem16[layout]); layout += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call TilemapBufferAddr_50
+;=@row
+	call PosToScreenMap_50
+;> wLayoutRow = addr
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
+.loop
+;> while True:
+;>     t = mem[layout]; layout += 1
+	ld a, [de]
+	inc de
+;>     if t == 0xD9:                      # end of the layout
+;>         return
+	cp $d9
+	ret z
 
-jr_050_7601:
+;>     if t == 0xD8:                      # next row, wrapping inside the BG map
+	cp $d8
+	jr nz, .tile
+
+;>@nl         wLayoutRow = 0x9800 | ((wLayoutRow + 32) & 0x03FF)
+	ld a, [wLayoutRow]
+	ld l, a
+	ld a, [wLayoutRow + 1]
+	ld h, a
+	ld a, l
+	add $20
+;=@nl
+	ld l, a
+	ld a, h
+	adc $00
+	ld h, a
+	ld a, h
+	and $03
+;=@nl
+	or $98
+	ld h, a
+	ld a, l
+	ld [wLayoutRow], a
+	ld a, h
+	ld [wLayoutRow + 1], a
+;>         addr = wLayoutRow
+	jr .loop
+
+.tile
+;>     else:
+;>         WriteVRAM(addr, t)
+	call WriteVRAM
+;>         addr = NextBufferColumn_50(addr)
+	call NextBufferColumn_50
+	jr .loop
+
+;@ def DrawWindowLayout_50(layout: de)
+;@ path: battle/screen
+;@ Draws a window layout into wTilemapBuffer. A layout is a u16 offset (row * 32 + column
+;@ in the 32-wide buffer) followed by tile numbers; $D8 starts the next row below the
+;@ first tile of the current one, $D9 ends the layout. Window tiles: $FA/$EF/$FB top
+;@ frame, $FE/$FF left and right sides, $FC/$EE/$FD bottom frame, $EC/$EB/$ED a divider,
+;@ $E0 blank.
+;@ test: skip reads a layout from ROM
+DrawWindowLayout_50::
+;>@row p = TilemapBufferAddr_50(mem16[layout]); layout += 2
+	ld a, [de]
+	ld l, a
+	inc de
+	ld a, [de]
+	ld h, a
+	inc de
+;=@row
+	call TilemapBufferAddr_50
+;> wLayoutRow = p
+	ld a, l
+	ld [wLayoutRow], a
+	ld a, h
+	ld [wLayoutRow + 1], a
+
+.loop
+;> while (t := mem[layout]) != 0xD9:
+;>     layout += 1
 	ld a, [de]
 	inc de
 	cp $d9
 	ret z
 
+;>     if t == 0xD8:                      # next row
 	cp $d8
-	jr nz, jr_050_7624
+	jr nz, .tile
 
+;>@nl         wLayoutRow += 32
 	ld a, [wLayoutRow]
 	ld l, a
-	ld a, [$d9eb]
+	ld a, [wLayoutRow + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@nl
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ld [wLayoutRow], a
+;=@nl
 	ld a, h
-	ld [$d9eb], a
-	jr jr_050_7601
+	ld [wLayoutRow + 1], a
+;>         p = wLayoutRow
+	jr .loop
 
-jr_050_7624:
+.tile
+;>     else:
+;>         mem[p] = t; p += 1
 	ld [hli], a
-	jr jr_050_7601
+	jr .loop
 
 RefreshPanelDigits::
 	ld a, [wPartyBattlers]
@@ -8273,7 +8443,7 @@ jr_050_77b9:
 	ld [hld], a
 	dec c
 	cp c
-	jr nz, jr_050_7818
+	jr nz, RestartMenuCursor_50
 
 	ld a, [wListLastRows]
 	ld c, a
@@ -8285,14 +8455,14 @@ jr_050_77b9:
 	pop bc
 	pop de
 	or a
-	jr z, jr_050_7818
+	jr z, RestartMenuCursor_50
 
 	dec a
 	cp [hl]
-	jr nc, jr_050_7818
+	jr nc, RestartMenuCursor_50
 
 	ld [hl], a
-	jr jr_050_7818
+	jr RestartMenuCursor_50
 
 Jump_050_77d5:
 jr_050_77d5:
@@ -8350,11 +8520,11 @@ jr_050_7809:
 
 	ld a, $00
 
-Jump_050_7817:
+StoreMenuCursor_50::
 jr_050_7817:
 	ld [hl], a
 
-jr_050_7818:
+RestartMenuCursor_50::
 	xor a
 	ld [wCursorBlinkTimer], a
 	push hl
@@ -8362,7 +8532,7 @@ jr_050_7818:
 	pop de
 	pop hl
 
-Jump_050_7820:
+FinishMenuCursor_50::
 jr_050_7820:
 	ld a, [wJoyPressed]
 	bit 0, a

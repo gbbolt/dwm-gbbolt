@@ -60,8 +60,8 @@ StartText_49::
 ;>     wTextGroup = 0x00
 	ld a, $00
 	ld [wTextGroup], a
-;>     return Call_18_567F()                    # that bank holds these texts
-	ld hl, far_Call_18_567F
+;>     return StartText_18()                    # that bank holds these texts
+	ld hl, far_StartText_18
 	rst $10
 	ret
 
@@ -90,8 +90,8 @@ CopyText_49::
 ;>     wTextGroup = 0x00
 	ld a, $00
 	ld [wTextGroup], a
-;>     return Call_18_5686()                    # that bank holds these texts
-	ld hl, far_Call_18_5686
+;>     return CopyText_18()                    # that bank holds these texts
+	ld hl, far_CopyText_18
 	rst $10
 	ret
 
@@ -120,8 +120,8 @@ PrintText_49::
 ;>     wTextGroup = 0x00
 	ld a, $00
 	ld [wTextGroup], a
-;>     return Call_18_568D()                    # that bank holds these texts
-	ld hl, far_Call_18_568D
+;>     return PrintText_18()                    # that bank holds these texts
+	ld hl, far_PrintText_18
 	rst $10
 	ret
 

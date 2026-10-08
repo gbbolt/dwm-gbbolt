@@ -406,7 +406,7 @@ Call_55_4936::
 	ld a, $00
 	call FillMemory
 	xor a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	call Call_55_496C
 	ld a, $00
 	call QueueMusic
@@ -514,7 +514,7 @@ Jump_55_49E2::
 	ld b, $09
 	call Call_55_4A47
 	xor a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	call Call_55_4D44
 	ret
 
@@ -704,7 +704,7 @@ Data_55_4B4A::
 	db $c8, $3c, $ea, $da, $c8, $3e, $59, $cd, $2c, $1b
 
 Call_55_4D44::
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -719,20 +719,20 @@ Call_55_4D44::
 	ld d, [hl]
 	ld hl, $8800
 	call DecompressVRAM
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [wPaletteSet], a
 	ld a, $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 	ld hl, $0087
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 	ld hl, far_LoadMonPicPalette
 	rst $10
 	ld hl, far_UploadCGBPalettes
 	rst $10
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld [wTextIndex], a
 	ld a, $05
 	ld [wTextGroup], a
@@ -775,7 +775,7 @@ Call_55_4D44::
 
 Jump_055_4ed3:
 	push af
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
 	add l
 	ld l, a
@@ -930,7 +930,7 @@ Call_55_4F8F::
 
 Jump_055_5232:
 	push af
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
 	add l
 	ld l, a

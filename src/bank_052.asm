@@ -324,7 +324,7 @@ SkillSleep::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
@@ -1674,14 +1674,14 @@ jr_052_49fc:
 
 
 SkillAhhh::
-	call Call_52_5422
+	call TargetStatus3
 	bit 5, [hl]
 	jr nz, jr_052_4a18
 
 	call TryEffectRes21
 	jr nc, jr_052_4a1c
 
-	call Call_52_5422
+	call TargetStatus3
 	set 5, [hl]
 	ld hl, $a7a7
 	call SkillWorks
@@ -1735,14 +1735,14 @@ jr_052_4a53:
 
 
 SkillEerieLite::
-	call Call_52_5422
+	call TargetStatus3
 	bit 7, [hl]
 	jr nz, jr_052_4a6f
 
 	call RollInstantDeath
 	jr nc, jr_052_4a75
 
-	call Call_52_5422
+	call TargetStatus3
 	set 7, [hl]
 	ld hl, $a4a4
 	call SkillWorks
@@ -1814,14 +1814,14 @@ jr_052_4ac1:
 
 
 SkillLureDance::
-	call Call_52_5422
+	call TargetStatus3
 	bit 1, [hl]
 	jr nz, jr_052_4ae3
 
 	call TryEffectRes21
 	jr nc, jr_052_4add
 
-	call Call_52_5422
+	call TargetStatus3
 	set 1, [hl]
 	ld hl, $a6a6
 	call SkillWorks
@@ -1840,7 +1840,7 @@ jr_052_4ae3:
 
 
 SkillLushLicks::
-	call Call_52_5422
+	call TargetStatus3
 	bit 3, [hl]
 	jr nz, jr_052_4b30
 
@@ -1857,7 +1857,7 @@ jr_052_4afa:
 jr_052_4afd:
 	jr nc, jr_052_4b2a
 
-	call Call_52_5422
+	call TargetStatus3
 	set 3, [hl]
 	ld a, [wSkillId]
 	cp $79
@@ -1893,14 +1893,14 @@ jr_052_4b30:
 
 
 SkillLegSweep::
-	call Call_52_5422
+	call TargetStatus3
 	bit 2, [hl]
 	jr nz, jr_052_4b4c
 
 	call TryEffectRes21NotType4
 	jr nc, jr_052_4b50
 
-	call Call_52_5422
+	call TargetStatus3
 	set 2, [hl]
 	ld hl, $abab
 	call SkillWorksNoDamage
@@ -1936,14 +1936,14 @@ SkillWarCry::
 	call CheckBattlerPresent
 	jr c, jr_052_4b88
 
-	call Call_52_5422
+	call TargetStatus3
 	bit 4, [hl]
 	jr nz, jr_052_4b88
 
 	call TryEffectRes21
 	jr nc, jr_052_4b8c
 
-	call Call_52_5422
+	call TargetStatus3
 	set 4, [hl]
 	ld hl, $aaaa
 	call SkillWorksNoDamage
@@ -2691,7 +2691,7 @@ jr_052_4fc8:
 
 
 SkillFreezy::
-	call Call_52_5422
+	call TargetStatus3
 	bit 0, [hl]
 	jr nz, jr_052_4fdc
 
@@ -2706,6 +2706,7 @@ jr_052_4fdc:
 	ret
 
 
+UnusedRevivedCheck::
 	db $fa, $89, $db, $21, $1b, $dd, $85, $6f, $3e, $00, $8c, $67, $7e, $fe, $01, $20
 	db $07, $21, $9e, $9e, $cd, $93, $54, $c9, $cd, $8d, $54, $c9
 
@@ -2817,9 +2818,16 @@ jr_052_5083:
 	ret
 
 
-	db $3e, $00, $ea, $56, $db, $3e, $00, $ea, $57, $db, $cd, $e2, $50, $fa, $55, $db
+UnusedClearAmountText::
+	db $3e, $00, $ea, $56, $db, $3e, $00, $ea, $57, $db
+
+UnusedAmountText::
+	db $cd, $e2, $50, $fa, $55, $db
 	db $47, $fa, $54, $db, $b7, $28, $07, $fa, $88, $db, $cb, $3f, $cb, $3f, $80, $6f
-	db $26, $00, $7c, $ea, $22, $c8, $7d, $ea, $23, $c8, $21, $04, $5f, $d7, $c9, $3e
+	db $26, $00, $7c, $ea, $22, $c8, $7d, $ea, $23, $c8, $21, $04, $5f, $d7, $c9
+
+UnusedItemDamageText::
+	db $3e
 	db $82, $ea, $55, $db, $ea, $54, $db, $fa, $56, $db, $6f, $fa, $57, $db, $67, $7d
 	db $b4, $20, $04, $cd, $43, $51, $c9, $cd, $a1, $50, $c9
 
@@ -2847,16 +2855,23 @@ EndCalledHelp::
 	ret
 
 
+UnusedNoEffectText::
 	db $21, $80, $c1, $fa, $89, $db, $ea, $50, $db, $cd, $48, $6b, $3e, $00, $ea, $22
 	db $c8, $3e, $b8, $ea, $23, $c8, $3e, $00, $ea, $6b, $dd, $3e, $04, $ea, $ef, $d9
-	db $3e, $6f, $cd, $2c, $1b, $c9, $21, $80, $c1, $fa, $89, $db, $ea, $50, $db, $cd
-	db $48, $6b, $21, $78, $00, $cd, $5d, $51, $c9, $21, $bb, $00, $cd, $5d, $51, $c9
+	db $3e, $6f, $cd, $2c, $1b, $c9
+
+UnusedShowText78::
+	db $21, $80, $c1, $fa, $89, $db, $ea, $50, $db, $cd
+	db $48, $6b, $21, $78, $00, $cd, $5d, $51, $c9
+
+UnusedShowNothingText::
+	db $21, $bb, $00, $cd, $5d, $51, $c9
 
 ShowMissMessage::
 	ld hl, wTextArg0
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	call Call_52_7FCB
 	srl a
 	srl a
@@ -2877,6 +2892,7 @@ ShowMissMessage::
 	ret
 
 
+UnusedShowItemMessage::
 	db $21, $80, $c1, $fa, $89, $db, $ea, $50, $db, $cd, $48, $6b, $fa, $55, $db, $ea
 	db $23, $c8, $3e, $00, $ea, $22, $c8, $3e, $02, $ea, $6b, $dd, $21, $ef, $d9, $34
 	db $3e, $6f, $cd, $2c, $1b, $c9
@@ -2898,8 +2914,12 @@ ClearDamageGetStatus::
 	ret
 
 
+UnusedRollIllusionMiss::
 	db $cd, $59, $55, $37, $3f, $fa, $88, $db, $21, $03, $db, $cd, $6c, $2f, $cb, $4e
-	db $c8, $fa, $99, $c8, $fe, $a0, $c9, $fa, $89, $db, $21, $07, $db, $cd, $6c, $2f
+	db $c8, $fa, $99, $c8, $fe, $a0, $c9
+
+UnusedRollSideStepMiss::
+	db $fa, $89, $db, $21, $07, $db, $cd, $6c, $2f
 	db $7e, $e6, $0c, $c8, $fa, $99, $c8, $fe, $80, $c9
 
 ResetBattler::
@@ -2939,6 +2959,7 @@ ResetBattler::
 	ret
 
 
+UnusedResetArgBattler::
 	db $fa, $4c, $db, $cd, $dd, $51, $c9
 
 LoadBattlerPic::
@@ -3299,18 +3320,20 @@ jr_052_53de:
 	jp JumpToPointer
 
 
+SkillDamageRoutines::
 	db $d7, $60, $d7, $60, $14, $62, $d7, $60, $32, $62, $d7, $60, $98, $62, $a9, $62
 	db $ba, $62, $cb, $62, $dc, $62, $11, $63, $1f, $63, $2d, $63, $57, $63, $65, $63
 	db $73, $63, $d7, $60, $d7, $60, $d7, $60, $1a, $64, $d7, $60, $d7, $60, $d7, $60
 	db $04, $63, $49, $63, $3b, $63, $d7, $60, $c9
 
-Call_52_5422::
+TargetStatus3::
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus3
 	call AddEightTimes
 	ret
 
 
+UnusedCheckSkillUsable::
 	db $fa, $88, $db, $21, $0b, $dd, $85, $6f, $3e, $00, $8c, $67, $7e, $b7, $c8, $fa
 	db $8a, $db, $ea, $4c, $db, $3e, $00, $ea, $4d, $db, $3e, $02, $ea, $4e, $db, $21
 	db $00, $54, $d7, $fa, $4c, $db, $e6, $02, $c0, $21, $08, $58, $d7, $3e, $01, $b7
@@ -3564,18 +3587,35 @@ JumpToItemEffect::
 	jp hl
 
 
+BattleItemEffects::
 	db $72, $56, $72, $56, $72, $56, $72, $56, $7a, $57, $7a, $57, $4d, $58, $72, $58
 	db $97, $58, $bc, $58, $de, $58, $03, $59, $71, $56, $71, $56, $71, $56, $71, $56
 	db $71, $56, $71, $56, $40, $59, $40, $59, $40, $59, $b8, $59, $40, $59, $03, $5a
 	db $1b, $5a, $33, $5a, $6a, $5a, $82, $5a, $71, $56, $71, $56, $71, $56, $71, $56
-	db $71, $56, $71, $56, $71, $56, $71, $56, $9a, $5a, $fa, $78, $db, $fe, $b3, $28
-	db $04, $af, $ea, $8a, $db, $3e, $bb, $ea, $55, $db, $3e, $00, $ea, $22, $c8, $fa
-	db $55, $db, $ea, $23, $c8, $3e, $00, $ea, $6b, $dd, $c9, $3e, $01, $ea, $8a, $db
+	db $71, $56, $71, $56, $71, $56, $71, $56, $9a, $5a
+
+ItemNoEffect::
+	db $fa, $78, $db, $fe, $b3, $28
+	db $04, $af, $ea, $8a, $db
+
+ItemNothingHappens::
+	db $3e, $bb, $ea, $55, $db
+
+ItemShowFailMessage::
+	db $3e, $00, $ea, $22, $c8, $fa
+	db $55, $db, $ea, $23, $c8, $3e, $00, $ea, $6b, $dd, $c9
+
+ItemShowUseMessage::
+	db $3e, $01, $ea, $8a, $db
 	db $fa, $89, $db, $21, $04, $50, $d7, $cd, $23, $6c, $11, $42, $ca, $21, $a0, $c1
 	db $cd, $80, $0c, $fa, $78, $db, $fe, $c2, $38, $0f, $fe, $c7, $30, $0b, $21, $09
 	db $58, $d7, $3e, $01, $ea, $22, $c8, $18, $0b, $fa, $55, $db, $ea, $23, $c8, $3e
 	db $00, $ea, $22, $c8, $fa, $78, $db, $ea, $8a, $db, $3e, $01, $ea, $6b, $dd, $c9
-	db $c9, $fa, $78, $db, $fe, $b3, $20, $55, $21, $69, $dd, $34, $fa, $69, $dd, $fe
+ItemNone::
+	db $c9
+
+ItemHealHP::
+	db $fa, $78, $db, $fe, $b3, $20, $55, $21, $69, $dd, $34, $fa, $69, $dd, $fe
 	db $01, $20, $1f, $fa, $89, $db, $e6, $04, $4f, $06, $03, $79, $cd, $a5, $2f, $38
 	db $06, $79, $cd, $ef, $69, $20, $0b, $0c, $05, $20, $f0, $af, $ea, $8a, $db, $c3
 	db $16, $56, $fa, $89, $db, $cd, $ef, $69, $ca, $0b, $56, $fa, $89, $db, $21, $a3
@@ -3591,7 +3631,10 @@ JumpToItemEffect::
 	db $5a, $db, $4f, $fa, $5b, $db, $47, $09, $44, $4d, $e1, $79, $22, $70, $fa, $5a
 	db $db, $6f, $fa, $5b, $db, $67, $fa, $89, $db, $cb, $57, $28, $08, $44, $4d, $cd
 	db $32, $6b, $cd, $d1, $5b, $3e, $84, $ea, $55, $db, $cd, $2c, $56, $cd, $c4, $5b
-	db $21, $06, $5f, $d7, $af, $ea, $6b, $dd, $c9, $fa, $78, $db, $fe, $b5, $20, $2b
+	db $21, $06, $5f, $d7, $af, $ea, $6b, $dd, $c9
+
+ItemHealMP::
+	db $fa, $78, $db, $fe, $b5, $20, $2b
 	db $fa, $89, $db, $cd, $01, $6a, $ca, $0b, $56, $fa, $89, $db, $21, $c3, $db, $cd
 	db $b8, $6a, $2a, $46, $4f, $fa, $89, $db, $cd, $e1, $2f, $91, $6f, $7c, $98, $67
 	db $7d, $ea, $5a, $db, $7c, $ea, $5b, $db, $c3, $11, $58, $fa, $89, $db, $cd, $01
@@ -3604,22 +3647,43 @@ JumpToItemEffect::
 	db $fa, $89, $db, $21, $c3, $db, $cd, $b8, $6a, $e5, $2a, $66, $6f, $fa, $5a, $db
 	db $4f, $fa, $5b, $db, $47, $09, $44, $4d, $e1, $79, $22, $70, $fa, $5a, $db, $6f
 	db $fa, $5b, $db, $67, $fa, $89, $db, $cb, $57, $28, $05, $44, $4d, $cd, $d1, $5b
-	db $3e, $76, $ea, $55, $db, $cd, $2c, $56, $cd, $c4, $5b, $c9, $3e, $9c, $ea, $55
+	db $3e, $76, $ea, $55, $db, $cd, $2c, $56, $cd, $c4, $5b, $c9
+
+ItemAntidote::
+	db $3e, $9c, $ea, $55
 	db $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e, $e6, $03, $20, $04, $cd
 	db $b9, $5b, $c9, $7e, $e6, $fc, $77, $cd, $aa, $5b, $cd, $2c, $56, $cd, $c4, $5b
-	db $c9, $3e, $9d, $ea, $55, $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e
+	db $c9
+
+ItemMoonHerb::
+	db $3e, $9d, $ea, $55, $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e
 	db $e6, $40, $20, $04, $cd, $b9, $5b, $c9, $cd, $0b, $6b, $7e, $e6, $bf, $77, $cd
-	db $2c, $56, $cd, $c4, $5b, $c9, $3e, $dc, $ea, $55, $db, $fa, $89, $db, $21, $02
+	db $2c, $56, $cd, $c4, $5b, $c9
+
+ItemSkyBell::
+	db $3e, $dc, $ea, $55, $db, $fa, $89, $db, $21, $02
 	db $db, $cd, $6c, $2f, $7e, $e6, $10, $20, $04, $cd, $b9, $5b, $c9, $cd, $0b, $6b
-	db $7e, $e6, $ef, $77, $cd, $2c, $56, $cd, $c4, $5b, $c9, $3e, $9f, $ea, $55, $db
+	db $7e, $e6, $ef, $77, $cd, $2c, $56, $cd, $c4, $5b, $c9
+
+ItemLaurel::
+	db $3e, $9f, $ea, $55, $db
 	db $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e, $e6, $20, $20, $04, $cd, $b9
-	db $5b, $c9, $7e, $e6, $df, $77, $cd, $2c, $56, $cd, $c4, $5b, $c9, $3e, $db, $ea
+	db $5b, $c9, $7e, $e6, $df, $77, $cd, $2c, $56, $cd, $c4, $5b, $c9
+
+ItemAwakeSand::
+	db $3e, $db, $ea
 	db $55, $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e, $e6, $8c, $20, $04
 	db $cd, $b9, $5b, $c9, $cd, $0b, $6b, $7e, $e6, $73, $77, $cd, $2c, $56, $cd, $c4
-	db $5b, $c9, $fa, $77, $db, $cd, $a5, $2f, $30, $31, $28, $2f, $fa, $77, $db, $ea
+	db $5b, $c9
+
+ItemWorldLeaf::
+	db $fa, $77, $db, $cd, $a5, $2f, $30, $31, $28, $2f, $fa, $77, $db, $ea
 	db $4c, $db, $21, $0a, $51, $d7, $fa, $77, $db, $47, $cd, $dd, $51, $78, $21, $a3
 	db $db, $cd, $b8, $6a, $54, $5d, $78, $21, $b3, $db, $cd, $b8, $6a, $2a, $12, $13
-	db $7e, $12, $3e, $9e, $ea, $55, $db, $cd, $2c, $56, $c9, $cd, $b9, $5b, $c9, $3e
+	db $7e, $12, $3e, $9e, $ea, $55, $db, $cd, $2c, $56, $c9, $cd, $b9, $5b, $c9
+
+ItemMeat::
+	db $3e
 	db $01, $ea, $8a, $db, $fa, $77, $db, $fe, $04, $38, $38, $d6, $04, $21, $83, $db
 	db $e5, $2a, $66, $6f, $e5, $3e, $0f, $ea, $4e, $db, $21, $01, $54, $d7, $fa, $99
 	db $c8, $6f, $fa, $9a, $c8, $67, $fa, $4c, $db, $4f, $fa, $4d, $db, $47, $e1, $09
@@ -3627,42 +3691,94 @@ JumpToItemEffect::
 	db $70, $18, $2c, $21, $23, $dc, $cd, $b8, $6a, $e5, $2a, $66, $6f, $e5, $3e, $0b
 	db $ea, $4e, $db, $21, $01, $54, $d7, $e1, $fa, $4c, $db, $4f, $fa, $4d, $db, $47
 	db $7d, $91, $4f, $7c, $98, $47, $30, $03, $01, $00, $00, $e1, $79, $22, $70, $cd
-	db $2c, $56, $af, $ea, $33, $da, $c9, $3e, $01, $ea, $8a, $db, $fa, $77, $db, $fe
+	db $2c, $56, $af, $ea, $33, $da, $c9
+
+ItemBadMeat::
+	db $3e, $01, $ea, $8a, $db, $fa, $77, $db, $fe
 	db $04, $38, $1c, $d6, $04, $21, $83, $db, $e5, $2a, $66, $6f, $01, $05, $00, $09
 	db $01, $00, $04, $cd, $45, $2f, $44, $4d, $38, $1c, $01, $00, $04, $18, $17, $21
 	db $23, $dc, $cd, $b8, $6a, $e5, $2a, $66, $d6, $05, $6f, $7c, $de, $00, $67, $44
 	db $4d, $30, $03, $01, $00, $00, $e1, $79, $22, $70, $cd, $2c, $56, $af, $ea, $33
-	db $da, $c9, $fa, $89, $db, $cd, $a5, $2f, $d8, $cd, $b2, $5a, $cd, $c0, $67, $cb
-	db $37, $e6, $03, $cd, $56, $67, $cd, $d4, $5a, $c9, $fa, $89, $db, $cd, $a5, $2f
+	db $da, $c9
+
+ItemBoltStaff::
+	db $fa, $89, $db, $cd, $a5, $2f, $d8, $cd, $b2, $5a, $cd, $c0, $67, $cb
+	db $37, $e6, $03, $cd, $56, $67, $cd, $d4, $5a, $c9
+
+ItemVacuumStaff::
+	db $fa, $89, $db, $cd, $a5, $2f
 	db $d8, $cd, $b2, $5a, $cd, $c0, $67, $07, $07, $e6, $03, $cd, $56, $67, $cd, $d4
-	db $5a, $c9, $fa, $89, $db, $cd, $a5, $2f, $d8, $fa, $89, $db, $21, $03, $db, $cd
+	db $5a, $c9
+
+ItemBlockStaff::
+	db $fa, $89, $db, $cd, $a5, $2f, $d8, $fa, $89, $db, $21, $03, $db, $cd
 	db $6c, $2f, $cb, $46, $c0, $cd, $bc, $5c, $30, $17, $3e, $01, $ea, $8a, $db, $fa
 	db $77, $db, $21, $03, $db, $cd, $6c, $2f, $cb, $c6, $3e, $88, $ea, $55, $db, $18
-	db $04, $cd, $9e, $5b, $c9, $cd, $2c, $56, $c9, $fa, $89, $db, $cd, $a5, $2f, $d8
+	db $04, $cd, $9e, $5b, $c9, $cd, $2c, $56, $c9
+
+ItemLavaStaff::
+	db $fa, $89, $db, $cd, $a5, $2f, $d8
 	db $cd, $b2, $5a, $cd, $bb, $67, $0f, $0f, $e6, $03, $cd, $56, $67, $cd, $d4, $5a
-	db $c9, $fa, $89, $db, $cd, $a5, $2f, $d8, $cd, $b2, $5a, $cd, $cf, $67, $0f, $0f
-	db $e6, $03, $cd, $56, $67, $cd, $d4, $5a, $c9, $fa, $89, $db, $cd, $a5, $2f, $d8
+	db $c9
+
+ItemSnowStaff::
+	db $fa, $89, $db, $cd, $a5, $2f, $d8, $cd, $b2, $5a, $cd, $cf, $67, $0f, $0f
+	db $e6, $03, $cd, $56, $67, $cd, $d4, $5a, $c9
+
+ItemFireStaff::
+	db $fa, $89, $db, $cd, $a5, $2f, $d8
 	db $cd, $b2, $5a, $cd, $bb, $67, $cb, $37, $e6, $03, $cd, $56, $67, $cd, $d4, $5a
-	db $c9, $3e, $0b, $ea, $4e, $db, $21, $01, $54, $d7, $3e, $82, $ea, $55, $db, $3e
+	db $c9
+
+RollStaffDamage::
+	db $3e, $0b, $ea, $4e, $db, $21, $01, $54, $d7, $3e, $82, $ea, $55, $db, $3e
 	db $00, $ea, $54, $db, $fa, $4c, $db, $6f, $fa, $4d, $db, $67, $cd, $9c, $67, $21
-	db $00, $00, $c9, $fa, $56, $db, $5f, $fa, $57, $db, $57, $7b, $b2, $28, $12, $cd
+	db $00, $00, $c9
+
+StaffStrike::
+	db $fa, $56, $db, $5f, $fa, $57, $db, $57, $7b, $b2, $28, $12, $cd
 	db $f6, $5a, $38, $0d, $cd, $26, $5b, $21, $04, $5f, $d7, $21, $02, $55, $d7, $18
-	db $03, $cd, $98, $5b, $c9, $fa, $89, $db, $21, $09, $db, $cd, $6c, $2f, $7e, $e6
+	db $03, $cd, $98, $5b, $c9
+
+StanceReduceDamage::
+	db $fa, $89, $db, $21, $09, $db, $cd, $6c, $2f, $7e, $e6
 	db $03, $28, $20, $62, $6b, $cb, $4f, $20, $05, $cd, $43, $6b, $18, $05, $3e, $0a
 	db $cd, $0d, $1e, $7d, $ea, $56, $db, $7c, $ea, $57, $db, $54, $5d, $7c, $b5, $20
-	db $02, $37, $c9, $af, $c9, $3e, $01, $ea, $8a, $db, $fa, $89, $db, $21, $a3, $db
+	db $02, $37, $c9, $af, $c9
+
+ItemDealDamage::
+	db $3e, $01, $ea, $8a, $db, $fa, $89, $db, $21, $a3, $db
 	db $cd, $b8, $6a, $7d, $ea, $61, $db, $7c, $ea, $62, $db, $2a, $66, $93, $4f, $7c
 	db $9a, $47, $7b, $ea, $5a, $db, $7a, $ea, $5b, $db, $30, $24, $fa, $61, $db, $6f
 	db $fa, $62, $db, $67, $2a, $56, $5f, $7b, $ea, $5a, $db, $7a, $ea, $5b, $db, $01
 	db $00, $00, $fa, $89, $db, $21, $1b, $dd, $85, $6f, $3e, $00, $8c, $67, $cb, $c6
 	db $c5, $fa, $5a, $db, $4f, $fa, $5b, $db, $47, $cd, $32, $6b, $cd, $e3, $5b, $c1
 	db $fa, $61, $db, $6f, $fa, $62, $db, $67, $79, $22, $70, $3e, $82, $ea, $55, $db
-	db $cd, $e9, $50, $cd, $2c, $56, $c9, $01, $02, $00, $cd, $e3, $5b, $3e, $b8, $ea
-	db $55, $db, $cd, $23, $6c, $cd, $1b, $56, $c9, $fa, $89, $db, $cb, $57, $28, $07
-	db $01, $64, $00, $cd, $d1, $5b, $c9, $c9, $fa, $89, $db, $cb, $57, $28, $00, $cd
-	db $0b, $56, $c9, $fa, $89, $db, $fe, $04, $30, $05, $3e, $70, $cd, $2c, $1b, $c9
+	db $cd, $e9, $50, $cd, $2c, $56, $c9
+
+ItemStaffMisses::
+	db $01, $02, $00, $cd, $e3, $5b
+
+ItemNoEffectOnTarget::
+	db $3e, $b8, $ea
+	db $55, $db, $cd, $23, $6c, $cd, $1b, $56, $c9
+
+ItemCuredEnemy::
+	db $fa, $89, $db, $cb, $57, $28, $07
+	db $01, $64, $00, $cd, $d1, $5b, $c9, $c9
+
+ItemUseless::
+	db $fa, $89, $db, $cb, $57, $28, $00, $cd
+	db $0b, $56, $c9
+
+ItemHealSound::
+	db $fa, $89, $db, $fe, $04, $30, $05, $3e, $70, $cd, $2c, $1b, $c9
+AddJoinPoints::
 	db $fa, $83, $db, $6f, $fa, $84, $db, $67, $09, $7d, $ea, $83, $db, $7c, $ea, $84
-	db $db, $c9, $fa, $83, $db, $6f, $fa, $84, $db, $67, $7d, $91, $6f, $7c, $98, $67
+	db $db, $c9
+
+SubJoinPoints::
+	db $fa, $83, $db, $6f, $fa, $84, $db, $67, $7d, $91, $6f, $7c, $98, $67
 	db $30, $03, $21, $00, $00, $7d, $ea, $83, $db, $7c, $ea, $84, $db, $c9
 
 BlazeDamage::
@@ -4410,7 +4526,7 @@ jr_052_6024:
 	push bc
 	push de
 	push hl
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	pop hl
 	pop de
@@ -4454,238 +4570,323 @@ jr_052_606b:
 	ret
 
 
+;@ def DropSkillDB() -> a
+;@ path: battle/skills/list
+;@ Skill $DB is not taken over when a battler's skill list is built: it is turned
+;@ into $FF, which ends the list.
 DropSkillDB::
+;> wBattleArg0 = 0xFF
+;> return 0xFF
 	ld a, $ff
 	ld [wBattleArg0], a
 	ret
 
 
+;@ def HealTarget() -> carry
+;@ path: battle/skills/effects
+;@ Heals the skill's target. Skills $2D, $2F, $32 and $96 restore its full maximum
+;@ HP, the others the amount the skill table gives (CalcSkillAmount). The HP stop
+;@ at the maximum. Always succeeds (carry).
 HealTarget::
+;>@c if wSkillId not in (0x2D, 0x2F, 0x32, 0x96):
 	ld a, [wSkillId]
 	cp $2d
-	jr z, jr_052_609d
+	jr z, .fullHeal
 
 	cp $2f
-	jr z, jr_052_609d
+	jr z, .fullHeal
 
+;=@c
 	cp $32
-	jr z, jr_052_609d
+	jr z, .fullHeal
 
 	cp $96
-	jr z, jr_052_609d
+	jr z, .fullHeal
 
+;>     CalcSkillAmount()
 	call CalcSkillAmount
+;>     amount = wSkillAmount
 	ld a, [wSkillAmount]
 	ld e, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld d, a
-	jr jr_052_60b1
+	jr .add
 
-jr_052_609d:
+;> else:
+;>@f     amount = mem16[wBattlerMaxHP + 2 * wSkillTarget]
+;>@f2     wSkillAmount = amount
+.fullHeal
+;=@f
 	ld a, [wSkillTarget]
 	ld hl, wBattlerMaxHP
 	call IndexWords
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
+;=@f2
 	ld a, e
 	ld [wSkillAmount], a
 	ld a, d
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_60b1:
+.add
+;>@h hp = (mem16[wBattlerHP + 2 * wSkillTarget] + amount) & 0xFFFF
 	ld a, [wSkillTarget]
 	ld hl, wBattlerHP
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld h, [hl]
+;=@h
 	ld l, a
 	ld a, l
 	add e
 	ld c, a
 	ld a, h
 	adc d
+;=@h
 	ld b, a
+;> hp = min(hp, GetBattlerMaxHP(wSkillTarget))
 	ld a, [wSkillTarget]
 	call GetBattlerMaxHP
 	call CompareHLBC
-	jr nc, jr_052_60d1
+	jr nc, .store
 
 	ld b, h
 	ld c, l
 
-jr_052_60d1:
+.store
+;> mem16[wBattlerHP + 2 * wSkillTarget] = hp
 	pop hl
 	ld a, c
 	ld [hli], a
 	ld [hl], b
+;> return True
 	scf
 	ret
 
 
+;@ def CalcAttackDamage()
+;@ path: battle/skills/damage
+;@ The damage of a normal attack by wSkillUser on wSkillTarget, into wSkillAmount.
+;@ With attack A and half the target's defense D: when A <= D the attack does 0 or 1.
+;@ Otherwise the base damage is B = (A - D) / 2; when that is no more than A / 16 the
+;@ damage is a random number below A / 16, else it is B moved up or down by a random
+;@ amount of up to B / 16, then by one more up or down (or not). The position cut
+;@ (ApplyPositionDamageCut) comes last; a result of 0 becomes 0 or 1 at random.
 CalcAttackDamage::
+;> BattleRandom()
 	call BattleRandom
+;>@d half_def = mem16[wBattlerDefense + 2 * wSkillTarget] >> 1
 	ld a, [wSkillTarget]
 	ld hl, wBattlerDefense
 	call IndexWords
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;=@d
 	call ShiftBC1
+;> atk = GetBattlerAttack(wSkillUser)
 	ld a, [wSkillUser]
 	call GetBattlerAttack
+;> if atk <= half_def:
+;>@w     dmg = wRandomHigh & 1
 	call CompareHLBC
-	jr z, jr_052_6112
+	jr z, .weak
 
-	jr c, jr_052_6112
+	jr c, .weak
 
+;> else:
+;>@b     base = (atk - half_def) >> 1
 	ld a, l
 	sub c
 	ld e, a
 	ld a, h
 	sbc b
 	ld d, a
+;=@b
 	srl d
 	rr e
+;>@s     if atk >> 4 >= base:
 	push hl
 	push bc
 	ld b, d
 	ld c, e
 	call ShiftHL4
 	call CompareHLBC
+;=@s
 	pop bc
 	pop hl
-	jr z, jr_052_611d
+	jr z, .small
 
-	jr nc, jr_052_611d
+	jr nc, .small
 
-	jr jr_052_6138
+;>@s1         r = atk >> 4
+;>@s2         dmg = (wRandomLow << 8 | wRandomHigh) % r if r else wRandomHigh & 1
+;>@e     else:
+	jr .normal
 
-jr_052_6112:
+.weak
+;=@w
 	ld a, [wRandomHigh]
 	and $01
 	ld e, a
 	ld d, $00
-	jp Jump_052_6183
+	jp .done
 
 
-jr_052_611d:
+.small
+;=@s1
 	call ShiftHL4
+;=@s2
 	ld a, h
 	or l
-	jr z, jr_052_6112
+	jr z, .weak
 
 	ld b, h
 	ld c, l
 	push hl
+;=@s2
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	call DivideHLBC
 	pop hl
+;=@s2
 	ld d, b
 	ld e, c
-	jp Jump_052_6183
+	jp .done
 
 
-jr_052_6138:
+.normal
+;>@n1         dmg = base
+;>@n2         spread = base >> 3
 	push de
 	ld h, d
 	ld l, e
 	call ShiftHL3
 	pop de
+;>@n3         if spread:
 	ld a, h
 	or l
-	jr z, jr_052_6173
+	jr z, .plusMinusOne
 
+;>@n4             r = ((wRandomLow << 8 | wRandomHigh) % ((spread & 0xFF) + 1)) >> 1
 	push hl
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	pop bc
+;=@n4
 	ld a, c
 	inc a
 	push de
 	call Divide16
 	pop de
+;=@n4
 	ld c, a
 	ld b, $00
 	call ShiftBC1
+;>@n5             if wRandomLow & 0x0F:
 	ld a, [wRandomLow]
 	and $0f
 	or a
-	jr z, jr_052_6173
+	jr z, .plusMinusOne
 
+;>@n6                 if wRandomLow & 0x08:
+;>@p                     dmg += r
 	bit 3, a
-	jr nz, jr_052_616e
+	jr nz, .plus
 
+;>@n7                 else:
+;>@n8                     dmg -= r
 	ld a, e
 	sub c
 	ld e, a
 	ld a, d
 	sbc b
 	ld d, a
-	jr jr_052_6173
+;=@n8
+	jr .plusMinusOne
 
-jr_052_616e:
+.plus
+;=@p
 	ld h, b
 	ld l, c
 	add hl, de
 	ld d, h
 	ld e, l
 
-jr_052_6173:
+.plusMinusOne
+;>@q1         r3 = wRandomHigh & 3
 	ld a, [wRandomHigh]
 	and $03
 	or a
-	jr z, jr_052_6183
+	jr z, .done
 
+;>@q2         if r3 & 1:
+;>@q3             dmg += 1
 	bit 0, a
-	jr z, jr_052_6182
+	jr z, .minus
 
 	inc de
-	jr jr_052_6183
+	jr .done
 
-jr_052_6182:
+.minus
+;>@q4         elif r3 == 2:
+;>@q5             dmg -= 1
 	dec de
 
-Jump_052_6183:
-jr_052_6183:
+.done
+;> wSkillAmount = dmg & 0xFFFF
 	ld a, e
 	ld [wSkillAmount], a
 	ld a, d
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> ApplyPositionDamageCut()
 	call ApplyPositionDamageCut
+;>@z if wSkillAmount == 0:
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	ld a, h
 	or l
+;=@z
 	ret nz
 
+;>@y     wSkillAmount = wRandomLow & 1
 	ld b, a
 	ld a, [wRandomLow]
 	and $01
 	ld c, a
 	ld a, c
 	ld [wSkillAmount], a
+;=@y
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ret
 
 
+	; unused: the same check for wSkillUser in a link battle
 	db $fa, $56, $db, $6f, $fa, $57, $db, $67, $fa, $88, $db, $e6, $03, $fe, $03, $c8
 	db $b7, $c8, $18, $48
 
-jr_052_61bd:
+;@ def ApplyPositionDamageCutLink()
+;@ path: battle/skills/damage
+;@ ApplyPositionDamageCut in a link battle: the third monster of either side
+;@ (position 2 or 6) takes only 80% of the damage.
+;@ test: skip continues inside ApplyPositionDamageCut
+ApplyPositionDamageCutLink::
+;> amount = wSkillAmount
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
+;> if wSkillTarget & 3 in (0, 3):
+;>     return
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
@@ -4694,16 +4895,29 @@ jr_052_61bd:
 	or a
 	ret z
 
-	jr jr_052_6205
+;> if wSkillTarget & 3 == 2:                # the rest is ApplyPositionDamageCut's
+;>     wSkillAmount = Percent80(amount)
+	jr ApplyPositionDamageCut.cut
 
+	; unused: a check of wSkillUser in a link battle
 	db $fa, $6c, $c8, $b7, $20, $d2, $fa, $88, $db, $fe, $03, $d0, $b7, $c8, $fa, $56
 	db $db, $6f, $fa, $57, $db, $67, $fa, $88, $db, $18, $19
 
+;@ def ApplyPositionDamageCut()
+;@ path: battle/skills/damage
+;@ The monster in the third place of the own party (position 2) takes only 80%
+;@ of wSkillAmount; in a link battle that goes for both sides
+;@ (ApplyPositionDamageCutLink).
+;@ test: wLinkActive = 0
 ApplyPositionDamageCut::
+;> if wLinkActive:
+;>     return ApplyPositionDamageCutLink()
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_61bd
+	jr nz, ApplyPositionDamageCutLink
 
+;> if wSkillTarget >= 3 or wSkillTarget == 0:
+;>     return
 	ld a, [wSkillTarget]
 	cp $03
 	ret nc
@@ -4711,33 +4925,43 @@ ApplyPositionDamageCut::
 	or a
 	ret z
 
+;> amount = wSkillAmount
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	ld a, [wSkillTarget]
 
-jr_052_6205:
+.cut
+;> if wSkillTarget == 2:
 	cp $02
 	ret nz
 
+;>     wSkillAmount = Percent80(amount)
 	call Percent80
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ret
 
 
+;@ def CalcHPFractionDamage()
+;@ path: battle/skills/damage
+;@ Damage of 80% of the target's current HP plus one, cut by the target's
+;@ resistance 14 (ResistDamageA).
 CalcHPFractionDamage::
+;>@a wSkillAmount = Percent80(GetBattlerHP(wSkillTarget)) + 1
 	ld a, [wSkillTarget]
 	call GetBattlerHP
 	call Percent80
 	inc hl
 	ld a, l
 	ld [wSkillAmount], a
+;=@a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> ResistDamageA(GetTargetStatus3(), GetResistByte3() & 3)
 	call GetTargetStatus3
 	call GetResistByte3
 	and $03
@@ -4745,81 +4969,115 @@ CalcHPFractionDamage::
 	ret
 
 
+;@ def CalcLeaveOneHPDamage() -> carry
+;@ path: battle/skills/damage
+;@ A skill that takes the target down to one HP: it first has to pass the
+;@ target's resistance 14 (ResistChanceB), else it does nothing (no carry). In
+;@ wild and link battles the damage is the target's HP minus one; in scripted
+;@ battles and the tournament it is half of the user's HP minus one. At least 1.
+;@ When the word at the address given by the user's HP is 1 (it reads that word
+;@ rather than the HP itself), the damage is 1.
 CalcLeaveOneHPDamage::
+;> if not ResistChanceB(GetTargetStatus3(), GetResistByte3() & 3):
+;>@f     wSkillAmount = 0
 	call GetTargetStatus3
 	call GetResistByte3
 	and $03
 	call ResistChanceB
-	jr nc, jr_052_628b
+	jr nc, .failed
 
+;>@r     return False
+;> user_hp = GetBattlerHP(wSkillUser)
+;> wSkillAmount = user_hp
 	ld a, [wSkillUser]
 	call GetBattlerHP
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@o if mem16[user_hp] == 1:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, h
 	or a
-	jr nz, jr_052_6259
+	jr nz, .notOne
 
+;=@o
 	ld a, l
 	cp $01
-	jr z, jr_052_6281
+;>     dmg = 1
+	jr z, .store
 
-jr_052_6259:
+;> else:
+.notOne
+;>     if wLinkActive or wBattleType == 0:
+;>@g         dmg = GetBattlerHP(wSkillTarget) - 1
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_6265
+	jr nz, .targetHP
 
 	ld a, [wBattleType]
 	or a
-	jr nz, jr_052_626e
+;>@h     else:
+	jr nz, .userHP
 
-jr_052_6265:
+.targetHP
+;=@g
 	ld a, [wSkillTarget]
 	call GetBattlerHP
 	dec hl
-	jr jr_052_627a
+	jr .atLeastOne
 
-jr_052_626e:
+.userHP
+;>@u         dmg = (user_hp - 1) >> 1
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	dec hl
 	call ShiftHL1
 
-jr_052_627a:
+.atLeastOne
+;>@t     if dmg == 0:
+;>@t2         dmg = 1
 	ld a, h
 	or l
-	jr nz, jr_052_6281
+	jr nz, .store
 
 	ld hl, $0001
 
-jr_052_6281:
+.store
+;> wSkillAmount = dmg
+;> return True
 	scf
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ret
 
 
-jr_052_628b:
+.failed
+;=@f
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;=@r
 	xor a
 	ret
 
 
+;@ def CalcAttackDamageRes0()
+;@ path: battle/skills/damage
+;@ A normal attack (CalcAttackDamage) whose damage then depends on the target's
+;@ resistance 0 (ResistDamageC: 131% at level 0 down to 30% at level 3).
 CalcAttackDamageRes0::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> ResistDamageC(GetTargetStatus3(), GetResistByte0() >> 4 & 3)
 	call GetTargetStatus3
 	call GetResistByte0
 	swap a
@@ -4828,8 +5086,14 @@ CalcAttackDamageRes0::
 	ret
 
 
+;@ def CalcAttackDamageRes4()
+;@ path: battle/skills/damage
+;@ A normal attack whose damage then depends on the target's resistance 4
+;@ (ResistDamageC).
 CalcAttackDamageRes4::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> ResistDamageC(GetTargetStatus3(), GetResistByte1() >> 4 & 3)
 	call GetTargetStatus3
 	call GetResistByte1
 	swap a
@@ -4838,213 +5102,309 @@ CalcAttackDamageRes4::
 	ret
 
 
+;@ def CalcAttackDamageRes3()
+;@ path: battle/skills/damage
+;@ A normal attack whose damage then depends on the target's resistance 3
+;@ (ResistDamageC).
 CalcAttackDamageRes3::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;>@r ResistDamageC(GetTargetStatus3(), GetResistByte1() >> 6)
 	call GetTargetStatus3
 	call GetResistByte1
 	rlca
 	rlca
 	and $03
 	call ResistDamageC
+;=@r
 	ret
 
 
+;@ def CalcAttackDamageRes5()
+;@ path: battle/skills/damage
+;@ A normal attack whose damage then depends on the target's resistance 5
+;@ (ResistDamageC).
 CalcAttackDamageRes5::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;>@r ResistDamageC(GetTargetStatus3(), GetResistByte1() >> 2 & 3)
 	call GetTargetStatus3
 	call GetResistByte1
 	rrca
 	rrca
 	and $03
 	call ResistDamageC
+;=@r
 	ret
 
 
+;@ def CalcAttackDamageVsType0()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage plus one to a target with bit 0
+;@ of its type bits (wBattlerTypeBits, from bit 0 of MonsterStats byte 5).
 CalcAttackDamageVsType0::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;>@t if wBattlerTypeBits[wSkillTarget] & 0x01:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t
 	ld h, a
 	bit 0, [hl]
-	jr z, jr_052_6303
+	jr z, .done
 
+;>@a     wSkillAmount = Percent150(wSkillAmount) + 1
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call Percent150
 	inc hl
+;=@a
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_6303:
+.done
 	ret
 
 
+;@ def CalcSlimeSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the slime family (family 0).
 CalcSlimeSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 0:
 	call GetTargetFamily
 	or a
-	jr nz, jr_052_6310
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_6310:
+.done
 	ret
 
 
+;@ def CalcDragonSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the dragon family (family 1).
 CalcDragonSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 1:
 	call GetTargetFamily
 	cp $01
-	jr nz, jr_052_631e
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_631e:
+.done
 	ret
 
 
+;@ def CalcBeastSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the beast family (family 2).
 CalcBeastSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 2:
 	call GetTargetFamily
 	cp $02
-	jr nz, jr_052_632c
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_632c:
+.done
 	ret
 
 
+;@ def CalcBirdSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the bird family (family 3).
 CalcBirdSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 3:
 	call GetTargetFamily
 	cp $03
-	jr nz, jr_052_633a
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_633a:
+.done
 	ret
 
 
+;@ def CalcPlantSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the plant family (family 4).
 CalcPlantSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 4:
 	call GetTargetFamily
 	cp $04
-	jr nz, jr_052_6348
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_6348:
+.done
 	ret
 
 
+;@ def CalcBugSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the bug family (family 5).
 CalcBugSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 5:
 	call GetTargetFamily
 	cp $05
-	jr nz, jr_052_6356
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_6356:
+.done
 	ret
 
 
+;@ def CalcDevilSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the devil family (family 6).
 CalcDevilSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 6:
 	call GetTargetFamily
 	cp $06
-	jr nz, jr_052_6364
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_6364:
+.done
 	ret
 
 
+;@ def CalcZombieSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the zombie family (family 7).
 CalcZombieSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 7:
 	call GetTargetFamily
 	cp $07
-	jr nz, jr_052_6372
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_6372:
+.done
 	ret
 
 
+;@ def CalcMaterialSlayerDamage()
+;@ path: battle/skills/damage
+;@ A normal attack that does 1.5 times the damage to the material family (family 8).
 CalcMaterialSlayerDamage::
+;> CalcAttackDamage()
 	call CalcAttackDamage
+;> if GetTargetFamily() == 8:
 	call GetTargetFamily
 	cp $08
-	jr nz, jr_052_6380
+	jr nz, .done
 
+;>     AmountPercent150()
 	call AmountPercent150
 
-jr_052_6380:
+.done
 	ret
 
 
+;@ def CalcSkillDamageVsZombie()
+;@ path: battle/skills/damage
+;@ A spell whose damage comes from the skill table (the value for own monsters,
+;@ or the one for wild enemies, plus a random spread), 131% against the zombie
+;@ family, then depends on the target's resistance 3 (ResistDamageB).
 CalcSkillDamageVsZombie::
+;> wBattleArg0 = wSkillId
+;> wBattleArg1 = 0
 	ld a, [wSkillId]
 	ld [wBattleArg0], a
 	ld a, $00
 	ld [wBattleArg1], a
+;> if not wLinkActive and wSkillUser >= 4:
+;>@w     wBattleArg2 = 0x0F                    # skill table field for wild enemies
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_63a0
+	jr nz, .own
 
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_052_63a0
+	jr c, .own
 
+;=@w
 	ld a, $0f
 	ld [wBattleArg2], a
-	jr jr_052_63a5
+	jr .get
 
-jr_052_63a0:
+;> else:
+;>     wBattleArg2 = 0x0B                    # skill table field for own monsters
+.own
 	ld a, $0b
 	ld [wBattleArg2], a
 
-jr_052_63a5:
-	ld hl, far_Call_54_526E
+.get
+;> GetSkillValue()
+	ld hl, far_GetSkillValue
 	rst $10
+;> AddSkillSpread(wBattleArg1 << 8 | wBattleArg0)
 	ld a, [wBattleArg0]
 	ld l, a
 	ld a, [wBattleArg1]
 	ld h, a
 	call AddSkillSpread
+;> if GetTargetFamily() == 7:
 	call GetTargetFamily
 	cp $07
-	jr nz, jr_052_63ce
+	jr nz, .resist
 
+;>@z     wSkillAmount = Percent131(wSkillAmount)
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call Percent131
 	ld a, l
+;=@z
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_63ce:
+.resist
+;>@r ResistDamageB(GetTargetStatus3(), GetResistByte1() >> 6)
 	call GetTargetStatus3
 	call GetResistByte1
 	rlca
 	rlca
 	and $03
 	call ResistDamageB
+;=@r
 	ret
 
 
@@ -5607,7 +5967,7 @@ jr_052_66f2:
 
 jr_052_66f4:
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_526E
+	ld hl, far_GetSkillValue
 	rst $10
 	ld a, [wBattleArg0]
 	ld l, a
@@ -6504,11 +6864,11 @@ ShiftHL1::
 	ret
 
 
-Call_52_6B48::
+GetBattlerNameTo::
 	cp $03
 	jr nc, jr_052_6b66
 
-Call_52_6B4C::
+CopyPartyMonName::
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
@@ -6530,7 +6890,7 @@ jr_052_6b5b:
 jr_052_6b62:
 	ld a, b
 	pop bc
-	jr Call_52_6B4C
+	jr CopyPartyMonName
 
 jr_052_6b66:
 	push bc
@@ -6598,7 +6958,7 @@ GetSpeciesNameWithLetter::
 
 
 jr_052_6bb7:
-	call Call_52_6B4C
+	call CopyPartyMonName
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
@@ -6702,7 +7062,7 @@ TargetNameToArg0::
 	ld [wBattleArg3], a
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ret
 
 
@@ -6714,7 +7074,7 @@ RunActionStep::
 	or a
 	jr nz, jr_052_6c5c
 
-	ld hl, far_Call_5F_4B1B
+	ld hl, far_UpdateScreenEffect
 	rst $10
 	ld a, [wBattleAnimDone]
 	or a
@@ -7166,7 +7526,7 @@ jr_052_6ed7:
 	bit 2, [hl]
 	ret z
 
-	ld a, [$dcfd]
+	ld a, [wSkillFlags1]
 	bit 7, a
 	ret
 
@@ -7271,7 +7631,7 @@ Jump_52_6F56::
 
 Jump_052_6f5b:
 	res 6, [hl]
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	bit 4, a
 	jp z, Jump_052_706c
 
@@ -7452,7 +7812,7 @@ jr_052_706c:
 	ld h, a
 	ld a, $03
 	ld [hl], a
-	ld a, [$dcfc]
+	ld a, [wSkillTargeting]
 	and $03
 	cp $01
 	jp nz, Jump_052_7184
@@ -7787,7 +8147,7 @@ Jump_52_727A::
 	cp $d5
 	jr nz, jr_052_7286
 
-	ld hl, far_Call_54_5405
+	ld hl, far_UseBeastTail
 	rst $10
 	ret
 
@@ -7798,7 +8158,7 @@ jr_052_7286:
 	xor a
 	ld [wBattleStepArg1], a
 	ld a, $80
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $10
 	ld [wSkillUser], a
 	ld hl, far_Call_58_6737
@@ -7817,7 +8177,7 @@ jr_052_7286:
 	ld hl, wTextArg2
 	ld a, [wBattleItemTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld hl, far_Call_58_57A4
 	rst $10
 	ld a, $18
@@ -7862,7 +8222,7 @@ jr_052_730f:
 	ld hl, wTextArg0
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld a, $ba
 	ld [wTextIndex], a
 	ld a, $00
@@ -7960,7 +8320,7 @@ jr_052_739d:
 	jr jr_052_7384
 
 jr_052_73b3:
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld hl, wBattleStepArg0
 	inc [hl]
@@ -7972,11 +8332,11 @@ jr_052_73bc:
 	inc [hl]
 	ld hl, wBattleStepArg1
 	inc [hl]
-	ld a, [$dd68]
+	ld a, [wSkillAnimPhase]
 	cp $02
 	ret nz
 
-	ld a, [$db53]
+	ld a, [wBattleItemUsedUp]
 	ld b, a
 	ld a, [wBattleStepArg1]
 	cp b
@@ -8018,7 +8378,7 @@ Jump_052_73f0:
 
 
 jr_052_7408:
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	xor a
 	ld [wSkillMsgMode], a
@@ -8035,7 +8395,7 @@ Jump_52_7416::
 	ld hl, wBattleSubStep
 	inc [hl]
 	xor a
-	ld [$db53], a
+	ld [wBattleItemUsedUp], a
 	jr Jump_52_7474
 
 jr_052_7428:
@@ -8063,7 +8423,7 @@ jr_052_744b:
 	ld hl, wTextArg0
 	ld a, [wBattleItemTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld a, $e4
 	ld [wTextIndex], a
 	ld a, $00
@@ -8077,7 +8437,7 @@ jr_052_746a:
 	ld a, $0c
 	ld [wBattleSubStep], a
 	xor a
-	ld [$db53], a
+	ld [wBattleItemUsedUp], a
 	ret
 
 
@@ -8092,7 +8452,7 @@ Jump_52_7474::
 
 
 jr_052_747f:
-	ld a, [$db53]
+	ld a, [wBattleItemUsedUp]
 	or a
 	jr nz, jr_052_74d1
 
@@ -8104,7 +8464,7 @@ jr_052_747f:
 	ld [wBattleArg1], a
 	ld a, $02
 	ld [wBattleArg2], a
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	ld a, [wBattleArg0]
 	bit 0, a
@@ -8134,9 +8494,9 @@ jr_052_74af:
 	jr nz, jr_052_74d1
 
 jr_052_74c8:
-	ld hl, far_Call_54_53AC
+	ld hl, far_ConsumeBattleItem
 	rst $10
-	ld a, [$db53]
+	ld a, [wBattleItemUsedUp]
 	or a
 	ret nz
 
@@ -8578,7 +8938,7 @@ Jump_52_77C8::
 	call CheckBattlerPresent
 	jp c, Jump_52_797C
 
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld hl, far_Call_55_4043
 	rst $10
@@ -8712,7 +9072,7 @@ Jump_52_7892::
 	call Call_52_7997
 	ret c
 
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld hl, far_Call_55_4043
 	rst $10
@@ -8781,7 +9141,7 @@ Call_52_78F4::
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld a, $00
 	ld [wTextGroup], a
 	ld a, [wBattlerReload]
@@ -8821,7 +9181,7 @@ jr_052_7938:
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld a, $00
 	ld [wTextGroup], a
 	call Call_52_7FCB
@@ -8880,7 +9240,7 @@ Jump_52_79A4::
 	call Call_52_7997
 	ret c
 
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ld hl, far_Call_55_4043
 	rst $10
@@ -9167,7 +9527,7 @@ Jump_52_7B31::
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
@@ -9209,7 +9569,7 @@ jr_052_7ba0:
 	ld [wTextGroup], a
 	ld a, $04
 	ld [wBattleSubStep], a
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
@@ -9243,7 +9603,7 @@ Jump_52_7BB7::
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
-	ld hl, far_Call_5F_52F0
+	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
@@ -9273,7 +9633,7 @@ Call_52_7BEC::
 
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	call BattleRandom
 	ld b, $00
 	ld a, [wSkillTarget]
@@ -9336,7 +9696,7 @@ Jump_52_7C76::
 	call CheckBattlerPresent
 	ret c
 
-	ld hl, far_Call_5F_4A60
+	ld hl, far_StartSkillHitEffect
 	rst $10
 	ld hl, far_Call_55_401F
 	rst $10
@@ -9401,7 +9761,7 @@ jr_052_7cda:
 	ld a, $01
 	ld [wBattleAnimDone], a
 	ld a, $00
-	ld [$da83], a
+	ld [wScreenEffect], a
 	call Call_52_7C98
 	ld hl, wBattlerHP
 	call IndexWords
@@ -9453,7 +9813,7 @@ Jump_52_7D22::
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_52_6B48
+	call GetBattlerNameTo
 	ld a, $00
 	ld [wTextGroup], a
 	ld b, $e3
@@ -9611,7 +9971,7 @@ jr_052_7df9:
 	cp $0c
 	ret z
 
-	ld a, [$dcfc]
+	ld a, [wSkillTargeting]
 	bit 4, a
 	jr z, jr_052_7dde
 
@@ -9625,7 +9985,7 @@ jr_052_7df9:
 	call CheckBattlerCanAct
 	jr c, jr_052_7dde
 
-	ld a, [$dcff]
+	ld a, [wSkillFlags3]
 	bit 2, a
 	jr z, jr_052_7e44
 
@@ -9715,7 +10075,7 @@ Jump_52_7EB5::
 	ld [wBattleItemTarget], a
 	ld a, $ff
 	ld [wBattleItemEffect], a
-	ld hl, far_Call_54_53AC
+	ld hl, far_ConsumeBattleItem
 	rst $10
 	call Call_52_7085
 	ret

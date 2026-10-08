@@ -256,9 +256,9 @@ DrawScreenMetasprite::
 
 
 ;@ def SetActorSpritePalette()
-;@ path: field/actors
+;@ path: field/npcs
 ;@ Adds the palette bits of sprite set hSpriteSet (ActorSpritePalettes) to hSpriteAttr.
-;@ test: hSpriteSet = rand(0, 15)
+;@ test: skip indexes a data table
 SetActorSpritePalette::
 ;>@pal hSpriteAttr |= ActorSpritePalettes[hSpriteSet]
 	ldh a, [hSpriteSet]
@@ -1769,7 +1769,7 @@ MoverDoubleHopRight::
 ;> StepMoverArc(ArcDoubleHopRight, pos)
 	ld bc, ArcDoubleHopRight
 	call StepMoverArc
-;>@x mem[actor + 0x18] += 2                 # actor in hNumber
+;>@x actor = mem16[hNumber]; mem[actor + 0x18] += 2                 # actor in hNumber
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -1797,14 +1797,14 @@ ArcDoubleHopRight::
 ;@ (wPlayerTrail) every frame, so the followers gather on him.
 ;@ test: skip part of the mover code
 MoverFillTrail::
-;>@f frame = mem[mover + 1] + 1; mem[mover + 1] = frame
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> frame = mem[p] + 1; mem[p] = frame
 	ld a, [de]
 	inc a
 	ld [de], a
@@ -1911,20 +1911,20 @@ ArcHopLeft::
 ;@ 255 frames and is then shown (record +0: $40 hidden, 0 shown).
 ;@ test: skip part of the mover code
 MoverBlinkIn::
-;>@f frame = mem[mover + 1] + 1; mem[mover + 1] = frame
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> frame = mem[p] + 1; mem[p] = frame
 	ld a, [de]
 	inc a
 	ld [de], a
 ;> if frame == 0xFF:
 ;>@e     mem[mover] = 0
-;>@g     mem[actor] = 0
+;>@g     actor = mem16[hNumber]; mem[actor] = 0
 ;>@h     return
 	cp $ff
 	jr nz, .blink
@@ -1946,7 +1946,7 @@ MoverBlinkIn::
 
 
 .blink
-;>@k mask = 0x0F if frame < 0x20 else 0x07 if frame < 0x50 else 0x03 if frame < 0x90 else 0x01
+;>@k actor = mem16[hNumber]; mask = 0x0F if frame < 0x20 else 0x07 if frame < 0x50 else 0x03 if frame < 0x90 else 0x01
 	push af
 	ldh a, [hNumber]
 	ld l, a
@@ -1995,7 +1995,7 @@ MoverSpinHop::
 	or a
 	ret nz
 
-;>@a mem[actor + 5] = 0
+;>@a actor = mem16[hNumber]; mem[actor + 5] = 0
 	ldh a, [hNumber]
 	add $05
 	ld l, a
@@ -2004,7 +2004,7 @@ MoverSpinHop::
 	ld h, a
 ;=@a
 	ld [hl], $00
-;>@b dir = (mem[mover + 1] >> 2) & 3
+;>@b mover = mem16[hNumber + 2]; dir = (mem[mover + 1] >> 2) & 3
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
@@ -2082,7 +2082,7 @@ MoverFallLeft::
 ;> StepMoverArc(ArcFallLeft, pos)
 	ld bc, ArcFallLeft
 	call StepMoverArc
-;>@x mem[actor + 0x18] -= 2
+;>@x actor = mem16[hNumber]; mem[actor + 0x18] -= 2
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2113,20 +2113,20 @@ ArcFallLeft::
 ;@ (record +0 = $40) - the reverse of MoverBlinkIn.
 ;@ test: skip part of the mover code
 MoverBlinkOut::
-;>@f frame = mem[mover + 1] + 1; mem[mover + 1] = frame
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> frame = mem[p] + 1; mem[p] = frame
 	ld a, [de]
 	inc a
 	ld [de], a
 ;> if frame == 0xFF:
 ;>@e     mem[mover] = 0
-;>@g     mem[actor] = 0x40
+;>@g     actor = mem16[hNumber]; mem[actor] = 0x40
 ;>@h     return
 	cp $ff
 	jr nz, .blink
@@ -2148,7 +2148,7 @@ MoverBlinkOut::
 
 
 .blink
-;>@k mask = 0x0F if frame < 0x20 else 0x07 if frame < 0x50 else 0x03 if frame < 0x90 else 0x01
+;>@k actor = mem16[hNumber]; mask = 0x0F if frame < 0x20 else 0x07 if frame < 0x50 else 0x03 if frame < 0x90 else 0x01
 	push af
 	ldh a, [hNumber]
 	ld l, a
@@ -2316,7 +2316,7 @@ MoverBlinkSpin::
 	or a
 	ret nz
 
-;>@a mem[actor + 5] = 0
+;>@a actor = mem16[hNumber]; mem[actor + 5] = 0
 	ldh a, [hNumber]
 	add $05
 	ld l, a
@@ -2325,7 +2325,7 @@ MoverBlinkSpin::
 	ld h, a
 ;=@a
 	ld [hl], $00
-;>@b dir = (mem[mover + 1] >> 2) & 3
+;>@b mover = mem16[hNumber + 2]; dir = (mem[mover + 1] >> 2) & 3
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
@@ -2364,20 +2364,20 @@ BlinkActorSlow::
 	and $01
 	ret nz
 
-;>@f frame = mem[mover + 1] + 1; mem[mover + 1] = frame
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> frame = mem[p] + 1; mem[p] = frame
 	ld a, [de]
 	inc a
 	ld [de], a
 ;> if frame == 0xFF:
 ;>@e     mem[mover] = 0
-;>@g     mem[actor] = 0
+;>@g     actor = mem16[hNumber]; mem[actor] = 0
 ;>@h     return
 	cp $ff
 	jr nz, .blink
@@ -2399,7 +2399,7 @@ BlinkActorSlow::
 
 
 .blink
-;>@k mask = 0x0F if frame < 0x20 else 0x07 if frame < 0x50 else 0x03 if frame < 0x90 else 0x01
+;>@k actor = mem16[hNumber]; mask = 0x0F if frame < 0x20 else 0x07 if frame < 0x50 else 0x03 if frame < 0x90 else 0x01
 	push af
 	ldh a, [hNumber]
 	ld l, a
@@ -2440,19 +2440,19 @@ BlinkActorSlow::
 ;@ (10 - wJumpHeight) * 8 + 1, so a lower jump starts further along the fall.
 ;@ test: skip part of the mover code
 MoverFallArcLeft::
-;>@f if mem[mover + 1] == 0:
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> if mem[p] == 0:
 	ld a, [de]
 	or a
 	jr nz, .table
 
-;>@s     mem[mover + 1] = (10 - wJumpHeight) * 8 + 1
+;>@s     mem[p] = (10 - wJumpHeight) * 8 + 1
 	ld a, [wJumpHeight]
 	ld c, a
 	ld a, $0a
@@ -2486,7 +2486,7 @@ MoverFallArcLeft::
 .step
 ;> StepMoverArc(table, pos)
 	call StepMoverArc
-;>@x mem16[actor + 0x18] -= 2
+;>@x actor = mem16[hNumber]; mem16[actor + 0x18] -= 2
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2572,19 +2572,19 @@ ArcFall4::
 ;@ Mover type $16 (actors): the fall of type $15 while moving 2 pixels a frame to the right.
 ;@ test: skip part of the mover code
 MoverFallArcRight::
-;>@f if mem[mover + 1] == 0:
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> if mem[p] == 0:
 	ld a, [de]
 	or a
 	jr nz, .table
 
-;>@s     mem[mover + 1] = (10 - wJumpHeight) * 8 + 1
+;>@s     mem[p] = (10 - wJumpHeight) * 8 + 1
 	ld a, [wJumpHeight]
 	ld c, a
 	ld a, $0a
@@ -2618,7 +2618,7 @@ MoverFallArcRight::
 .step
 ;> StepMoverArc(table, pos)
 	call StepMoverArc
-;>@x mem16[actor + 0x18] += 2
+;>@x actor = mem16[hNumber]; mem16[actor + 0x18] += 2
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2690,14 +2690,14 @@ MoverThrowLeft::
 	ld bc, ArcThrow10
 
 .step
-;>@f frame = mem[mover + 1]; mem[mover + 1] += 1
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> frame = mem[p]; mem[p] += 1
 	ld a, [de]
 	push af
 	inc a
@@ -2728,7 +2728,7 @@ MoverThrowLeft::
 	ld a, [hl]
 	sbc d
 	ld [hl], a
-;>@x mem16[actor + 0x18] -= 2
+;>@x actor = mem16[hNumber]; mem16[actor + 0x18] -= 2
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2905,14 +2905,14 @@ MoverThrowRight::
 	ld bc, ArcThrow10
 
 .step
-;>@f frame = mem[mover + 1]; mem[mover + 1] += 1
+;> mover = mem16[hNumber + 2]; p = mover + 1
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
 	ldh a, [hNumber + 3]
 	adc $00
 	ld d, a
-;=@f
+;> frame = mem[p]; mem[p] += 1
 	ld a, [de]
 	push af
 	inc a
@@ -2943,7 +2943,7 @@ MoverThrowRight::
 	ld a, [hl]
 	sbc d
 	ld [hl], a
-;>@x mem16[actor + 0x18] += 2
+;>@x actor = mem16[hNumber]; mem16[actor + 0x18] += 2
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -2972,7 +2972,7 @@ MoverHopLeft2::
 ;> StepMoverArc(ArcHopLeft2, pos)
 	ld bc, ArcHopLeft2
 	call StepMoverArc
-;>@x mem[actor + 0x18] -= 2
+;>@x actor = mem16[hNumber]; mem[actor + 0x18] -= 2
 	ldh a, [hNumber]
 	add $18
 	ld l, a
@@ -3009,7 +3009,7 @@ MoverSpinHop2::
 	or a
 	ret nz
 
-;>@d hPlayerDir = (mem[mover + 1] >> 2) & 3
+;>@d mover = mem16[hNumber + 2]; hPlayerDir = (mem[mover + 1] >> 2) & 3
 	ldh a, [hNumber + 2]
 	add $01
 	ld e, a
@@ -7003,7 +7003,7 @@ RandomBattleBases::
 ;@ def AddPartyMonLevel(slot: a, sum: bc) -> bc
 ;@ path: monster/party
 ;@ Adds the level of monster `slot` to `sum` (nothing for $FF).
-;@ test: a = rand(0, 19)
+;@ test: skip reads the party monster records
 AddPartyMonLevel::
 ;> if slot == 0xFF:
 ;>     return sum
@@ -7443,7 +7443,7 @@ ScriptCmdBoostWeakestStat::
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-;>@h if not (mp < hp or atk < hp or dfn < hp or 2 * agl < hp or 4 * intl < hp):
+;>@h if not (CompareStat(wMonMaxMP, hp) or CompareStat(wMonAttack, hp) or CompareStat(wMonDefense, hp) or CompareStat2x(wMonAgility, hp) or CompareStat4x(wMonIntelligence, hp)):   # nothing below hp
 	ld hl, wMonMaxMP
 	call CompareStat
 	jr c, .notHP
@@ -7484,7 +7484,7 @@ ScriptCmdBoostWeakestStat::
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-;>@q     if not (atk < mp or dfn < mp or 2 * agl < mp or 4 * intl < mp):
+;>@q     if not (CompareStat(wMonAttack, mp) or CompareStat(wMonDefense, mp) or CompareStat2x(wMonAgility, mp) or CompareStat4x(wMonIntelligence, mp)):
 	ld hl, wMonAttack
 	call CompareStat
 	jr c, .notMP
@@ -7521,7 +7521,7 @@ ScriptCmdBoostWeakestStat::
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-;>@b         if not (dfn < atk or 2 * agl < atk or 4 * intl < atk):
+;>@b         if not (CompareStat(wMonDefense, atk) or CompareStat2x(wMonAgility, atk) or CompareStat4x(wMonIntelligence, atk)):
 	ld hl, wMonDefense
 	call CompareStat
 	jr c, .notAttack
@@ -7552,7 +7552,7 @@ ScriptCmdBoostWeakestStat::
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-;>@e             if not (2 * agl < dfn or 4 * intl < dfn):
+;>@e             if not (CompareStat2x(wMonAgility, dfn) or CompareStat4x(wMonIntelligence, dfn)):
 	ld hl, wMonAgility
 	call CompareStat2x
 	jr c, .notDefense
@@ -7582,7 +7582,7 @@ ScriptCmdBoostWeakestStat::
 	add hl, hl
 	ld e, l
 	ld d, h
-;>                 if not 4 * intl < agl2:
+;>                 if not CompareStat4x(wMonIntelligence, agl2):
 	ld hl, wMonIntelligence
 	call CompareStat4x
 	jr c, .intelligence
@@ -8047,7 +8047,7 @@ RollTournamentTeam::
 ;@ def MaxLevelInto(slot: a, best: b) -> b
 ;@ path: monster/party
 ;@ Returns the larger of `best` and the level of monster `slot` ($FF: `best`).
-;@ test: a = rand(0, 19)
+;@ test: skip reads the party monster records
 MaxLevelInto::
 ;> if slot == 0xFF:
 ;>     return best

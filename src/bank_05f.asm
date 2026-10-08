@@ -8,19 +8,19 @@ BankNumber_5F::
 	db $5f
 
 FarTable_5F::
-	dw Call_5F_4017
-	dw Call_5F_40F7
-	dw Call_5F_441C
+	dw EndingInit
+	dw EndingUpdate
+	dw OpeningInit
 	dw $4619
-	dw Call_5F_4A60
-	dw Call_5F_4B1B
-	dw Call_5F_52F0
-	dw Call_5F_5630
-	dw Call_5F_5BB7
-	dw Call_5F_5C8D
-	dw Call_5F_6251
+	dw StartSkillHitEffect
+	dw UpdateScreenEffect
+	dw StartSkillVisual
+	dw GetSkillAnim
+	dw AnimViewerInit
+	dw AnimViewerUpdate
+	dw DebugStatsWindow
 
-Call_5F_4017::
+EndingInit::
 	call DisableSTATInterrupts
 	ld hl, wSGBPalSet
 	ld [hl], $00
@@ -35,14 +35,14 @@ Call_5F_4017::
 	ld a, [wGameModeStep]
 	rst $00
 
-JumpTable_5F_4035::
-	dw Jump_5F_4039
-	dw Jump_5F_4095
+EndingInitSteps::
+	dw EndingInitCredits
+	dw EndingInitSavePrompt
 
-Jump_5F_4039::
+EndingInitCredits::
 	ld hl, $8000
 	ld bc, $0c00
-	call Call_5F_40EB
+	call FillTileStripes
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
@@ -52,13 +52,13 @@ Jump_5F_4039::
 	ld de, $66b3
 	ld hl, $9800
 	ld bc, Clear4Bytes
-	call Call_5F_424A
+	call CopyTileRect_5F
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
-	call Call_5F_439D
-	call Call_5F_43BA
+	call PrintCreditsPage
+	call LoadCreditsMonster
 	ld a, $fc
 	call StartFade
 	ld a, $21
@@ -78,18 +78,18 @@ Jump_5F_4039::
 	jp EnableLCDAndInterrupts
 
 
-Jump_5F_4095::
+EndingInitSavePrompt::
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
 	ld hl, $8800
 	ld bc, $0800
-	call Call_5F_40EB
+	call FillTileStripes
 	ld de, $42cf
 	ld hl, $99a0
 	ld bc, $1404
-	call Call_5F_424A
+	call CopyTileRect_5F
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
@@ -115,7 +115,7 @@ Jump_5F_4095::
 	jp EnableLCDAndInterrupts
 
 
-Call_5F_40EB::
+FillTileStripes::
 	ld [hl], $ff
 	inc hl
 	ld [hl], $00
@@ -123,12 +123,12 @@ Call_5F_40EB::
 	dec bc
 	ld a, b
 	or c
-	jr nz, Call_5F_40EB
+	jr nz, FillTileStripes
 
 	ret
 
 
-Call_5F_40F7::
+EndingUpdate::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -136,33 +136,33 @@ Call_5F_40F7::
 	ld a, [wGameModeStep]
 	rst $00
 
-JumpTable_5F_4100::
-	dw Jump_5F_4104
-	dw Jump_5F_4112
+EndingUpdateSteps::
+	dw EndingCredits
+	dw EndingSavePrompt
 
-Jump_5F_4104::
+EndingCredits::
 	ld a, [wSceneObjects]
 	rst $00
 
-JumpTable_5F_4108::
-	dw Jump_5F_4120
-	dw Jump_5F_4140
-	dw Jump_5F_4155
-	dw Jump_5F_4163
-	dw Jump_5F_4178
+EndingCreditsStates::
+	dw CreditsWaitPage
+	dw CreditsNextPage
+	dw CreditsFadeIn
+	dw CreditsCheckLast
+	dw CreditsLeaveToField
 
-Jump_5F_4112::
+EndingSavePrompt::
 	ld a, [wSceneObjects]
 	rst $00
 
-JumpTable_5F_4116::
-	dw Jump_5F_41DA
-	dw Jump_5F_41ED
-	dw Jump_5F_41F6
-	dw Jump_5F_4210
-	dw Jump_5F_4244
+EndingSavePromptStates::
+	dw SavePromptPrintEnd
+	dw SavePromptStart
+	dw SavePromptWaitButton
+	dw SavePromptAnswer
+	dw SavePromptDone
 
-Jump_5F_4120::
+CreditsWaitPage::
 	ld hl, $c0da
 	inc [hl]
 	ld a, [hl]
@@ -186,20 +186,20 @@ Jump_5F_4120::
 	ret
 
 
-Jump_5F_4140::
+CreditsNextPage::
 	ld hl, $c0d9
 	inc [hl]
 	ld a, [hl]
 	cp $1a
-	call z, Call_5F_440F
-	call Call_5F_439D
-	call Call_5F_43BA
+	call z, DrawCreditsLastPage
+	call PrintCreditsPage
+	call LoadCreditsMonster
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
-Jump_5F_4155::
+CreditsFadeIn::
 	ld hl, far_SGBLoadPalettes
 	rst $10
 	ld a, $fc
@@ -209,7 +209,7 @@ Jump_5F_4155::
 	ret
 
 
-Jump_5F_4163::
+CreditsCheckLast::
 	xor a
 	ld [wMapLoadState], a
 	ld a, [$c0d9]
@@ -227,7 +227,7 @@ jr_05f_4173:
 	ret
 
 
-Jump_5F_4178::
+CreditsLeaveToField::
 	ld hl, $c0da
 	inc [hl]
 	ld a, [hl]
@@ -270,9 +270,9 @@ Jump_5F_4178::
 	ld a, $00
 	ld [wGameModeStep], a
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $04
@@ -280,19 +280,19 @@ Jump_5F_4178::
 	ret
 
 
-Jump_5F_41DA::
+SavePromptPrintEnd::
 	ld a, $07
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
-	ld hl, Jump_5F_4C02
+	ld hl, EffectShakeY
 	rst $10
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
-Jump_5F_41ED::
+SavePromptStart::
 	xor a
 	ld [wMapLoadState], a
 	ld hl, wSceneObjects
@@ -300,7 +300,7 @@ Jump_5F_41ED::
 	ret
 
 
-Jump_5F_41F6::
+SavePromptWaitButton::
 	ld a, [wJoyPressed]
 	and $0f
 	ret z
@@ -309,13 +309,13 @@ Jump_5F_41F6::
 	call PrintSystemText
 	ld de, $2e07
 	ld hl, $9800
-	call Call_5F_4298
+	call DrawTilemapVRAM_5F
 	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
-Jump_5F_4210::
+SavePromptAnswer::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -347,7 +347,7 @@ jr_05f_423c:
 	ret
 
 
-Jump_5F_4244::
+SavePromptDone::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -355,7 +355,7 @@ Jump_5F_4244::
 	ret
 
 
-Call_5F_424A::
+CopyTileRect_5F::
 	push bc
 	push hl
 
@@ -376,12 +376,12 @@ jr_05f_424c:
 	adc $00
 	ld h, a
 	dec c
-	jr nz, Call_5F_424A
+	jr nz, CopyTileRect_5F
 
 	ret
 
 
-Call_5F_4263::
+DrawTilemap_5F::
 	ld a, [de]
 	inc de
 	ld c, a
@@ -423,7 +423,7 @@ jr_05f_427e:
 	ld [$c0ff], a
 	jr jr_05f_4272
 
-Call_5F_4298::
+DrawTilemapVRAM_5F::
 	ld a, [de]
 	inc de
 	ld c, a
@@ -471,7 +471,7 @@ jr_05f_42b5:
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $e0, $e0, $fc, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
 
-Call_5F_431F::
+PrintCreditsHeading::
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
@@ -492,7 +492,7 @@ Call_5F_431F::
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
-	ld hl, Jump_5F_4C02
+	ld hl, EffectShakeY
 	rst $10
 	pop de
 	pop hl
@@ -507,7 +507,7 @@ Call_5F_431F::
 	ret
 
 
-Call_5F_435E::
+PrintCreditsBody::
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
@@ -528,7 +528,7 @@ Call_5F_435E::
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
-	ld hl, Jump_5F_4C02
+	ld hl, EffectShakeY
 	rst $10
 	pop de
 	pop hl
@@ -543,21 +543,21 @@ Call_5F_435E::
 	ret
 
 
-Call_5F_439D::
+PrintCreditsPage::
 	ld a, [$c0d9]
 	ld [wTextIndex], a
 	ld a, $05
 	ld [wTextGroup], a
-	call Call_5F_431F
+	call PrintCreditsHeading
 	ld a, [$c0d9]
 	ld [wTextIndex], a
 	ld a, $06
 	ld [wTextGroup], a
-	call Call_5F_435E
+	call PrintCreditsBody
 	ret
 
 
-Call_5F_43BA::
+LoadCreditsMonster::
 	ld a, [$c0d9]
 	ld hl, $43f4
 	add l
@@ -572,10 +572,10 @@ Call_5F_43BA::
 	ld [$c0de], a
 	ld [wPaletteSet], a
 	ld a, $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 	ld hl, $016d
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 	ld hl, $8aa0
@@ -593,38 +593,38 @@ Call_5F_43BA::
 	db $6d, $13, $59, $49, $42, $0a, $a4, $1b, $81, $84, $c7, $95, $96, $97, $44, $7f
 	db $c2, $91, $9a, $2c, $6d, $13, $59, $49, $42, $0a, $08
 
-Call_5F_440F::
+DrawCreditsLastPage::
 	ld de, $681b
 	ld hl, $9800
 	ld bc, ClearScroll
-	call Call_5F_424A
+	call CopyTileRect_5F
 	ret
 
 
-Call_5F_441C::
-	ld a, [$c88c]
+OpeningInit::
+	ld a, [wOpeningScene]
 	rst $00
 
-JumpTable_5F_4420::
-	dw Jump_5F_442E
-	dw Jump_5F_4520
-	dw Jump_5F_4520
-	dw Jump_5F_4520
-	dw Jump_5F_4572
-	dw Jump_5F_4520
-	dw Jump_5F_45C0
+OpeningInitScenes::
+	dw OpeningInitLogos
+	dw OpeningInitStarScene
+	dw OpeningInitStarScene
+	dw OpeningInitStarScene
+	dw OpeningInitPicture
+	dw OpeningInitStarScene
+	dw OpeningInitTitle
 
-Jump_5F_442E::
-	ld a, [$c88d]
+OpeningInitLogos::
+	ld a, [wOpeningLogo]
 	rst $00
 
-JumpTable_5F_4432::
-	dw Jump_5F_4439
-	dw Jump_5F_4486
-	dw Jump_5F_44D3
+OpeningInitLogoTable::
+	dw OpeningInitLogo0
+	dw OpeningInitLogo1
+	dw OpeningInitLogo2
 	db $c9
 
-Jump_5F_4439::
+OpeningInitLogo0::
 	ld a, $02
 	call LoadSGBBorder
 	call SGBPacketDelay
@@ -641,7 +641,7 @@ Jump_5F_4439::
 	call Decompress
 	ld de, $669d
 	ld hl, $9800
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld a, $00
 	ld [wPaletteSet], a
 	ld hl, far_LoadPaletteSet
@@ -658,7 +658,7 @@ Jump_5F_4439::
 	ret
 
 
-Jump_5F_4486::
+OpeningInitLogo1::
 	ld a, $02
 	call LoadSGBBorder
 	call SGBPacketDelay
@@ -675,7 +675,7 @@ Jump_5F_4486::
 	call Decompress
 	ld de, $666e
 	ld hl, $9800
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld a, $00
 	ld [wPaletteSet], a
 	ld hl, far_LoadPaletteSet
@@ -692,7 +692,7 @@ Jump_5F_4486::
 	ret
 
 
-Jump_5F_44D3::
+OpeningInitLogo2::
 	ld a, $02
 	call LoadSGBBorder
 	call SGBPacketDelay
@@ -709,7 +709,7 @@ Jump_5F_44D3::
 	call Decompress
 	ld de, $6457
 	ld hl, $9800
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld a, $00
 	ld [wPaletteSet], a
 	ld hl, far_LoadPaletteSet
@@ -726,7 +726,7 @@ Jump_5F_44D3::
 	ret
 
 
-Jump_5F_4520::
+OpeningInitStarScene::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
@@ -763,7 +763,7 @@ Jump_5F_4520::
 	ret
 
 
-Jump_5F_4572::
+OpeningInitPicture::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
@@ -780,7 +780,7 @@ Jump_5F_4572::
 	call Decompress
 	ld de, $64f1
 	ld hl, $9800
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld a, $01
 	ld [wPaletteSet], a
 	ld hl, far_LoadPaletteSet
@@ -797,7 +797,7 @@ Jump_5F_4572::
 	ret
 
 
-Jump_5F_45C0::
+OpeningInitTitle::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
@@ -814,7 +814,7 @@ Jump_5F_45C0::
 	call DecompressVRAM
 	ld de, $6583
 	ld hl, $9800
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld a, $06
 	call QueueMusic
 	ld a, $01
@@ -847,28 +847,28 @@ jr_05f_4614:
 	call SerialSendSlave
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr nz, jr_05f_463f
+	jr nz, OpeningSkip
 
 	bit 1, a
-	jr nz, jr_05f_463f
+	jr nz, OpeningSkip
 
 	bit 3, a
-	jr nz, jr_05f_463f
+	jr nz, OpeningSkip
 
-	ld a, [$c88c]
+	ld a, [wOpeningScene]
 	rst $00
 
-JumpTable_5F_4631::
-	dw Jump_5F_46A6
-	dw Jump_5F_471A
-	dw Jump_5F_47B0
-	dw Jump_5F_4841
-	dw Jump_5F_48D5
-	dw Jump_5F_4908
-	dw Jump_5F_49B3
+OpeningUpdateScenes::
+	dw OpeningLogos
+	dw OpeningStarScene1
+	dw OpeningStarScene2
+	dw OpeningStarScene3
+	dw OpeningPicture
+	dw OpeningStarScene5
+	dw OpeningTitle
 
-jr_05f_463f:
-	ld a, [$c88c]
+OpeningSkip::
+	ld a, [wOpeningScene]
 	cp $06
 	jr nc, jr_05f_4663
 
@@ -881,9 +881,9 @@ Jump_05f_464a:
 	ld a, $00
 	ld [wGameModeStep], a
 	ld a, $06
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
@@ -895,16 +895,16 @@ jr_05f_4663:
 	ld a, $01
 	ld [wGameModeStep], a
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 jr_05f_467c:
-	ld a, [$c88d]
+	ld a, [wOpeningLogo]
 	cp $00
 	jp nz, Jump_05f_4685
 
@@ -912,7 +912,7 @@ jr_05f_467c:
 
 
 Jump_05f_4685:
-	ld a, [$c88d]
+	ld a, [wOpeningLogo]
 	cp $01
 	jp nz, Jump_05f_464a
 
@@ -921,25 +921,25 @@ Jump_05f_4685:
 	ld a, $00
 	ld [wGameModeStep], a
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $02
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_5F_46A6::
-	ld a, [$c88d]
+OpeningLogos::
+	ld a, [wOpeningLogo]
 	rst $00
 
-JumpTable_5F_46AA::
-	dw Jump_5F_46B1
-	dw Jump_5F_46D2
-	dw Jump_5F_46F3
+OpeningLogoSteps::
+	dw OpeningLogo0
+	dw OpeningLogo1
+	dw OpeningLogo2
 	db $c9
 
-Jump_5F_46B1::
+OpeningLogo0::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -954,14 +954,14 @@ Jump_5F_46B1::
 	call StartFade
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88d
+	ld hl, wOpeningLogo
 	inc [hl]
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_5F_46D2::
+OpeningLogo1::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -976,14 +976,14 @@ Jump_5F_46D2::
 	call StartFade
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88d
+	ld hl, wOpeningLogo
 	inc [hl]
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_5F_46F3::
+OpeningLogo2::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -998,16 +998,16 @@ Jump_5F_46F3::
 	call StartFade
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88c
+	ld hl, wOpeningScene
 	inc [hl]
 	ld hl, wGameModeChange
 	inc [hl]
 	ld hl, $c0dc
-	call Call_5F_49CC
+	call SetUpStarScene1
 	ret
 
 
-Jump_5F_471A::
+OpeningStarScene1::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -1090,14 +1090,14 @@ jr_05f_4777:
 
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88c
+	ld hl, wOpeningScene
 	inc [hl]
 	ld hl, $c0dc
-	call Call_5F_49F1
+	call SetUpStarScene2
 	ret
 
 
-Jump_5F_47B0::
+OpeningStarScene2::
 	ld a, [wSceneObjects]
 	or a
 	jr nz, jr_05f_47bb
@@ -1176,14 +1176,14 @@ jr_05f_4808:
 
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88c
+	ld hl, wOpeningScene
 	inc [hl]
 	ld hl, $c0dc
-	call Call_5F_4A16
+	call SetUpStarScene3
 	ret
 
 
-Jump_5F_4841::
+OpeningStarScene3::
 	ld a, [wSceneObjects]
 	or a
 	jr nz, jr_05f_484c
@@ -1264,14 +1264,14 @@ jr_05f_4899:
 	call StartFade
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88c
+	ld hl, wOpeningScene
 	inc [hl]
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_5F_48D5::
+OpeningPicture::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -1286,7 +1286,7 @@ Jump_5F_48D5::
 	call StartFade
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88c
+	ld hl, wOpeningScene
 	inc [hl]
 	ld hl, wGameModeChange
 	inc [hl]
@@ -1297,11 +1297,11 @@ Jump_5F_48D5::
 	xor a
 	ld [$c0ea], a
 	ld hl, $c0dc
-	call Call_5F_4A3B
+	call SetUpStarScene5
 	ret
 
 
-Jump_5F_4908::
+OpeningStarScene5::
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -1394,14 +1394,14 @@ jr_05f_4997:
 	call StartFade
 	xor a
 	ld [wSceneObjects], a
-	ld hl, $c88c
+	ld hl, wOpeningScene
 	inc [hl]
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_5F_49B3::
+OpeningTitle::
 	ld a, [$ddb4]
 	ld hl, $ddce
 	and [hl]
@@ -1418,7 +1418,7 @@ Jump_5F_49B3::
 	ret
 
 
-Call_5F_49CC::
+SetUpStarScene1::
 	ld a, $00
 	ld [hli], a
 	ld a, $80
@@ -1446,7 +1446,7 @@ Call_5F_49CC::
 	ret
 
 
-Call_5F_49F1::
+SetUpStarScene2::
 	ld a, $00
 	ld [hli], a
 	ld a, $40
@@ -1474,7 +1474,7 @@ Call_5F_49F1::
 	ret
 
 
-Call_5F_4A16::
+SetUpStarScene3::
 	ld a, $00
 	ld [hli], a
 	ld a, $a0
@@ -1502,7 +1502,7 @@ Call_5F_4A16::
 	ret
 
 
-Call_5F_4A3B::
+SetUpStarScene5::
 	ld a, $00
 	ld [hli], a
 	ld a, $86
@@ -1530,7 +1530,7 @@ Call_5F_4A3B::
 	ret
 
 
-Call_5F_4A60::
+StartSkillHitEffect::
 	ld a, [wSkillId]
 	cp $12
 	jp c, Jump_05f_4ae8
@@ -1668,7 +1668,7 @@ jr_05f_4afd:
 	xor $01
 
 jr_05f_4b07:
-	ld [$da83], a
+	ld [wScreenEffect], a
 	ret
 
 
@@ -1678,11 +1678,11 @@ jr_05f_4b0b:
 	ld bc, $0006
 	call FillMemory
 	ld a, $04
-	ld [$da83], a
+	ld [wScreenEffect], a
 	ret
 
 
-Call_5F_4B1B::
+UpdateScreenEffect::
 	ld a, [$da34]
 	inc a
 	cp $05
@@ -1707,53 +1707,53 @@ Call_5F_4B1B::
 
 
 jr_05f_4b40:
-	ld a, [$da83]
+	ld a, [wScreenEffect]
 	rst $00
 
-JumpTable_5F_4B44::
-	dw Jump_5F_4B60
-	dw Jump_5F_4B60
-	dw Jump_5F_4B6A
-	dw Jump_5F_4C02
-	dw Jump_5F_4C4A
-	dw Jump_5F_4C89
-	dw Jump_5F_4CD8
-	dw Jump_5F_4D14
-	dw Jump_5F_4D69
-	dw Jump_5F_4D86
-	dw Jump_5F_4DA9
-	dw Jump_5F_4DF8
-	dw Jump_5F_51A1
-	dw Jump_5F_5246
+ScreenEffects::
+	dw EffectNone
+	dw EffectNone
+	dw EffectBlinkTarget
+	dw EffectShakeY
+	dw EffectFlash
+	dw EffectDarken
+	dw EffectInvert
+	dw EffectDarkenTwice
+	dw EffectQuake
+	dw EffectWave
+	dw EffectLighten
+	dw EffectFlashLong
+	dw EffectShakeX
+	dw EffectBlinkUser
 
-Jump_5F_4B60::
+EffectNone::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4B6A::
+EffectBlinkTarget::
 	ld a, [wLinkFlags]
 	ld b, a
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
-	jr z, Jump_5F_4BF4
+	jr z, BlinkTargetEnd
 
 	ld a, [wSkillTarget]
 	bit 1, b
 	jr nz, jr_05f_4b84
 
 	cp $04
-	jr c, Jump_5F_4BF4
+	jr c, BlinkTargetEnd
 
 	jr jr_05f_4b88
 
 jr_05f_4b84:
 	cp $04
-	jr nc, Jump_5F_4BF4
+	jr nc, BlinkTargetEnd
 
 jr_05f_4b88:
 	ld a, [wBattleSubStep]
@@ -1762,45 +1762,45 @@ jr_05f_4b88:
 
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, Jump_5F_4BF4
+	jr c, BlinkTargetEnd
 
 jr_05f_4b97:
-	ld a, [$da84]
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4B9B::
-	dw Jump_5F_4BA5
-	dw Jump_5F_4BCB
-	dw Jump_5F_4BA5
-	dw Jump_5F_4BCB
-	dw Jump_5F_4BF4
+BlinkTargetSteps::
+	dw BlinkTargetHide
+	dw BlinkTargetShow
+	dw BlinkTargetHide
+	dw BlinkTargetShow
+	dw BlinkTargetEnd
 
-Jump_5F_4BA5::
+BlinkTargetHide::
 	ld a, $06
-	ld [$da85], a
-	call Call_5F_4E3C
+	ld [wScreenEffectTimer], a
+	call GetTargetPicSlot
 	ld hl, $50ff
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
 	ld d, h
 	ld a, $03
 	ld hl, $5109
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld c, $06
-	call Call_5F_4E1F
-	ld hl, $da84
+	call CopyTileRectVRAM_5F
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4BCB::
+BlinkTargetShow::
 	ld a, $06
-	ld [$da85], a
-	call Call_5F_4E3C
+	ld [wScreenEffectTimer], a
+	call GetTargetPicSlot
 	ld hl, $50ff
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
@@ -1808,61 +1808,61 @@ Jump_5F_4BCB::
 	ld a, [wSkillTarget]
 	and $03
 	ld hl, $5109
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld c, $06
-	call Call_5F_4E1F
-	ld hl, $da84
+	call CopyTileRectVRAM_5F
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4BF4::
+BlinkTargetEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Jump_5F_4C02::
+EffectShakeY::
 	ld a, [wSkillId]
 	cp $81
-	jr z, Jump_5F_4C3A
+	jr z, ShakeYEnd
 
-	ld a, [$da84]
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4C0D::
-	dw Jump_5F_4C15
-	dw Jump_5F_4C2F
-	dw Jump_5F_4C15
-	dw Jump_5F_4C3A
+ShakeYSteps::
+	dw ShakeYDown
+	dw ShakeYBack
+	dw ShakeYDown
+	dw ShakeYEnd
 
-Jump_5F_4C15::
+ShakeYDown::
 	ld a, $02
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
 	db $3e, $00, $e0, $bb, $3e, $01, $e0, $b7, $21, $84, $da, $34, $c9
 
-Jump_5F_4C2F::
+ShakeYBack::
 	xor a
 	ldh [hScrollY], a
 	xor a
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4C3A::
+ShakeYEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
@@ -1870,135 +1870,135 @@ Jump_5F_4C3A::
 	xor a
 	ldh [hScrollX], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4C4A::
-	ld a, [$da84]
+EffectFlash::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4C4E::
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C7C
+FlashSteps::
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw FlashEnd
 
-Jump_5F_4C5C::
+SetPalettesWhite::
 	ld hl, wBGP
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Call_5F_4C6C::
+SetPalettesNormal::
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
 	inc hl
 	ld [hl], $e2
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4C7C::
-	call Call_5F_4C6C
+FlashEnd::
+	call SetPalettesNormal
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4C89::
-	ld a, [$da84]
+EffectDarken::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4C8D::
-	dw Jump_5F_4C95
-	dw Jump_5F_4CAB
-	dw Jump_5F_4CBE
-	dw Jump_5F_4CCE
+DarkenSteps::
+	dw DarkenFade
+	dw DarkenHold
+	dw DarkenRestore
+	dw DarkenEnd
 
-Jump_5F_4C95::
-	call Call_5F_506E
-	ld a, [$da87]
+DarkenFade::
+	call DarkenPalettesStep
+	ld a, [wScreenEffectFrame]
 	cp $04
 	ret c
 
 	xor a
-	ld [$da86], a
+	ld [wScreenEffectAux], a
 	xor a
-	ld [$da87], a
-	ld hl, $da84
+	ld [wScreenEffectFrame], a
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4CAB::
-	ld hl, $da85
+DarkenHold::
+	ld hl, wScreenEffectTimer
 	inc [hl]
-	ld a, [$da85]
+	ld a, [wScreenEffectTimer]
 	cp $0a
 	ret nz
 
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Jump_5F_4CBE::
+DarkenRestore::
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
 	inc hl
 	ld [hl], $e2
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4CCE::
+DarkenEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4CD8::
-	ld a, [$da84]
+EffectInvert::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4CDC::
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4CF6
-	dw Jump_5F_4D0A
+InvertSteps::
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertPalettes
+	dw InvertEnd
 
-Jump_5F_4CF6::
+InvertPalettes::
 	ld hl, wBGP
 	ld a, [hl]
 	xor $ff
@@ -2009,105 +2009,105 @@ Jump_5F_4CF6::
 	ld a, [hl]
 	xor $ff
 	ld [hl], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4D0A::
+InvertEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4D14::
-	ld a, [$da84]
+EffectDarkenTwice::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4D18::
-	dw Jump_5F_4D26
-	dw Jump_5F_4D3C
-	dw Jump_5F_4D4F
-	dw Jump_5F_4D26
-	dw Jump_5F_4D3C
-	dw Jump_5F_4D4F
-	dw Jump_5F_4D5F
+DarkenTwiceSteps::
+	dw DarkenTwiceFade
+	dw DarkenTwiceHold
+	dw DarkenTwiceRestore
+	dw DarkenTwiceFade
+	dw DarkenTwiceHold
+	dw DarkenTwiceRestore
+	dw DarkenTwiceEnd
 
-Jump_5F_4D26::
-	call Call_5F_506E
-	ld a, [$da87]
+DarkenTwiceFade::
+	call DarkenPalettesStep
+	ld a, [wScreenEffectFrame]
 	cp $04
 	ret c
 
 	xor a
-	ld [$da86], a
+	ld [wScreenEffectAux], a
 	xor a
-	ld [$da87], a
-	ld hl, $da84
+	ld [wScreenEffectFrame], a
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4D3C::
-	ld hl, $da85
+DarkenTwiceHold::
+	ld hl, wScreenEffectTimer
 	inc [hl]
-	ld a, [$da85]
+	ld a, [wScreenEffectTimer]
 	cp $05
 	ret nz
 
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Jump_5F_4D4F::
+DarkenTwiceRestore::
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
 	inc hl
 	ld [hl], $e2
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4D5F::
+DarkenTwiceEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4D69::
-	ld a, [$da84]
+EffectQuake::
+	ld a, [wScreenEffectStep]
 	or a
-	call z, Call_5F_4ED5
-	call Call_5F_4F49
-	ld a, [$da84]
+	call z, QuakeShake
+	call QuakeFlash
+	ld a, [wScreenEffectStep]
 	or a
 	ret z
 
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Jump_5F_4D86::
-	ld a, [$da87]
+EffectWave::
+	ld a, [wScreenEffectFrame]
 	or a
 	jr nz, jr_05f_4da1
 
-	ld hl, $da87
+	ld hl, wScreenEffectFrame
 	inc [hl]
 	xor a
 	ld [wMenuStep], a
@@ -2121,98 +2121,98 @@ Jump_5F_4D86::
 
 
 jr_05f_4da1:
-	call Call_5F_4F9B
-	ld hl, $da87
+	call WaveStep
+	ld hl, wScreenEffectFrame
 	inc [hl]
 	ret
 
 
-Jump_5F_4DA9::
-	ld a, [$da84]
+EffectLighten::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4DAD::
-	dw Jump_5F_4DB5
-	dw Jump_5F_4DCB
-	dw Jump_5F_4DDE
-	dw Jump_5F_4DEE
+LightenSteps::
+	dw LightenFade
+	dw LightenHold
+	dw LightenRestore
+	dw LightenEnd
 
-Jump_5F_4DB5::
-	call Call_5F_50B5
-	ld a, [$da87]
+LightenFade::
+	call LightenPalettesStep
+	ld a, [wScreenEffectFrame]
 	cp $04
 	ret c
 
 	xor a
-	ld [$da86], a
+	ld [wScreenEffectAux], a
 	xor a
-	ld [$da87], a
-	ld hl, $da84
+	ld [wScreenEffectFrame], a
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4DCB::
-	ld hl, $da85
+LightenHold::
+	ld hl, wScreenEffectTimer
 	inc [hl]
-	ld a, [$da85]
+	ld a, [wScreenEffectTimer]
 	cp $0a
 	ret nz
 
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Jump_5F_4DDE::
+LightenRestore::
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
 	inc hl
 	ld [hl], $e2
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_4DEE::
+LightenEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_4DF8::
-	ld a, [$da84]
+EffectFlashLong::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_4DFC::
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C5C
-	dw Call_5F_4C6C
-	dw Jump_5F_4C7C
+FlashLongSteps::
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw SetPalettesWhite
+	dw SetPalettesNormal
+	dw FlashEnd
 	db $c9
 
-Call_5F_4E1F::
+CopyTileRectVRAM_5F::
 	push de
-	ld a, [$da85]
+	ld a, [wScreenEffectTimer]
 	ld b, a
 
 jr_05f_4e24:
@@ -2235,9 +2235,9 @@ jr_05f_4e24:
 	ld a, $00
 	adc d
 	ld d, a
-	jr Call_5F_4E1F
+	jr CopyTileRectVRAM_5F
 
-Call_5F_4E3C::
+GetTargetPicSlot::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_05f_4e4e
@@ -2293,12 +2293,12 @@ jr_05f_4e7f:
 	ret
 
 
-Call_5F_4E80::
+GetUserPicSlot::
 	ld a, [wLinkActive]
 	or a
 	jr z, jr_05f_4ea3
 
-	call Call_5F_52D6
+	call CheckSwappedPicSkill
 	jr nz, jr_05f_4e97
 
 	ld a, [wLinkFlags]
@@ -2360,119 +2360,119 @@ jr_05f_4ed4:
 	ret
 
 
-Call_5F_4ED5::
-	ld a, [$da84]
+QuakeShake::
+	ld a, [wScreenEffectStep]
 	or a
 	ret nz
 
-	ld a, [$da85]
+	ld a, [wScreenEffectTimer]
 	rst $00
 
-JumpTable_5F_4EDE::
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F14
-	dw Jump_5F_4F2E
-	dw Jump_5F_4F21
-	dw Jump_5F_4F39
+QuakeShakeSteps::
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeCenter
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeCenter
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeCenter
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeCenter
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeCenter
+	dw QuakeDown
+	dw QuakeCenter
+	dw QuakeRight
+	dw QuakeEnd
 
-Jump_5F_4F14::
+QuakeDown::
 	ld a, $04
 	ldh [hScrollY], a
 	ld a, $00
 	ldh [hScrollX], a
-	ld hl, $da85
+	ld hl, wScreenEffectTimer
 	inc [hl]
 	ret
 
 
-Jump_5F_4F21::
+QuakeRight::
 	ld a, $00
 	ldh [hScrollY], a
 	ld a, $03
 	ldh [hScrollX], a
-	ld hl, $da85
+	ld hl, wScreenEffectTimer
 	inc [hl]
 	ret
 
 
-Jump_5F_4F2E::
+QuakeCenter::
 	xor a
 	ldh [hScrollY], a
 	xor a
 	ldh [hScrollX], a
-	ld hl, $da85
+	ld hl, wScreenEffectTimer
 	inc [hl]
 	ret
 
 
-Jump_5F_4F39::
+QuakeEnd::
 	ld a, $01
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	xor a
 	ldh [hScrollY], a
 	xor a
 	ldh [hScrollX], a
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Call_5F_4F49::
-	ld a, [$da85]
+QuakeFlash::
+	ld a, [wScreenEffectTimer]
 	rst $00
 
-JumpTable_5F_4F4D::
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
-	dw Jump_5F_4F83
-	dw Jump_5F_4F8F
+QuakeFlashSteps::
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
+	dw QuakeFlashWhite
+	dw QuakeFlashNormal
 
-Jump_5F_4F83::
+QuakeFlashWhite::
 	ld hl, wBGP
 	ld [hl], $00
 	inc hl
@@ -2482,7 +2482,7 @@ Jump_5F_4F83::
 	ret
 
 
-Jump_5F_4F8F::
+QuakeFlashNormal::
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
@@ -2492,17 +2492,17 @@ Jump_5F_4F8F::
 	ret
 
 
-Call_5F_4F9B::
+WaveStep::
 	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_5F_4F9F::
-	dw Jump_5F_4FA7
-	dw Jump_5F_4FC5
-	dw Jump_5F_5035
-	dw Jump_5F_504F
+WaveSteps::
+	dw WaveStart
+	dw WaveGrow
+	dw WaveHold
+	dw WaveEnd
 
-Jump_5F_4FA7::
+WaveStart::
 	ld hl, wMenuStep
 	inc [hl]
 	ld hl, wLineScroll
@@ -2523,10 +2523,10 @@ jr_05f_4fb0:
 	ret
 
 
-Jump_5F_4FC5::
-	ld a, [$da87]
+WaveGrow::
+	ld a, [wScreenEffectFrame]
 	and $07
-	jr nz, Call_5F_4FE8
+	jr nz, WaveSetLines
 
 	ld a, [wItemsHandedIn]
 	swap a
@@ -2537,17 +2537,17 @@ Jump_5F_4FC5::
 	add b
 	ld [wItemsHandedIn], a
 	cp $1c
-	jr c, Call_5F_4FE8
+	jr c, WaveSetLines
 
 	ld hl, wMenuStep
 	inc [hl]
 	xor a
 	ld [wHatchSlot], a
 
-Call_5F_4FE8::
+WaveSetLines::
 	ld a, [wItemsHandedIn]
 	ldh [hNumber], a
-	ld a, [$da87]
+	ld a, [wScreenEffectFrame]
 	rra
 	rra
 	and $0f
@@ -2594,8 +2594,8 @@ jr_05f_501b:
 
 	db $00, $30, $5b, $76, $7f, $76, $5b, $30, $00, $30, $5b, $76, $7f, $76, $5b, $30
 
-Jump_5F_5035::
-	ld a, [$da87]
+WaveHold::
+	ld a, [wScreenEffectFrame]
 	and $0f
 	jr nz, jr_05f_504b
 
@@ -2609,17 +2609,17 @@ Jump_5F_5035::
 	inc [hl]
 
 jr_05f_504b:
-	call Call_5F_4FE8
+	call WaveSetLines
 	ret
 
 
-Jump_5F_504F::
+WaveEnd::
 	ld a, $00
 	ld [wLCDEffect], a
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da87], a
+	ld [wScreenEffectFrame], a
 	xor a
 	ld [wMenuStep], a
 	xor a
@@ -2631,10 +2631,10 @@ Jump_5F_504F::
 	ret
 
 
-Call_5F_506E::
+DarkenPalettesStep::
 	xor a
-	ld [$da86], a
-	ld hl, $da87
+	ld [wScreenEffectAux], a
+	ld hl, wScreenEffectFrame
 	inc [hl]
 	ld b, $03
 	ld c, $00
@@ -2691,10 +2691,10 @@ jr_05f_50af:
 	ret
 
 
-Call_5F_50B5::
+LightenPalettesStep::
 	xor a
-	ld [$da86], a
-	ld hl, $da87
+	ld [wScreenEffectAux], a
+	ld hl, wScreenEffectFrame
 	inc [hl]
 	ld b, $03
 	ld c, $00
@@ -2747,7 +2747,7 @@ jr_05f_50ee:
 	ret
 
 
-Call_5F_50F4::
+GetWordEntry_5F::
 	add a
 	add l
 	ld l, a
@@ -2772,191 +2772,191 @@ Call_5F_50F4::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0
 
-Jump_5F_51A1::
-	ld a, [$da84]
+EffectShakeX::
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_51A5::
-	dw Jump_5F_51E7
-	dw Jump_5F_51DD
-	dw Jump_5F_51F0
-	dw Jump_5F_51DD
-	dw Jump_5F_51F9
-	dw Jump_5F_51DD
-	dw Jump_5F_5202
-	dw Jump_5F_51DD
-	dw Jump_5F_520B
-	dw Jump_5F_51DD
-	dw Jump_5F_5214
-	dw Jump_5F_51DD
-	dw Jump_5F_521D
-	dw Jump_5F_51DD
-	dw Jump_5F_522A
-	dw Jump_5F_51DD
-	dw Jump_5F_521D
-	dw Jump_5F_51DD
-	dw Jump_5F_522A
-	dw Jump_5F_51DD
-	dw Jump_5F_521D
-	dw Jump_5F_51DD
-	dw Jump_5F_522A
-	dw Jump_5F_51DD
-	dw Jump_5F_521D
-	dw Jump_5F_51DD
-	dw Jump_5F_522A
-	dw Jump_5F_5237
+ShakeXSteps::
+	dw ShakeXLeft2
+	dw ShakeXCenter
+	dw ShakeXRight2
+	dw ShakeXCenter
+	dw ShakeXLeft4
+	dw ShakeXCenter
+	dw ShakeXRight4
+	dw ShakeXCenter
+	dw ShakeXLeft8
+	dw ShakeXCenter
+	dw ShakeXRight8
+	dw ShakeXCenter
+	dw ShakeXLeft8Down
+	dw ShakeXCenter
+	dw ShakeXRight8Down
+	dw ShakeXCenter
+	dw ShakeXLeft8Down
+	dw ShakeXCenter
+	dw ShakeXRight8Down
+	dw ShakeXCenter
+	dw ShakeXLeft8Down
+	dw ShakeXCenter
+	dw ShakeXRight8Down
+	dw ShakeXCenter
+	dw ShakeXLeft8Down
+	dw ShakeXCenter
+	dw ShakeXRight8Down
+	dw ShakeXEnd
 
-Jump_5F_51DD::
+ShakeXCenter::
 	xor a
 	ldh [hScrollX], a
 	ldh [hScrollY], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_51E7::
+ShakeXLeft2::
 	ld a, $fe
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_51F0::
+ShakeXRight2::
 	ld a, $02
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_51F9::
+ShakeXLeft4::
 	ld a, $fc
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_5202::
+ShakeXRight4::
 	ld a, $04
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_520B::
+ShakeXLeft8::
 	ld a, $f8
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_5214::
+ShakeXRight8::
 	ld a, $08
 	ldh [hScrollX], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_521D::
+ShakeXLeft8Down::
 	ld a, $f8
 	ldh [hScrollX], a
 	ld a, $02
 	ldh [hScrollY], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_522A::
+ShakeXRight8Down::
 	ld a, $08
 	ldh [hScrollX], a
 	ld a, $02
 	ldh [hScrollY], a
-	ld hl, $da84
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_5237::
+ShakeXEnd::
 	xor a
 	ldh [hScrollX], a
 	ldh [hScrollY], a
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	ret
 
 
-Jump_5F_5246::
+EffectBlinkUser::
 	ld a, [wLinkFlags]
 	ld b, a
 	ld a, [wSkillUser]
 	cp $07
-	jr nc, Jump_5F_52C8
+	jr nc, BlinkUserEnd
 
 	cp $03
-	jr z, Jump_5F_52C8
+	jr z, BlinkUserEnd
 
 	bit 1, b
 	jr nz, jr_05f_525f
 
 	cp $04
-	jr c, Jump_5F_52C8
+	jr c, BlinkUserEnd
 
 	jr jr_05f_5263
 
 jr_05f_525f:
 	cp $04
-	jr nc, Jump_5F_52C8
+	jr nc, BlinkUserEnd
 
 jr_05f_5263:
 	ld a, [wSkillUser]
 	call CheckBattlerPresent
-	jr c, Jump_5F_52C8
+	jr c, BlinkUserEnd
 
-	ld a, [$da84]
+	ld a, [wScreenEffectStep]
 	rst $00
 
-JumpTable_5F_526F::
-	dw Jump_5F_5279
-	dw Jump_5F_529F
-	dw Jump_5F_5279
-	dw Jump_5F_529F
-	dw Jump_5F_52C8
+BlinkUserSteps::
+	dw BlinkUserHide
+	dw BlinkUserShow
+	dw BlinkUserHide
+	dw BlinkUserShow
+	dw BlinkUserEnd
 
-Jump_5F_5279::
+BlinkUserHide::
 	ld a, $06
-	ld [$da85], a
-	call Call_5F_4E80
+	ld [wScreenEffectTimer], a
+	call GetUserPicSlot
 	ld hl, $50ff
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
 	ld d, h
 	ld a, $03
 	ld hl, $5109
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld c, $06
-	call Call_5F_4E1F
-	ld hl, $da84
+	call CopyTileRectVRAM_5F
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_529F::
+BlinkUserShow::
 	ld a, $06
-	ld [$da85], a
-	call Call_5F_4E80
+	ld [wScreenEffectTimer], a
+	call GetUserPicSlot
 	ld hl, $50ff
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
@@ -2964,25 +2964,25 @@ Jump_5F_529F::
 	ld a, [wSkillUser]
 	and $03
 	ld hl, $5109
-	call Call_5F_50F4
+	call GetWordEntry_5F
 	ld c, $06
-	call Call_5F_4E1F
-	ld hl, $da84
+	call CopyTileRectVRAM_5F
+	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
-Jump_5F_52C8::
+BlinkUserEnd::
 	ld a, $01
 	ld [wBattleAnimDone], a
 	xor a
-	ld [$da84], a
+	ld [wScreenEffectStep], a
 	xor a
-	ld [$da85], a
+	ld [wScreenEffectTimer], a
 	ret
 
 
-Call_5F_52D6::
+CheckSwappedPicSkill::
 	ld a, [wSkillId]
 	cp $3b
 	jr z, jr_05f_52e4
@@ -3003,7 +3003,7 @@ jr_05f_52e4:
 	ret
 
 
-Call_5F_52F0::
+StartSkillVisual::
 	ld a, [wSkillId]
 	cp $15
 	jp c, Jump_05f_53a4
@@ -3207,7 +3207,7 @@ jr_05f_5400:
 	jr jr_05f_540d
 
 jr_05f_5409:
-	call Call_5F_5BA3
+	call IsTargetOwnSide
 	ret c
 
 jr_05f_540d:
@@ -3242,11 +3242,11 @@ jr_05f_5433:
 	adc h
 	ld h, a
 	ld a, [hl]
-	call Call_5F_5441
+	call RunSkillVisual
 	ret
 
 
-Call_5F_5441::
+RunSkillVisual::
 	ld c, a
 	ld b, $00
 	ld hl, $58bd
@@ -3288,18 +3288,18 @@ Call_5F_5441::
 	db $c9, $cd, $60, $4a, $3e, $03, $ea, $83, $da, $c9, $cd, $60, $4a, $3e, $0d, $ea
 	db $83, $da, $c9
 
-Call_5F_5630::
+GetSkillAnim::
 	ld a, [wSkillUser]
 	cp $10
 	jr z, jr_05f_5649
 
-	call Call_5F_5B8F
+	call IsUserOwnSide
 	jr c, jr_05f_563e
 
 	jr jr_05f_565f
 
 jr_05f_563e:
-	call Call_5F_5BA3
+	call IsTargetOwnSide
 	jr nc, jr_05f_564e
 
 	ld a, $ff
@@ -3308,7 +3308,7 @@ jr_05f_563e:
 
 
 jr_05f_5649:
-	call Call_5F_5BA3
+	call IsTargetOwnSide
 	jr c, jr_05f_5690
 
 jr_05f_564e:
@@ -3344,7 +3344,7 @@ jr_05f_565f:
 	cp $aa
 	jr z, jr_05f_567f
 
-	call Call_5F_5BA3
+	call IsTargetOwnSide
 	jr c, jr_05f_5690
 
 jr_05f_567f:
@@ -3447,7 +3447,7 @@ jr_05f_5690:
 	db $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 	db $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 
-Call_5F_5B8F::
+IsUserOwnSide::
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_05f_5b9c
@@ -3464,7 +3464,7 @@ jr_05f_5b9c:
 	ret
 
 
-Call_5F_5BA3::
+IsTargetOwnSide::
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_05f_5bb0
@@ -3481,9 +3481,9 @@ jr_05f_5bb0:
 	ret
 
 
-Call_5F_5BB7::
+AnimViewerInit::
 	xor a
-	ld hl, wLinkChoice
+	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
 	xor a
@@ -3508,29 +3508,29 @@ Call_5F_5BB7::
 	ld de, $ff00
 	ld hl, $9000
 	ld bc, $0120
-	call Call_5F_5ECC
+	call FillVRAMWords_5F
 	ld de, $6093
 	ld hl, wTilemapBuffer
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld de, $60fe
 	ld hl, wTilemapBuffer
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld de, $6169
 	ld hl, wTilemapBuffer
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
 	ld hl, $6195
 	ld de, $8b90
-	call Call_5F_5F58
+	call DrawDebugString
 	ld hl, $61ad
 	ld de, $8ab0
-	call Call_5F_5F58
-	call Call_5F_5F86
-	call Call_5F_5FA5
-	call Call_5F_5FBC
-	call Call_5F_5FDB
+	call DrawDebugString
+	call AnimViewerDrawAnimNumber
+	call AnimViewerDrawBGSwitch
+	call AnimViewerDrawBGNumber
+	call AnimViewerDrawEffectNumber
 	ld a, $fc
 	call StartFade
 	ld hl, $9800
@@ -3541,13 +3541,13 @@ Call_5F_5BB7::
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ld a, $01
-	ld [$dd68], a
+	ld [wSkillAnimPhase], a
 	ld a, $01
 	ld [wItemMsgGroup], a
 	ld a, $01
 	ld [wBattleAnimDone], a
 	ld a, $03
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	ld a, $07
 	ldh [hWX], a
 	ld a, $ff
@@ -3568,14 +3568,14 @@ Call_5F_5BB7::
 	jp EnableLCDAndInterrupts
 
 
-Call_5F_5C8D::
-	ld a, [$da83]
+AnimViewerUpdate::
+	ld a, [wScreenEffect]
 	cp $09
 	jr nz, jr_05f_5c9b
 
 	ld a, [wBattleAnimDone]
 	or a
-	jp z, Jump_05f_5ec1
+	jp z, AnimViewerRunEffect
 
 jr_05f_5c9b:
 	ld a, [wFadeState]
@@ -3584,64 +3584,64 @@ jr_05f_5c9b:
 
 	ld a, [wBattleAnimRunning]
 	or a
-	jp nz, Jump_05f_5ea3
+	jp nz, AnimViewerStepAnim
 
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	rst $00
 
-JumpTable_5F_5CAB::
-	dw Jump_5F_5CB3
-	dw Jump_5F_5CD3
-	dw Jump_5F_5CEF
-	dw Jump_5F_5D0A
+AnimViewerRows::
+	dw AnimViewerRowAnim
+	dw AnimViewerRowBGSwitch
+	dw AnimViewerRowBGNumber
+	dw AnimViewerRowEffect
 
-Jump_5F_5CB3::
+AnimViewerRowAnim::
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp nz, Jump_05f_5dd7
+	jp nz, AnimViewerPlayAnim
 
 	bit 1, a
-	jp nz, Jump_05f_5e3e
+	jp nz, AnimViewerExit
 
 	bit 6, a
-	jp nz, Jump_05f_5d75
+	jp nz, AnimViewerCursorUp
 
 	bit 7, a
-	jp nz, Jump_05f_5d61
+	jp nz, AnimViewerCursorDown
 
 	bit 5, a
-	jr nz, jr_05f_5d4c
+	jr nz, AnimViewerPrevAnim
 
 	bit 4, a
-	jr nz, jr_05f_5d36
+	jr nz, AnimViewerNextAnim
 
 	ret
 
 
-Jump_5F_5CD3::
+AnimViewerRowBGSwitch::
 	ld a, [wJoyPressed]
 	bit 1, a
-	jp nz, Jump_05f_5e3e
+	jp nz, AnimViewerExit
 
 	bit 6, a
-	jp nz, Jump_05f_5d75
+	jp nz, AnimViewerCursorUp
 
 	bit 7, a
 	jr nz, jr_05f_5d61
 
 	bit 5, a
-	jp nz, Jump_05f_5d91
+	jp nz, AnimViewerToggleBG
 
 	bit 4, a
-	jp nz, Jump_05f_5d91
+	jp nz, AnimViewerToggleBG
 
 	ret
 
 
-Jump_5F_5CEF::
+AnimViewerRowBGNumber::
 	ld a, [wJoyPressed]
 	bit 1, a
-	jp nz, Jump_05f_5e3e
+	jp nz, AnimViewerExit
 
 	bit 6, a
 	jr nz, jr_05f_5d75
@@ -3650,25 +3650,25 @@ Jump_5F_5CEF::
 	jr nz, jr_05f_5d61
 
 	bit 5, a
-	jp nz, Jump_05f_5dc2
+	jp nz, AnimViewerPrevBG
 
 	bit 4, a
-	jp nz, Jump_05f_5da4
+	jp nz, AnimViewerNextBG
 
 	ret
 
 
-Jump_5F_5D0A::
+AnimViewerRowEffect::
 	ld a, [wBattleAnimDone]
 	or a
 	jr z, jr_05f_5d30
 
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp nz, Jump_05f_5e87
+	jp nz, AnimViewerPlayEffect
 
 	bit 1, a
-	jp nz, Jump_05f_5e3e
+	jp nz, AnimViewerExit
 
 	bit 6, a
 	jr nz, jr_05f_5d75
@@ -3677,20 +3677,20 @@ Jump_5F_5D0A::
 	jr nz, jr_05f_5d61
 
 	bit 5, a
-	jp nz, Jump_05f_5e72
+	jp nz, AnimViewerPrevEffect
 
 	bit 4, a
-	jp nz, Jump_05f_5e5c
+	jp nz, AnimViewerNextEffect
 
 	ret
 
 
 jr_05f_5d30:
-	call Call_5F_5E27
-	jp Jump_05f_5ec1
+	call AnimViewerHideCursor
+	jp AnimViewerRunEffect
 
 
-jr_05f_5d36:
+AnimViewerNextAnim::
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
@@ -3702,11 +3702,11 @@ jr_05f_5d36:
 	ld [wMenuChoice2], a
 
 jr_05f_5d48:
-	call Call_5F_5F86
+	call AnimViewerDrawAnimNumber
 	ret
 
 
-jr_05f_5d4c:
+AnimViewerPrevAnim::
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
@@ -3718,53 +3718,53 @@ jr_05f_5d4c:
 	ld [wMenuChoice2], a
 	jr jr_05f_5d48
 
-Jump_05f_5d61:
+AnimViewerCursorDown::
 jr_05f_5d61:
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	inc a
-	ld [wLinkChoice], a
-	ld a, [wLinkChoice]
+	ld [wMenuChoice], a
+	ld a, [wMenuChoice]
 	cp $04
-	jr c, jr_05f_5d88
+	jr c, AnimViewerDrawCursor
 
 	xor a
-	ld [wLinkChoice], a
-	jr jr_05f_5d88
+	ld [wMenuChoice], a
+	jr AnimViewerDrawCursor
 
-Jump_05f_5d75:
+AnimViewerCursorUp::
 jr_05f_5d75:
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	dec a
-	ld [wLinkChoice], a
-	ld a, [wLinkChoice]
+	ld [wMenuChoice], a
+	ld a, [wMenuChoice]
 	cp $04
-	jr c, jr_05f_5d88
+	jr c, AnimViewerDrawCursor
 
 	ld a, $03
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 
-jr_05f_5d88:
+AnimViewerDrawCursor::
 	rst $00
 
-JumpTable_5F_5D89::
-	dw Jump_5F_5EE0
-	dw Jump_5F_5EF4
-	dw Jump_5F_5F0B
-	dw Jump_5F_5F1F
+AnimViewerCursorDraws::
+	dw AnimViewerCursorRow0
+	dw AnimViewerCursorRow1
+	dw AnimViewerCursorRow2
+	dw AnimViewerCursorRow3
 
-Jump_05f_5d91:
+AnimViewerToggleBG::
 	ld a, [wConfirmChoice]
 	xor $01
 	ld [wConfirmChoice], a
-	call Call_5F_5FA5
+	call AnimViewerDrawBGSwitch
 	ld a, [wConfirmChoice]
 	rst $00
 
-JumpTable_5F_5DA0::
-	dw Jump_5F_606D
-	dw Call_5F_607A
+AnimViewerBGLoaders::
+	dw AnimViewerClearBG
+	dw AnimViewerLoadBG
 
-Jump_05f_5da4:
+AnimViewerNextBG::
 	ld a, [wConfirmChoice2]
 	inc a
 	ld [wConfirmChoice2], a
@@ -3776,16 +3776,16 @@ Jump_05f_5da4:
 	ld [wConfirmChoice2], a
 
 jr_05f_5db6:
-	call Call_5F_5FBC
+	call AnimViewerDrawBGNumber
 	ld a, [wConfirmChoice]
 	or a
 	ret z
 
-	call Call_5F_607A
+	call AnimViewerLoadBG
 	ret
 
 
-Jump_05f_5dc2:
+AnimViewerPrevBG::
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
@@ -3797,7 +3797,7 @@ Jump_05f_5dc2:
 	ld [wConfirmChoice2], a
 	jr jr_05f_5db6
 
-Jump_05f_5dd7:
+AnimViewerPlayAnim::
 	ld a, [wMenuChoice2]
 	ld hl, $61ee
 	ld c, a
@@ -3816,13 +3816,13 @@ Jump_05f_5dd7:
 	ld hl, far_UploadCGBPalettes
 	rst $10
 	ld a, [wMenuChoice2]
-	ld [$daa4], a
+	ld [wSkillAnimSet], a
 	ld a, [wMenuChoice2]
 	ld [wSkillAnim], a
-	ld a, [$daa4]
-	ld [$dd64], a
+	ld a, [wSkillAnimSet]
+	ld [wBattleAnimIndex], a
 	ld a, $60
-	ld [$dd63], a
+	ld [wBattleAnimSet], a
 	ld a, $00
 	ld [wBattleAnimRunning], a
 	ld hl, wBattleAnimRunning
@@ -3832,21 +3832,21 @@ Jump_05f_5dd7:
 	ld [$d7b5], a
 	ld hl, far_StepAnimation
 	rst $10
-	call Call_5F_6014
+	call AnimViewerStartSprite
 
-Call_5F_5E27::
+AnimViewerHideCursor::
 	ld hl, $c6cd
-	call Call_5F_5F36
-	call Call_5F_5F36
-	call Call_5F_5F36
+	call PutBlank
+	call PutBlank
+	call PutBlank
 	ld hl, $c56d
-	call Call_5F_5F36
+	call PutBlank
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-Jump_05f_5e3e:
+AnimViewerExit::
 	ld a, $04
 	call StartFade
 	ld a, $07
@@ -3854,15 +3854,15 @@ Jump_05f_5e3e:
 	ld a, $00
 	ld [wGameModeStep], a
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_05f_5e5c:
+AnimViewerNextEffect::
 	ld a, [wListLastRows]
 	inc a
 	ld [wListLastRows], a
@@ -3874,11 +3874,11 @@ Jump_05f_5e5c:
 	ld [wListLastRows], a
 
 jr_05f_5e6e:
-	call Call_5F_5FDB
+	call AnimViewerDrawEffectNumber
 	ret
 
 
-Jump_05f_5e72:
+AnimViewerPrevEffect::
 	ld a, [wListLastRows]
 	dec a
 	ld [wListLastRows], a
@@ -3890,7 +3890,7 @@ Jump_05f_5e72:
 	ld [wListLastRows], a
 	jr jr_05f_5e6e
 
-Jump_05f_5e87:
+AnimViewerPlayEffect::
 	ld a, $04
 	ld [wSkillTarget], a
 	ld a, $01
@@ -3900,15 +3900,15 @@ Jump_05f_5e87:
 	ld bc, $0006
 	call FillMemory
 	ld a, [wListLastRows]
-	ld [$da83], a
-	jr Call_5F_5E27
+	ld [wScreenEffect], a
+	jr AnimViewerHideCursor
 
-Jump_05f_5ea3:
+AnimViewerStepAnim::
 	ld a, [wBattleAnimRunning]
 	or a
 	jr z, jr_05f_5eb5
 
-	call Call_5F_5FFA
+	call AnimViewerDrawSprite
 	ld hl, far_StepAnimation
 	rst $10
 	ld a, [wBattleAnimRunning]
@@ -3916,25 +3916,25 @@ Jump_05f_5ea3:
 	ret nz
 
 jr_05f_5eb5:
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	rst $00
 
-JumpTable_5F_5EB9::
-	dw Jump_5F_5EE0
-	dw Jump_5F_5EF4
-	dw Jump_5F_5F0B
-	dw Jump_5F_5F1F
+AnimViewerCursorRedraws::
+	dw AnimViewerCursorRow0
+	dw AnimViewerCursorRow1
+	dw AnimViewerCursorRow2
+	dw AnimViewerCursorRow3
 
-Jump_05f_5ec1:
-	ld hl, far_Call_5F_4B1B
+AnimViewerRunEffect::
+	ld hl, far_UpdateScreenEffect
 	rst $10
 	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
-	jr Jump_5F_5F1F
+	jr AnimViewerCursorRow3
 
-Call_5F_5ECC::
+FillVRAMWords_5F::
 	di
 	call WaitVRAMAccess
 	ld a, d
@@ -3948,60 +3948,60 @@ Call_5F_5ECC::
 	dec bc
 	ld a, b
 	or c
-	jr nz, Call_5F_5ECC
+	jr nz, FillVRAMWords_5F
 
 	ret
 
 
-Jump_5F_5EE0::
+AnimViewerCursorRow0::
 	ld hl, $c6cd
-	call Call_5F_5F47
-	call Call_5F_5F33
+	call PutArrow
+	call PutBlankTwice
 	ld hl, $c56d
-	call Call_5F_5F36
+	call PutBlank
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-Jump_5F_5EF4::
+AnimViewerCursorRow1::
 	ld hl, $c6cd
-	call Call_5F_5F36
-	call Call_5F_5F47
-	call Call_5F_5F36
+	call PutBlank
+	call PutArrow
+	call PutBlank
 	ld hl, $c56d
-	call Call_5F_5F36
+	call PutBlank
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-Jump_5F_5F0B::
+AnimViewerCursorRow2::
 	ld hl, $c6cd
-	call Call_5F_5F33
-	call Call_5F_5F47
+	call PutBlankTwice
+	call PutArrow
 	ld hl, $c56d
-	call Call_5F_5F36
+	call PutBlank
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-Jump_5F_5F1F::
+AnimViewerCursorRow3::
 	ld hl, $c6cd
-	call Call_5F_5F36
-	call Call_5F_5F33
+	call PutBlank
+	call PutBlankTwice
 	ld hl, $c56d
-	call Call_5F_5F47
+	call PutArrow
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-Call_5F_5F33::
-	call Call_5F_5F36
+PutBlankTwice::
+	call PutBlank
 
-Call_5F_5F36::
+PutBlank::
 	di
 	call WaitVRAMAccess
 	ld a, $e0
@@ -4016,7 +4016,7 @@ Call_5F_5F36::
 	ret
 
 
-Call_5F_5F47::
+PutArrow::
 	di
 	call WaitVRAMAccess
 	ld a, $e8
@@ -4031,7 +4031,7 @@ Call_5F_5F47::
 	ret
 
 
-Call_5F_5F58::
+DrawDebugString::
 	ld a, [hli]
 	cp $ff
 	ret z
@@ -4043,7 +4043,7 @@ Call_5F_5F58::
 	call CopyGlyph
 	pop de
 	ld hl, wTextArg0
-	call Call_5F_5F78
+	call CopyTileVRAM_5F
 	pop de
 	pop hl
 	ld a, $10
@@ -4052,9 +4052,9 @@ Call_5F_5F58::
 	ld a, $00
 	adc d
 	ld d, a
-	jr Call_5F_5F58
+	jr DrawDebugString
 
-Call_5F_5F78::
+CopyTileVRAM_5F::
 	ld b, $10
 
 jr_05f_5f7a:
@@ -4070,11 +4070,11 @@ jr_05f_5f7a:
 	ret
 
 
-Call_5F_5F86::
+AnimViewerDrawAnimNumber::
 	ld hl, wMenuChoice3
 	ld a, [wMenuChoice2]
 	and $f0
-	call Call_5F_6248
+	call HighNibble_5F
 	ld [hli], a
 	ld a, [wMenuChoice2]
 	and $0f
@@ -4083,11 +4083,11 @@ Call_5F_5F86::
 	ld [hl], a
 	ld de, $8b40
 	ld hl, wMenuChoice3
-	call Call_5F_5F58
+	call DrawDebugString
 	ret
 
 
-Call_5F_5FA5::
+AnimViewerDrawBGSwitch::
 	ld hl, $61b5
 	ld a, [wConfirmChoice]
 	add a
@@ -4100,15 +4100,15 @@ Call_5F_5FA5::
 	ld h, [hl]
 	ld l, a
 	ld de, $8b60
-	call Call_5F_5F58
+	call DrawDebugString
 	ret
 
 
-Call_5F_5FBC::
+AnimViewerDrawBGNumber::
 	ld hl, wMenuChoice3
 	ld a, [wConfirmChoice2]
 	and $f0
-	call Call_5F_6248
+	call HighNibble_5F
 	ld [hli], a
 	ld a, [wConfirmChoice2]
 	and $0f
@@ -4117,15 +4117,15 @@ Call_5F_5FBC::
 	ld [hl], a
 	ld de, $8b20
 	ld hl, wMenuChoice3
-	call Call_5F_5F58
+	call DrawDebugString
 	ret
 
 
-Call_5F_5FDB::
+AnimViewerDrawEffectNumber::
 	ld hl, wMenuChoice3
 	ld a, [wListLastRows]
 	and $f0
-	call Call_5F_6248
+	call HighNibble_5F
 	ld [hli], a
 	ld a, [wListLastRows]
 	and $0f
@@ -4134,11 +4134,11 @@ Call_5F_5FDB::
 	ld [hl], a
 	ld de, $8a90
 	ld hl, wMenuChoice3
-	call Call_5F_5F58
+	call DrawDebugString
 	ret
 
 
-Call_5F_5FFA::
+AnimViewerDrawSprite::
 	ld a, [wMenuChoice2]
 	cp $0e
 	jr c, jr_05f_600a
@@ -4163,7 +4163,7 @@ jr_05f_600f:
 	ret
 
 
-Call_5F_6014::
+AnimViewerStartSprite::
 	ld hl, wBGP
 	inc hl
 	ld a, $d0
@@ -4190,14 +4190,14 @@ Call_5F_6014::
 	jr z, jr_05f_6049
 
 	ld a, $01
-	ld [$dd68], a
+	ld [wSkillAnimPhase], a
 	ld a, $01
 	ld [wItemMsgGroup], a
 	jr jr_05f_6053
 
 jr_05f_6049:
 	ld a, $00
-	ld [$dd68], a
+	ld [wSkillAnimPhase], a
 	ld a, $00
 	ld [wItemMsgGroup], a
 
@@ -4226,15 +4226,15 @@ jr_05f_6068:
 	ret
 
 
-Jump_5F_606D::
+AnimViewerClearBG::
 	ld de, $ff00
 	ld hl, $9000
 	ld bc, $0120
-	call Call_5F_5ECC
+	call FillVRAMWords_5F
 	ret
 
 
-Call_5F_607A::
+AnimViewerLoadBG::
 	ld a, [wConfirmChoice2]
 	ld l, a
 	ld h, $00
@@ -4282,7 +4282,7 @@ Call_5F_607A::
 	db $5b, $0d, $5b, $0e, $5b, $0f, $5b, $10, $5b, $11, $5b, $12, $5b, $13, $5b, $14
 	db $5b, $15, $5b, $16, $5b
 
-Call_5F_6248::
+HighNibble_5F::
 	srl a
 	srl a
 	srl a
@@ -4290,12 +4290,12 @@ Call_5F_6248::
 	ret
 
 
-Call_5F_6251::
-	ld a, [wLinkChoice]
+DebugStatsWindow::
+	ld a, [wMenuChoice]
 	bit 7, a
 	ret nz
 
-	ld a, [$da88]
+	ld a, [wDebugStatsShown]
 	or a
 	jr nz, jr_05f_62d7
 
@@ -4304,13 +4304,13 @@ Call_5F_6251::
 	ret z
 
 	ld a, $01
-	ld [$da88], a
+	ld [wDebugStatsShown], a
 	ld hl, $6452
 	ld de, $8860
-	call Call_5F_5F58
+	call DrawDebugString
 	ld de, $63b0
 	ld hl, wTilemapBuffer
-	call Call_5F_4263
+	call DrawTilemap_5F
 	ld a, [wLinkFlags]
 	and $02
 	rlca
@@ -4326,7 +4326,7 @@ Call_5F_6251::
 	ld [wBattleArg1], a
 	ld a, h
 	ld [wBattleArg2], a
-	call Call_5F_62E5
+	call DrawDebugStatsLine
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
@@ -4342,7 +4342,7 @@ Call_5F_6251::
 	ld [wBattleArg2], a
 	ld hl, wBattleArg0
 	inc [hl]
-	call Call_5F_62E5
+	call DrawDebugStatsLine
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
@@ -4358,7 +4358,7 @@ Call_5F_6251::
 	ld [wBattleArg2], a
 	ld hl, wBattleArg0
 	inc [hl]
-	call Call_5F_62E5
+	call DrawDebugStatsLine
 
 jr_05f_62d2:
 	ld hl, far_CopyTilemapBufferToScreen_50
@@ -4372,13 +4372,13 @@ jr_05f_62d7:
 	ret z
 
 	xor a
-	ld [$da88], a
+	ld [wDebugStatsShown], a
 	ld [wCommandStep], a
 	ret
 
 
-Call_5F_62E5::
-	call Call_5F_633D
+DrawDebugStatsLine::
+	call ClearDebugDigits
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality1
 	add l
@@ -4386,9 +4386,9 @@ Call_5F_62E5::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_5F_6348
+	call SplitDecimal_5F
 	ld hl, $643a
-	call Call_5F_6360
+	call DrawDebugNumber
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality2
 	add l
@@ -4396,9 +4396,9 @@ Call_5F_62E5::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_5F_6348
+	call SplitDecimal_5F
 	ld hl, $6440
-	call Call_5F_6360
+	call DrawDebugNumber
 	ld a, [wBattleArg0]
 	ld hl, wBattlerStat67
 	add l
@@ -4406,9 +4406,9 @@ Call_5F_62E5::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_5F_6348
+	call SplitDecimal_5F
 	ld hl, $6446
-	call Call_5F_6360
+	call DrawDebugNumber
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality3
 	add l
@@ -4416,13 +4416,13 @@ Call_5F_62E5::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_5F_6348
+	call SplitDecimal_5F
 	ld hl, $644c
-	call Call_5F_6360
+	call DrawDebugNumber
 	ret
 
 
-Call_5F_633D::
+ClearDebugDigits::
 	xor a
 	ld hl, wBattleArg3
 	ld bc, $0003
@@ -4430,7 +4430,7 @@ Call_5F_633D::
 	ret
 
 
-Call_5F_6348::
+SplitDecimal_5F::
 	ld b, [hl]
 	ld a, $64
 	call Divide8
@@ -4445,7 +4445,7 @@ Call_5F_6348::
 	ret
 
 
-Call_5F_6360::
+DrawDebugNumber::
 	ld a, [wBattleArg0]
 	and $03
 	add a

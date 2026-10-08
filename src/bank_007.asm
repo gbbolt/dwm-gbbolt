@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $007", ROMX[$4000], BANK[$7]
 
+;@ path: menu
+;@ The bank's own number, its first byte.
 BankNumber_07::
 	db $07
 
+;@ path: menu
+;@ The entry points other banks call through the far-call table: the field menu,
+;@ the monster status screen, its update step, and the MP cost of a skill.
 FarTable_07::
 	dw FieldMenu
 	dw ShowMonsterStatus
@@ -79,9 +84,9 @@ DrawMainMenuWindows::
 	call PrintNumber5
 ;> MenuResetBlink()
 	call MenuResetBlink
-;> MenuDrawCursorAt(wLinkChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
 	ld de, $44b4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 	ret
 
@@ -305,7 +310,7 @@ SetPartyPicPalette::
 ;> mem16[0xC820] = pos            # where the palette applies
 	push af
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 ;> wPaletteSet = PartyMonsterField(slot, wMonRecSpecies)[0]
@@ -318,7 +323,7 @@ SetPartyPicPalette::
 ;> mem[0xC81F] = 4 + slot         # palette number
 	pop af
 	add $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 ;> if wMenuInfoPage:
 ;>     return
 	ld a, [wMenuInfoPage]
@@ -871,18 +876,18 @@ LoadMonsterPicture::
 FieldMenuInput::
 ;> UpdateInfoPlayTime()
 	call UpdateInfoPlayTime
-;> wLinkChoice &= 0x7F               # main menu cursor (bit 7 = chosen)
-	ld hl, wLinkChoice
+;> wMenuChoice &= 0x7F               # main menu cursor (bit 7 = chosen)
+	ld hl, wMenuChoice
 	res 7, [hl]
 ;> if wJoyPressed & 0x30:            # Left / Right: other column
 	ld a, [wJoyPressed]
 	and $30
 	jr z, .notSideways
 
-;>     wLinkChoice ^= 1
-	ld a, [wLinkChoice]
+;>     wMenuChoice ^= 1
+	ld a, [wMenuChoice]
 	xor $01
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 ;>@mv     wMenuBlink = 0
 	jr .moved
 
@@ -892,10 +897,10 @@ FieldMenuInput::
 	and $c0
 	jr z, .notUpDown
 
-;>     wLinkChoice ^= 2
-	ld a, [wLinkChoice]
+;>     wMenuChoice ^= 2
+	ld a, [wMenuChoice]
 	xor $02
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 
 .moved
 ;>     wMenuBlink = 0
@@ -961,8 +966,8 @@ FieldMenuInput::
 ;>     wFieldMenuStep = 0
 	xor a
 	ld [wFieldMenuStep], a
-;>     wLinkChoice |= 0x80
-	ld hl, wLinkChoice
+;>     wMenuChoice |= 0x80
+	ld hl, wMenuChoice
 	set 7, [hl]
 ;>     fill(wMenuChoice2, 7, 0)       # the option's own cursors
 	ld hl, wMenuChoice2
@@ -973,9 +978,9 @@ FieldMenuInput::
 	call MenuLoadPartyNames
 
 .cursor
-;> BlinkMenuCursor(wLinkChoice, MainMenuCursorPos)
+;> BlinkMenuCursor(wMenuChoice, MainMenuCursorPos)
 	ld de, $44b4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call BlinkMenuCursor
 ;> DrawPartySprites()
 	call DrawPartySprites
@@ -1053,8 +1058,8 @@ LoadPartyNameTile::
 ;@ Field menu state 3: runs the option chosen in the main menu.
 ;@ test: skip jumps through a table
 FieldMenuRunOption::
-;> FieldMenuOptions[wLinkChoice & 0x7F]()
-	ld a, [wLinkChoice]
+;> FieldMenuOptions[wMenuChoice & 0x7F]()
+	ld a, [wMenuChoice]
 	rst $00
 
 ;@ path: menu/field
@@ -1455,7 +1460,7 @@ SetStatusPicPalette::
 ;> mem16[0xC820] = 0x0141
 	ld hl, $0141
 	ld a, l
-	ld [$c820], a
+	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
 ;> wPaletteSet = GetViewedMonsterByte(wMonRecSpecies)
@@ -1464,7 +1469,7 @@ SetStatusPicPalette::
 	ld [wPaletteSet], a
 ;> mem[0xC81F] = 4
 	ld a, $04
-	ld [$c81f], a
+	ld [wMonPicPalette], a
 ;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
@@ -2343,9 +2348,9 @@ ItemMenuDraw::
 	call PrintNumber5
 ;> MenuResetBlink()
 	call MenuResetBlink
-;> MenuDrawCursorAt(wLinkChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
 	ld de, $44b4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 ;> DrawListMarks(wMenuChoice2, ItemListCursorPos, 5, wMenuCount)
 	ld de, ItemListCursorPos
@@ -2692,9 +2697,9 @@ ItemShowUseDiscard::
 ;> DrawWindow(MainMenuWindow)
 	ld de, MainMenuWindow
 	call DrawWindow
-;> MenuDrawCursorAt(wLinkChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
 	ld de, $44b4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 ;> DrawWindow(GoldWindow)
 	ld de, GoldWindow
@@ -3932,9 +3937,9 @@ ItemMenuEmpty::
 ;> DrawWindow(ItemListWindow)
 	ld de, ItemListWindow
 	call DrawWindow
-;> MenuDrawCursorAt(wLinkChoice, MainMenuCursorPos)
+;> MenuDrawCursorAt(wMenuChoice, MainMenuCursorPos)
 	ld de, $44b4
-	ld a, [wLinkChoice]
+	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 ;> MenuShowBuffer()
 	call MenuShowBuffer
@@ -6572,342 +6577,458 @@ LineUpGetSlot::
 	ret
 
 
+;@ def SaveShow()
+;@ path: menu/options
+;@ Option step 6, saving: not possible on a gate floor, on maps $60-$64 or on maps
+;@ from $30 on other than $50, $51 and $5A-$5C (message $0243). Otherwise shows the
+;@ saved game in battery RAM (player name, party names with family icons and
+;@ levels, play time; a blank window when nothing is saved yet) and asks whether
+;@ to save (message $0207, yes/no).
+;@ test: skip reads cartridge RAM
 SaveShow::
+;>@c1 if wOnGateFloor or wMapId in (0x60, 0x61, 0x62, 0x63, 0x64) or (wMapId >= 0x30 and wMapId not in (0x5A, 0x5B, 0x5C, 0x50, 0x51)):
 	ld a, [wOnGateFloor]
 	or a
-	jr nz, jr_007_6090
+	jr nz, .cannot
 
 	ld a, [wMapId]
 	cp $60
-	jr z, jr_007_6090
+	jr z, .cannot
 
+;=@c1
 	cp $61
-	jr z, jr_007_6090
+	jr z, .cannot
 
 	cp $62
-	jr z, jr_007_6090
+	jr z, .cannot
 
 	cp $63
-	jr z, jr_007_6090
+	jr z, .cannot
 
+;=@c1
 	cp $64
-	jr z, jr_007_6090
+	jr z, .cannot
 
 	cp $30
-	jr c, jr_007_60a5
+	jr c, .can
 
 	cp $5a
-	jr z, jr_007_60a5
+	jr z, .can
 
+;=@c1
 	cp $5b
-	jr z, jr_007_60a5
+	jr z, .can
 
 	cp $5c
-	jr z, jr_007_60a5
+	jr z, .can
 
 	cp $50
-	jr z, jr_007_60a5
+	jr z, .can
 
+;=@c1
 	cp $51
-	jr z, jr_007_60a5
+	jr z, .can
 
-jr_007_6090:
+.cannot
+;>     PrintSystemText(0x0243)          # can't save here
 	ld hl, $0243
 	call PrintSystemText
+;>     DrawWindow(0x2E07)
 	ld de, $2e07
 	call DrawWindow
+;>     MenuShowBuffer()
 	call MenuShowBuffer
+;>     wFieldMenuStep = 9
 	ld a, $09
 	ld [wFieldMenuStep], a
+;>     return
 	ret
 
 
-jr_007_60a5:
+.can
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> DrawWindow(SaveFileWindow)
 	ld de, $7bca
 	call DrawWindow
-	ld de, $7c44
+;> DrawWindow(SaveYesNoWindow)
+	ld de, SaveYesNoWindow
 	call DrawWindow
+;> DrawWindow(0x2E07)
 	ld de, $2e07
 	call DrawWindow
+;> if not ReadSRAMByte(sSaveValid):      # nothing saved yet: an empty window
 	ld hl, sSaveValid
 	call ReadSRAMByte
 	or a
-	jr nz, jr_007_6122
+	jr nz, .saved
 
+;>     for row in range(1, 5):
+;>@c2         fill(BufferAddress(0x20 * row + 1), 0x11, 0xE0)
 	ld hl, $0021
 	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;=@c2
 	ld hl, $0041
 	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;=@c2
 	ld hl, $0061
 	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;=@c2
 	ld hl, $0081
 	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
 	call FillMemory
+;>     p = BufferAddress(0x0044)
 	ld hl, $0044
 	call BufferAddress
+;>     mem[p:p + 10] = range(0x40, 0x4A)      # the tiles of the text below
 	ld b, $0a
 	ld a, $40
-
-jr_007_6107:
+.tiles
 	ld [hli], a
 	inc a
 	dec b
-	jr nz, jr_007_6107
+	jr nz, .tiles
 
+;>     wTextIndex = 0x31
 	ld a, $31
 	ld [wTextIndex], a
+;>     wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;>     MenuDrawTextTiles(0x9400, width=1, height=10)
 	ld hl, $9400
 	ld de, $0a01
 	call MenuDrawTextTiles
-	jp Jump_007_61de
+	jp .ask
 
 
-jr_007_6122:
+.saved
+;> else:
+;>     mem[0x0100] = 0x0A               # cartridge RAM on
 	di
 	ld a, $0a
 	ld [$0100], a
+;>     MenuDrawNameTiles(sPlayerName, 0x93C0)
 	ld de, sPlayerName
 	ld hl, $93c0
 	call MenuDrawNameTiles
 	ei
+;>     DrawSaveParty()
 	call DrawSaveParty
+;>     for i in range(ReadSRAMByte(sPartyCount)):     # levels, the other places blank
+;>@c3         PrintNumber2(MonsterField(sParty[i], sSavedMonLevel)[0], BufferAddress(0x0084 + 6 * i))
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	or a
-	jr z, jr_007_61a8
+	jr z, .noLevel0
 
 	di
 	ld a, $0a
+;=@c3
 	ld [$0100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty]
 	call MonsterField
 	ld c, [hl]
 	ei
+;=@c3
 	ld b, $00
 	ld hl, $0084
 	call BufferAddress
 	call PrintNumber2
+;=@c3
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	cp $01
-	jr z, jr_007_61ae
+	jr z, .noLevel1
 
+;=@c3
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonLevel
-	ld a, [$a1c9]
+	ld a, [sParty + 1]
 	call MonsterField
+;=@c3
 	ld c, [hl]
 	ei
 	ld b, $00
 	ld hl, $008a
 	call BufferAddress
 	call PrintNumber2
+;=@c3
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	cp $02
-	jr z, jr_007_61b4
+	jr z, .noLevel2
 
+;=@c3
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonLevel
-	ld a, [$a1ca]
+	ld a, [sParty + 2]
 	call MonsterField
+;=@c3
 	ld c, [hl]
 	ei
 	ld b, $00
 	ld hl, $0090
 	call BufferAddress
 	call PrintNumber2
-	jr jr_007_61ba
+;=@c3
+	jr .time
 
-jr_007_61a8:
+.noLevel0
+;>     for i in range(ReadSRAMByte(sPartyCount), 3):
+;>@c4         ClearSaveMemberLevel(0x0061 + 6 * i)
 	ld hl, $0061
 	call ClearSaveMemberLevel
 
-jr_007_61ae:
+.noLevel1
+;=@c4
 	ld hl, $0067
 	call ClearSaveMemberLevel
 
-jr_007_61b4:
+.noLevel2
+;=@c4
 	ld hl, $006d
 	call ClearSaveMemberLevel
 
-jr_007_61ba:
+.time
+;>@c5     PrintNumber2Zeros(ReadSRAMByte(sPlayHours), BufferAddress(0x002D))
 	ld hl, sPlayHours
 	call ReadSRAMByte
 	ld c, a
 	ld b, $00
 	ld hl, $002d
 	call BufferAddress
+;=@c5
 	call PrintNumber2Zeros
+;>@c6     PrintNumber2Zeros(ReadSRAMByte(sPlayMinutes), BufferAddress(0x0030))
 	ld hl, sPlayMinutes
 	call ReadSRAMByte
 	ld c, a
 	ld b, $00
 	ld hl, $0030
 	call BufferAddress
+;=@c6
 	call PrintNumber2Zeros
 
-Jump_007_61de:
+.ask
+;> mem[0x0100] = 0x00                   # cartridge RAM off
 	ld a, $00
 	ld [$0100], a
+;> PrintSystemText(0x0207)              # save?
 	ld hl, $0207
 	call PrintSystemText
+;> MenuResetBlink()
 	call MenuResetBlink
-	ld de, $6330
+;> MenuDrawCursorAt(wMenuChoice3, SaveCursorPos)
+	ld de, SaveCursorPos
 	ld a, [wMenuChoice3]
 	call MenuDrawCursorAt
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def DrawSaveParty()
+;@ path: menu/options
+;@ Clears the three family icon tiles at $8DA0 and draws the saved party's names
+;@ and family icons (DrawSaveMember) into the tiles from $9400 on.
+;@ test: skip reads cartridge RAM
 DrawSaveParty::
+;> ClearTextTiles2(0x18, 0x8DA0)
 	ld hl, $8da0
 	ld b, $18
 	call ClearTextTiles2
+;> for place in range(1, 4):
+;>@c7     DrawSaveMember(place, MonsterField(sParty[place - 1], sSavedMonName), 0x9400 + 0x40 * (place - 1))
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonName
 	ld a, [sParty]
 	call MonsterField
+;=@c7
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $9400
 	ld a, $01
 	call DrawSaveMember
+;=@c7
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonName
-	ld a, [$a1c9]
+	ld a, [sParty + 1]
 	call MonsterField
+;=@c7
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $9440
 	ld a, $02
 	call DrawSaveMember
+;=@c7
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sSavedMonName
-	ld a, [$a1ca]
+	ld a, [sParty + 2]
 	call MonsterField
+;=@c7
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $9480
 	ld a, $03
 	call DrawSaveMember
+;=@c7
 	ret
 
 
+;@ def DrawSaveMember(place: a, name: de, tiles: hl)
+;@ path: menu/options
+;@ One member of the saved party: its name into four tiles at `tiles` and its
+;@ family icon (FamilyIconGfx) to $8DA0 + $10 * (`place` - 1); blank tiles when
+;@ the saved party is smaller than `place`.
+;@ test: skip reads cartridge RAM
 DrawSaveMember::
+;> if ReadSRAMByte(sPartyCount) < place:
+;>@c8     return ClearTextTiles2(0x20, tiles)       # (falls through into it)
 	ld b, a
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld a, [sPartyCount]
 	cp b
+;=@c8
 	ei
 	jr nc, DrawSaveMemberIcon
 
+;> # else DrawSaveMemberIcon(place, name, tiles)
 	ld b, $20
 
+;@ def ClearTextTiles2(count: b, dest: hl) -> hl
+;@ path: menu/options
+;@ Blanks `count` rows of tile data (2 bytes each, $FF $00) at `dest` in VRAM.
+;@ test: skip writes VRAM
 ClearTextTiles2::
+;> for i in range(count):
+;>     dest = WriteVRAMInc(0xFF, dest)
 	ld a, $ff
 	call WriteVRAMInc
+;>     dest = WriteVRAMInc(0x00, dest)
 	xor a
 	call WriteVRAMInc
 	dec b
 	jr nz, ClearTextTiles2
 
+;> return dest
 	ret
 
 
+;@ def DrawSaveMemberIcon(place: b, name: de, tiles: hl)
+;@ path: menu/options
+;@ The rest of DrawSaveMember: the name into the tiles and the family icon (graphics
+;@ from FamilyIconGfx) to $8DA0 + $10 * (`place` - 1).
+;@ test: skip reads cartridge RAM
 DrawSaveMemberIcon::
+;> MenuDrawNameTiles(name, tiles)
 	push bc
 	call MenuDrawNameTiles
 	pop bc
+;>@c9 family = MonsterField(sParty[place - 1], sSavedMonFamily)[0]
 	dec b
 	push bc
 	di
 	ld a, $0a
 	ld [$0100], a
 	ld hl, sParty
+;=@c9
 	ld a, b
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@c9
 	ld a, [hl]
 	ld hl, sSavedMonFamily
 	call MonsterField
 	ld a, [hl]
 	ei
+;>@c10 gfx = FamilyIconGfx[family]
 	add a
-	ld hl, $62ab
+	ld hl, FamilyIconGfx
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c10
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;>@c11 DecompressVRAM(gfx >> 8, gfx & 0xFF, 0x8DA0 + 0x10 * (place - 1))
 	pop bc
 	ld a, b
 	swap a
 	add $a0
 	ld l, a
 	ld h, $8d
+;=@c11
 	call DecompressVRAM
 	ret
 
 
+;@ path: menu/options
+;@ Graphics numbers (bank $2E, entries 3-$0C) of the ten family icons, by family.
 FamilyIconGfx::
-	db $03, $2e, $04, $2e, $05, $2e, $06, $2e, $07, $2e, $08, $2e, $09, $2e, $0a, $2e
-	db $0b, $2e, $0c, $2e
+	dw $2e03, $2e04, $2e05, $2e06, $2e07, $2e08, $2e09, $2e0a, $2e0b, $2e0c
 
+;@ def ClearSaveMemberLevel(pos: hl)
+;@ path: menu/options
+;@ Blanks a saved-party level field: five tiles at buffer offset `pos` and two at
+;@ `pos` + $21.
+;@ test: skip writes the tilemap buffer through BufferAddress
 ClearSaveMemberLevel::
+;>@c12 mem[BufferAddress(pos):BufferAddress(pos) + 5] = [0xE0] * 5
 	push hl
 	call BufferAddress
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@c12
 	ld [hli], a
 	ld [hl], a
+;>@c13 mem[BufferAddress(pos + 0x21):BufferAddress(pos + 0x21) + 2] = [0xE0] * 2
 	pop hl
 	ld a, l
 	add $21
 	ld l, a
 	ld a, h
 	adc $00
+;=@c13
 	ld h, a
 	call BufferAddress
 	ld a, $e0
@@ -6916,229 +7037,333 @@ ClearSaveMemberLevel::
 	ret
 
 
+;@ def SaveInput()
+;@ path: menu/options
+;@ Option step 7, the save question: B or "no" goes back to the option window,
+;@ "yes" saves the game (SaveGame) and goes on.
+;@ test: skip writes cartridge RAM
 SaveInput::
-	ld de, $6330
+;> MoveMenuCursor(wMenuChoice3, 2, SaveCursorPos)
+	ld de, SaveCursorPos
 	ld hl, wMenuChoice3
 	ld b, $02
 	call MoveMenuCursor
+;> if wJoyPressed & 0x02:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_630b
+	jr z, .notB
 
-jr_007_62ed:
+.back
+;>@back     wFieldMenuStep -= 7
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
+;=@back
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
 	ld hl, wFieldMenuStep
 	dec [hl]
+;=@back
 	ld hl, wFieldMenuStep
 	dec [hl]
-	jr jr_007_632f
+	jr .done
 
-jr_007_630b:
+.notB
+;> elif wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_007_632f
+	jp z, .done
 
+;>     if wMenuChoice3 == 0x81:         # "no"
+;>         QueueSound(0x59)
 	ld a, [wMenuChoice3]
 	cp $81
-	jr nz, jr_007_6321
+	jr nz, .yes
 
 	ld a, $59
 	call QueueSound
-	jr jr_007_62ed
+;>         wFieldMenuStep -= 7
+	jr .back
 
-jr_007_6321:
+.yes
+;>     else:
+;>         SaveGame()
 	di
 	call SaveGame
 	ei
+;>         QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>         wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 
-Jump_007_632f:
-jr_007_632f:
+.done
 	ret
 
 
+;@ path: menu/options
+;@ Cursor offsets of the save yes/no window; $FFFF ends the list.
 SaveCursorPos::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f
+	dw $ffff
 
+;@ def SaveDone()
+;@ path: menu/options
+;@ Option step 8: prints the "saved" message (2/$32).
+;@ test: skip prints text through another bank
 SaveDone::
+;> PrintSystemText(0x0232)
 	ld hl, $0232
 	call PrintSystemText
+;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+;@ def OptionCloseAfterText()
+;@ path: menu/options
+;@ Option step 9: once the message is done, back to the main menu.
+;@ test: skip draws into VRAM
 OptionCloseAfterText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> wStatusViewVars = 1
 	ld a, $01
 	ld [wStatusViewVars], a
 	ret
 
 
+;@ def TacticsStart()
+;@ path: menu/options
+;@ Option step 10, tactics: from party place wLinkPartnerChoice on, finds the next
+;@ standing monster and shows its tactics choice; with none left, back to the
+;@ option window.
+;@ test: skip draws into VRAM
 TacticsStart::
+;> if wPartyCount:
 	ld a, [wPartyCount]
 	or a
-	jr z, jr_007_637c
+	jr z, .none
 
 	ld hl, wMonStatus
-
-jr_007_6358:
+.find
+;>@w     while wLinkPartnerChoice != wPartyCount:
+;>         if not PartyMonsterField(wLinkPartnerChoice, wMonStatus)[0] & 0x80:
 	ld a, [wLinkPartnerChoice]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	bit 7, [hl]
-	jr z, jr_007_6374
+	jr z, .show
 
+;>@sh             TacticsShow()
+;>@sh             wFieldMenuStep += 1
+;>@sr             return
+;>         wLinkPartnerChoice += 1
 	ld hl, wLinkPartnerChoice
 	inc [hl]
+;=@w
 	ld a, [wLinkPartnerChoice]
 	ld hl, wPartyCount
 	cp [hl]
-	jr nz, jr_007_6358
+	jr nz, .find
 
-	jr jr_007_637c
+	jr .none
 
-jr_007_6374:
+.show
+;=@sh
 	call TacticsShow
 	ld hl, wFieldMenuStep
 	inc [hl]
+;=@sr
 	ret
 
 
-jr_007_637c:
+.none
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> wFieldMenuStep = 0
 	ld a, $00
 	ld [wFieldMenuStep], a
 	ret
 
 
+;@ def TacticsShow()
+;@ path: menu/options
+;@ The tactics window for party monster wLinkPartnerChoice: its name and the four
+;@ tactics, the cursor on its current one (record byte wMonGender bits 4-5).
+;@ test: skip draws into VRAM
 TacticsShow::
+;>@c14 MenuDrawNameTiles(PartyMonsterField(wLinkPartnerChoice, wMonName), 0x93C0)
 	ld hl, wMonName
 	ld a, [wLinkPartnerChoice]
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $93c0
+;=@c14
 	call MenuDrawNameTiles
-	ld de, $7c69
+;> DrawWindow(TacticsWindow)
+	ld de, TacticsWindow
 	call DrawWindow
-	ld de, $7cd7
+;> DrawWindow(TacticsMonWindow)
+	ld de, TacticsMonWindow
 	call DrawWindow
+;>@c15 wLinkRefused = (PartyMonsterField(wLinkPartnerChoice, wMonGender)[0] >> 4) & 3    # tactics cursor
 	ld hl, wMonGender
 	ld a, [wLinkPartnerChoice]
 	call PartyMonsterField
 	ld a, [hl]
 	swap a
 	and $03
+;=@c15
 	ld [wLinkRefused], a
+;> MenuResetBlink()
 	call MenuResetBlink
-	ld de, $644c
+;> MenuDrawCursorAt(wLinkRefused, TacticsCursorPos)
+	ld de, TacticsCursorPos
 	ld a, [wLinkRefused]
 	call MenuDrawCursorAt
+;> MenuShowBuffer()
 	call MenuShowBuffer
 	ret
 
 
+;@ def TacticsInput()
+;@ path: menu/options
+;@ Option step 11: picks one of four tactics for the monster; A stores it (record
+;@ byte wMonGender bits 4-5) and moves on to the next standing monster, B goes back
+;@ to the previous one; past either end the option window returns.
+;@ test: skip draws into VRAM
 TacticsInput::
-	ld de, $644c
+;> MoveMenuCursor(wLinkRefused, 4, TacticsCursorPos)
+	ld de, TacticsCursorPos
 	ld hl, wLinkRefused
 	ld b, $04
 	call MoveMenuCursor
+;> if wJoyPressed & 0x02:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_007_63fc
+	jr z, .notB
 
-jr_007_63d5:
+.prev
+;>     while True:                     # back to the previous standing monster
+;>         if wLinkPartnerChoice == 0:
 	ld a, [wLinkPartnerChoice]
 	or a
-	jr z, jr_007_63f2
+	jr z, .leave
 
+;>@lv             MenuClearBuffer()
+;>@lv             wFieldMenuStep = 0
+;>@lr             return
+;>         wLinkPartnerChoice -= 1
 	ld hl, wLinkPartnerChoice
 	dec [hl]
+;>         if not PartyMonsterField(wLinkPartnerChoice, wMonStatus)[0] & 0x80:
 	ld a, [wLinkPartnerChoice]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	bit 7, [hl]
-	jr nz, jr_007_63d5
+	jr nz, .prev
 
+;>             wFieldMenuStep -= 1     # show it (TacticsStart)
 	ld hl, wFieldMenuStep
 	dec [hl]
-	jr jr_007_644b
+;>             return
+	jr .done
 
-jr_007_63f2:
+.leave
+;=@lv
 	call MenuClearBuffer
 	ld a, $00
 	ld [wFieldMenuStep], a
-	jr jr_007_644b
+;=@lr
+	jr .done
 
-jr_007_63fc:
+.notB
+;> elif wJoyPressed & 0x01:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_007_644b
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     rec = PartyMonsterField(wLinkPartnerChoice, wMonGender)
+;>@c16     mem[rec] = (mem[rec] & 0xCF) | (wLinkRefused & 3) << 4
 	ld a, [wLinkRefused]
 	and $03
 	swap a
 	ld b, a
 	push bc
 	ld hl, wMonGender
+;=@c16
 	ld a, [wLinkPartnerChoice]
 	call PartyMonsterField
 	ld a, [hl]
 	and $cf
 	pop bc
 	or b
+;=@c16
 	ld [hl], a
 
-jr_007_6420:
+.next
+;>     while True:                     # on to the next standing monster
+;>         wLinkPartnerChoice += 1
 	ld hl, wLinkPartnerChoice
 	inc [hl]
+;>         if wLinkPartnerChoice == wPartyCount:
 	ld a, [wPartyCount]
 	ld b, a
 	ld a, [wLinkPartnerChoice]
 	cp b
-	jr z, jr_007_6441
+	jr z, .last
 
+;>@nx             MenuClearBuffer()
+;>@nx             wFieldMenuStep = 0
+;>@ny             return
+;>         if not PartyMonsterField(wLinkPartnerChoice, wMonStatus)[0] & 0x80:
 	ld a, [wLinkPartnerChoice]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	bit 7, [hl]
-	jr nz, jr_007_6420
+	jr nz, .next
 
+;>             wFieldMenuStep -= 1
 	ld hl, wFieldMenuStep
 	dec [hl]
-	jr jr_007_644b
+;>             return
+	jr .done
 
-jr_007_6441:
+.last
+;=@nx
 	call MenuClearBuffer
 	ld a, $00
 	ld [wFieldMenuStep], a
-	jr jr_007_644b
+;=@ny
+	jr .done
 
-jr_007_644b:
+.done
 	ret
 
 
+;@ path: menu/options
+;@ Cursor offsets of the four tactics; $FFFF ends the list.
 TacticsCursorPos::
-	db $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
+	dw $0141, $0181, $01c1, $0201
+	dw $ffff
 
 ;@ def ShowMonsterStatus()
 ;@ path: menu/viewer
@@ -8427,55 +8652,75 @@ MenuShowBuffer::
 	ret
 
 
+;@ def DrawFamilyPlus(plus: a, family: c, tiles: hl)
+;@ path: menu/screen
+;@ Draws a family name (text group 4) followed by the plus value (MenuAppendPlus)
+;@ into eight tiles at `tiles`; family $FF draws the blank entry instead.
+;@ test: skip draws text tiles in another bank
 DrawFamilyPlus::
+;> if family == 0xFF:
+;>     return DrawBlankEntryText(tiles, lines=1, line_length=8)
 	ld b, a
 	ld de, $0801
 	ld a, c
 	cp $ff
 	jr z, DrawBlankEntryText
 
+;>@c1 CopySystemText(0x0400 | family, wTextArg0)
 	ld a, b
 	push hl
 	push af
 	ld l, c
 	ld h, $04
 	ld de, wTextArg0
+;=@c1
 	call CopySystemText
+;> MenuAppendPlus(plus, wTextArg0)
 	pop af
 	ld de, wTextArg0
 	call MenuAppendPlus
+;>@c2 saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	pop hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;=@c2
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0801
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 8
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0                      # text 2/$00 prints wTextArg0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@c3 restore(saved)
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@c3
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
@@ -8483,44 +8728,68 @@ DrawFamilyPlus::
 	ret
 
 
+;@ def DrawTextOrBlank(tiles: hl, size: de)
+;@ path: menu/screen
+;@ MenuDrawTextTiles for text wTextGroup/wTextIndex, or the blank entry (text
+;@ 4/$0A) when wTextIndex is $FF.
+;@ test: skip draws text tiles in another bank
 DrawTextOrBlank::
+;> if wTextIndex != 0xFF:
+;>     return MenuDrawTextTiles(tiles, size)
 	ld a, [wTextIndex]
 	cp $ff
 	jr nz, MenuDrawTextTiles
 
 DrawBlankEntryText:
+;> wTextIndex = 0x0A
 	ld a, $0a
 	ld [wTextIndex], a
+;> wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;> MenuDrawTextTiles(tiles, size)
 
+;@ def MenuDrawTextTiles(tiles: hl, lines: e, line_length: d)
+;@ path: menu/screen
+;@ Renders text wTextGroup/wTextIndex into the VRAM tiles at `tiles` (a text box
+;@ of `lines` lines of `line_length` tiles, PrintText_41); the text box settings
+;@ are kept.
+;@ test: skip draws text tiles in another bank
 MenuDrawTextTiles::
+;>@c4 saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
+;=@c4
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = line_length
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@c5 restore(saved)
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@c5
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
@@ -8528,42 +8797,58 @@ MenuDrawTextTiles::
 	ret
 
 
+;@ def MenuDrawNameTiles(name: de, tiles: hl)
+;@ path: menu/screen
+;@ Draws a four-letter name into four tiles at `tiles` (through wTextArg0 and text
+;@ 2/$00); the text box settings are kept.
+;@ test: skip draws text tiles in another bank
 MenuDrawNameTiles::
+;> CopyName(name, wTextArg0)
 	push hl
 	ld hl, wTextArg0
 	call CopyName
+;>@c6 saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	pop hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;=@c6
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0401
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 4
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@c7 restore(saved)
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@c7
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
@@ -8571,45 +8856,66 @@ MenuDrawNameTiles::
 	ret
 
 
+;@ def DrawSexMark(flags: a, tile: hl)
+;@ path: menu/screen
+;@ Draws the sex mark - character $A7 + (`flags` & 1) - into the tile at `tile`.
+;@ test: skip draws text tiles in another bank
 DrawSexMark::
+;> return MenuDrawCharTile(0xA7 + (flags & 1), tile)
 	and $01
 	add $a7
 
+;@ def MenuDrawCharTile(char: a, tile: hl)
+;@ path: menu/screen
+;@ Draws the single character `char` into the tile at `tile` (through wTextArg0 and
+;@ text 2/$00); the text box settings are kept.
+;@ test: skip draws text tiles in another bank
 MenuDrawCharTile::
+;> wTextArg0[0:2] = [char, 0xF0]
 	ld [wTextArg0], a
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@c8 saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
+;=@c8
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tile
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 1
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>@c9 restore(saved)
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;=@c9
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
@@ -8617,211 +8923,302 @@ MenuDrawCharTile::
 	ret
 
 
+;@ def MenuClearBuffer()
+;@ path: menu/screen
+;@ Fills wTilemapBuffer (18 rows of 32) with the blank tile $E0.
 MenuClearBuffer::
+;>@c12 fill(wTilemapBuffer, 0x240, 0xE0)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
-
-jr_007_6a95:
+.loop
 	ld a, $e0
 	ld [hli], a
 	dec bc
 	ld a, b
+;=@c12
 	or c
-	jr nz, jr_007_6a95
+	jr nz, .loop
 
 	ret
 
 
+;@ def ClearMenuBgMap()
+;@ path: menu/screen
+;@ Fills the BG map at $9800 with the blank tile $E0.
+;@ test: skip writes VRAM
 ClearMenuBgMap::
+;> addr = 0x9800
+;> for i in range(0x400):
 	ld hl, $9800
 	ld bc, $0400
-
-jr_007_6aa4:
+.loop
+;>@c13     addr = WriteVRAMInc(0xE0, addr)
 	ld a, $e0
 	call WriteVRAMInc
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_007_6aa4
+	jr nz, .loop
 
+;=@c13
 	ret
 
 
+;@ def FieldMenuOpen()
+;@ path: menu/field
+;@ Field menu state 0: clears the menu cursors (wMenuChoice and the seven bytes
+;@ after it) and sets up the menu screen.
+;@ test: skip draws into VRAM
 FieldMenuOpen::
-	ld hl, wLinkChoice
+;> fill(wMenuChoice, 8, 0)
+	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> SetUpMenuScreen()
 
+;@ def SetUpMenuScreen()
+;@ path: menu/screen
+;@ Lines the scroll up with the tiles, finds the BG map address of the screen's top
+;@ left corner (wMenuBgMap), clears the buffer and the BG map, loads the font
+;@ (graphics $2E/$0D to $9000), clears the CGB attributes and advances
+;@ wStatusViewVars.
+;@ test: skip draws into VRAM
 SetUpMenuScreen::
+;> AlignScrollToTile(hScrollX)
 	ld hl, hScrollX
 	call AlignScrollToTile
+;> AlignScrollToTile(hScrollY)
 	ld hl, hScrollY
 	call AlignScrollToTile
+;>@c10 wMenuBgMap = 0x9800 | ((4 * (hScrollY & 0xFF) + (hScrollX & 0xFF) // 8) & 0x3FF)
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	ldh a, [hScrollX]
+;=@c10
 	rrca
 	rrca
 	rrca
 	add l
 	ld l, a
 	ld a, h
+;=@c10
 	adc $98
 	ld h, a
 	ld a, h
 	and $03
 	or $98
 	ld h, a
+;=@c10
 	ld a, l
 	ld [wMenuBgMap], a
 	ld a, h
-	ld [$c912], a
+	ld [wMenuBgMap + 1], a
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> ClearMenuBgMap()
 	call ClearMenuBgMap
+;> DecompressVRAM(0x2E, 0x0D, 0x9000)
 	ld de, $2e0d
 	ld hl, $9000
 	call DecompressVRAM
+;> MenuResetBlink()
 	call MenuResetBlink
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> wStatusViewVars += 1
 	ld hl, wStatusViewVars
 	inc [hl]
 	ret
 
 
+;@ def FieldMenuClose()
+;@ path: menu/field
+;@ Field menu state 4: clears the menu and rebuilds the field screen - tiles, map,
+;@ palettes, status bar, actors; on a gate floor also reloads eight tile sets
+;@ (graphics $2E/$15-$1C to $8500-$86C0).
+;@ test: skip calls routines in other banks
 FieldMenuClose::
+;> MenuClearBuffer()
 	call MenuClearBuffer
+;> MenuShowBuffer()
 	call MenuShowBuffer
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
+;> ReloadMapTileset()
 	ld hl, far_ReloadMapTileset
 	rst $10
+;> DrawMapScreen()
 	ld hl, far_DrawMapScreen
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> BuildStatusBar()
 	call BuildStatusBar
+;> DrawStatusBar()
 	call DrawStatusBar
+;> LoadFieldActorGfx()
 	ld hl, far_LoadFieldActorGfx
 	rst $10
+;> wFieldFlags &= ~0x02
 	ld hl, wFieldFlags
 	res 1, [hl]
+;> wStatusViewVars = 0
 	xor a
 	ld [wStatusViewVars], a
+;> if not wOnGateFloor:
+;>     return
 	ld a, [wOnGateFloor]
 	or a
 	ret z
 
+;> for i in range(8):
+;>@c11     DecompressVRAM(0x2E, 0x15 + i, 0x8500 + 0x40 * i)
 	ld de, $2e15
 	ld hl, $8500
 	call DecompressVRAM
 	ld de, $2e16
 	ld hl, $8540
 	call DecompressVRAM
+;=@c11
 	ld de, $2e17
 	ld hl, $8580
 	call DecompressVRAM
 	ld de, $2e18
 	ld hl, $85c0
 	call DecompressVRAM
+;=@c11
 	ld de, $2e19
 	ld hl, $8600
 	call DecompressVRAM
 	ld de, $2e1a
 	ld hl, $8640
 	call DecompressVRAM
+;=@c11
 	ld de, $2e1b
 	ld hl, $8680
 	call DecompressVRAM
 	ld de, $2e1c
 	ld hl, $86c0
 	call DecompressVRAM
+;=@c11
 	ret
 
 
+;@ def MoveListCursor(cursor: hl, marks: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Cursor of a paged list: [`cursor`] is the row, [`cursor` + 1] the page; `marks`
+;@ is the list's mark table (page number position, then the row positions), `rows`
+;@ rows a page, `count` entries. Left/Right turns the page (wrapping; on the last
+;@ page the cursor stays within its rows); otherwise the page number is redrawn
+;@ and Up/Down moves within the page (MoveMenuCursor). Not while text prints.
+;@ test: skip writes VRAM
 MoveListCursor::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> rows_table = marks + 2
 	inc de
 	inc de
+;> if not wTextState and wJoyRepeat & 0x30:
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_007_6be6
+	jp nz, .page
 
+;>     pages = (count - 1) // rows + 1
+;>     if wJoyRepeat & 0x20:           # Left: previous page (wrapping)
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_007_6bac
+	jr z, .notLeft
 
+;>@c1         page = mem[cursor + 1] - 1 if mem[cursor + 1] > 0 else pages - 1
 	inc hl
 	ld a, [hl]
 	dec a
 	push af
 	push de
 	push bc
+;=@c1
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
 	ld a, b
 	inc a
+;=@c1
 	pop bc
 	pop de
 	ld c, a
 	pop af
 	cp c
-	jr c, jr_007_6bca
+	jr c, .store
 
+;=@c1
 	ld a, c
 	dec a
-	jr jr_007_6bca
+	jr .store
 
-jr_007_6bac:
+.notLeft
+;>     else:                           # Right: next page (wrapping)
+;>@c2         page = mem[cursor + 1] + 1 if mem[cursor + 1] + 1 < pages else 0
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_007_6be6
+	jr z, .page
 
 	inc hl
 	ld a, [hl]
 	inc a
+;=@c2
 	push af
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
+;=@c2
 	call Divide8
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;=@c2
 	pop af
 	cp c
-	jr c, jr_007_6bca
+	jr c, .store
 
 	ld a, $00
 
-jr_007_6bca:
+.store
+;>     mem[cursor + 1] = page
 	ld [hld], a
+;>     if page == pages - 1 and count % rows and mem[cursor] > count % rows - 1:
+;>@c3         mem[cursor] = count % rows - 1          # the last page is shorter
 	dec c
 	cp c
 	jr nz, jr_007_6c29
 
 	ld a, [wListLastRows]
 	ld c, a
+;=@c3
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	call Divide8
 	pop bc
+;=@c3
 	pop de
 	or a
 	jr z, jr_007_6c29
@@ -8830,29 +9227,37 @@ jr_007_6bca:
 	cp [hl]
 	jr nc, jr_007_6c29
 
+;=@c3
 	ld [hl], a
+;>     return MenuCursorMoved(cursor, rows_table)   # (jr_007_6c29 in MoveMenuCursor)
 	jr jr_007_6c29
 
-Jump_007_6be6:
-jr_007_6be6:
+.page
+;>@c23 DrawListPageDigit(cursor, rows_table, rows, count)
 	push bc
 	push de
 	push hl
 	call DrawListPageDigit
 	pop hl
 	pop de
+;=@c23
 	pop bc
+;> last_page = (count - 1) // rows
+;>@c4 wListLastRows = (count - 1) % rows
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@c4
 	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;> if mem[cursor + 1] == last_page:
+;>@c5     rows = wListLastRows + 1
 	inc hl
 	ld a, [hld]
 	cp c
@@ -8860,14 +9265,24 @@ jr_007_6be6:
 
 	ld a, [wListLastRows]
 	inc a
+;=@c5
 	ld b, a
+;> MoveMenuCursor(cursor, rows, rows_table)
 
+;@ def MoveMenuCursor(cursor: hl, count: b, marks: de)
+;@ path: menu/cursor
+;@ Up/Down (with repeat) moves the menu cursor [`cursor`] among `count` rows,
+;@ wrapping; A sets bit 7 (chosen). Then the cursor blinks (BlinkMenuCursor).
+;@ test: skip writes VRAM
 MoveMenuCursor::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:                # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_007_6c1a
+	jr z, .notUp
 
+;>@c6     mem[cursor] = mem[cursor] - 1 if mem[cursor] > 0 else count - 1
 	ld a, [hl]
 	dec a
 	cp b
@@ -8875,13 +9290,16 @@ MoveMenuCursor::
 
 	dec b
 	ld a, b
+;=@c6
 	jr MenuCursorStore
 
-jr_007_6c1a:
+.notUp
+;> elif wJoyRepeat & 0x80:              # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, MenuCursorDone
 
+;>@c7     mem[cursor] = mem[cursor] + 1 if mem[cursor] + 1 < count else 0
 	ld a, [hl]
 	inc a
 	cp b
@@ -8890,9 +9308,12 @@ jr_007_6c1a:
 	ld a, $00
 
 MenuCursorStore:
+;=@c7
 	ld [hl], a
 
 jr_007_6c29:
+;> if moved:
+;>     wMenuBlink = 0                   # show the cursor at once
 	xor a
 	ld [wMenuBlink], a
 	push hl
@@ -8901,47 +9322,63 @@ jr_007_6c29:
 	pop hl
 
 MenuCursorDone:
+;> if wJoyPressed & 0x01:
+;>     mem[cursor] |= 0x80
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_007_6c3a
+	jr z, .draw
 
 	set 7, [hl]
 
-jr_007_6c3a:
+.draw
+;> BlinkMenuCursor(mem[cursor], marks)
 	ld a, [hl]
 	call BlinkMenuCursor
 	ret
 
 
+;@ def MoveMenuCursorNoSelect(cursor: hl, count: b, marks: de)
+;@ path: menu/cursor
+;@ MoveMenuCursor without the A press: Up/Down only, then the blink.
+;@ test: skip writes VRAM
 MoveMenuCursorNoSelect::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_007_6c51
+	jr z, .notUp
 
+;>@c8     mem[cursor] = mem[cursor] - 1 if mem[cursor] > 0 else count - 1
 	ld a, [hl]
 	dec a
 	cp b
-	jr c, jr_007_6c5f
+	jr c, .store
 
 	dec b
 	ld a, b
-	jr jr_007_6c5f
+;=@c8
+	jr .store
 
-jr_007_6c51:
+.notUp
+;> elif wJoyRepeat & 0x80:
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_007_6c68
+	jr z, .draw
 
+;>@c9     mem[cursor] = mem[cursor] + 1 if mem[cursor] + 1 < count else 0
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_007_6c5f
+	jr c, .store
 
 	ld a, $00
 
-jr_007_6c5f:
+.store
+;=@c9
 	ld [hl], a
+;> if moved:
+;>     wMenuBlink = 0
 	xor a
 	ld [wMenuBlink], a
 	push hl
@@ -8949,18 +9386,27 @@ jr_007_6c5f:
 	pop de
 	pop hl
 
-jr_007_6c68:
+.draw
+;> BlinkMenuCursor(mem[cursor], marks)
 	ld a, [hl]
 	call BlinkMenuCursor
 	ret
 
 
+;@ def MoveMenuCursorSideways(cursor: hl, count: b, marks: de)
+;@ path: menu/cursor
+;@ MoveMenuCursor for a row of choices: Left/Right instead of Up/Down (the rest
+;@ is shared with MoveMenuCursor).
+;@ test: skip writes VRAM
 MoveMenuCursorSideways::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x20:                # Left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_007_6c7f
+	jr z, .notLeft
 
+;>     mem[cursor] = mem[cursor] - 1 if mem[cursor] > 0 else count - 1
 	ld a, [hl]
 	dec a
 	cp b
@@ -8968,299 +9414,421 @@ MoveMenuCursorSideways::
 
 	dec b
 	ld a, b
+;>     return MenuCursorStore(...)     # store, reset the blink, then as below
 	jr MenuCursorStore
 
-jr_007_6c7f:
+.notLeft
+;> elif wJoyRepeat & 0x10:              # Right
 	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, MenuCursorDone
 
+;>     mem[cursor] = mem[cursor] + 1 if mem[cursor] + 1 < count else 0
+;>@c10     return MenuCursorStore(...)
 	ld a, [hl]
 	inc a
 	cp b
 	jr c, MenuCursorStore
 
 	ld a, $00
+;=@c10
 	jr MenuCursorStore
 
+;> return MenuCursorDone(...)          # A marks the choice, then the blink
+
+;@ def MenuResetBlink()
+;@ path: menu/cursor
+;@ Restarts the cursor blink (the cursor shows at once).
 MenuResetBlink::
+;> wMenuBlink = 0
 	xor a
 	ld [wMenuBlink], a
 	ret
 
 
+;@ def BlinkMenuCursor(cursor: a, marks: de)
+;@ path: menu/cursor
+;@ Counts the blink timer and redraws the cursor marks every 16 frames - at once
+;@ when the cursor has been chosen (bit 7).
+;@ test: skip writes VRAM
 BlinkMenuCursor::
+;> if not cursor & 0x80:
 	ld c, a
 	bit 7, a
 	jr nz, MenuDrawCursorMarks
 
+;>     t = wMenuBlink & 0x0F
+;>     wMenuBlink += 1
 	ld a, [wMenuBlink]
 	and $0f
 	push af
 	ld a, [wMenuBlink]
 	inc a
 	ld [wMenuBlink], a
+;>     if t:
+;>         return
 	pop af
 	ld a, c
 	ret nz
 
+;> MenuDrawCursorMarks(cursor, marks)
+
+;@ def MenuDrawCursorMarks(cursor: a, marks: de)
+;@ path: menu/cursor
+;@ Draws every position of the mark table `marks` (u16 screen offsets, $FFFF ends):
+;@ the cursor row gets $E9 when chosen, else $E8 (blank $E0 while wMenuBlink bit 4
+;@ is set), the others $E0; written to the BG map and the tilemap buffer.
+;@ test: skip writes VRAM
 MenuDrawCursorMarks::
+;> row = 0
 	ld c, a
 	ld b, $00
-
-jr_007_6cac:
+.loop
+;>@c11 while (pos := mem16[marks + 2 * row]) != 0xFFFF:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@c11
 	and l
 	cp $ff
 	ret z
 
+;>@c12     addr = MenuMapAddress(pos)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@c12
 	call MenuMapAddress
 	pop bc
 	pop de
+;>     if row != cursor & 0x7F:
+;>         tile = 0xE0
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_007_6cdc
+	jr nz, .tile
 
+;>     elif cursor & 0x80:
+;>         tile = 0xE9
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_007_6cdc
+	jr nz, .tile
 
+;>     else:
+;>         tile = 0xE0 if wMenuBlink & 0x10 else 0xE8
 	ld a, [wMenuBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_007_6cdc
+	jr nz, .tile
 
 	ld a, $e8
 
-jr_007_6cdc:
+.tile
+;>     WriteVRAM(tile, addr)
 	call WriteVRAM
+;>@c13     wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@c13
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@c13
 	ld [hl], a
+;>     row += 1
 	inc b
-	jr jr_007_6cac
+	jr .loop
 
+;@ def DrawListPageDigit(cursor: hl, rows_table: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ When the list has more entries than rows, draws the page number (tile $F1 +
+;@ page) one tile left of the list's page mark position, in the BG map and the
+;@ tilemap buffer.
+;@ test: skip writes VRAM
 DrawListPageDigit::
+;> if rows >= count:
+;>     return
 	ld a, b
 	cp c
 	ret nc
 
+;> page = mem[cursor + 1]
 	inc hl
 	ld c, [hl]
+;>@c14 pos = mem16[rows_table - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@c14
 	ld h, a
 	inc de
+;> if pos == 0xFFFF:
+;>     return
 	and l
 	cp $ff
 	ret z
 
+;> pos -= 1
 	dec hl
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
+;>@c15 WriteVRAM((page & 0x7F) + 0xF1, MenuMapAddress(pos))
 	push de
 	push bc
 	call MenuMapAddress
 	pop bc
 	pop de
 	ld a, c
+;=@c15
 	and $7f
 	add $f1
 	call WriteVRAM
+;>@c16 wTilemapBuffer[pos] = (page & 0x7F) + 0xF1
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@c16
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@c16
 	ld [hl], a
 	ret
 
 
+;@ def DrawListMarks(cursor: hl, marks: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ In the tilemap buffer: at the list's page mark position the "more" arrow $E7
+;@ (or the frame tile $EE when everything fits), with the page number left of it;
+;@ then the cursor (MenuDrawCursorAt).
+;@ test: skip writes the tilemap buffer
 DrawListMarks::
+;> row = mem[cursor]
 	ld a, [hli]
 	push af
+;>@c17 p = wTilemapBuffer + mem16[marks]
 	push hl
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
+;=@c17
 	ld h, a
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
+;=@c17
 	ld h, a
+;>@c18 mem[p] = 0xEE if rows >= count else 0xE7
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_007_6d45
+	jr nc, .mark
 
 	ld a, $e7
 
-jr_007_6d45:
+.mark
+;=@c18
 	ld [hld], a
+;> if rows < count:
+;>     mem[p - 1] = mem[cursor + 1] + 0xF1         # page number
 	pop bc
-	jr nc, jr_007_6d4d
+	jr nc, .noDigit
 
 	ld a, [bc]
 	add $f1
 	ld [hl], a
 
-jr_007_6d4d:
+.noDigit
+;> MenuDrawCursorAt(row, marks + 2)
 	pop af
 
+;@ def MenuDrawCursorAt(cursor: a, marks: de)
+;@ path: menu/cursor
+;@ Puts the cursor tile at row `cursor` & $7F of the mark table into the tilemap
+;@ buffer: $E9 when chosen (bit 7), else $E8 (blank $E0 while wMenuBlink bit 4 is
+;@ set).
+;@ test: skip writes the tilemap buffer
 MenuDrawCursorAt::
+;>@c19 pos = mem16[marks + 2 * (cursor & 0x7F)]
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@c19
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;=@c19
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@c19
 	call MenuMapAddress
 	pop bc
 	pop de
+;>@c20 tile = 0xE9 if cursor & 0x80 else 0xE0 if wMenuBlink & 0x10 else 0xE8
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_007_6d79
+	jr nz, .tile
 
 	ld a, [wMenuBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_007_6d79
+;=@c20
+	jr nz, .tile
 
 	ld a, $e8
 
-jr_007_6d79:
+.tile
+;>@c21 wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@c21
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@c21
 	ld [hl], a
 	ret
 
 
+;@ def GetViewedMonster() -> a
+;@ path: menu/status
+;@ The record slot of the monster the status pages show: in the field menu
+;@ (wFieldFlags bit 1) wParty[wCurPartyMember], otherwise wCurPartyMember itself.
 GetViewedMonster::
+;> if wFieldFlags & 0x02:
 	ld a, [wFieldFlags]
 	bit 1, a
-	jr z, jr_007_6da2
+	jr z, .slot
 
+;>@c22     return wParty[wCurPartyMember & 0x7F]
 	ld a, [wCurPartyMember]
 	and $7f
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
+;=@c22
 	adc h
 	ld h, a
 	ld a, [hl]
 	ret
 
 
-jr_007_6da2:
+.slot
+;> return wCurPartyMember & 0x7F
 	ld a, [wCurPartyMember]
 	and $7f
 	ret
 
 
+;@ def GetViewedMonsterField(field: hl) -> hl
+;@ path: menu/status
+;@ Address of record field `field` of the viewed monster (see GetViewedMonster).
+;@ test: skip reads monster records through the party helpers
 GetViewedMonsterField::
+;> if wFieldFlags & 0x02:
+;>     return CurMonsterField(field)
 	ld a, [wFieldFlags]
 	bit 1, a
-	jr z, jr_007_6db3
+	jr z, .slot
 
 	call CurMonsterField
 	ret
 
 
-jr_007_6db3:
+.slot
+;> return MonsterField(wCurPartyMember, field)
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
 
 
+;@ def GetViewedMonsterByte(field: hl) -> a
+;@ path: menu/status
+;@ Byte field `field` of the viewed monster (hl points at it afterwards).
+;@ test: skip reads monster records through the party helpers
 GetViewedMonsterByte::
+;> if wFieldFlags & 0x02:
+;>     return GetCurMonsterByte(field)
 	ld a, [wFieldFlags]
 	bit 1, a
-	jr z, jr_007_6dc5
+	jr z, .slot
 
 	call GetCurMonsterByte
 	ret
 
 
-jr_007_6dc5:
+.slot
+;> return MonsterField(wCurPartyMember, field)[0]
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hl]
 	ret
 
 
+;@ def GetViewedMonsterWord(field: hl) -> bc
+;@ path: menu/status
+;@ 16-bit field `field` of the viewed monster.
+;@ test: skip reads monster records through the party helpers
 GetViewedMonsterWord::
+;> if wFieldFlags & 0x02:
+;>     return GetCurMonsterWord(field)
 	ld a, [wFieldFlags]
 	bit 1, a
-	jr z, jr_007_6dd8
+	jr z, .slot
 
 	call GetCurMonsterWord
 	ret
 
 
-jr_007_6dd8:
+.slot
+;> return mem16[MonsterField(wCurPartyMember, field)]
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hli]
@@ -9269,85 +9837,109 @@ jr_007_6dd8:
 	ret
 
 
+;@ def MenuAppendPlus(plus: a, text: de)
+;@ path: menu/screen
+;@ Appends the plus value to the family name at `text` (ended by $F0): the mark
+;@ $A2, then `plus` in digits - or the word "family" when it is 0.
+;@ test: skip writes through a pointer
 MenuAppendPlus::
+;> while mem[text] != 0xF0:
+;>     text += 1
 	push af
-
-jr_007_6de3:
+.find
 	ld a, [de]
 	inc de
 	cp $f0
-	jr nz, jr_007_6de3
+	jr nz, .find
 
+;> mem[text] = 0xA2
 	dec de
 	ld a, $a2
 	ld [de], a
+;> if plus:
+;>@c1     ByteToDecimal(plus, text + 1)
 	pop af
 	or a
-	jr z, jr_007_6df8
+	jr z, .family
 
 	inc de
 	ld l, e
 	ld h, d
+;=@c1
 	call ByteToDecimal
 	ret
 
 
-jr_007_6df8:
+.family
+;> else:
+;>@c2     mem[text + 1:text + 8] = [0x43, 0x3E, 0x4A, 0x46, 0x49, 0x56, 0xF0]     # "family"
 	ld a, $43
 	ld [de], a
 	inc de
 	ld a, $3e
 	ld [de], a
 	inc de
+;=@c2
 	ld a, $4a
 	ld [de], a
 	inc de
 	ld a, $46
 	ld [de], a
 	inc de
+;=@c2
 	ld a, $49
 	ld [de], a
 	inc de
 	ld a, $56
 	ld [de], a
 	inc de
+;=@c2
 	ld a, $f0
 	ld [de], a
 	ret
 
 
+;@ path: menu/screen
+;@ Graphics numbers (u16: bank << 8 | entry) of the walking sprites, by sprite set
+;@ (species + $10; sets 0-$0F are not monsters: 0 is $2F/$00, the others $31/$40).
 MonsterSpriteGfx::
-	db $00, $2f, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
-	db $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31, $40, $31
-	db $01, $2f, $02, $2f, $03, $2f, $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f
-	db $09, $2f, $0a, $2f, $0b, $2f, $0c, $2f, $0d, $2f, $0e, $2f, $0f, $2f, $10, $2f
-	db $00, $38, $01, $38, $02, $38, $03, $38, $04, $38, $05, $38, $06, $38, $07, $38
-	db $08, $38, $09, $38, $0a, $38, $0b, $38, $0c, $38, $0d, $38, $0e, $38, $0f, $38
-	db $10, $38, $11, $38, $12, $38, $13, $38, $14, $38, $15, $38, $16, $38, $17, $38
-	db $18, $38, $19, $38, $1a, $38, $1b, $38, $1c, $38, $1d, $38, $1e, $38, $1f, $38
-	db $20, $38, $21, $38, $22, $38, $23, $38, $24, $38, $25, $38, $26, $38, $27, $38
-	db $28, $38, $29, $38, $2a, $38, $2b, $38, $2c, $38, $2d, $38, $2e, $38, $2f, $38
-	db $30, $38, $31, $38, $32, $38, $33, $38, $34, $38, $35, $38, $36, $38, $37, $38
-	db $38, $38, $39, $38, $3a, $38, $3b, $38, $3c, $38, $3d, $38, $3e, $38, $3f, $38
-	db $40, $38, $41, $38, $42, $38, $43, $38, $44, $38, $45, $38, $46, $38, $47, $38
-	db $00, $39, $01, $39, $02, $39, $03, $39, $04, $39, $05, $39, $06, $39, $07, $39
-	db $08, $39, $09, $39, $0a, $39, $0b, $39, $0c, $39, $0d, $39, $0e, $39, $0f, $39
-	db $10, $39, $11, $39, $12, $39, $13, $39, $14, $39, $15, $39, $16, $39, $17, $39
-	db $18, $39, $19, $39, $1a, $39, $1b, $39, $1c, $39, $1d, $39, $1e, $39, $1f, $39
-	db $20, $39, $21, $39, $22, $39, $23, $39, $24, $39, $25, $39, $26, $39, $27, $39
-	db $28, $39, $29, $39, $2a, $39, $2b, $39, $2c, $39, $2d, $39, $2e, $39, $2f, $39
-	db $30, $39, $31, $39, $32, $39, $33, $39, $34, $39, $35, $39, $36, $39, $37, $39
-	db $38, $39, $39, $39, $3a, $39, $3b, $39, $3c, $39, $3d, $39, $3e, $39, $3f, $39
-	db $40, $39, $41, $39, $42, $39, $43, $39, $44, $39, $45, $39, $46, $39, $47, $39
-	db $00, $3a, $01, $3a, $02, $3a, $03, $3a, $04, $3a, $05, $3a, $06, $3a, $07, $3a
-	db $08, $3a, $09, $3a, $0a, $3a, $0b, $3a, $0c, $3a, $0d, $3a, $0e, $3a, $0f, $3a
-	db $10, $3a, $11, $3a, $12, $3a, $13, $3a, $14, $3a, $15, $3a, $16, $3a, $17, $3a
-	db $18, $3a, $19, $3a, $1a, $3a, $1b, $3a, $1c, $3a, $1d, $3a, $1e, $3a, $1f, $3a
-	db $20, $3a, $21, $3a, $22, $3a, $23, $3a, $24, $3a, $25, $3a, $26, $3a, $27, $3a
-	db $28, $3a, $29, $3a, $2a, $3a, $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a
-	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
+	dw $2f00, $3140, $3140, $3140, $3140, $3140, $3140, $3140    ; $00
+	dw $3140, $3140, $3140, $3140, $3140, $3140, $3140, $3140    ; $08
+	dw $2f01, $2f02, $2f03, $2f04, $2f05, $2f06, $2f07, $2f08    ; $10
+	dw $2f09, $2f0a, $2f0b, $2f0c, $2f0d, $2f0e, $2f0f, $2f10    ; $18
+	dw $3800, $3801, $3802, $3803, $3804, $3805, $3806, $3807    ; $20
+	dw $3808, $3809, $380a, $380b, $380c, $380d, $380e, $380f    ; $28
+	dw $3810, $3811, $3812, $3813, $3814, $3815, $3816, $3817    ; $30
+	dw $3818, $3819, $381a, $381b, $381c, $381d, $381e, $381f    ; $38
+	dw $3820, $3821, $3822, $3823, $3824, $3825, $3826, $3827    ; $40
+	dw $3828, $3829, $382a, $382b, $382c, $382d, $382e, $382f    ; $48
+	dw $3830, $3831, $3832, $3833, $3834, $3835, $3836, $3837    ; $50
+	dw $3838, $3839, $383a, $383b, $383c, $383d, $383e, $383f    ; $58
+	dw $3840, $3841, $3842, $3843, $3844, $3845, $3846, $3847    ; $60
+	dw $3900, $3901, $3902, $3903, $3904, $3905, $3906, $3907    ; $68
+	dw $3908, $3909, $390a, $390b, $390c, $390d, $390e, $390f    ; $70
+	dw $3910, $3911, $3912, $3913, $3914, $3915, $3916, $3917    ; $78
+	dw $3918, $3919, $391a, $391b, $391c, $391d, $391e, $391f    ; $80
+	dw $3920, $3921, $3922, $3923, $3924, $3925, $3926, $3927    ; $88
+	dw $3928, $3929, $392a, $392b, $392c, $392d, $392e, $392f    ; $90
+	dw $3930, $3931, $3932, $3933, $3934, $3935, $3936, $3937    ; $98
+	dw $3938, $3939, $393a, $393b, $393c, $393d, $393e, $393f    ; $A0
+	dw $3940, $3941, $3942, $3943, $3944, $3945, $3946, $3947    ; $A8
+	dw $3a00, $3a01, $3a02, $3a03, $3a04, $3a05, $3a06, $3a07    ; $B0
+	dw $3a08, $3a09, $3a0a, $3a0b, $3a0c, $3a0d, $3a0e, $3a0f    ; $B8
+	dw $3a10, $3a11, $3a12, $3a13, $3a14, $3a15, $3a16, $3a17    ; $C0
+	dw $3a18, $3a19, $3a1a, $3a1b, $3a1c, $3a1d, $3a1e, $3a1f    ; $C8
+	dw $3a20, $3a21, $3a22, $3a23, $3a24, $3a25, $3a26, $3a27    ; $D0
+	dw $3a28, $3a29, $3a2a, $3a2b, $3a2c, $3a2d, $3a2e, $3a2f    ; $D8
+	dw $3a30, $3a31, $3a32, $3a33, $3a34, $3a35, $3a36    ; $E0
 
+;@ def DrawNumber3(value: bc, dest: hl)
+;@ path: menu/screen
+;@ Writes `value` (0-999) as digits from `dest` on, left-aligned without leading
+;@ zeros (tiles $F0-$F9, WriteVRAM, columns wrapping like the BG map).
+;@ test: skip writes VRAM
 DrawNumber3::
+;> if value >= 100:
 	ld de, $0064
 	push bc
 	call DivideDigit
@@ -9355,425 +9947,640 @@ DrawNumber3::
 	or a
 	jr z, DrawNumber2
 
+;>     MenuDrawDigit(value // 100, dest); dest = NextMapColumn2(dest)
 	ld de, $0064
 	call DivideDigit
 	call MenuDrawDigit
 	call NextMapColumn2
+;>     MenuDrawDigit(value // 10 % 10, dest); dest = NextMapColumn2(dest)
 	ld de, $000a
 	call DivideDigit
 	call MenuDrawDigit
 	call NextMapColumn2
-	jr jr_007_701e
+;>     MenuDrawDigit(value % 10, dest)
+;>     return
+	jr DrawNumber2.ones
 
+;> DrawNumber2(value, dest)
+
+;@ def DrawNumber2(value: bc, dest: hl)
+;@ path: menu/screen
+;@ Writes `value` (0-99) as one or two digits from `dest` on (no leading zero).
+;@ test: skip writes VRAM
 DrawNumber2::
+;> if value >= 10:
 	ld de, $000a
 	push bc
 	call DivideDigit
 	pop bc
 	or a
-	jr z, jr_007_701e
+	jr z, .ones
 
+;>     MenuDrawDigit(value // 10, dest); dest = NextMapColumn2(dest)
 	ld de, $000a
 	call DivideDigit
 	call MenuDrawDigit
 	call NextMapColumn2
 
-jr_007_701e:
+.ones
+;> MenuDrawDigit(value % 10, dest)
 	ld a, c
 	call MenuDrawDigit
 	ret
 
 
+;@ def DivideDigit(value: bc, unit: de) -> (a, bc)
+;@ path: menu/screen
+;@ Returns `value` // `unit` in a and `value` % `unit` in bc.
 DivideDigit::
+;> q = -1
 	push hl
 	ld h, $ff
-
-jr_007_7026:
+.loop
+;> while True:
+;>     q += 1
+;>@c3     value -= unit
 	inc h
 	ld a, c
 	sub e
 	ld c, a
 	ld a, b
 	sbc d
+;=@c3
 	ld b, a
-	jr nc, jr_007_7026
+;>     if value < 0:
+;>         break
+	jr nc, .loop
 
+;> value += unit
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;> return q, value
 	ld a, h
 	pop hl
 	ret
 
 
+;@ def MenuDrawDigit(digit: a, dest: hl)
+;@ path: menu/screen
+;@ Writes the digit tile $F0 + `digit` at `dest` (WriteVRAM).
+;@ test: skip writes VRAM
 MenuDrawDigit::
+;> WriteVRAM(0xF0 + digit, dest)
 	add $f0
 	call WriteVRAM
 	ret
 
 
+;@ def NextMapColumn2(addr: hl) -> hl
+;@ path: menu/screen
+;@ The next column of `addr`, wrapping within the 32-tile row (same as
+;@ NextMapColumn).
 NextMapColumn2::
+;>@c4 return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@c4
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@c4
 	ret
 
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): the main menu: the four options in a 2x2 grid. 12 x 5 tiles at row 0, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 MainMenuWindow::
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
-	db $e0, $05, $08, $03, $09, $e0, $05, $0b, $d5, $07, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $d6, $06, $05, $de, $e0
-	db $09, $e3, $0b, $08, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $fd, $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $05, $08, $03, $09, $e0, $05, $0b, $d5, $07, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $d6, $06, $05, $de, $e0, $09, $e3, $0b, $08, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): the gold window (the amount is printed at offset $002E). 8 x 3 tiles at row 0, column 12;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 GoldWindow::
-	db $0c, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $dd
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $000c
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $dd, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: menu/windows
+;@ Window template (DrawWindow): the status pages' party list (the three name tile rows). 7 x 9 tiles at row 0, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusListWindow::
-	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $05, $08, $03, $09
-	db $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $20, $21, $22, $23
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $24, $25, $26, $27
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $28, $29, $2a, $2b
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $05, $08, $03, $09, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $20, $21, $22, $23, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $24, $25, $26, $27, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $28, $29, $2a, $2b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): status page 1: name, level and the five stats. 13 x 13 tiles at row 0, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusStatsWindow::
-	db $07, $00, $fa, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $3c, $3d, $3e, $3f, $e0
-	db $30, $80, $12, $e4, $e0, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb
-	db $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $00, $0b, $06, $e0, $e0, $e4, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $02, $d5, $03, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $00, $dd, $de, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $05, $08, $0b, $e0
-	db $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $0d, $de, $02, $e0, $e0, $e4, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $fd, $d9
+	dw $0007
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $3c, $3d, $3e, $3f, $e0, $30, $80, $12, $e4, $e0, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $00, $0b, $06, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $02, $d5, $03, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $00, $dd, $de, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $05, $08, $0b, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $0d, $de, $02, $e0, $e0, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): status page 1: HP and MP with their maximums. 13 x 5 tiles at row 13, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusHPWindow::
-	db $a7, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $fb, $d8, $fe, $e0, $e1, $e3, $e4, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $e2, $e3, $e4, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $01a7
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e1, $e3, $e4, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e2, $e3, $e4, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): a blank 6x6 block (to the right of the visible screen). 6 x 6 tiles at row 10, column 21;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 BlankPicWindow::
-	db $55, $01, $e0, $e0, $e0, $e0
-	db $e0, $e0, $d8, $e0, $e0, $e0, $e0, $e0, $e0, $d8, $e0, $e0, $e0, $e0, $e0, $e0
-	db $d8, $e0, $e0, $e0, $e0, $e0, $e0, $d8, $e0, $e0, $e0, $e0, $e0, $e0, $d8, $e0
-	db $e0, $e0, $e0, $e0, $e0, $d9
+	dw $0155
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): a blank 6x6 block (to the right of the visible screen, top). 6 x 6 tiles at row 1, column 21;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 BlankPicWindow2::
-	db $35, $00, $e0, $e0, $e0, $e0, $e0, $e0, $d8, $e0
-	db $e0, $e0, $e0, $e0, $e0, $d8, $e0, $e0, $e0, $e0, $e0, $e0, $d8, $e0, $e0, $e0
-	db $e0, $e0, $e0, $d8, $e0, $e0, $e0, $e0, $e0, $e0, $d8, $e0, $e0, $e0, $e0, $e0
-	db $e0, $d9
+	dw $0035
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d8
+	db $e0, $e0, $e0, $e0, $e0, $e0, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): the monster picture: tiles $B0-$D3 (6x6) at row 10, column 1. 6 x 6 tiles at row 10, column 1;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusPicWindow::
-	db $41, $01, $b0, $b1, $b2, $b3, $b4, $b5, $d8, $b6, $b7, $b8, $b9, $ba
-	db $bb, $d8, $bc, $bd, $be, $bf, $c0, $c1, $d8, $c2, $c3, $c4, $c5, $c6, $c7, $d8
-	db $c8, $c9, $ca, $cb, $cc, $cd, $d8, $ce, $cf, $d0, $d1, $d2, $d3, $d9
+	dw $0141
+	db $b0, $b1, $b2, $b3, $b4, $b5, $d8
+	db $b6, $b7, $b8, $b9, $ba, $bb, $d8
+	db $bc, $bd, $be, $bf, $c0, $c1, $d8
+	db $c2, $c3, $c4, $c5, $c6, $c7, $d8
+	db $c8, $c9, $ca, $cb, $cc, $cd, $d8
+	db $ce, $cf, $d0, $d1, $d2, $d3, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): status page 2: name, personality, family, species, master. 13 x 13 tiles at row 0, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusInfoWindow::
-	db $07, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $3c
-	db $3d, $3e, $3f, $e0, $30, $80, $12, $e4, $e0, $e0, $ff, $d8, $ec, $eb, $eb, $eb
-	db $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $33, $34, $35, $36
-	db $37, $38, $39, $3a, $3b, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $4c, $4d, $4e, $4f, $50, $51, $52, $53
-	db $54, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $5b, $5c, $5d, $5e, $5f, $60, $61, $62, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $07
-	db $00, $d6, $0b, $d5, $0a, $e4, $55, $56, $57, $58, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $13, $e4, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0007
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $3c, $3d, $3e, $3f, $e0, $30, $80, $12, $e4, $e0, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $33, $34, $35, $36, $37, $38, $39, $3a, $3b, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $4c, $4d, $4e, $4f, $50, $51, $52, $53, $54, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $5b, $5c, $5d, $5e, $5f, $60, $61, $62, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $55, $56, $57, $58, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $13, $e4, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): status page 2: experience and the points to the next level. 13 x 5 tiles at row 13, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusExpWindow::
-	db $a7, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $08, $d5, $0f, $0b, $e0, $de, $df, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $13, $e4, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	dw $01a7
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $08, $d5, $0f, $0b, $e0, $de, $df, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $13, $e4, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): status page 3: the eight skill names. 13 x 17 tiles at row 0, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusSkillsWindow::
-	db $07, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $6e, $6f, $70, $71
-	db $72, $73, $74, $75, $76, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e
-	db $7f, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $83, $84, $85, $86, $87, $88, $89, $8a, $8b, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $95, $96, $97, $98
-	db $99, $9a, $9b, $9c, $9d, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9e, $9f, $a0, $a1, $a2, $a3, $a4, $a5
-	db $a6, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $e0, $ff, $d8
+	dw $0007
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $83, $84, $85, $86, $87, $88, $89, $8a, $8b, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $95, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9e, $9f, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): status page 4, the pedigree. 13 x 17 tiles at row 0, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 StatusPedigreeWindow::
-	db $07, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	dw $0007
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): pedigree: the first parent. 13 x 9 tiles at row 0, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 PedigreeParent1Window::
-	db $07, $00
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $02
-	db $00, $02, $e4, $8c, $8d, $8e, $8f, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $4c, $4d, $4e, $4f
-	db $50, $51, $52, $53, $54, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $5e, $5f, $60, $61, $62, $63, $64, $65
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $90, $91, $92, $93, $ff, $d8
+	dw $0007
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $02, $00, $02, $e4, $8c, $8d, $8e, $8f, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $4c, $4d, $4e, $4f, $50, $51, $52, $53, $54, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $5e, $5f, $60, $61, $62, $63, $64, $65, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $90, $91, $92, $93, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): pedigree: the second parent. 13 x 9 tiles at row 9, column 7;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 PedigreeParent2Window::
-	db $27, $01
-	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $07
-	db $09, $07, $e4, $94, $95, $96, $97, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $55, $56, $57, $58
-	db $59, $5a, $5b, $5c, $5d, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $66, $67, $68, $69, $6a, $6b, $6c, $6d
-	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $98, $99, $9a, $9b, $ff, $d8
+	dw $0127
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $07, $09, $07, $e4, $94, $95, $96, $97, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $55, $56, $57, $58, $59, $5a, $5b, $5c, $5d, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $98, $99, $9a, $9b, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): pedigree: picture tiles $8C-$AF, to the right of the visible screen. 6 x 6 tiles at row 10, column 21;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 PedigreePic2Window::
-	db $55, $01
-	db $8c, $8d, $8e, $8f, $90, $91, $d8, $92, $93, $94, $95, $96, $97, $d8, $98, $99
-	db $9a, $9b, $9c, $9d, $d8, $9e, $9f, $a0, $a1, $a2, $a3, $d8, $a4, $a5, $a6, $a7
-	db $a8, $a9, $d8, $aa, $ab, $ac, $ad, $ae, $af, $d9
+	dw $0155
+	db $8c, $8d, $8e, $8f, $90, $91, $d8
+	db $92, $93, $94, $95, $96, $97, $d8
+	db $98, $99, $9a, $9b, $9c, $9d, $d8
+	db $9e, $9f, $a0, $a1, $a2, $a3, $d8
+	db $a4, $a5, $a6, $a7, $a8, $a9, $d8
+	db $aa, $ab, $ac, $ad, $ae, $af, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): skill menu: the party list. 7 x 9 tiles at row 2, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 SkillMonListWindow::
-	db $40, $00, $fa, $ef, $ef, $ef
-	db $ef, $ef, $fb, $d8, $fe, $e0, $d6, $06, $05, $de, $ff, $d8, $ec, $eb, $eb, $eb
-	db $eb, $eb, $ed, $d8, $fe, $e0, $20, $21, $22, $23, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $24, $25, $26, $27, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $28, $29, $2a, $2b, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9
+	dw $0040
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d6, $06, $05, $de, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $20, $21, $22, $23, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $24, $25, $26, $27, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $28, $29, $2a, $2b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): skill menu: the four skill names of a page. 12 x 9 tiles at row 2, column 8;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 SkillListWindow::
-	db $48, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $89
-	db $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96, $97, $98
-	db $99, $9a, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0048
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): item menu: the bag list (five names). 12 x 11 tiles at row 2, column 8;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 ItemListWindow::
-	db $48, $00, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $70, $71, $72, $73
-	db $74, $75, $76, $77, $78, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $95, $96, $97
-	db $98, $99, $9a, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0048
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $70, $71, $72, $73, $74, $75, $76, $77, $78, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $80, $81, $82, $83, $84, $85, $86, $87, $88, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $89, $8a, $8b, $8c, $8d, $8e, $8f, $90, $91, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $92, $93, $94, $95, $96, $97, $98, $99, $9a, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $9b, $9c, $9d, $9e, $9f, $a0, $a1, $a2, $a3, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): item menu: the description window at the bottom. 20 x 5 tiles at row 13, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 ItemInfoWindow::
-	db $a0, $01, $fa, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $4c, $4d, $4e, $4f, $50, $51, $52, $53, $54, $55, $56, $57
-	db $58, $59, $5a, $5b, $5c, $5d, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $5e, $5f
-	db $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $6e, $6f
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $01a0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $4c, $4d, $4e, $4f, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5a, $5b, $5c, $5d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $5e, $5f, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $6e, $6f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): skill menu: the description window at the bottom. 20 x 7 tiles at row 11, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 SkillInfoWindow::
-	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $4a
-	db $4b, $4c, $4d, $4e, $4f, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5a
-	db $5b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $5c, $5d, $5e, $5f, $60, $61, $62
-	db $63, $64, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $7a
-	db $7b, $7c, $7d, $7e, $7f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0160
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $4a, $4b, $4c, $4d, $4e, $4f, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5a, $5b, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $5c, $5d, $5e, $5f, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6a, $6b, $6c, $6d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $6e, $6f, $70, $71, $72, $73, $74, $75, $76, $77, $78, $79, $7a, $7b, $7c, $7d, $7e, $7f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): skill menu: MP cost and the user's MP. 9 x 5 tiles at row 6, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 SkillMPWindow::
-	db $c0, $00, $fa, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $0c, $d6, $d5, $e0, $e2, $e3, $e0
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e5, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $00c0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $0c, $d6, $d5, $e0, $e2, $e3, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: menu/windows
+;@ Window template (DrawWindow): skill menu: the party list to choose the monster to heal. 7 x 9 tiles at row 2, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 SkillTargetListWindow::
-	db $40, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $0d, $04, $09, $e0
-	db $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $20, $21, $22, $23
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $24, $25, $26, $27
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $28, $29, $2a, $2b
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0040
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $0d, $04, $09, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $20, $21, $22, $23, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $24, $25, $26, $27, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $28, $29, $2a, $2b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): HP / max HP of the chosen monster. 9 x 5 tiles at row 13, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 TargetHPWindow::
-	db $a0, $01, $fa, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e1, $e3, $e4, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e5, $e0
-	db $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $01a0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e1, $e3, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): item menu: "use / discard". 6 x 7 tiles at row 0, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 UseDiscardWindow::
-	db $00, $00
-	db $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $05, $0b, $d5, $07, $ff, $d8, $ec, $eb
-	db $eb, $eb, $eb, $ed, $d8, $fe, $e0, $0c, $d6, $d5, $ff, $d8, $fe, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fe, $e0, $02, $d5, $de, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd
-	db $d9
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $05, $0b, $d5, $07, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $0c, $d6, $d5, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $02, $d5, $de, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): item menu: the party list to choose the target. 7 x 9 tiles at row 4, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 ItemTargetListWindow::
-	db $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $0d, $04, $09
-	db $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $20, $21, $22
-	db $23, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $24, $25, $26
-	db $27, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $28, $29, $2a
-	db $2b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0080
+	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $0d, $04, $09, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $20, $21, $22, $23, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $24, $25, $26, $27, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $28, $29, $2a, $2b, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): MP / max MP of the chosen monster. 9 x 5 tiles at row 13, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 TargetMPWindow::
-	db $a0, $01, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e2, $e3, $e4, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e5
-	db $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $01a0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e2, $e3, $e4, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e5, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): item menu: yes/no for throwing an item away. 6 x 5 tiles at row 8, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 DiscardYesNoWindow::
-	db $00
-	db $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe
-	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $08, $09, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $fd, $d9
+	dw $0100
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $08, $09, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): the option menu: message speed, line-up, tactics, save. 11 x 11 tiles at row 0, column 5;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 OptionWindow::
-	db $05, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $fb, $d8, $fe, $e0, $09, $e3, $0b, $08, $e0, $e0, $e0, $e0, $ff, $d8, $ec, $eb
-	db $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $0b, $d5, $0f, $0b
-	db $e0, $d6, $e3, $02, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $01, $04, $e0, $09, $0a, $02, $d5, $0a, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $01, $04, $e0, $e3
-	db $de, $00, $08, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $0e, $09, $0c, $0a, $08, $00, $de, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0005
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $09, $e3, $0b, $08, $e0, $e0, $e0, $e0, $ff, $d8
+	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8
+	db $fe, $e0, $0b, $d5, $0f, $0b, $e0, $d6, $e3, $02, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $01, $04, $e0, $09, $0a, $02, $d5, $0a, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $01, $04, $e0, $e3, $de, $00, $08, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $0e, $09, $0c, $0a, $08, $00, $de, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): message speed: the digits 1-8 in a row. 18 x 5 tiles at row 11, column 2;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 MessageSpeedWindow::
-	db $62, $01, $fa, $ef, $ef, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
-	db $03, $00, $d6, $0b, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $d6, $de, $09, $0d
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $f1, $e0, $f2, $e0, $f3, $e0, $f4, $e0, $f5
-	db $e0, $f6, $e0, $f7, $e0, $f8, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0162
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $03, $00, $d6, $0b, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $d6, $de, $09, $0d, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $f1, $e0, $f2, $e0, $f3, $e0, $f4, $e0, $f5, $e0, $f6, $e0, $f7, $e0, $f8, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): line-up: the monsters still to place. 8 x 7 tiles at row 11, column 4;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 LineUpWindow::
-	db $64, $01, $fa, $ef, $ef
-	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
-	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff
-	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0164
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): line-up: the new order. 8 x 7 tiles at row 11, column 12;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 LineUpOrderWindow::
-	db $6c, $01, $fa, $ef
-	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0
-	db $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $3c, $3d, $3e, $3f, $e0
-	db $e0, $e0, $e4, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $da, $40, $41, $42
-	db $43, $e0, $db, $44, $45, $46, $47, $e0, $dc, $48, $49, $4a, $4b, $ff, $d8, $fe
-	db $e0, $12, $e4, $e0, $e0, $e0, $e0, $12, $e4, $e0, $e0, $e0, $e0, $12, $e4, $e0
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $016c
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): saving: the saved game (name, party with levels, play time). 19 x 6 tiles at row 0, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
+SaveFileWindow::
+	dw $0000
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $07, $00, $d6, $0b, $d5, $0a, $e4, $3c, $3d, $3e, $3f, $e0, $e0, $e0, $e4, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $da, $40, $41, $42, $43, $e0, $db, $44, $45, $46, $47, $e0, $dc, $48, $49, $4a, $4b, $ff, $d8
+	db $fe, $e0, $12, $e4, $e0, $e0, $e0, $e0, $12, $e4, $e0, $e0, $e0, $e0, $12, $e4, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+;@ path: menu/windows
+;@ Window template (DrawWindow): saving: yes/no. 6 x 5 tiles at row 8, column 14;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 SaveYesNoWindow::
-	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8
-	db $fe, $e0, $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $08, $09, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $010e
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $d4, $d5, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $08, $09, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): tactics: the four tactics. 11 x 9 tiles at row 9, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 TacticsWindow::
-	db $20, $01, $fa, $ef
-	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $01, $04, $00, $0a
-	db $dd, $d5, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $07, $05, $0f, $d5, $02, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $01, $00, $0c, $0b
-	db $05, $09, $0c, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $e0, $01, $09, $07, $07, $00, $08, $02, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $0120
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $e0, $01, $04, $00, $0a, $dd, $d5, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $07, $05, $0f, $d5, $02, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $01, $00, $0c, $0b, $05, $09, $0c, $d6, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $e0, $01, $09, $07, $07, $00, $08, $02, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): tactics: the monster's name. 6 x 3 tiles at row 6, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 TacticsMonWindow::
-	db $c0, $00, $fa, $ef, $ef, $ef
-	db $ef, $fb, $d8, $fe, $3c, $3d, $3e, $3f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd
-	db $d9
+	dw $00c0
+	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fe, $3c, $3d, $3e, $3f, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ Window template (DrawWindow): the player info page (Start in the field menu). 20 x 8 tiles at row 5, column 0;
+;@ a u16 screen offset, then the tiles row by row ($D8 next row, $D9 end).
 InfoPageWindow::
-	db $a0, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
-	db $ef, $e0, $e0, $e4, $e0, $e0, $fb, $d8, $fe, $07, $00, $d6, $0b, $d5, $0a, $15
-	db $15, $15, $15, $15, $15, $15, $15, $3c, $3d, $3e, $3f, $ff, $d8, $fe, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $ff, $d8, $fe, $0e, $09, $05, $08, $d5, $02, $15, $15, $15, $15, $15, $15, $15
-	db $15, $15, $15, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $03, $00, $0a
-	db $07, $e0, $e0, $e0, $07, $09, $08, $e0, $e0, $e0, $d5, $dd, $dd, $e0, $e0, $ff
-	db $d8, $fe, $d6, $de, $d5, $d5, $e3, $e0, $16, $07, $09, $08, $e0, $e0, $16, $d5
-	db $dd, $dd, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+	dw $00a0
+	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $e0, $e0, $e4, $e0, $e0, $fb, $d8
+	db $fe, $07, $00, $d6, $0b, $d5, $0a, $15, $15, $15, $15, $15, $15, $15, $15, $3c, $3d, $3e, $3f, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $0e, $09, $05, $08, $d5, $02, $15, $15, $15, $15, $15, $15, $15, $15, $15, $15, $e0, $e0, $ff, $d8
+	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
+	db $fe, $03, $00, $0a, $07, $e0, $e0, $e0, $07, $09, $08, $e0, $e0, $e0, $d5, $dd, $dd, $e0, $e0, $ff, $d8
+	db $fe, $d6, $de, $d5, $d5, $e3, $e0, $16, $07, $09, $08, $e0, $e0, $16, $d5, $dd, $dd, $e0, $e0, $ff, $d8
+	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused
+;@ Data nothing in the game refers to (it looks like packed graphics), then $FF
+;@ padding up to the bank's last byte, $07 (the bank number).
 UnusedBank07Data::
-	db $0f, $05, $fc, $a7, $04
-	db $ac, $00, $01, $24, $13, $11, $8c, $60, $ff, $9e, $86, $79, $7d, $82, $f2, $0d
-	db $06, $ff, $f9, $ca, $35, $07, $04, $fd, $fc, $fe, $9f, $fe, $bf, $7f, $0b, $07
-	db $2c, $03, $c7, $00, $80, $f9, $00, $25, $24, $1a, $21, $82, $7c, $e4, $02, $c0
-	db $7f, $02, $40, $16, $80, $96, $7e, $fc, $54, $10, $3e, $cf, $12, $0b, $04, $07
-	db $08, $07, $d9, $1f, $eb, $16, $1f, $f4, $08, $f8, $04, $f8, $f9, $1f, $0b, $20
-	db $45, $07, $83, $08, $1f, $00, $45, $fa, $85, $02, $fe, $00, $02, $06, $46, $fa
-	db $82, $10, $08, $4e, $07, $88, $99, $77, $11, $11, $77, $11, $77, $11, $43, $07
-	db $87, $87, $67, $27, $07, $e7, $99, $99, $43, $ff, $83, $00, $ff, $00, $45, $5a
-	db $95, $42, $ff, $23, $11, $77, $77, $11, $77, $11, $11, $ff, $4b, $37, $4b, $37
-	db $4b, $37, $4b, $37, $81, $7f, $43, $01, $8b, $7f, $01, $7f, $01, $7f, $01, $7f
-	db $01, $01, $7f, $ff, $48, $5a, $02, $44, $ff, $42, $99, $8a, $c3, $89, $00, $00
-	db $7e, $bd, $c3, $ff, $3f, $c0, $46, $80, $82, $8e, $71, $06, $82, $7f, $81, $06
-	db $84, $ff, $c0, $60, $10, $04, $83, $fe, $30, $18, $05, $87, $80, $c0, $e0, $b8
-	db $9e, $88, $54, $06, $82, $80, $c0, $05, $83, $20, $28, $1c, $06, $82, $02, $07
-	db $04, $95, $32, $11, $3a, $d8, $04, $01, $01, $ff, $aa, $fa, $aa, $bf, $a1, $80
-	db $80, $b6, $80, $be, $9c, $88, $80, $7f, $45, $10, $83, $17, $0f, $00, $45, $06
-	db $85, $fe, $fc, $00, $fc, $02, $46, $06, $81, $0f, $4f, $10, $81, $66, $47, $99
-	db $43, $10, $87, $70, $90, $90, $f0, $70, $22, $66, $03, $42, $ff, $81, $00, $45
-	db $63, $42, $7b, $81, $c6, $43, $99, $8e, $ff, $99, $ff, $ff, $66, $87, $cf, $87
-	db $cf, $87, $cf, $87, $cf, $7e, $49, $81, $82, $ff, $81, $43, $ff, $81, $7e, $48
-	db $63, $81, $ff, $05, $89, $22, $66, $3c, $42, $91, $ff, $81, $42, $3c, $04, $85
-	db $37, $25, $25, $27, $35, $03, $85, $4e, $4a, $4e, $4a, $6a, $03, $42, $8a, $83
-	db $da, $aa, $8a, $03, $82, $ea, $4a, $43, $44, $89, $00, $01, $01, $dd, $51, $9d
-	db $05, $1d, $00, $45, $01, $8c, $08, $7f, $00, $dd, $15, $d5, $1d, $15, $00, $ff
-	db $00, $bb, $43, $12, $93, $93, $00, $ff, $00, $ba, $aa, $b1, $a9, $a9, $00, $ff
-	db $01, $81, $81, $01, $02, $04, $24, $f8, $10, $ff, $9f, $70, $00, $88, $70, $80
-	db $78, $84, $78, $40, $3c, $12, $0c, $04, $02, $01, $00, $0e, $00, $11, $0e, $01
-	db $1e, $21, $1e, $02, $3c, $48, $30, $20, $40, $80, $02, $ff, $ff, $ff, $ff, $ff
+	db $0f, $05, $fc, $a7, $04, $ac, $00, $01, $24, $13, $11, $8c, $60, $ff, $9e, $86
+	db $79, $7d, $82, $f2, $0d, $06, $ff, $f9, $ca, $35, $07, $04, $fd, $fc, $fe, $9f
+	db $fe, $bf, $7f, $0b, $07, $2c, $03, $c7, $00, $80, $f9, $00, $25, $24, $1a, $21
+	db $82, $7c, $e4, $02, $c0, $7f, $02, $40, $16, $80, $96, $7e, $fc, $54, $10, $3e
+	db $cf, $12, $0b, $04, $07, $08, $07, $d9, $1f, $eb, $16, $1f, $f4, $08, $f8, $04
+	db $f8, $f9, $1f, $0b, $20, $45, $07, $83, $08, $1f, $00, $45, $fa, $85, $02, $fe
+	db $00, $02, $06, $46, $fa, $82, $10, $08, $4e, $07, $88, $99, $77, $11, $11, $77
+	db $11, $77, $11, $43, $07, $87, $87, $67, $27, $07, $e7, $99, $99, $43, $ff, $83
+	db $00, $ff, $00, $45, $5a, $95, $42, $ff, $23, $11, $77, $77, $11, $77, $11, $11
+	db $ff, $4b, $37, $4b, $37, $4b, $37, $4b, $37, $81, $7f, $43, $01, $8b, $7f, $01
+	db $7f, $01, $7f, $01, $7f, $01, $01, $7f, $ff, $48, $5a, $02, $44, $ff, $42, $99
+	db $8a, $c3, $89, $00, $00, $7e, $bd, $c3, $ff, $3f, $c0, $46, $80, $82, $8e, $71
+	db $06, $82, $7f, $81, $06, $84, $ff, $c0, $60, $10, $04, $83, $fe, $30, $18, $05
+	db $87, $80, $c0, $e0, $b8, $9e, $88, $54, $06, $82, $80, $c0, $05, $83, $20, $28
+	db $1c, $06, $82, $02, $07, $04, $95, $32, $11, $3a, $d8, $04, $01, $01, $ff, $aa
+	db $fa, $aa, $bf, $a1, $80, $80, $b6, $80, $be, $9c, $88, $80, $7f, $45, $10, $83
+	db $17, $0f, $00, $45, $06, $85, $fe, $fc, $00, $fc, $02, $46, $06, $81, $0f, $4f
+	db $10, $81, $66, $47, $99, $43, $10, $87, $70, $90, $90, $f0, $70, $22, $66, $03
+	db $42, $ff, $81, $00, $45, $63, $42, $7b, $81, $c6, $43, $99, $8e, $ff, $99, $ff
+	db $ff, $66, $87, $cf, $87, $cf, $87, $cf, $87, $cf, $7e, $49, $81, $82, $ff, $81
+	db $43, $ff, $81, $7e, $48, $63, $81, $ff, $05, $89, $22, $66, $3c, $42, $91, $ff
+	db $81, $42, $3c, $04, $85, $37, $25, $25, $27, $35, $03, $85, $4e, $4a, $4e, $4a
+	db $6a, $03, $42, $8a, $83, $da, $aa, $8a, $03, $82, $ea, $4a, $43, $44, $89, $00
+	db $01, $01, $dd, $51, $9d, $05, $1d, $00, $45, $01, $8c, $08, $7f, $00, $dd, $15
+	db $d5, $1d, $15, $00, $ff, $00, $bb, $43, $12, $93, $93, $00, $ff, $00, $ba, $aa
+	db $b1, $a9, $a9, $00, $ff, $01, $81, $81, $01, $02, $04, $24, $f8, $10, $ff, $9f
+	db $70, $00, $88, $70, $80, $78, $84, $78, $40, $3c, $12, $0c, $04, $02, $01, $00
+	db $0e, $00, $11, $0e, $01, $1e, $21, $1e, $02, $3c, $48, $30, $20, $40, $80, $02
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -9784,4 +10591,4 @@ UnusedBank07Data::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
-	db $ff, $ff, $07
+	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $07

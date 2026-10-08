@@ -649,8 +649,8 @@ InitGameMode03::
 ;@ Starts game mode $04 (bank $5F).
 ;@ test: skip calls a routine in another bank
 InitGameMode04::
-;> Call_5F_4017()
-	ld hl, far_Call_5F_4017
+;> EndingInit()
+	ld hl, far_EndingInit
 	rst $10
 	ret
 
@@ -660,8 +660,8 @@ InitGameMode04::
 ;@ Starts game mode $05 (bank $5F).
 ;@ test: skip calls a routine in another bank
 InitGameMode05::
-;> Call_5F_5BB7()
-	ld hl, far_Call_5F_5BB7
+;> AnimViewerInit()
+	ld hl, far_AnimViewerInit
 	rst $10
 	ret
 
@@ -871,10 +871,10 @@ VBlankHandler::
 	ld a, [wGameModeStep]
 	ld [hli], a
 ;>                 wDebugSavedMode[2] = mem[0xC88C]
-	ld a, [$c88c]
+	ld a, [wOpeningScene]
 	ld [hli], a
 ;>                 wDebugSavedMode[3] = mem[0xC88D]
-	ld a, [$c88d]
+	ld a, [wOpeningLogo]
 	ld [hl], a
 ;>                 wGameMode = 0x07
 	ld a, $07
@@ -904,10 +904,10 @@ VBlankHandler::
 	ld a, [wGameModeStep]
 	ld [hli], a
 ;>                 wDebugSavedMode[2] = mem[0xC88C]
-	ld a, [$c88c]
+	ld a, [wOpeningScene]
 	ld [hli], a
 ;>                 wDebugSavedMode[3] = mem[0xC88D]
-	ld a, [$c88d]
+	ld a, [wOpeningLogo]
 	ld [hl], a
 ;>                 wGameMode = 0x0C
 	ld a, $0c
@@ -1174,8 +1174,8 @@ UpdateGameMode03::
 ;@ Per-frame routine of game mode $04 (bank $5F).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode04::
-;> Call_5F_40F7()
-	ld hl, far_Call_5F_40F7
+;> EndingUpdate()
+	ld hl, far_EndingUpdate
 	rst $10
 	ret
 
@@ -1185,8 +1185,8 @@ UpdateGameMode04::
 ;@ Per-frame routine of game mode $05 (bank $5F).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode05::
-;> Call_5F_5C8D()
-	ld hl, far_Call_5F_5C8D
+;> AnimViewerUpdate()
+	ld hl, far_AnimViewerUpdate
 	rst $10
 	ret
 
@@ -1196,8 +1196,8 @@ UpdateGameMode05::
 ;@ Per-frame routine of game mode $06 (bank $18).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode06::
-;> Call_18_42DE()
-	ld hl, far_Call_18_42DE
+;> VSResultUpdate()
+	ld hl, far_VSResultUpdate
 	rst $10
 	ret
 
@@ -9212,9 +9212,24 @@ RestorePartyMP::
 	ret
 
 
+;@ def LosePartyMP(pos: a, amount: hl)
+;@ path: monster/stats
+;@ Takes `amount` MP from the monster at party position `pos` (not below 0).
+;@ Called from code in bank 1 that is still in db form.
 LosePartyMP::
-	db $e5, $cd, $08, $22, $e1, $e5, $21, $15, $cb, $cd, $3b, $22, $d1, $01, $00, $00
-	db $cd, $96, $24, $c9
+;> slot = GetPartySlot(pos)
+	push hl
+	call GetPartySlot
+	pop hl
+;> mp = MonsterField(slot, wMonMP)
+	push hl
+	ld hl, wMonMP
+	call MonsterField
+;> SubWordFloored(mp, amount, 0)
+	pop de
+	ld bc, $0000
+	call SubWordFloored
+	ret
 
 ;@ def RaisePartyAttack(pos: a, amount: hl)
 ;@ path: monster/stats
@@ -10361,9 +10376,19 @@ EventFlagMask::
 	ret
 
 
+;@ path: system/flags
+;@ Bit masks of the bits 0-7 of a flag byte, flag 0 first (FlagMask,
+;@ EventFlagMask).
 BitMasks::
 	db $80, $40, $20, $10, $08, $04, $02, $01
 
+;@ path: field/map
+;@ The fixed maps (town, Great Tree rooms, the worlds' fixed maps), indexed by
+;@ wMapId, 8 bytes each (112 maps): byte 0 far-table entry and byte 1 bank of
+;@ the compressed BG tile graphics (loaded to $9000), bytes 2-3 the map width
+;@ and 4-5 its height in pixels (u16), byte 6 the first solid tile (BG tiles
+;@ from this number on block the way, GetCollisionAt), byte 7 unused (0). Map 0
+;@ and several unused slots repeat the record 2A:00, 320 x 256, $57.
 MapInfo::
 	db $00, $2a, $40, $01, $00, $01, $57, $00
 	db $08, $2a, $40, $01, $00, $02, $50, $00, $14, $2a, $e0, $01, $00, $01, $49, $00
@@ -10423,6 +10448,11 @@ MapInfo::
 	db $12, $24, $a0, $00, $80, $00, $50, $00, $12, $24, $a0, $00, $80, $00, $50, $00
 	db $12, $24, $a0, $00, $80, $00, $50, $00
 
+;@ path: field/map
+;@ The randomly generated floors behind the gates, indexed by wMapId while
+;@ wOnGateFloor is set: 16 records in the MapInfo format. All are 640 x 512
+;@ pixels (4 x 4 screens) with first solid tile $30; the tile graphics are
+;@ entries 0-15 of bank $28 (one look per world).
 GateFloorMapInfo::
 	db $00, $28, $80, $02, $00, $02, $30, $00
 	db $01, $28, $80, $02, $00, $02, $30, $00, $02, $28, $80, $02, $00, $02, $30, $00
@@ -10434,9 +10464,16 @@ GateFloorMapInfo::
 	db $0d, $28, $80, $02, $00, $02, $30, $00, $0e, $28, $80, $02, $00, $02, $30, $00
 	db $0f, $28, $80, $02, $00, $02, $30, $00
 
+;@ path: system/sgb
+;@ Super Game Boy palette set (byte 0) and attribute file (byte 1) of the
+;@ field, read by InitSGBPalettes; both 0.
 FieldSGBSettings::
 	db $00, $00
 
+;@ path: gfx/sprites
+;@ Sprite graphics of the field actors (people and monsters), one u16 per
+;@ sprite set: far-table entry in the low byte, bank in the high byte (banks
+;@ $2E-$3A). 356 entries; the last ones all repeat 32:0F.
 ActorGfx::
 	db $00, $31, $01, $31, $02, $31
 	db $03, $31, $04, $31, $05, $31, $06, $31, $07, $31, $08, $31, $09, $31, $0a, $31
@@ -10485,6 +10522,9 @@ ActorGfx::
 	db $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32, $0f, $32
 	db $0f, $32
 
+;@ path: field/floors
+;@ Top left corners of the 16 screens of a gate floor (4 x 4 screens of
+;@ 160 x 128 pixels), as X, Y pairs in pixels (u16 each), row by row.
 ScreenOrigins::
 	db $00, $00, $00, $00, $a0, $00, $00, $00, $40, $01, $00, $00, $e0, $01
 	db $00, $00, $00, $00, $80, $00, $a0, $00, $80, $00, $40, $01, $80, $00, $e0, $01
@@ -10492,14 +10532,27 @@ ScreenOrigins::
 	db $00, $01, $00, $00, $80, $01, $a0, $00, $80, $01, $40, $01, $80, $01, $e0, $01
 	db $80, $01
 
+;@ path: field/floors
+;@ The same 16 screen corners as X, Y byte pairs in 16-pixel map blocks (10 x 8
+;@ blocks per screen).
 ScreenTileOrigins::
 	db $00, $00, $0a, $00, $14, $00, $1e, $00, $00, $08, $0a, $08, $14, $08
 	db $1e, $08, $00, $10, $0a, $10, $14, $10, $1e, $10, $00, $18, $0a, $18, $14, $18
 	db $1e, $18
 
+;@ path: menu/windows
+;@ The message window at the bottom of the screen, in the window layout format
+;@ (DrawTilemap): u16 BG map offset ($01A0 = row 13), then tiles, $D8 = next
+;@ row, $D9 = end. A 20 x 5 frame (corners $FA $FB $FC $FD, edges $EF $EE
+;@ $FE $FF) around the text box's two lines of letter tiles ($B0-$C1 and
+;@ $C2-$D3) with a blank row ($E0) between them. Used by the window drawers of
+;@ many banks.
 MessageWindowLayout::
 	db $a0, $01
 
+;@ path: menu/windows
+;@ The tiles of MessageWindowLayout after its offset word (the layout goes on
+;@ here; nothing refers to this address itself).
 NamePlateWindows::
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $b0, $b1, $b2, $b3, $b4, $b5
@@ -10509,6 +10562,9 @@ NamePlateWindows::
 	db $ce, $cf, $d0, $d1, $d2, $d3, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: menu/windows
+;@ The same message window at the top of the screen (offset 0). No code that
+;@ uses it was found.
 MessageWindowLayoutTop::
 	db $00, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
@@ -10977,8 +11033,8 @@ UpdateSkillAnimation::
 
 
 .draw
-;> Call_5F_5630()                         # animation step
-	ld hl, far_Call_5F_5630
+;> GetSkillAnim()                         # animation step
+	ld hl, far_GetSkillAnim
 	rst $10
 ;> anim = wSkillAnim
 ;> if anim == 0xFF:
@@ -11223,12 +11279,19 @@ UpdateSkillAnimation::
 	db $7e, $ea, $9c, $c8, $fa, $81, $da, $fe, $0e, $38, $09, $fe, $21, $38, $0a, $21
 	db $01, $5e, $d7, $c9, $21, $01, $5c, $d7, $c9, $21, $01, $5d, $d7, $c9
 
+;@ path: battle/animation
+;@ OBP0 sprite palette for each skill animation number ($D0 or $E0, 45
+;@ entries), read only by the unused variant of UpdateSkillAnimation.
 SkillAnimOBP0::
 	db $e0, $e0
 	db $e0, $e0, $e0, $e0, $d0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $d0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $d0
 
+;@ path: sound/data
+;@ The 16 wave patterns of the wave channel, 16 bytes each (32 4-bit samples,
+;@ high nibble first), as copied to wave RAM $FF30 (event $A1, the channel
+;@ header's fourth byte).
 WavePatterns::
 	db $00, $01, $12, $35, $8a
 	db $cd, $ee, $ff, $ff, $fe, $ed, $ca, $85, $32, $11, $00, $01, $23, $45, $67, $89
@@ -11248,8 +11311,16 @@ WavePatterns::
 	db $23, $11, $11, $11, $11, $32, $53, $ca, $dc, $ee, $ee, $dd, $dd, $dd, $dd, $dd
 	db $dd, $dd, $dd, $22, $22, $22, $22, $22, $22, $22, $22
 
+;@ path: sound/data
+;@ Instrument envelopes (event $A8 picks one; only instrument 0 exists): a
+;@ pointer to its rows, then 12 rows of 16 steps (row n is chosen by event $Cn,
+;@ the step is the position within the note). Step byte: high nibble a row of
+;@ InstrumentVolumes, bit 3 envelope direction up, bit 2 no sweep pace, bit 1
+;@ half pace, bit 0 always rewrite the envelope. The last byte ($C9) is
+;@ padding.
 InstrumentTable::
-	db $70, $32, $f1, $d0, $b0
+	dw InstrumentTable + 2
+	db $f1, $d0, $b0
 	db $90, $70, $50, $30, $15, $15, $15, $15, $15, $15, $15, $15, $15, $f3, $d0, $b0
 	db $90, $70, $50, $30, $10, $51, $40, $30, $20, $15, $15, $15, $15, $89, $98, $a8
 	db $b8, $c8, $d8, $e8, $f5, $f5, $f5, $f5, $f5, $f5, $f5, $f5, $f5, $b9, $c8, $d8
@@ -11598,6 +11669,13 @@ StartSoundChannel::
 	ret
 
 
+;@ path: sound/data
+;@ Where the songs and sound effects are: entries of 4 bytes (first sound
+;@ number, pointer to its records, ROM bank), $FF ends the list. Sounds $00-$20
+;@ are in bank $1C, $21-$36 in bank $1D, from $37 on in bank $1E, each table at
+;@ $4001. A sound record is 4 bytes: channel (byte offset into wSoundChannels:
+;@ 26 times the channel number), channel config byte (hardware channel in bits
+;@ 0-1) and the address of its event data (see ReadChannelEvents).
 SoundBanks::
 	db $00, $01, $40, $1c, $21, $01, $40, $1d, $37, $01, $40, $1e, $ff
 
@@ -12552,96 +12630,139 @@ ReadChannelEvents::
 	jp .next
 
 
+;@ path: sound/data
+;@ NR43 values (noise frequency) for noise note events $00-$0F.
 NoiseNotes::
 	db $00, $01, $11, $12, $14, $23, $07, $15, $17, $32, $33, $60, $61, $45, $53, $62
 
+;@ def PlayRest()
+;@ path: sound/engine
+;@ A rest: frequency $8000 (no note), and the channel silenced (the wave
+;@ channel switched off).
+;@ test: skip writes the sound registers
 PlayRest::
+;> hChanFreq = 0x8000
 	xor a
 	ldh [hChanFreq], a
 	ld a, $80
-	ldh [$fff7], a
+	ldh [hChanFreq + 1], a
+;> if wSoundHWChannel != 2:
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_37e7
+	jr z, .wave
 
+;>     SilenceChannel()
 	call SilenceChannel
 	ret
 
 
-jr_000_37e7:
+.wave
+;> else:
+;>     SkipIfChannelClaimed()
 	call SkipIfChannelClaimed
+;>     rNR30 = 0
 	xor a
 	ldh [rNR30], a
 	ret
 
 
+;@ def PlayNote(note: a, p: hl)
+;@ path: sound/engine
+;@ Plays note event `note` (operand at p: its length in ticks). Square and wave
+;@ channels: low nibble 0-11 the note (12-15 a rest), high nibble the octave;
+;@ the period comes from NoteFrequencies (the second set when hChanDuty bit 4
+;@ is set) shifted right once per octave. The noise channel: $1F a rest, $00-$0F
+;@ a NoiseNotes entry, else the byte itself is the NR43 value. Then the
+;@ registers are written (sweep for channel 1, duty, envelope, frequency with the
+;@ trigger bit) unless the hardware channel is claimed. PlayNoteSetPan inside
+;@ sets the channel's bits in wSoundPanning.
+;@ test: skip writes the sound registers
 PlayNote::
+;> hChanNoteTimer = mem[p]
 	ld b, a
 	ld a, [hl]
 	ldh [hChanNoteTimer], a
+;> if wSoundHWChannel == 3:               # noise
 	ld a, [wSoundHWChannel]
 	cp $03
-	jr nz, jr_000_3815
+	jr nz, .tone
 
+;>     if note == 0x1F:
+;>         return PlayRest()
 	ld a, b
 	cp $1f
 	jr z, PlayRest
 
+;>     if note < 0x10:
 	cp $10
-	jr nc, jr_000_3810
+	jr nc, .rawNoise
 
-	ld hl, $37c5
+;>@nf         freq = NoiseNotes[note]
+	ld hl, NoiseNotes
 	add l
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@nf
 	ld l, [hl]
 	ld h, $00
-	jr jr_000_3848
+	jr .gotFreq
 
-jr_000_3810:
+.rawNoise
+;>     else:
+;>         freq = note
 	ld l, a
 	ld h, $00
-	jr jr_000_3848
+	jr .gotFreq
 
-jr_000_3815:
+.tone
+;> else:
+;>     if note & 0x0F >= 12:
+;>         return PlayRest()
 	ld a, b
 	and $0f
 	cp $0c
 	jr nc, PlayRest
 
+;>     i = 2 * (note & 0x0F)
 	add a
 	ld e, a
+;>     if hChanDuty & 0x10:
 	ldh a, [hChanDuty]
 	and $10
-	jr z, jr_000_3828
+	jr z, .table
 
+;>         i += 24                        # the second note table
 	ld a, e
 	add $18
 	ld e, a
 
-jr_000_3828:
+.table
+;>     period = mem16[NoteFrequencies + i]
 	ld d, $00
-	ld hl, $3a53
+	ld hl, NoteFrequencies
 	add hl, de
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@oct     period >>= note >> 4               # one octave up per step
 	ld a, b
 	swap a
 	and $0f
-	jr z, jr_000_3840
+	jr z, .shifted
 
 	ld b, a
 
-jr_000_3839:
+.shift
+;=@oct
 	srl h
 	rr l
 	dec b
-	jr nz, jr_000_3839
+	jr nz, .shift
 
-jr_000_3840:
+.shifted
+;>     freq = u16(0x800 - period)
 	ld a, $00
 	sub l
 	ld l, a
@@ -12649,75 +12770,102 @@ jr_000_3840:
 	sbc h
 	ld h, a
 
-jr_000_3848:
+.gotFreq
+;> hChanInstStep = 0
 	xor a
 	ldh [hChanInstStep], a
+;> SkipIfChannelClaimed()                 # returns from here if another channel owns it
 	call SkipIfChannelClaimed
+;> if wSoundHWChannel == 2:
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr nz, jr_000_385c
+	jr nz, .volume
 
+;>     LoadWavePattern()
 	call LoadWavePattern
+;>     rNR30 = 0x80                       # wave on
 	ld a, $80
 	ldh [rNR30], a
 
-jr_000_385c:
+.volume
+;> UpdateChannelVolume()
 	push hl
 	call UpdateChannelVolume
 	pop hl
+;> if wSoundHWChannel == 0:
+;>     WriteChannelReg(hChanSweep, 0x10)  # NR10
 	ld a, [wSoundHWChannel]
 	and a
 	ldh a, [hChanSweep]
 	ld c, $10
 	call z, WriteChannelReg
+;> WriteChannelReg(lo(freq), 0x13)        # NRx3
 	ld a, l
 	ld c, $13
 	call WriteChannelReg
+;>@lf lo_freq = min(max(lo(freq), 2), 0xFD)  # room for the vibrato offsets
 	ld a, l
 	cp $02
-	jr c, jr_000_387f
+	jr c, .low
 
 	cp $fe
-	jr c, jr_000_3881
+	jr c, .setLow
 
+;=@lf
 	ld a, $fd
-	jr jr_000_3881
+	jr .setLow
 
-jr_000_387f:
+.low
+;=@lf
 	ld a, $02
 
-jr_000_3881:
+.setLow
+;> hChanFreq = hChanFreq & 0xFF00 | lo_freq
 	ldh [hChanFreq], a
+;> if wSoundHWChannel == 2:
+;>@hi2     rNR31 = 0
+;>@hi3     if not rNR52 & 0x04:               # the wave channel stopped: trigger it
+;>@hi4         hi_freq = hi(freq) & 7 | 0x80
+;>     else:
+;>@hi5         hi_freq = hi(freq) & 7
 	ld a, [wSoundHWChannel]
 	cp $02
-	jr z, jr_000_38b8
+	jr z, PlayNoteSetPan.waveHigh
 
+;> else:
+;>     if wSoundHWChannel < 2:
 	cp $02
-	jr nc, jr_000_3899
+	jr nc, .high
 
+;>         WriteChannelReg(hChanDuty & 0xC0 | 0x3F, 0x11)   # duty and length
 	ldh a, [hChanDuty]
 	and $c0
 	or $3f
 	ld c, $11
 	call WriteChannelReg
 
-jr_000_3899:
+.high
+;>     hi_freq = hi(freq) & 7 | 0x80      # with the trigger bit
 	ld a, h
 	and $07
 	or $80
 
-jr_000_389e:
-	ldh [$fff7], a
+.setHigh
+;> hChanFreq = hi_freq << 8 | hChanFreq & 0xFF
+	ldh [hChanFreq + 1], a
+;> WriteChannelReg(hi_freq, 0x14)         # NRx4
 	ld c, $14
 	call WriteChannelReg
 
 PlayNoteSetPan:
+;>@pan wSoundPanning = wSoundPanning & ~wSoundChannelBits2 | hChanPan & wSoundChannelBits2
 	ld a, [wSoundChannelBits2]
 	ld b, a
 	cpl
 	ld c, a
 	ldh a, [hChanPan]
 	and b
+;=@pan
 	ld b, a
 	ld a, [wSoundPanning]
 	and c
@@ -12726,18 +12874,30 @@ PlayNoteSetPan:
 	ret
 
 
-jr_000_38b8:
+.waveHigh
+;=@hi2
 	xor a
 	ldh [rNR31], a
+;=@hi3
 	ldh a, [rNR52]
 	and $04
-	jr z, jr_000_3899
+	jr z, PlayNote.high
 
+;=@hi5
 	ld a, h
 	and $07
-	jr jr_000_389e
+	jr PlayNote.setHigh
 
+;@ def UpdateVolumeSlide()
+;@ path: sound/engine
+;@ Volume slide ($Dn / $En events): every hChanVolSlideRate ticks the
+;@ envelope's start volume goes one step up (count positive) or down
+;@ (negative), between 0 and 15, until the count is used up. Not for the wave
+;@ channel or envelopes that sweep by themselves.
+;@ test: skip writes the sound registers
 UpdateVolumeSlide::
+;> if wSoundHWChannel == 2 or hChanVolSlide == 0:
+;>     return
 	ld a, [wSoundHWChannel]
 	cp $02
 	ret z
@@ -12746,48 +12906,76 @@ UpdateVolumeSlide::
 	and a
 	ret z
 
+;> hChanVolSlideTimer -= 1
 	ld hl, hChanVolSlideTimer
 	dec [hl]
+;> if hChanVolSlideTimer:
+;>     return
 	ret nz
 
+;> if hChanEnvelope & 0x0F:
+;>     return                             # the envelope sweeps by itself
 	ldh a, [hChanEnvelope]
 	swap a
 	cp $10
 	ret nc
 
+;> volume = hChanEnvelope >> 4
 	and $0f
 	ld b, a
+;> hChanVolSlideTimer = hChanVolSlideRate
 	ldh a, [hChanVolSlideRate]
 	ldh [hChanVolSlideTimer], a
+;> if not hChanVolSlide & 0x80:           # up
 	ld hl, hChanVolSlide
 	ld a, [hl]
 	bit 7, a
-	jr nz, jr_000_38f9
+	jr nz, .down
 
+;>     hChanVolSlide -= 1
 	dec [hl]
+;>     if volume == 15:
+;>         return
 	ld a, b
 	cp $0f
 	ret z
 
+;>     hChanEnvelope += 0x10
 	ldh a, [hChanEnvelope]
 	add $10
 	ldh [hChanEnvelope], a
+;>     return SetChannelEnvelope(hChanEnvelope)
 	jp SetChannelEnvelope
 
 
-jr_000_38f9:
+.down
+;> else:
+;>     hChanVolSlide += 1
 	inc [hl]
+;>     if volume == 0:
+;>         return
 	ld a, b
 	and a
 	ret z
 
+;>     hChanEnvelope -= 0x10
 	ldh a, [hChanEnvelope]
 	sub $10
 	ldh [hChanEnvelope], a
+;>     return SetChannelEnvelope(hChanEnvelope)
 	jr SetChannelEnvelope
 
+;@ def UpdateVibrato()
+;@ path: sound/engine
+;@ Vibrato: once the note's vibrato delay is over, adds the offset for this
+;@ frame (VibratoTables row hChanConfig bits 4-6, column wSoundFrame & 15) to
+;@ the low frequency byte. Not for the noise channel.
+;@ test: skip writes the sound registers
 UpdateVibrato::
+;> SkipIfChannelClaimed()
 	call SkipIfChannelClaimed
+;>@v if wSoundHWChannel == 3 or hChanVibTimer or not hChanConfig & 0x80:
+;>     return
 	ld a, [wSoundHWChannel]
 	cp $03
 	ret z
@@ -12796,97 +12984,162 @@ UpdateVibrato::
 	and a
 	ret nz
 
+;=@v
 	ldh a, [hChanConfig]
 	bit 7, a
 	ret z
 
+;>@o offset = VibratoTables[hChanConfig & 0x70 | wSoundFrame & 0x0F]
 	and $70
 	ld b, a
 	ld a, [wSoundFrame]
 	and $0f
 	or b
 	ld e, a
+;=@o
 	ld d, $00
-	ld hl, $3b83
+	ld hl, VibratoTables
 	add hl, de
+;> WriteChannelReg(u8(lo(hChanFreq) + offset), 0x13)
 	ldh a, [hChanFreq]
 	add [hl]
 	ld c, $13
 	jr WriteChannelReg
 
+;@ def UpdateChannelVolume()
+;@ path: sound/engine
+;@ Writes the channel's volume for a new note: the wave channel's output level,
+;@ the instrument envelope if one is set, else the plain envelope
+;@ (SetChannelEnvelope, which it runs on into).
+;@ test: skip writes the sound registers
 UpdateChannelVolume::
+;> if wSoundHWChannel == 2:
+;>     return SetWaveOutputLevel()
 	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, SetWaveOutputLevel
 
+;> if mem[0xFFF0]:                        # an instrument envelope
+;>     return InstrumentStep()
 	ldh a, [$fff0]
 	and a
 	jr nz, InstrumentStep
 
+;> return SetChannelEnvelope(hChanEnvelope)
 	ldh a, [hChanEnvelope]
 
+;@ def SetChannelEnvelope(env: a)
+;@ path: sound/engine
+;@ Writes a new volume envelope (NRx2) if it differs from the current one and
+;@ restarts the note (NRx4 with the trigger bit). An envelope without sweep
+;@ pace gets the "increase" bit so the volume holds.
+;@ test: skip writes the sound registers
 SetChannelEnvelope::
+;> if env & 0x07 == 0:
+;>     env |= 0x08
 	ld b, a
 	and $07
-	jr nz, jr_000_3945
+	jr nz, .write
 
 	ld a, b
 	or $08
 	ld b, a
 
-jr_000_3945:
+.write
+;> reg = 0x12 + wSoundRegOffset
 	ld a, [wSoundRegOffset]
 	add $12
 	ld c, a
+;> if mem[0xFF00 + reg] == env:
+;>     return
 	ldh a, [c]
 	cp b
 	ret z
 
+;> mem[0xFF00 + reg] = env
 	ld a, b
 	ldh [c], a
-	ldh a, [$fff7]
+;> WriteChannelReg(hi(hChanFreq), 0x14)   # restart; runs on into it
+	ldh a, [hChanFreq + 1]
 	ld c, $14
 
+;@ def WriteChannelReg(value: a, reg: c)
+;@ path: sound/engine
+;@ Writes `value` to sound register $FF00 + reg of the current hardware
+;@ channel (reg is the channel 1 number $10-$14; wSoundRegOffset is added).
+;@ test: skip writes the sound registers
 WriteChannelReg::
+;>@w mem[0xFF00 + reg + wSoundRegOffset] = value
 	ld b, a
 	ld a, [wSoundRegOffset]
 	add c
 	ld c, a
 	ld a, b
 	ldh [c], a
+;=@w
 	ret
 
 
+;@ def SetWaveOutputLevel()
+;@ path: sound/engine
+;@ The wave channel's volume: hChanEnvelope goes to its output level register.
+;@ test: skip writes the sound registers
 SetWaveOutputLevel::
+;> WriteChannelReg(hChanEnvelope, 0x12)
 	ldh a, [hChanEnvelope]
 	ld c, $12
 	jr WriteChannelReg
 
+;@ def InstrumentWaveVolume(step: e)
+;@ path: sound/engine
+;@ Instrument envelope of the wave channel: from step 0-15 of the note an
+;@ output level; written to rNR32 only once it is not below hChanEnvelope.
+;@ test: skip writes the sound registers
 InstrumentWaveVolume::
+;> level = swap((step >> 1) + 2)
 	ld a, e
 	srl a
 	add $02
 	swap a
+;> if level < hChanEnvelope:
+;>     return
 	ld hl, hChanEnvelope
 	cp [hl]
 	ret c
 
+;> rNR32 = level & 0x60
 	and $60
 	ldh [rNR32], a
 	ret
 
 
+;@ def UpdateInstrument()
+;@ path: sound/engine
+;@ Instrument envelopes, each tick: silences a rest, then (with an instrument
+;@ envelope row set, or for the wave channel) finds the note's step 0-15 =
+;@ hChanInstStep * 16 / hChanInstLength and reads that step's byte from the
+;@ instrument (InstrumentTable): high nibble a row of InstrumentVolumes (which
+;@ scales the channel's volume), bit 3 the envelope direction, bit 2 no sweep
+;@ pace, bit 1 half the pace, bit 0 write even if the direction is unchanged.
+;@ The sweep pace comes from the note length. InstrumentStep inside is also
+;@ the entry for UpdateChannelVolume.
+;@ test: skip writes the sound registers
 UpdateInstrument::
+;> SkipIfChannelClaimed()
 	call SkipIfChannelClaimed
+;> if hChanFreq & 0x7FFF == 0:             # a rest
+;>     return SilenceChannel()
 	ldh a, [hChanFreq]
 	and a
-	jr nz, jr_000_3983
+	jr nz, .notRest
 
-	ldh a, [$fff7]
+	ldh a, [hChanFreq + 1]
 	and $7f
 	jp z, SilenceChannel
 
-jr_000_3983:
+.notRest
+;> if wSoundHWChannel != 2 and mem[0xFFF0] == 0:
+;>     return                             # no instrument envelope
 	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, InstrumentStep
@@ -12896,171 +13149,240 @@ jr_000_3983:
 	ret z
 
 InstrumentStep:
+;> length = hChanInstLength
+;> if length == 0:
 	ldh a, [hChanInstLength]
 	and a
 	ret z
 
+;>     return
+;> step = 0
 	ld e, $00
 	ld c, a
 	ldh a, [hChanInstStep]
+;>@div step = hChanInstStep * 16 // length   # four steps of a long division
 	ld b, $04
 
-jr_000_3999:
+.divide
+;=@div
 	add a
 	cp c
-	jr c, jr_000_399e
+	jr c, .bit
 
 	sub c
 
-jr_000_399e:
+.bit
+;=@div
 	ccf
 	rl e
 	dec b
-	jr nz, jr_000_3999
+	jr nz, .divide
 
+;> if wSoundHWChannel == 2:
+;>     return InstrumentWaveVolume(step)
 	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, InstrumentWaveVolume
 
+;> i = mem[0xFFF0] | step
 	ldh a, [$fff0]
 	or e
 	ld e, a
 	ld d, $00
+;>@t table = mem16[InstrumentTable + 2 * hChanInstrument]
 	push de
 	ldh a, [hChanInstrument]
-	ld de, $326e
+	ld de, InstrumentTable
 	sla a
 	add e
 	ld e, a
+;=@t
 	xor a
 	adc d
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
+;=@t
 	ld a, [de]
 	ld h, a
 	pop de
+;>@b byte = mem[table - 0x10 + i]          # rows start at 1
 	ld a, l
 	sub $10
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
+;=@b
 	add hl, de
+;>@vv v = byte & 0xF0 | swap(hChanEnvelope)  # InstrumentVolumes row and volume
 	ldh a, [hChanEnvelope]
 	swap a
 	ld e, a
 	ld a, [hl]
 	ld h, a
 	and $f0
+;=@vv
 	or e
 	ld e, a
+;> pace = 0
+;> if not byte & 0x04:
 	bit 2, h
-	jr nz, jr_000_39fc
+	jr nz, .paceDone
 
+;>     pace = 1
 	inc b
+;>     if hChanInstLength >> 4:
 	ld a, c
 	swap a
 	and $0f
-	jr z, jr_000_39fc
+	jr z, .paceDone
 
+;>         pace = hChanInstLength >> 4
 	ld b, a
+;>         if not v & 0x08:
+;>             pace <<= 1
 	bit 3, e
-	jr nz, jr_000_39f5
+	jr nz, .checkPace
 
 	sla b
+;>             if not v & 0x04:
+;>                 pace <<= 1
 	bit 2, e
-	jr nz, jr_000_39f5
+	jr nz, .checkPace
 
 	sla b
+;>                 if not v & 0x02:
+;>                     pace = 0
 	bit 1, e
-	jr z, jr_000_39fa
+	jr z, .noPace
 
-jr_000_39f5:
+.checkPace
+;>         if pace >= 8:
+;>             pace = 0
 	ld a, b
 	cp $08
-	jr c, jr_000_39fc
+	jr c, .paceDone
 
-jr_000_39fa:
+.noPace
 	ld b, $00
 
-jr_000_39fc:
+.paceDone
+;> if byte & 0x02:
+;>     pace >>= 1
 	bit 1, h
-	jr z, jr_000_3a05
+	jr z, .direction
 
 	ld a, b
-	jr z, jr_000_3a05
+	jr z, .direction
 
 	srl b
 
-jr_000_3a05:
+.direction
+;> pace |= byte & 0x08                    # envelope direction
 	ld a, h
 	and $08
 	or b
 	ld b, a
+;> if byte & 0x01:
 	bit 0, h
-	jr z, jr_000_3a17
+	jr z, .compare
 
-	ld hl, $3a83
+;>     return SetChannelEnvelope(InstrumentVolumes[v] | pace)
+	ld hl, InstrumentVolumes
 	add hl, de
 	ld a, [hl]
 	or b
 	jp SetChannelEnvelope
 
 
-jr_000_3a17:
+.compare
+;>@cmp if mem[0xFF12 + wSoundRegOffset] & 0x08 == byte & 0x08:
+;>     return                             # same direction: leave it running
 	ld c, $12
 	ld a, [wSoundRegOffset]
 	add c
 	ld c, a
 	ldh a, [c]
 	and $08
+;=@cmp
 	ld l, a
 	ld a, h
 	and $08
 	cp l
 	ret z
 
-	ld hl, $3a83
+;> return SetChannelEnvelope(InstrumentVolumes[v] | pace)
+	ld hl, InstrumentVolumes
 	add hl, de
 	ld a, [hl]
 	or b
 	jp SetChannelEnvelope
 
 
+;@ def SilenceChannel()
+;@ path: sound/engine
+;@ Envelope 0 (silent) for the current hardware channel, unless it is claimed.
+;@ test: skip writes the sound registers
 SilenceChannel::
+;> SkipIfChannelClaimed()
 	call SkipIfChannelClaimed
+;> return SetChannelEnvelope(0)
 	ld a, $00
 	jp SetChannelEnvelope
 
 
+;@ def StopChannelOutput()
+;@ path: sound/engine
+;@ Removes the current hardware channel from wSoundPanning (end of a channel),
+;@ unless it is claimed.
+;@ test: skip may return from its caller
 StopChannelOutput::
+;> SkipIfChannelClaimed()
 	call SkipIfChannelClaimed
+;>@p wSoundPanning &= ~wSoundChannelBits & 0xFF
 	ld a, [wSoundChannelBits]
 	cpl
 	ld b, a
 	ld a, [wSoundPanning]
 	and b
 	ld [wSoundPanning], a
+;=@p
 	ret
 
 
+;@ def SkipIfChannelClaimed()
+;@ path: sound/engine
+;@ When a channel processed earlier this frame has already written the current
+;@ hardware channel (wSoundClaimed), returns from the caller as well: the
+;@ caller's register writes are skipped.
+;@ test: skip returns from its caller
 SkipIfChannelClaimed::
+;> if wSoundClaimed & wSoundChannelBits:
 	ld a, [wSoundChannelBits]
 	ld b, a
 	ld a, [wSoundClaimed]
 	and b
 	ret z
 
+;>     return_from_caller()
 	pop af
 	ret
 
 
+;@ path: sound/data
+;@ Periods of the 12 notes of the lowest octave (u16, $800 minus the period is
+;@ the NRx3/NRx4 frequency value), in two sets (the second, chosen by event $AE,
+;@ slightly lower). PlayNote halves the period once per octave.
 NoteFrequencies::
 	db $d4, $07, $64, $07, $f9, $06, $95, $06, $37, $06, $dd, $05, $89, $05, $3a, $05
 	db $f0, $04, $a8, $04, $65, $04, $26, $04, $9c, $07, $2e, $07, $c7, $06, $66, $06
 	db $0a, $06, $b3, $05, $61, $05, $15, $05, $cc, $04, $86, $04, $45, $04, $08, $04
+;@ path: sound/data
+;@ Volume scaling for the instrument envelopes: 16 rows (the step's level) of
+;@ 16 columns (the channel's volume 0-15); the value is the volume to play, in
+;@ the high nibble.
 InstrumentVolumes::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $10, $10, $10, $10, $10, $10, $10, $10
@@ -13078,6 +13400,9 @@ InstrumentVolumes::
 	db $00, $10, $20, $30, $30, $40, $50, $60, $70, $80, $90, $a0, $a0, $b0, $c0, $d0
 	db $00, $10, $20, $30, $40, $50, $60, $70, $70, $80, $90, $a0, $b0, $c0, $d0, $e0
 	db $00, $10, $20, $30, $40, $50, $60, $70, $80, $90, $a0, $b0, $c0, $d0, $e0, $f0
+;@ path: sound/data
+;@ Vibrato offsets added to the low frequency byte: 8 tables (event $A3 bits
+;@ 4-6) of 16 frames each (signed bytes).
 VibratoTables::
 	db $00, $00, $01, $01, $00, $00, $ff, $ff, $00, $00, $01, $01, $00, $00, $ff, $ff
 	db $00, $00, $00, $00, $01, $01, $01, $01, $00, $00, $00, $00, $ff, $ff, $ff, $ff
@@ -13088,34 +13413,50 @@ VibratoTables::
 	db $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 	db $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02
 
+;@ def LoadWavePattern()
+;@ path: sound/engine
+;@ Copies wave pattern hChanSweep from WavePatterns into wave RAM ($FF30), if
+;@ it is not the one there already.
+;@ test: skip writes wave RAM
 LoadWavePattern::
+;> if hChanSweep == wSoundWave:
+;>     return
 	ld a, [wSoundWave]
 	ld b, a
 	ldh a, [hChanSweep]
 	cp b
 	ret z
 
+;> wSoundWave = hChanSweep
 	ld [wSoundWave], a
+;> rNR30 = 0                              # wave off while it is written
 	ld e, a
 	swap e
 	xor a
 	ldh [rNR30], a
+;>@c copy(0xFF30, WavePatterns + 16 * hChanSweep, 16)
 	ld d, a
-	ld hl, $316e
+	ld hl, WavePatterns
 	add hl, de
 	ld de, $ff30
 	ld b, $10
 
-jr_000_3c1e:
+.copy
+;=@c
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec b
-	jr nz, jr_000_3c1e
+	jr nz, .copy
 
 	ret
 
 
+;@ path: unused
+;@ The end of the home bank ($3C25-$3FFF): bytes that look like code from an
+;@ earlier build of the game (they call addresses that hold other routines in
+;@ this one, and jump to places inside this block), then $FF padding. Nothing
+;@ refers to them.
 LeftoverCode::
 	db $fa, $ff, $cd, $3d, $fe, $f7, $30, $08, $7e, $f6, $7f, $2f, $77, $cb, $7e, $c9
 	db $af, $77, $c9, $cd, $4b, $00, $43, $3c, $4a, $3c, $83, $3c, $c6, $3c, $cd, $ab

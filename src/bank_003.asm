@@ -56,7 +56,7 @@ SerialModeTable::
 ;@ def LinkHandshake()
 ;@ path: link/serial
 ;@ Link mode 0: answers the other Game Boy's call. $F2 / $F3 mean "I start link mode 2 / 3 and
-;@ you follow": accepted when our own choice (wLinkChoice) is the same. $F0 / $F1 mean "I want
+;@ you follow": accepted when our own choice (wMenuChoice) is the same. $F0 / $F1 mean "I want
 ;@ mode 2 / 3": accepted (and we drive the clock) only when we are in the link menu with a save
 ;@ file and chose the same; otherwise the partner's wish is noted in wLinkPartnerChoice. A
 ;@ mismatch of $F2/$F3 sets wLinkRefused. Every answer ends with LinkHandshakeReply.
@@ -79,8 +79,8 @@ LinkHandshake::
 	cp $f2
 	jr nz, .notF2
 
-;>     ok = wLinkChoice & 0x7F == 2
-	ld a, [wLinkChoice]
+;>     ok = wMenuChoice & 0x7F == 2
+	ld a, [wMenuChoice]
 	and $7f
 	cp $02
 	jr z, .follow
@@ -92,8 +92,8 @@ LinkHandshake::
 	cp $f3
 	jr nz, .refuse
 
-;>     ok = wLinkChoice & 0x7F == 3
-	ld a, [wLinkChoice]
+;>     ok = wMenuChoice & 0x7F == 3
+	ld a, [wMenuChoice]
 	and $7f
 	cp $03
 	jr z, .follow
@@ -154,8 +154,8 @@ LinkHandshake::
 	cp $f0
 	jr nz, .notF0
 
-;>         if wLinkChoice == 2:
-	ld a, [wLinkChoice]
+;>         if wMenuChoice == 2:
+	ld a, [wMenuChoice]
 	cp $02
 ;>             return LinkHandshakeLead(b)
 	jr z, .lead
@@ -172,8 +172,8 @@ LinkHandshake::
 	cp $f1
 	jr nz, .reply
 
-;>         if wLinkChoice == 3:
-	ld a, [wLinkChoice]
+;>         if wMenuChoice == 3:
+	ld a, [wMenuChoice]
 	cp $03
 ;>             return LinkHandshakeLead(b)
 	jr z, .lead
@@ -1786,12 +1786,12 @@ ItemCheckHealOne::
 	call CheckTargetDead
 	ret nz
 
-;> top = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
+;> top = GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
-;> hp = GetPartyMonsterWord(wItemTarget, wMonHP)
+;> hp = GetPartyMonsterWord(wItemTarget, addr(wMonHP))
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call GetPartyMonsterWord
@@ -1828,19 +1828,19 @@ ItemCheckHealParty::
 	or a
 	jp z, ItemCheckFails
 
-;>     if not GetPartyMonsterByte(0, wMonStatus) & 0x80:
+;>     if not GetPartyMonsterByte(0, addr(wMonStatus)) & 0x80:
 	ld a, $00
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
 	jr nz, .slot1
 
-;>         top = GetPartyMonsterWord(0, wMonMaxHP)
+;>         top = GetPartyMonsterWord(0, addr(wMonMaxHP))
 	ld a, $00
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
-;>         hp = GetPartyMonsterWord(0, wMonHP)
+;>         hp = GetPartyMonsterWord(0, addr(wMonHP))
 	ld a, $00
 	ld hl, wMonHP
 	call GetPartyMonsterWord
@@ -1863,19 +1863,19 @@ ItemCheckHealParty::
 	cp $01
 	jr z, ItemCheckFails
 
-;>     if not GetPartyMonsterByte(1, wMonStatus) & 0x80:
+;>     if not GetPartyMonsterByte(1, addr(wMonStatus)) & 0x80:
 	ld a, $01
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
 	jr nz, .slot2
 
-;>         top = GetPartyMonsterWord(1, wMonMaxHP)
+;>         top = GetPartyMonsterWord(1, addr(wMonMaxHP))
 	ld a, $01
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
-;>         hp = GetPartyMonsterWord(1, wMonHP)
+;>         hp = GetPartyMonsterWord(1, addr(wMonHP))
 	ld a, $01
 	ld hl, wMonHP
 	call GetPartyMonsterWord
@@ -1898,19 +1898,19 @@ ItemCheckHealParty::
 	cp $02
 	jr z, ItemCheckFails
 
-;>     if not GetPartyMonsterByte(2, wMonStatus) & 0x80:
+;>     if not GetPartyMonsterByte(2, addr(wMonStatus)) & 0x80:
 	ld a, $02
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
 	bit 7, a
 	jr nz, ItemCheckFails
 
-;>         top = GetPartyMonsterWord(2, wMonMaxHP)
+;>         top = GetPartyMonsterWord(2, addr(wMonMaxHP))
 	ld a, $02
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
-;>         hp = GetPartyMonsterWord(2, wMonHP)
+;>         hp = GetPartyMonsterWord(2, addr(wMonHP))
 	ld a, $02
 	ld hl, wMonHP
 	call GetPartyMonsterWord
@@ -1970,7 +1970,7 @@ AddHurtMonsterName::
 ;>     return n
 	ret nc
 
-;> if GetPartyMonsterByte(slot, wMonStatus) & 0x80:
+;> if GetPartyMonsterByte(slot, addr(wMonStatus)) & 0x80:
 	push de
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -1979,13 +1979,13 @@ AddHurtMonsterName::
 ;>     return n                         # dead
 	ret nz
 
-;> top = GetPartyMonsterWord(slot, wMonMaxHP)
+;> top = GetPartyMonsterWord(slot, addr(wMonMaxHP))
 	push de
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	push bc
-;> hp = GetPartyMonsterWord(slot, wMonHP)
+;> hp = GetPartyMonsterWord(slot, addr(wMonHP))
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call GetPartyMonsterWord
@@ -2041,12 +2041,12 @@ ItemCheckRestoreMP::
 	call CheckTargetDead
 	ret nz
 
-;> top = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
+;> top = GetPartyMonsterWord(wItemTarget, addr(wMonMaxMP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxMP
 	call GetPartyMonsterWord
 	push bc
-;> mp = GetPartyMonsterWord(wItemTarget, wMonMP)
+;> mp = GetPartyMonsterWord(wItemTarget, addr(wMonMP))
 	ld a, [wItemTarget]
 	ld hl, wMonMP
 	call GetPartyMonsterWord
@@ -2079,7 +2079,7 @@ ItemCheckStatus2::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x04:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x04:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2102,7 +2102,7 @@ ItemCheckStatus3::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x08:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x08:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2125,7 +2125,7 @@ ItemCheckStatus4::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x10:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x10:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2148,7 +2148,7 @@ ItemCheckStatus0::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x01:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x01:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2171,7 +2171,7 @@ ItemCheckStatus1::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x02:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x02:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2190,7 +2190,7 @@ ItemCheckStatus1::
 ;@ Check for the revival item 12: only usable on a dead monster.
 ;@ test: wItemTarget = rand(0, 2)
 ItemCheckRevive::
-;> if GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x80:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2213,7 +2213,7 @@ ItemCheckMaxHP::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> value = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
+;> value = GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
@@ -2232,7 +2232,7 @@ ItemCheckMaxMP::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> value = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
+;> value = GetPartyMonsterWord(wItemTarget, addr(wMonMaxMP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxMP
 	call GetPartyMonsterWord
@@ -2251,7 +2251,7 @@ ItemCheckAttack::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> value = GetPartyMonsterWord(wItemTarget, wMonAttack)
+;> value = GetPartyMonsterWord(wItemTarget, addr(wMonAttack))
 	ld a, [wItemTarget]
 	ld hl, wMonAttack
 	call GetPartyMonsterWord
@@ -2270,7 +2270,7 @@ ItemCheckDefense::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> value = GetPartyMonsterWord(wItemTarget, wMonDefense)
+;> value = GetPartyMonsterWord(wItemTarget, addr(wMonDefense))
 	ld a, [wItemTarget]
 	ld hl, wMonDefense
 	call GetPartyMonsterWord
@@ -2289,7 +2289,7 @@ ItemCheckAgility::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> value = GetPartyMonsterWord(wItemTarget, wMonAgility)
+;> value = GetPartyMonsterWord(wItemTarget, addr(wMonAgility))
 	ld a, [wItemTarget]
 	ld hl, wMonAgility
 	call GetPartyMonsterWord
@@ -2308,7 +2308,7 @@ ItemCheckIntelligence::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> value = GetPartyMonsterWord(wItemTarget, wMonIntelligence)
+;> value = GetPartyMonsterWord(wItemTarget, addr(wMonIntelligence))
 	ld a, [wItemTarget]
 	ld hl, wMonIntelligence
 	call GetPartyMonsterWord
@@ -2346,7 +2346,7 @@ ItemCheckStat64Max::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStat64) != 0xFF:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStat64)) != 0xFF:
 	ld a, [wItemTarget]
 	ld hl, wMonStat64
 	call GetPartyMonsterByte
@@ -2369,7 +2369,7 @@ ItemCheckStat64Min::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStat64) != 0:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStat64)) != 0:
 	ld a, [wItemTarget]
 	ld hl, wMonStat64
 	call GetPartyMonsterByte
@@ -2392,7 +2392,7 @@ ItemCheckStat65Max::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStat65) != 0xFF:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStat65)) != 0xFF:
 	ld a, [wItemTarget]
 	ld hl, wMonStat65
 	call GetPartyMonsterByte
@@ -2415,7 +2415,7 @@ ItemCheckStat65Min::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStat65) != 0:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStat65)) != 0:
 	ld a, [wItemTarget]
 	ld hl, wMonStat65
 	call GetPartyMonsterByte
@@ -2438,7 +2438,7 @@ ItemCheckStat67Max::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStat67) != 0xFF:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStat67)) != 0xFF:
 	ld a, [wItemTarget]
 	ld hl, wMonStat67
 	call GetPartyMonsterByte
@@ -2461,7 +2461,7 @@ ItemCheckStat67Min::
 ;>     return                           # (wItemId is now $FF)
 	call CheckTargetDead
 	ret nz
-;> if GetPartyMonsterByte(wItemTarget, wMonStat67) != 0:
+;> if GetPartyMonsterByte(wItemTarget, addr(wMonStat67)) != 0:
 	ld a, [wItemTarget]
 	ld hl, wMonStat67
 	call GetPartyMonsterByte
@@ -2844,7 +2844,7 @@ ItemCheckSaveAllowed::
 ;@ Returns with the Z flag clear (and wItemId set to $FF) if party monster wItemTarget is dead.
 ;@ test: wItemTarget = rand(0, 2)
 CheckTargetDead::
-;> if not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80:
+;> if not GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x80:
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -3045,11 +3045,11 @@ FullHealMonster::
 	call CheckTargetDead
 	ret nz
 
-;> top = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
+;> top = GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
-;> SetPartyMonsterWord(wItemTarget, wMonHP, top)
+;> SetPartyMonsterWord(wItemTarget, addr(wMonHP), top)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
@@ -3087,11 +3087,11 @@ ItemUseRestoreMP::
 ;@ Item 6: restores the target's MP to its maximum.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseFullMP::
-;> top = GetPartyMonsterWord(wItemTarget, wMonMaxMP)
+;> top = GetPartyMonsterWord(wItemTarget, addr(wMonMaxMP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxMP
 	call GetPartyMonsterWord
-;> SetPartyMonsterWord(wItemTarget, wMonMP, top)
+;> SetPartyMonsterWord(wItemTarget, addr(wMonMP), top)
 	ld a, [wItemTarget]
 	ld hl, wMonMP
 	call SetPartyMonsterWord
@@ -3105,7 +3105,7 @@ ItemUseFullMP::
 ;@ Use of an item that cures status bit 2.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus2::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x04
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x04
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -3120,7 +3120,7 @@ ItemUseCureStatus2::
 ;@ Use of an item that cures status bit 3.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus3::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x08
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x08
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -3135,7 +3135,7 @@ ItemUseCureStatus3::
 ;@ Use of an item that cures status bit 4.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus4::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x10
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x10
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -3150,7 +3150,7 @@ ItemUseCureStatus4::
 ;@ Use of an item that cures status bit 0.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus0::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x01
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x01
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -3165,7 +3165,7 @@ ItemUseCureStatus0::
 ;@ Use of an item that cures status bit 1.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseCureStatus1::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x02
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x02
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -3180,16 +3180,16 @@ ItemUseCureStatus1::
 ;@ Item 12: brings the target back to life with full HP.
 ;@ test: wItemTarget = rand(0, 2)
 ItemUseRevive::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] = 0
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	ld [hl], $00
-;> top = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
+;> top = GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
-;> SetPartyMonsterWord(wItemTarget, wMonHP, top)
+;> SetPartyMonsterWord(wItemTarget, addr(wMonHP), top)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
@@ -3324,7 +3324,7 @@ ItemUseLowerWildnessStatus2::
 	ld h, $00
 	ld a, [wItemTarget]
 	call LowerPartyWildness
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] |= 0x04
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] |= 0x04
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField

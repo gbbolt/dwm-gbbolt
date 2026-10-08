@@ -660,7 +660,7 @@ Call_58_43FF::
 	jr jr_058_4419
 
 jr_058_4415:
-	ld hl, far_Call_54_52C7
+	ld hl, far_GetSkillBaseAmount
 	rst $10
 
 jr_058_4419:
@@ -987,9 +987,9 @@ jr_058_45cc:
 	ld a, [$db52]
 	adc h
 	ld [$db52], a
-	ld a, [$db53]
+	ld a, [wBattleItemUsedUp]
 	adc e
-	ld [$db53], a
+	ld [wBattleItemUsedUp], a
 
 jr_058_45e1:
 	ld a, [wBattleArg3]
@@ -1004,7 +1004,7 @@ jr_058_45e1:
 	ld l, a
 	ld a, [$db52]
 	ld h, a
-	ld a, [$db53]
+	ld a, [wBattleItemUsedUp]
 	ld e, a
 	ld a, [wBattleArg0]
 	call Divide24
@@ -2961,7 +2961,7 @@ Call_58_5100::
 	ld [wNamePos], a
 	ld [$db51], a
 	ld [$db52], a
-	ld [$db53], a
+	ld [wBattleItemUsedUp], a
 
 jr_058_5118:
 	ld a, c
@@ -4442,7 +4442,7 @@ Call_58_5A02::
 
 Call_58_5A20::
 	call Call_58_5C3E
-	ld a, [$c88c]
+	ld a, [wOpeningScene]
 	or a
 	jr z, jr_058_5a2e
 
@@ -4459,7 +4459,7 @@ jr_058_5a2e:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c88d]
+	ld a, [wOpeningLogo]
 	ld [hl], a
 	ret
 
@@ -6756,7 +6756,7 @@ Call_58_6794::
 	ld a, $02
 	ld [wBattleArg2], a
 	push hl
-	ld hl, far_Call_54_5249
+	ld hl, far_GetSkillWord
 	rst $10
 	pop hl
 	ld a, [wBattleArg0]

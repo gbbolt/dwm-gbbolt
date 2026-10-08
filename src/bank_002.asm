@@ -2891,10 +2891,10 @@ Cutscene0End::
 	ld [wGameModeStep], a
 ;> mem[0xC88C] = 0
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 ;> mem[0xC88D] = 0
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 ;> wGameStarted |= 0x80
 	ld hl, wGameStarted
 	set 7, [hl]
@@ -3357,10 +3357,10 @@ Cutscene1End::
 	ld [wGameModeStep], a
 ;> mem[0xC88C] = 0
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 ;> mem[0xC88D] = 0
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 ;> wWarpMap = 4
 	ld hl, $0004
 	ld a, l
@@ -3392,7 +3392,7 @@ Cutscene1End::
 ;> wFieldFlags &= ~0x01
 	ld hl, wFieldFlags
 	res 0, [hl]
-;>@copy copy(0xCAB9, wPartyCount, 7)         # keep the party aside
+;>@copy copy(0xCAB9, addr(wPartyCount), 7)         # keep the party aside
 	ld hl, wSavedParty
 	ld a, [wPartyCount]
 	ld [hli], a
@@ -3777,10 +3777,10 @@ Cutscene2End::
 	ld [wGameModeStep], a
 ;> mem[0xC88C] = 0
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 ;> mem[0xC88D] = 0
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 ;> wGameStarted |= 0x80
 	ld hl, wGameStarted
 	set 7, [hl]
@@ -3844,10 +3844,10 @@ Cutscene3End::
 	ld [wGameModeStep], a
 ;> mem[0xC88C] = 0
 	ld a, $00
-	ld [$c88c], a
+	ld [wOpeningScene], a
 ;> mem[0xC88D] = 0
 	ld a, $00
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 ;> wGameStarted |= 0x80
 	ld hl, wGameStarted
 	set 7, [hl]

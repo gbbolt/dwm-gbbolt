@@ -327,7 +327,7 @@ LoadMonPicPalette::
 	ld a, h
 	adc $62
 	ld h, a
-	ld a, [$c81f]
+	ld a, [wMonPicPalette]
 	ld c, a
 	ld b, $01
 	call CopyBGPalettes
@@ -359,7 +359,7 @@ DrawMonPicAttrs::
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c820]
+	ld a, [wMonPicPos]
 	ld c, a
 	ld a, [$c821]
 	ld b, a
@@ -368,7 +368,7 @@ DrawMonPicAttrs::
 	ld c, a
 	add hl, bc
 	res 2, h
-	ld a, [$c820]
+	ld a, [wMonPicPos]
 	and $1f
 	ld b, a
 
@@ -389,7 +389,7 @@ jr_017_423a:
 	push hl
 
 jr_017_423d:
-	ld a, [$c81f]
+	ld a, [wMonPicPalette]
 	call WriteVRAM
 	call NextMapColumn_17
 	dec b

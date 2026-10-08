@@ -79,9 +79,9 @@ Call_56_4064::
 	ld a, [hli]
 	ld [wGameModeStep], a
 	ld a, [hli]
-	ld [$c88c], a
+	ld [wOpeningScene], a
 	ld a, [hl]
-	ld [$c88d], a
+	ld [wOpeningLogo], a
 	ld hl, wGameModeChange
 	inc [hl]
 
@@ -916,7 +916,7 @@ Call_56_4916::
 	ld a, $80
 	call Call_56_4A0A
 	xor a
-	ld [wLinkChoice], a
+	ld [wMenuChoice], a
 	xor a
 	ldh [rVBK], a
 	call Call_56_4996
