@@ -910,6 +910,8 @@ FightCommandSteps::
 ;@ path: battle/menu
 ;@ Fight: every own monster in the fight counts as decided (its tactic picks the action),
 ;@ empty places get $FF; no item is used.
+;@ test: wPartyBattlers = rand(1, 3)
+;@ test: wEnemyCount = rand(1, 3)
 FightCommandStart::
 ;> wCommandSubStep += 1
 	ld hl, wCommandSubStep
@@ -1265,7 +1267,7 @@ DrawTournamentTactic::
 	or a
 	ret nz
 
-;>@c copy(TournamentTacticTiles, TilemapBufferAddr_50(0x0202), 8)
+;>@c copy(TilemapBufferAddr_50(0x0202), TournamentTacticTiles, 8)
 	ld hl, $0202
 	call TilemapBufferAddr_50
 	ld de, TournamentTacticTiles
@@ -2271,8 +2273,9 @@ CommandCursors::
 ;@ Counts the skills of monster wConfirmChoice2 (wBattlerSkills, up to 8 entries until a
 ;@ 0 kind byte) into wBattleListCount, and those that can be ordered (not the passive
 ;@ skills $37, $38, $7E) into wBattlerReload.
+;@ test: wConfirmChoice2 = rand(0, 7)
 CountUsableSkills::
-;>@p p = wBattlerSkills + 16 * wConfirmChoice2
+;>@p p = addr(wBattlerSkills) + 16 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerSkills
 	swap a
@@ -3686,8 +3689,9 @@ UnusedRedrawBattleWindows::
 ;@ def ClearMonAction()
 ;@ path: battle/orders
 ;@ Clears the action of monster wConfirmChoice2 ($FF $FF: the tactic decides).
+;@ test: wConfirmChoice2 = rand(0, 7)
 ClearMonAction::
-;>@a mem16[wBattlerAction + 2 * wConfirmChoice2] = 0xFFFF
+;>@a mem16[addr(wBattlerAction) + 2 * wConfirmChoice2] = 0xFFFF
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerAction
 	add a
@@ -3706,10 +3710,11 @@ ClearMonAction::
 ;@ def SetActionSkillTarget(skill: b, target: c)
 ;@ path: battle/orders
 ;@ Sets the action of monster wConfirmChoice2: `skill` on `target`.
+;@ test: wConfirmChoice2 = rand(0, 7)
 SetActionSkillTarget::
 ;> SetActionSkill(skill)
 	call SetActionSkill
-;> mem[wBattlerAction + 2 * wConfirmChoice2 + 1] = target
+;> mem[addr(wBattlerAction) + 2 * wConfirmChoice2 + 1] = target
 	inc hl
 	ld [hl], c
 	ret
@@ -3718,8 +3723,9 @@ SetActionSkillTarget::
 ;@ def SetActionSkill(skill: b) -> hl
 ;@ path: battle/orders
 ;@ Sets the skill of monster wConfirmChoice2's action; returns its address.
+;@ test: wConfirmChoice2 = rand(0, 7)
 SetActionSkill::
-;>@a p = wBattlerAction + 2 * wConfirmChoice2
+;>@a p = addr(wBattlerAction) + 2 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerAction
 	add a
@@ -3731,14 +3737,16 @@ SetActionSkill::
 	ld h, a
 ;> mem[p] = skill
 	ld [hl], b
+;> return p
 	ret
 
 
 ;@ def SetActionTarget(target: c)
 ;@ path: battle/orders
 ;@ Sets the target of monster wConfirmChoice2's action.
+;@ test: wConfirmChoice2 = rand(0, 7)
 SetActionTarget::
-;>@a mem[wBattlerAction + 1 + 2 * wConfirmChoice2] = target
+;>@a mem[addr(wBattlerAction) + 1 + 2 * wConfirmChoice2] = target
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerAction + 1
 	add a
@@ -4712,12 +4720,14 @@ ItemEnemyOpen::
 ;@ wBattleTempHigh = the first battle position of the enemy side (0 on the link master,
 ;@ else 4).
 SetEnemySideBase::
-;> wBattleTempHigh = 0 if wLinkFlags & 0x02 else 4
+;> side = 0 if wLinkFlags & 0x02 else 4
 	ld a, [wLinkFlags]
 	rlca
 	and $04
 	xor $04
+;> wBattleTempHigh = side
 	ld [wBattleTempHigh], a
+;> return side
 	ret
 
 
@@ -5256,7 +5266,7 @@ PrintEnemyNameAt::
 ;@ path: battle/names
 ;@ Address of the name of party monster `pos` (its wMonName field).
 GetPartyMonNameAddr::
-;> return PartyMonsterField(wMonName, pos)
+;> return PartyMonsterField(pos, addr(wMonName))
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
@@ -12019,7 +12029,7 @@ PrintNameToTiles_50::
 ;@ path: battle/screen
 ;@ Fills wTilemapBuffer (576 tiles) with the blank tile $E0.
 ClearTilemapBuffer_50::
-;>@f fill(wTilemapBuffer, 0x240, 0xE0)
+;>@f fill(addr(wTilemapBuffer), 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 .loop
@@ -12186,7 +12196,7 @@ UpdateListCursor_50::
 	pop de
 ;=@pn
 	pop bc
-;>@dm q, r = divmod(count - 1, rows)
+;>@dm q, r = (count - 1) // rows, (count - 1) % rows
 	push de
 	push bc
 	ld a, b
@@ -12713,6 +12723,7 @@ DrawEnemyPictures::
 ;@ path: battle/screen
 ;@ Writes a block of 6 x 6 consecutive tile numbers, starting with `tile`, into
 ;@ wTilemapBuffer at `offset` (row * 32 + column). Returns the tile after the last one.
+;@ test: offset = rand(0, 0x17F)
 DrawPictureBlock::
 ;> for row in range(6):
 	ld c, $06
@@ -13320,6 +13331,7 @@ PanelSlotAddr::
 ;@ def PutAilmentTile(n: a, dest: de)
 ;@ path: battle/panel
 ;@ Writes the tile of ailment symbol `n` (StatusIconTiles) to `dest`.
+;@ test: dest = rand(0xC000, 0xCFFF)
 PutAilmentTile::
 ;>@t mem[dest] = mem[StatusIconTiles + n]
 	push hl
@@ -13554,6 +13566,7 @@ UpdateStatusIcon_50::
 ;@ def StoreStatusIcon_50(icon: a, p: hl)
 ;@ path: battle/panel
 ;@ Stores `icon` at `p` (UpdateStatusIcon_50 calls it on a condition).
+;@ test: p = rand(0xC000, 0xCFFF)
 StoreStatusIcon_50::
 ;> mem[p] = icon
 	ld [hl], a
@@ -13583,8 +13596,11 @@ UnusedClearAttrMap::
 ;> for row in range(18):
 	ld c, $12
 .row
-;>     for i in range(32):
+;>@s     row_start = dest
+;>@b     for i in range(32):
+;=@b
 	ld b, $20
+;=@s
 	push hl
 .column
 ;>         WriteVRAM(0, dest)

@@ -1436,7 +1436,7 @@ RethinkUnusableSkill_53::
 ;@ path: battle/actions
 ;@ Carry when the user is in the second turn of a two-turn skill that needs no more MP: HighJump
 ;@ ($42) while high in the sky, LifeSong ($95) while singing.
-;@ test: wSkillUser = rand(0, 7); wSkillId = choice([0x42, 0x95, 0x3A])
+;@ test: wSkillUser = rand(0, 7); wSkillId = rng.choice([0x42, 0x95, 0x3A])
 IsSecondTurnOfSkill_53::
 ;> status = addr(wBattlerStatus4) + 8 * wSkillUser
 	ld a, [wSkillUser]
@@ -1835,7 +1835,7 @@ ActionStart_AfterDown_53::
 	cp $ff
 	ret z
 
-;>@f fill(addr(wBattleSubStep), 7, 0)       # the step variables up to wPanelMode
+;>@f fill(addr(wBattleSubStep), 0, 7)       # the step variables up to wPanelMode
 	xor a
 	ld hl, wBattleSubStep
 	ld [hli], a
@@ -2044,7 +2044,7 @@ PayMPClamped_53::
 ;@ Carry when using `skill` costs no MP now: HighJump ($42) while already high in the sky, LifeSong
 ;@ ($95) while already singing, or a spell whose MP a MagicWall on the user's side already took.
 ;@ Farewell, MegaMagic and LifeDance always cost their MP.
-;@ test: skill = choice([0x32, 0x42, 0x66, 0x95, 0x96, 0x03, 0x3A]); wSkillUser = rand(0, 7)
+;@ test: skill = rng.choice([0x32, 0x42, 0x66, 0x95, 0x96, 0x03, 0x3A]); wSkillUser = rand(0, 7)
 IsMPFree_53::
 ;>@f if skill in (0x32, 0x66, 0x96): return False   # Farewell, MegaMagic, LifeDance
 	cp $32
@@ -3563,7 +3563,7 @@ IsDodgeSpotFree_53::
 ;@ path: battle/skills
 ;@ wBattleArg0 = 0 when the target is an enemy of a scripted battle (a boss) and the skill is one it
 ;@ is immune to - Beat, Defeat, Sacrifice, Kamikaze, Paralyze, PalsyAir, K.O.Dance - else 1.
-;@ test: wSkillTarget = rand(0, 7); wBattleType = rand(0, 2); wSkillId = choice([0x12, 0x14, 0x69, 0x3A])
+;@ test: wSkillTarget = rand(0, 7); wBattleType = rand(0, 2); wSkillId = rng.choice([0x12, 0x14, 0x69, 0x3A])
 CheckBossImmunity_53::
 ;>@n if not wLinkActive and wSkillTarget >= 4 and wBattleType == 1:
 	ld a, [wLinkActive]
@@ -5011,7 +5011,7 @@ EndSkillMissed_53::
 ;@ def IsHighJumpTakeoff_53() -> zero
 ;@ path: battle/skills
 ;@ Zero flag when the skill is HighJump ($42) and the user is still on the ground: its take-off turn.
-;@ test: wSkillId = choice([0x42, 0x3A]); wSkillUser = rand(0, 7)
+;@ test: wSkillId = rng.choice([0x42, 0x3A]); wSkillUser = rand(0, 7)
 IsHighJumpTakeoff_53::
 ;> if wSkillId != 0x42: return False
 	ld a, [wSkillId]
@@ -5030,7 +5030,7 @@ IsHighJumpTakeoff_53::
 ;@ def IsChargeUpTurn_53() -> zero
 ;@ path: battle/skills
 ;@ Zero flag when the skill is ChargeUP ($41) and the user is not charged yet: its charging turn.
-;@ test: wSkillId = choice([0x41, 0x3A]); wSkillUser = rand(0, 7)
+;@ test: wSkillId = rng.choice([0x41, 0x3A]); wSkillUser = rand(0, 7)
 IsChargeUpTurn_53::
 ;> if wSkillId != 0x41: return False
 	ld a, [wSkillId]
@@ -5778,7 +5778,7 @@ DropEnemyLetter_53::
 ;@ path: battle/messages
 ;@ Changes the result message wTextIndex to its wording for a monster of the player's side: most
 ;@ have it right after ($82, $CC, $88, $8A, $86, $8E, $95, $B0, $B2 + 1), $E8 becomes $E3, $B5 $D2.
-;@ test: wTextIndex = choice([0x82, 0xE8, 0xB5, 0xB2, 0x10])
+;@ test: wTextIndex = rng.choice([0x82, 0xE8, 0xB5, 0xB2, 0x10])
 OwnSideMessage_53::
 ;> m = wTextIndex
 	ld a, [wTextIndex]
@@ -7941,7 +7941,7 @@ RemoveBattler_53::
 ;=@o
 	ld h, a
 	ld [hl], $ff
-;>@c fill(addr(wBattlerStatus) + 8 * wSkillTarget, 8, 0)
+;>@c fill(addr(wBattlerStatus) + 8 * wSkillTarget, 0, 8)
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
@@ -9310,7 +9310,7 @@ Revive_Revive_53::
 ;=@s
 	ld h, a
 	ld [hl], $00
-;>@c fill(addr(wBattlerStatus) + 8 * wSkillTarget, 8, 0)
+;>@c fill(addr(wBattlerStatus) + 8 * wSkillTarget, 0, 8)
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes

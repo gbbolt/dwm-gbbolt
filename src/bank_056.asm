@@ -1881,310 +1881,496 @@ MsgViewerInput::
 	dw MsgViewText59
 	dw MsgViewText56
 
+;@ def MsgViewText41()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $41.
+;@ test: skip calls a routine in another bank
 MsgViewText41::
+;> far_StartText_41()
 	ld hl, far_StartText_41
 	rst $10
 	ret
 
 
+;@ def MsgViewText42()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $42; group 0 numbers from
+;@ $E2 on are group 0 of the next bank ($43), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText42::
+;>@c if wTextGroup == 0 and wTextIndex >= 0xE2:
 	ld a, [wTextGroup]
 	cp $00
-	jr nz, jr_056_4c4d
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $e2
-	jr c, jr_056_4c4d
+	jr c, .start
+
+;>     wTextIndex -= 0xE2
 	sub $e2
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText43()
 	jr MsgViewText43
 
-
-jr_056_4c4d:
+.start
+;> far_StartText_42()
 	ld hl, far_StartText_42
 	rst $10
 	ret
 
 
+;@ def MsgViewText43()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $43; group 1 numbers from
+;@ $98 on are group 0 of the next bank ($44), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText43::
+;>@c if wTextGroup == 1 and wTextIndex >= 0x98:
 	ld a, [wTextGroup]
 	cp $01
-	jr nz, jr_056_4c6c
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $98
-	jr c, jr_056_4c6c
+	jr c, .start
+
+;>     wTextIndex -= 0x98
 	sub $98
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText44()
 	jr MsgViewText44
 
-
-jr_056_4c6c:
+.start
+;> far_StartText_43()
 	ld hl, far_StartText_43
 	rst $10
 	ret
 
 
+;@ def MsgViewText44()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $44; group 1 numbers from
+;@ $44 on are group 0 of the next bank ($45), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText44::
+;>@c if wTextGroup == 1 and wTextIndex >= 0x44:
 	ld a, [wTextGroup]
 	cp $01
-	jr nz, jr_056_4c8b
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $44
-	jr c, jr_056_4c8b
+	jr c, .start
+
+;>     wTextIndex -= 0x44
 	sub $44
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText45()
 	jr MsgViewText45
 
-
-jr_056_4c8b:
+.start
+;> far_StartText_44()
 	ld hl, far_StartText_44
 	rst $10
 	ret
 
 
+;@ def MsgViewText45()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $45.
+;@ test: skip calls a routine in another bank
 MsgViewText45::
+;> far_StartText_45()
 	ld hl, far_StartText_45
 	rst $10
 	ret
 
 
+;@ def MsgViewText46()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $46; group 0 numbers from
+;@ $C8 on are group 0 of the next bank ($47), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText46::
+;>@c if wTextGroup == 0 and wTextIndex >= 0xC8:
 	ld a, [wTextGroup]
 	cp $00
-	jr nz, jr_056_4caf
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $c8
-	jr c, jr_056_4caf
+	jr c, .start
+
+;>     wTextIndex -= 0xC8
 	sub $c8
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText47()
 	jr MsgViewText47
 
-
-jr_056_4caf:
+.start
+;> far_StartText_46()
 	ld hl, far_StartText_46
 	rst $10
 	ret
 
 
+;@ def MsgViewText47()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $47; group 1 numbers from
+;@ $74 on are group 0 of the next bank ($48), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText47::
+;>@c if wTextGroup == 1 and wTextIndex >= 0x74:
 	ld a, [wTextGroup]
 	cp $01
-	jr nz, jr_056_4cce
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $74
-	jr c, jr_056_4cce
+	jr c, .start
+
+;>     wTextIndex -= 0x74
 	sub $74
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText48()
 	jr MsgViewText48
 
-
-jr_056_4cce:
+.start
+;> far_StartText_47()
 	ld hl, far_StartText_47
 	rst $10
 	ret
 
 
+;@ def MsgViewText48()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $48; group 1 numbers from
+;@ $12 on are group 0 of the next bank ($49), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText48::
+;>@c if wTextGroup == 1 and wTextIndex >= 0x12:
 	ld a, [wTextGroup]
 	cp $01
-	jr nz, jr_056_4ced
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $12
-	jr c, jr_056_4ced
+	jr c, .start
+
+;>     wTextIndex -= 0x12
 	sub $12
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText49()
 	jr MsgViewText49
 
-
-jr_056_4ced:
+.start
+;> far_StartText_48()
 	ld hl, far_StartText_48
 	rst $10
 	ret
 
 
+;@ def MsgViewText49()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $49; numbers from $CE on (index
+;@ + $12 >= $E0) are group 0 of bank $4A.
+;@ test: skip calls a routine in another bank
 MsgViewText49::
+;> if wTextIndex + 0x12 >= 0xE0:
 	ld a, [wTextIndex]
 	add $12
 	cp $e0
-	jr c, jr_056_4d07
+	jr c, .start
+
+;>     wTextIndex = wTextIndex + 0x12 - 0xE0
 	sub $e0
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText4A()
 	jr MsgViewText4A
 
-
-jr_056_4d07:
+.start
+;> StartText_49()
 	ld hl, far_StartText_49
 	rst $10
 	ret
 
 
+;@ def MsgViewText4A()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4A; group 2 numbers from
+;@ $C0 on are group 0 of the next bank ($4B), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText4A::
+;>@c if wTextGroup == 2 and wTextIndex >= 0xC0:
 	ld a, [wTextGroup]
 	cp $02
-	jr nz, jr_056_4d26
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $c0
-	jr c, jr_056_4d26
+	jr c, .start
+
+;>     wTextIndex -= 0xC0
 	sub $c0
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText4B()
 	jr MsgViewText4B
 
-
-jr_056_4d26:
+.start
+;> far_StartText_4A()
 	ld hl, far_StartText_4A
 	rst $10
 	ret
 
 
+;@ def MsgViewText4B()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4B; group 1 numbers from
+;@ $68 on are group 0 of the next bank ($4E), so the number is counted on there.
+;@ test: skip calls a routine in another bank
 MsgViewText4B::
+;>@c if wTextGroup == 1 and wTextIndex >= 0x68:
 	ld a, [wTextGroup]
 	cp $01
-	jr nz, jr_056_4d45
+	jr nz, .start
+
+;=@c
 	ld a, [wTextIndex]
 	cp $68
-	jr c, jr_056_4d45
+	jr c, .start
+
+;>     wTextIndex -= 0x68
 	sub $68
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>     return MsgViewText4E()
 	jr MsgViewText4E
 
-
-jr_056_4d45:
+.start
+;> far_StartText_4B()
 	ld hl, far_StartText_4B
 	rst $10
 	ret
 
 
+;@ def MsgViewText4C()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4C.
+;@ test: skip calls a routine in another bank
 MsgViewText4C::
+;> far_StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def MsgViewText4D()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4D (its far entry 0).
+;@ test: skip calls a routine in another bank
 MsgViewText4D::
+;> far_call(0x4d, 0x00)()
 	ld hl, $4d00
 	rst $10
 	ret
 
 
+;@ def MsgViewText4E()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4E.
+;@ test: skip calls a routine in another bank
 MsgViewText4E::
+;> far_StartText_4E()
 	ld hl, far_StartText_4E
 	rst $10
 	ret
 
 
+;@ def MsgViewText59()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $59 (far entry 6 of bank $59).
+;@ test: skip calls a routine in another bank
 MsgViewText59::
+;> far_call(0x59, 0x06)()
 	ld hl, $5906
 	rst $10
 	ret
 
 
+;@ def MsgViewText56()
+;@ path: system/debug
+;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $56 (StartText_56).
+;@ test: skip calls a routine in another bank
 MsgViewText56::
+;> far_call(0x56, 0x00)()
 	ld hl, $5600
 	rst $10
 	ret
 
 
+;@ def MsgViewerCheckStart()
+;@ path: system/debug
+;@ Holding START leaves the message viewer for the debug menu (game mode $07).
+;@ test: wJoyHeld = rand(0, 255)
 MsgViewerCheckStart::
+;> if wJoyHeld & 0x08:                    # Start
 	ld a, [wJoyHeld]
 	and $08
 	cp $08
-	jr nz, jr_056_4d79
+	jr nz, .done
+
+;>     wGameMode = 7
 	ld a, $07
 	ld [wGameMode], a
+;>     wGameModeStep = 0
 	xor a
 	ld [wGameModeStep], a
+;>     wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 
-jr_056_4d79:
+.done
 	ret
 
 
+;@ def MsgViewerBlink()
+;@ path: system/debug
+;@ Every 11 frames toggles the chosen row's number between blank tiles ($1F) and its digit tiles.
+;@ test: skip polls the LCD
 MsgViewerBlink::
+;> if wMsgViewBlinkTimer:
 	ld a, [wMsgViewBlinkTimer]
 	cp $00
-	jr nz, jr_056_4db5
+	jr nz, .count
+
+;>@c1     wMsgViewBlinkTimer -= 1
+;>@c2     return
+;> wMsgViewBlinkTimer = 10
 	ld a, $0a
 	ld [wMsgViewBlinkTimer], a
+;> pos = wMsgViewMapHi << 8 | wMsgViewMapLo
 	ld a, [wMsgViewMapHi]
 	ld h, a
 	ld a, [wMsgViewMapLo]
 	ld l, a
+;> if not wMsgViewBlinkPhase:
 	ld a, [wMsgViewBlinkPhase]
 	cp $00
-	jr nz, jr_056_4da3
+	jr nz, .show
+
+;>     WriteVRAM(0x1F, WriteVRAMInc(0x1F, pos))
 	ld a, $1f
 	call WriteVRAMInc
 	call WriteVRAM
+;>     wMsgViewBlinkPhase = 1
 	ld a, $01
 	ld [wMsgViewBlinkPhase], a
 	ret
 
-
-jr_056_4da3:
+;> else:
+.show
+;>     WriteVRAM(wMsgViewDigitLo, WriteVRAMInc(wMsgViewDigitHi, pos))
 	ld a, [wMsgViewDigitHi]
 	call WriteVRAMInc
 	ld a, [wMsgViewDigitLo]
 	call WriteVRAM
+;>     wMsgViewBlinkPhase = 0
 	ld a, $00
 	ld [wMsgViewBlinkPhase], a
 	ret
 
-
-jr_056_4db5:
+.count
+;=@c1
 	dec a
 	ld [wMsgViewBlinkTimer], a
+;=@c2
 	ret
 
 
+;@ def MsgViewerReadNumber()
+;@ path: system/debug
+;@ Reads the chosen text number back from its two digit tiles ($70 + hex digit).
+;@ test: wMsgViewDigitHi = rand(0x70, 0x7F); wMsgViewDigitLo = rand(0x70, 0x7F)
 MsgViewerReadNumber::
+;>@n wMsgViewNumber = ((wMsgViewDigitHi - 0x70) << 4 | (wMsgViewDigitHi - 0x70) >> 4) & 0xFF
 	ld a, [wMsgViewDigitHi]
 	sub $70
 	rlca
 	rlca
 	rlca
 	rlca
+;=@n
 	ld [wMsgViewNumber], a
+;>@m wMsgViewNumber = (wMsgViewNumber + wMsgViewDigitLo - 0x70) & 0xFF
 	ld a, [wMsgViewDigitLo]
 	sub $70
 	ld c, a
 	ld a, [wMsgViewNumber]
 	add c
+;=@m
 	ld [wMsgViewNumber], a
 	ret
 
+;@ path: system/debug
+;@ Message viewer, one byte per row (10 pages of 4): the text group the row starts at.
 MsgViewRowGroups::
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $00
 	db $01, $01, $00, $01, $01, $01, $02, $01, $01, $00, $01, $02, $03, $04, $05, $06
 	db $07, $00, $01, $01, $00, $01, $02, $03
 
+;@ path: system/debug
+;@ Message viewer: for each row the text bank routine (0 = $41, 1 = $42, ... see MsgViewerInput's
+;@ table) that shows it.
 MsgViewRowBanks::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $01
 	db $02, $03, $05, $06, $07, $09, $09, $0a, $0d, $0b, $0b, $0b, $0b, $0b, $0b, $0b
 	db $0b, $0c, $0c, $0f, $0e, $0e, $0e, $0e
 
+;@ path: system/debug
+;@ Message viewer: for each row the highest text number it has.
 MsgViewRowCounts::
 	db $09, $5f, $6f, $9f, $0a, $ff, $ff, $d6, $2b, $2b, $27, $24, $01, $2f, $0b, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $d8, $ff, $fd, $12, $06, $08, $03, $14, $14
 	db $00, $ff, $d6, $ff, $06, $02, $0d, $00
 
+;@ path: text/dialogue
+;@ Texts of bank $56 (game's character set, control codes at TextControlCodes): the message
+;@ viewer's title and page names ("MESSAGE DEBUG", the text table names) and further texts,
+;@ reached through TextTable_56.
 Bank56Texts::
 	db $96, $62, $30, $28, $36, $36, $28, $2a, $28, $f1, $62, $62, $62, $62, $62, $27
 	db $28, $25, $38, $2a, $62, $97, $f1, $62, $62, $37, $28, $36, $37, $30, $28, $36
@@ -2571,6 +2757,9 @@ Bank56Texts::
 	db $4f, $41, $62, $3e, $51, $51, $3e, $40, $48, $f0, $30, $3e, $48, $42, $50, $62
 	db $56, $4c, $52, $62, $43, $42, $42, $49, $f1, $50, $46, $40, $48, $f0, $f0
 
+;@ path: text/dialogue
+;@ Text table of bank $56 for StartText_56 / CopyText_56: one pointer per text group, then each
+;@ group's pointers to its texts (the two-level format StartText reads).
 TextTable_56::
 	db $4f, $66, $67, $66, $4c, $4e, $63, $4e, $9b, $4e, $c7, $4e, $f3, $4e, $1f, $4f
 	db $4b, $4f, $77, $4f, $a3, $4f, $cb, $4f, $f3, $4f, $1f, $50, $2f, $50, $56, $50
@@ -2607,20 +2796,32 @@ TextTable_56::
 	db $4a, $66, $4a, $66, $4a, $66, $4a, $66, $4a, $66, $4a, $66, $4a, $66, $4a, $66
 	db $4a, $66, $4a, $66, $4a, $66, $4a, $66, $4a, $66, $4a, $66
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $09 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6867::
 	db $20, $00, $01, $ff, $00, $ff, $c6, $01, $02, $01, $fe, $01, $02, $03, $01, $01
 	db $00, $ee, $ff, $ee, $ff, $fe, $ff, $d6, $01, $02, $00
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $0A of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6882::
 	db $20, $00, $01, $ff, $82, $ff, $c2, $ff, $a2, $ff, $92, $ff, $8a, $ff, $86, $ff
 	db $82, $ff, $00, $ff, $38, $ff, $44, $ff, $82, $01, $14, $01, $44, $ff, $38, $ff
 	db $00
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $0B of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_68A3::
 	db $20, $00, $01, $ff, $00, $ff, $02, $ff, $04, $ff, $08, $ff, $10, $ff, $20, $ff
 	db $40, $ff, $80, $ff, $00, $ff, $10, $ff, $92, $ff, $54, $ff, $38, $ff, $54, $ff
 	db $92, $ff, $10
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $0C of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_68C6::
 	db $00, $05, $05, $05, $ff, $fc, $01, $01, $0f, $0f, $3f, $3f, $7c, $7c, $f0, $f0
 	db $e0, $e0, $e0, $e0, $ff, $05, $1e, $01, $80, $80, $05, $ff, $f4, $ff, $ff, $f8
@@ -2650,6 +2851,9 @@ Data_56_68C6::
 	db $05, $a0, $ff, $4d, $05, $0d, $3f, $4d, $05, $6d, $3f, $4d, $05, $cd, $3f, $4d
 	db $05, $2d, $4f, $4d, $05, $8d, $4f, $4d, $05, $ed, $4e
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $0D of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6A71::
 	db $40, $02, $04, $04, $ff, $fc, $01, $01, $0f, $0f, $3f, $3f, $7c, $7c, $f0, $f0
 	db $e0, $e0, $e0, $e0, $ff, $04, $1e, $01, $80, $80, $04, $ff, $f4, $ff, $ff, $f8
@@ -2674,6 +2878,9 @@ Data_56_6A71::
 	db $1c, $1c, $12, $12, $04, $24, $20, $04, $ec, $14, $01, $01, $02, $02, $03, $03
 	db $02, $02, $02, $02, $00, $00
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $0E of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6BC7::
 	db $00, $03, $01, $ff, $01, $ff, $fe, $18, $01, $12, $07, $1f, $ff, $00, $ff, $3c
 	db $01, $12, $07, $3c, $ff, $00, $ff, $71, $ff, $d9, $ff, $c1, $01, $36, $01, $d9
@@ -2691,6 +2898,9 @@ Data_56_6BC7::
 	db $4d, $01, $8f, $1f, $4d, $01, $ef, $1f, $4d, $01, $4f, $2f, $4d, $01, $af, $2f
 	db $3d
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $0F of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6CA8::
 	db $90, $00, $01, $ff, $00, $ff, $f0, $ff, $88, $ff, $88, $01, $02, $05, $00, $ff
 	db $f8, $ff, $80, $ff, $80, $01, $12, $05, $00, $ff, $70, $ff, $88, $ff, $80, $ff
@@ -2700,6 +2910,9 @@ Data_56_6CA8::
 	db $ff, $40, $ff, $5e, $ff, $44, $ff, $4c, $ff, $34, $ff, $00, $ff, $18, $ff, $18
 	db $ff, $01, $ff, $f0, $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $10 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6D0F::
 	db $90, $00, $01, $ff, $00, $ff, $88, $01, $02, $03, $50, $ff, $50, $ff, $20, $01
 	db $00, $07, $01, $03, $00, $8f, $ff, $00, $ff, $08, $01, $22, $07, $01, $1f, $00
@@ -2709,6 +2922,9 @@ Data_56_6D0F::
 	db $05, $ff, $04, $ff, $c4, $ff, $00, $ff, $80, $ff, $40, $ff, $40, $ff, $80, $01
 	db $70, $03, $00, $ff, $18, $ff, $18, $ff, $01, $ff, $f0, $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $11 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6D7D::
 	db $90, $00, $01, $ff, $00, $ff, $f8, $ff, $20, $01, $04, $07, $00, $ff, $20, $ff
 	db $50, $01, $14, $01, $f8, $ff, $88, $ff, $88, $ff, $00, $ff, $80, $01, $22, $07
@@ -2718,6 +2934,9 @@ Data_56_6D7D::
 	db $1c, $0f, $00, $80, $ff, $00, $ff, $18, $ff, $18, $ff, $01, $ff, $f0, $01, $83
 	db $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $12 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6DDE::
 	db $90, $00, $01, $ff, $00, $ff, $88, $ff, $d8, $ff, $a8, $ff, $a8, $ff, $88, $01
 	db $0a, $01, $00, $ff, $f8, $ff, $80, $ff, $80, $01, $12, $05, $01, $01, $0e, $70
@@ -2726,6 +2945,9 @@ Data_56_6DDE::
 	db $80, $ff, $70, $ff, $08, $01, $3c, $03, $18, $ff, $18, $ff, $01, $ff, $f0, $01
 	db $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $13 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6E30::
 	db $90, $00, $01, $ff, $00, $ff, $f0, $ff, $88, $ff, $88, $01, $02, $05, $00, $ff
 	db $f8, $ff, $80, $ff, $80, $01, $12, $05, $00, $01, $04, $01, $88, $ff, $a8, $ff
@@ -2735,12 +2957,18 @@ Data_56_6E30::
 	db $01, $00, $01, $14, $01, $01, $ff, $f0, $01, $73, $00, $00, $ff, $18, $ff, $18
 	db $01, $70, $01, $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $14 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6E96::
 	db $90, $00, $01, $ff, $00, $ff, $f0, $ff, $88, $ff, $88, $ff, $f0, $ff, $80, $01
 	db $0a, $01, $00, $ff, $f8, $01, $0a, $01, $01, $13, $04, $00, $ff, $20, $ff, $50
 	db $01, $24, $01, $f8, $01, $04, $01, $00, $ff, $70, $ff, $88, $01, $0a, $03, $88
 	db $ff, $70, $01, $10, $0f, $00, $01, $51, $0f, $1d, $18, $ff, $18, $01, $7e, $06
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $15 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6ED6::
 	db $90, $00, $01, $ff, $00, $ff, $f0, $ff, $88, $ff, $88, $01, $02, $05, $01, $01
 	db $06, $a0, $ff, $90, $ff, $88, $ff, $00, $ff, $20, $ff, $50, $01, $24, $01, $f8
@@ -2748,6 +2976,9 @@ Data_56_6ED6::
 	db $ff, $f8, $ff, $80, $ff, $80, $01, $42, $05, $01, $11, $0e, $01, $37, $02, $20
 	db $01, $68, $03, $01, $ff, $f0, $01, $71, $0a, $18, $ff, $18, $01, $7e, $06
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $16 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6F25::
 	db $90, $00, $01, $ff, $00, $ff, $70, $ff, $88, $ff, $80, $ff, $70, $ff, $08, $ff
 	db $88, $ff, $70, $ff, $00, $ff, $f8, $ff, $20, $01, $14, $07, $00, $ff, $f0, $ff
@@ -2757,6 +2988,9 @@ Data_56_6F25::
 	db $01, $25, $00, $88, $ff, $f8, $01, $72, $03, $00, $ff, $18, $ff, $18, $ff, $01
 	db $ff, $f0, $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $17 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6F8A::
 	db $90, $00, $01, $ff, $00, $ff, $20, $ff, $50, $01, $04, $01, $f8, $ff, $88, $ff
 	db $88, $ff, $00, $ff, $88, $ff, $c8, $ff, $a8, $ff, $a8, $ff, $98, $01, $0c, $03
@@ -2764,12 +2998,18 @@ Data_56_6F8A::
 	db $f8, $ff, $80, $ff, $80, $01, $32, $05, $00, $ff, $f0, $01, $0c, $01, $f0, $ff
 	db $a0, $ff, $90, $01, $0e, $01, $01, $51, $0f, $1d, $18, $ff, $18, $01, $7e, $06
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $18 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_6FDA::
 	db $90, $00, $01, $ff, $00, $ff, $08, $01, $02, $03, $88, $ff, $88, $ff, $70, $ff
 	db $00, $ff, $70, $01, $0a, $01, $01, $15, $02, $01, $0f, $00, $01, $0b, $00, $50
 	db $ff, $20, $01, $28, $03, $01, $ff, $f0, $01, $31, $0f, $3b, $18, $ff, $18, $01
 	db $7e, $06
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $19 of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_700C::
 	db $90, $00, $01, $ff, $00, $ff, $88, $01, $02, $01, $a8, $ff, $a8, $ff, $d8, $ff
 	db $88, $ff, $00, $ff, $20, $01, $12, $09, $00, $ff, $70, $ff, $88, $ff, $80, $ff
@@ -2778,6 +3018,9 @@ Data_56_700C::
 	db $08, $01, $01, $03, $02, $01, $ff, $f0, $01, $61, $0f, $0b, $18, $ff, $18, $01
 	db $7e, $06
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $1A of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_705E::
 	db $90, $00, $01, $ff, $00, $ff, $88, $01, $02, $01, $f8, $01, $02, $03, $00, $ff
 	db $20, $ff, $50, $01, $14, $01, $01, $09, $02, $00, $ff, $f0, $01, $02, $01, $f0
@@ -2787,6 +3030,9 @@ Data_56_705E::
 	db $ff, $81, $ff, $91, $ff, $0e, $ff, $00, $ff, $18, $ff, $18, $ff, $01, $ff, $f0
 	db $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $1B of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_70C1::
 	db $90, $00, $01, $ff, $00, $ff, $fb, $ff, $22, $ff, $22, $ff, $23, $01, $04, $03
 	db $00, $ff, $e4, $ff, $06, $ff, $05, $ff, $e5, $ff, $04, $ff, $04, $ff, $e4, $ff
@@ -2797,6 +3043,9 @@ Data_56_70C1::
 	db $95, $ff, $95, $ff, $93, $ff, $91, $ff, $11, $ff, $00, $ff, $18, $ff, $18, $ff
 	db $01, $ff, $f0, $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $1C of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_7137::
 	db $90, $00, $01, $ff, $00, $ff, $80, $01, $02, $03, $81, $ff, $81, $ff, $f9, $ff
 	db $00, $ff, $41, $ff, $a1, $01, $14, $01, $f1, $ff, $11, $ff, $11, $ff, $00, $ff
@@ -2807,6 +3056,9 @@ Data_56_7137::
 	db $64, $07, $00, $ff, $91, $01, $1c, $01, $1f, $01, $1c, $01, $01, $1f, $00, $18
 	db $ff, $18, $ff, $01, $ff, $f0, $01, $83, $01
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $1D of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_71B0::
 	db $90, $00, $01, $ff, $00, $ff, $09, $01, $02, $03, $89, $ff, $89, $ff, $70, $ff
 	db $00, $ff, $13, $ff, $12, $01, $14, $05, $e3, $ff, $00, $ff, $83, $ff, $44, $ff
@@ -2816,6 +3068,9 @@ Data_56_71B0::
 	db $22, $ff, $22, $ff, $00, $ff, $7c, $ff, $10, $01, $64, $07, $01, $ff, $f0, $01
 	db $71, $0a, $18, $ff, $18, $01, $7e, $06
 
+;@ path: gfx/compressed
+;@ Compressed data, entry $1E of bank $56 for Decompress / DecompressVRAM (format at
+;@ DecompressCore).
 Data_56_7218::
 	db $90, $00, $01, $ff, $00, $ff, $f1, $ff, $89, $ff, $89, $ff, $f1, $ff, $a1, $ff
 	db $91, $ff, $89, $ff, $00, $ff, $f3, $ff, $02, $ff, $02, $01, $12, $03, $f2, $ff
