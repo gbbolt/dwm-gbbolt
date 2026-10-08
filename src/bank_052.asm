@@ -11774,7 +11774,7 @@ Skill3BStage0::
 
 	ld hl, far_StartSkillVisual
 	rst $10
-	ld hl, far_Call_55_4043
+	ld hl, far_PlaySkillSound4
 	rst $10
 	ld hl, wBattleSubStep2
 	inc [hl]
@@ -11908,7 +11908,7 @@ KamikazeStage0::
 
 	ld hl, far_StartSkillVisual
 	rst $10
-	ld hl, far_Call_55_4043
+	ld hl, far_PlaySkillSound4
 	rst $10
 	ld hl, wBattleSubStep2
 	inc [hl]
@@ -12076,7 +12076,7 @@ RammingStage0::
 
 	ld hl, far_StartSkillVisual
 	rst $10
-	ld hl, far_Call_55_4043
+	ld hl, far_PlaySkillSound4
 	rst $10
 	ld hl, wBattleSubStep2
 	inc [hl]
@@ -12532,7 +12532,7 @@ CounterStage0::
 
 	ld hl, far_StartSkillHitEffect
 	rst $10
-	ld hl, far_Call_55_401F
+	ld hl, far_PlaySkillSound0
 	rst $10
 	ld a, $80
 	ld [wItemMsgGroup], a

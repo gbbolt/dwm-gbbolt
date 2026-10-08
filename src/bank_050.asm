@@ -63,8 +63,8 @@ BattleMenuSteps::
 ;@ On the link master the own team is at positions 4-6.
 ;@ test: skip calls a routine in another bank
 BattleMenuStart::
-;> Call_55_479B()
-	ld hl, far_Call_55_479B
+;> LoadWindowLetters_3()
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 ;> FillMemory(wCommandStep, 8, 0)
 	xor a
@@ -231,8 +231,8 @@ BattleMenuStart::
 ;@ Draws the battle screen with the command menu (BattleMenuWindow) and its cursor.
 ;@ test: skip calls a routine in another bank
 BattleMenuOpen::
-;> Call_55_4774()
-	ld hl, far_Call_55_4774
+;> LoadWindowLetters_1_9()
+	ld hl, far_LoadWindowLetters_1_9
 	rst $10
 ;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
@@ -323,8 +323,8 @@ BattleMenuInput::
 	cp $01
 	ret nz
 
-;> Call_55_479B()
-	ld hl, far_Call_55_479B
+;> LoadWindowLetters_3()
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 ;> wConfirmChoice2 = 0
 	xor a
@@ -1306,8 +1306,8 @@ TacticsMenuInput::
 
 .back
 ;> while True:
-;>     Call_55_47C3()
-	ld hl, far_Call_55_47C3
+;>     LoadWindowLetters_5()
+	ld hl, far_LoadWindowLetters_5
 	rst $10
 ;>@out     if not (wMenuChoice2 == 0x80 or wConfirmChoice2 == wPartyBarTiles[0] or wConfirmChoice2 & 3 == 0):
 	ld a, [wMenuChoice2]
@@ -1877,9 +1877,9 @@ OrdersStart::
 	bit 4, [hl]
 	jr nz, OrdersSkipMon
 
-	ld hl, far_Call_55_47AF
+	ld hl, far_LoadWindowLetters_4
 	rst $10
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 	xor a
 	ld hl, wMenuChoice3
@@ -2001,7 +2001,7 @@ jr_050_4870:
 
 
 OrdersBackToTactics::
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 	ld a, $81
 	ld [wMenuChoice], a
@@ -2440,7 +2440,7 @@ jr_050_4b54:
 	ld a, $0b
 	ld [wOrderStep], a
 	call Call_50_56EB
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 	ret
 
@@ -2450,7 +2450,7 @@ Jump_050_4b6b:
 	ld a, $0b
 	ld [wOrderStep], a
 	call Call_50_56EB
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 	ld a, [wConfirmChoice2]
 	ld hl, $dced
@@ -2694,7 +2694,7 @@ AllyTargetOpen::
 	ld [wTargetSkill], a
 	ld a, a
 	ld [wTargetCursorSkill], a
-	ld hl, far_Call_55_47FF
+	ld hl, far_LoadWindowLetters_7
 	rst $10
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
@@ -2800,7 +2800,7 @@ jr_050_4d84:
 	ld a, $0b
 	ld [wOrderStep], a
 	call Call_50_56EB
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 
 Jump_050_4d9b:
@@ -2935,7 +2935,7 @@ jr_050_4e6b:
 	ld a, $0b
 	ld [wOrderStep], a
 	call Call_50_56EB
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 
 Jump_050_4e89:
@@ -2979,7 +2979,7 @@ OrdersNextMon::
 	ld [wCommandSubStep], a
 	call SetMonTactic
 	call Call_50_56EB
-	ld hl, far_Call_55_479B
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 	jp Jump_050_4f61
 
@@ -3365,7 +3365,7 @@ jr_050_50e1:
 	bit 1, a
 	jr z, jr_050_50f4
 
-	ld hl, far_Call_55_47C3
+	ld hl, far_LoadWindowLetters_5
 	rst $10
 	ld a, $01
 	ld [wCommandStep], a
@@ -3404,7 +3404,7 @@ jr_050_50f4:
 	ld [wBattleItemEffect], a
 	ld a, $59
 	call QueueSound
-	ld hl, far_Call_55_47D7
+	ld hl, far_LoadWindowLetters_6
 	rst $10
 	ld a, [wBattleItemTarget]
 	cp $11
@@ -3566,7 +3566,7 @@ jr_050_5227:
 
 	ld a, $59
 	call QueueSound
-	ld hl, far_Call_55_47EB
+	ld hl, far_LoadWindowLetters_2
 	rst $10
 	ld a, $80
 	ld [wMenuChoice3], a

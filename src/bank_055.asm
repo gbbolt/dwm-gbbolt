@@ -8,58 +8,58 @@ BankNumber_55::
 	db $55
 
 FarTable_55::
-	dw Call_55_401F
-	dw Call_55_4026
-	dw Call_55_4035
-	dw Call_55_403C
-	dw Call_55_4043
-	dw Call_55_4774
-	dw Call_55_479B
-	dw Call_55_47AF
-	dw Call_55_47C3
-	dw Call_55_47D7
-	dw Call_55_47EB
-	dw Call_55_47FF
-	dw Call_55_4813
-	dw Call_55_4936
-	dw Data_55_4B4A
+	dw PlaySkillSound0
+	dw PlaySkillSound1
+	dw PlaySkillSound2
+	dw PlaySkillSound3
+	dw PlaySkillSound4
+	dw LoadWindowLetters_1_9
+	dw LoadWindowLetters_3
+	dw LoadWindowLetters_4
+	dw LoadWindowLetters_5
+	dw LoadWindowLetters_6
+	dw LoadWindowLetters_2
+	dw LoadWindowLetters_7
+	dw LoadWindowLetters_10
+	dw DebugMenuInit
+	dw DebugMenuUpdate
 
-Call_55_401F::
+PlaySkillSound0::
 	ld hl, $4070
-	call Call_55_404A
+	call PlaySkillSoundFrom
 	ret
 
 
-Call_55_4026::
+PlaySkillSound1::
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
 	ret nz
 
 	ld hl, $4074
-	call Call_55_404A
+	call PlaySkillSoundFrom
 	ret
 
 
-Call_55_4035::
+PlaySkillSound2::
 	ld hl, $4078
-	call Call_55_404A
+	call PlaySkillSoundFrom
 	ret
 
 
-Call_55_403C::
+PlaySkillSound3::
 	ld hl, $407c
-	call Call_55_404A
+	call PlaySkillSoundFrom
 	ret
 
 
-Call_55_4043::
+PlaySkillSound4::
 	ld hl, $4080
-	call Call_55_404A
+	call PlaySkillSoundFrom
 	ret
 
 
-Call_55_404A::
+PlaySkillSoundFrom::
 	ld a, [wLinkFlags]
 	and $02
 	ld b, a
@@ -88,13 +88,13 @@ Call_55_404A::
 
 
 SkillSoundTables::
-	dw SkillSounds_4084, SkillSounds_4162
-	dw SkillSounds_4240, SkillSounds_431E
-	dw SkillSounds_43FC, SkillSounds_44DA
-	dw SkillSounds_45B8, SkillSounds_45B8
-	dw SkillSounds_4696, SkillSounds_4696
+	dw SkillSounds0Own, SkillSounds0Enemy
+	dw SkillSounds1Own, SkillSounds1Enemy
+	dw SkillSounds2Own, SkillSounds2Enemy
+	dw SkillSounds3, SkillSounds3
+	dw SkillSounds4, SkillSounds4
 
-SkillSounds_4084::
+SkillSounds0Own::
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
@@ -110,7 +110,7 @@ SkillSounds_4084::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $65, $67, $67, $67, $67, $ff, $ff, $ff, $67
 
-SkillSounds_4162::
+SkillSounds0Enemy::
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $ff, $65, $65, $65, $65, $65, $65
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $ff, $65, $65, $65, $65, $65
@@ -126,7 +126,7 @@ SkillSounds_4162::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $65, $6b, $6b, $6b, $6b, $65, $6d, $65, $6b
 
-SkillSounds_4240::
+SkillSounds1Own::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $73, $73, $72, $84, $73, $72, $ff, $72, $72, $ff, $ff
 	db $72, $72, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -142,7 +142,7 @@ SkillSounds_4240::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $82, $7e, $ff, $78, $81, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $76, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
-SkillSounds_431E::
+SkillSounds1Enemy::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $71, $71, $ff, $ff, $71, $71
 	db $ff, $ff, $71, $71, $ff, $71, $ff, $86, $86, $85, $ff, $70, $70, $70, $70, $70
@@ -158,7 +158,7 @@ SkillSounds_431E::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $82, $7e, $ff, $78, $81, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $76, $85, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
-SkillSounds_43FC::
+SkillSounds2Own::
 	db $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c
 	db $6c, $6c, $9c, $9c, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $71, $71
 	db $ff, $ff, $71, $71, $ff, $71, $ff, $86, $86, $85, $ff, $70, $70, $70, $70, $70
@@ -174,7 +174,7 @@ SkillSounds_43FC::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $6c, $6c, $ff, $6c, $6c, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $6c, $85, $6c, $6c, $6c, $6c, $ff, $ff, $ff, $6c
 
-SkillSounds_44DA::
+SkillSounds2Enemy::
 	db $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c
 	db $6c, $6c, $9c, $9c, $ff, $73, $73, $72, $84, $ff, $ff, $ff, $72, $72, $ff, $ff
 	db $72, $72, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -190,7 +190,7 @@ SkillSounds_44DA::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $6c, $6c, $ff, $6c, $6c, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $6c, $ff, $6c, $6c, $6c, $6c, $73, $ff, $ff, $6c
 
-SkillSounds_45B8::
+SkillSounds3::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -206,7 +206,7 @@ SkillSounds_45B8::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $6f, $6f, $6f, $6f, $ff, $ff, $ff, $6f
 
-SkillSounds_4696::
+SkillSounds4::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -222,91 +222,91 @@ SkillSounds_4696::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
-Call_55_4774::
+LoadWindowLetters_1_9::
 	ld hl, $97c0
 	ld de, $0601
 	ld a, $01
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ld hl, $8800
 	ld de, $0c01
 	ld a, $09
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_479B::
+LoadWindowLetters_3::
 	ld hl, $8850
 	ld de, $1801
 	ld a, $03
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_47AF::
+LoadWindowLetters_4::
 	ld hl, $8800
 	ld de, $0501
 	ld a, $04
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_47C3::
+LoadWindowLetters_5::
 	ld hl, $8800
 	ld de, $0501
 	ld a, $05
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_47D7::
+LoadWindowLetters_6::
 	ld hl, $8850
 	ld de, $0601
 	ld a, $06
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_47EB::
+LoadWindowLetters_2::
 	ld hl, $8800
 	ld de, $0b01
 	ld a, $02
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_47FF::
+LoadWindowLetters_7::
 	ld hl, $8860
 	ld de, $0201
 	ld a, $07
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
-	call Call_55_4823
+	call LoadWindowLetters
 	ret
 
 
-Call_55_4813::
+LoadWindowLetters_10::
 	ld hl, $8820
 	ld de, $0701
 	ld a, $0a
@@ -314,7 +314,7 @@ Call_55_4813::
 	ld a, $03
 	ld [wTextGroup], a
 
-Call_55_4823::
+LoadWindowLetters::
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
@@ -333,7 +333,7 @@ Call_55_4823::
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
-	call Call_55_4863
+	call DrawLetterSet
 	pop de
 	pop hl
 	ld a, l
@@ -350,14 +350,14 @@ Call_55_4823::
 BattleMenuTileAddrs::
 	dw $96c0, $97c0, $8800, $8850
 
-Call_55_4863::
+DrawLetterSet::
 	ld de, $48a9
-	call Call_55_486D
+	call StartLetterSetText
 	call RunTextToEnd
 	ret
 
 
-Call_55_486D::
+StartLetterSetText::
 	push de
 	ld a, [wTextTiles]
 	ld l, a
@@ -372,7 +372,7 @@ Call_55_486D::
 	ld a, h
 	ld [$c830], a
 	pop de
-	call Call_55_4924
+	call GetLetterSetPointer
 	ld a, e
 	ld [wTextPtr], a
 	ld a, d
@@ -390,7 +390,7 @@ Call_55_486D::
 	ret
 
 
-BattleMenuTexts::
+WindowLetterSets::
 	dw .t0
 	dw .t1
 	dw .t2
@@ -426,7 +426,7 @@ BattleMenuTexts::
 .t10
 	db $3a, $2b, $32, $2c, $31, $29, $32, $32, $2e, $f0
 
-Call_55_4924::
+GetLetterSetPointer::
 	ld a, [BankNumber_55]
 	ld [wTextBank], a
 	ld a, [wTextIndex]
@@ -440,7 +440,7 @@ Call_55_4924::
 	ret
 
 
-Call_55_4936::
+DebugMenuInit::
 	ld hl, $9000
 	ld de, $1007
 	call SetUpTextBox
@@ -456,7 +456,7 @@ Call_55_4936::
 	call FillMemory
 	xor a
 	ld [wMenuChoice], a
-	call Call_55_496C
+	call DebugPageInit
 	ld a, $00
 	call QueueMusic
 	ld a, $03
@@ -465,19 +465,19 @@ Call_55_4936::
 	jp EnableLCDAndInterrupts
 
 
-Call_55_496C::
+DebugPageInit::
 	ld a, [wGameModeStep]
 	rst $00
 
-JumpTable_55_4970::
-	dw Jump_55_497C
-	dw Jump_55_499E
-	dw Jump_55_49E2
-	dw Jump_55_4A4F
-	dw Jump_55_4A9E
-	dw Jump_55_4ACB
+DebugPageInits::
+	dw DebugMainInit
+	dw DebugModeJumpInit
+	dw DebugMonsterViewInit
+	dw DebugWarpInit
+	dw DebugSoundTestInit
+	dw DebugBattleInit
 
-Jump_55_497C::
+DebugMainInit::
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
@@ -487,14 +487,14 @@ Jump_55_497C::
 	ld hl, $8800
 	ld a, $03
 	ld [wTextIndex], a
-	call Call_55_4B22
+	call DebugPrintText
 	ld hl, $98a3
 	ld bc, $1002
 	ld a, $80
-	jp Call_55_4B33
+	jp FillTileBlock
 
 
-Jump_55_499E::
+DebugModeJumpInit::
 	xor a
 	ld [wTextGroup], a
 	ld a, $05
@@ -505,11 +505,11 @@ Jump_55_499E::
 	ld de, $1006
 	ld a, $07
 	ld [wTextIndex], a
-	call Call_55_4B1A
+	call DebugPrintTextBox
 	ld hl, $8800
 	ld a, $08
 	ld [wTextIndex], a
-	call Call_55_4B22
+	call DebugPrintText
 	ld hl, wNumberBackup
 	ld a, [wDebugSavedMode]
 	ld [hli], a
@@ -522,10 +522,10 @@ Jump_55_499E::
 	ld hl, $9884
 	ld bc, $1006
 	ld a, $12
-	jp Call_55_4B33
+	jp FillTileBlock
 
 
-Jump_55_49E2::
+DebugMonsterViewInit::
 	xor a
 	ld [wTextGroup], a
 	ld a, $05
@@ -542,42 +542,42 @@ Jump_55_49E2::
 	ld hl, $9887
 	ld a, $80
 	ld b, $06
-	call Call_55_4A47
+	call WriteTileRun
 	ld hl, $98a7
 	ld b, $06
-	call Call_55_4A47
+	call WriteTileRun
 	ld hl, $98c7
 	ld b, $06
-	call Call_55_4A47
+	call WriteTileRun
 	ld hl, $98e7
 	ld b, $06
-	call Call_55_4A47
+	call WriteTileRun
 	ld hl, $9907
 	ld b, $06
-	call Call_55_4A47
+	call WriteTileRun
 	ld hl, $9927
 	ld b, $06
-	call Call_55_4A47
+	call WriteTileRun
 	ld hl, $9967
 	ld a, $a4
 	ld b, $09
-	call Call_55_4A47
+	call WriteTileRun
 	xor a
 	ld [wMenuChoice], a
-	call Call_55_4D44
+	call ShowDebugMonster
 	ret
 
 
-Call_55_4A47::
+WriteTileRun::
 	call WriteVRAMInc
 	inc a
 	dec b
-	jr nz, Call_55_4A47
+	jr nz, WriteTileRun
 
 	ret
 
 
-Jump_55_4A4F::
+DebugWarpInit::
 	xor a
 	ld [wTextGroup], a
 	ld a, $05
@@ -588,7 +588,7 @@ Jump_55_4A4F::
 	ld de, $0a0a
 	ld a, $04
 	ld [wTextIndex], a
-	call Call_55_4B1A
+	call DebugPrintTextBox
 	ld hl, wNumberBackup
 	ld a, [wOnGateFloor]
 	ld [hli], a
@@ -611,11 +611,11 @@ Jump_55_4A4F::
 	ld hl, $9885
 	ld bc, $0a0a
 	ld a, $12
-	call Call_55_4B33
-	jp Jump_055_4ed3
+	call FillTileBlock
+	jp DebugWarpRefresh
 
 
-Jump_55_4A9E::
+DebugSoundTestInit::
 	xor a
 	ld [wTextGroup], a
 	ld a, $05
@@ -626,17 +626,17 @@ Jump_55_4A9E::
 	ld de, $1006
 	ld a, $06
 	ld [wTextIndex], a
-	call Call_55_4B1A
+	call DebugPrintTextBox
 	xor a
 	ld [wNumberBackup], a
 	ld [$c0a1], a
 	ld hl, $9884
 	ld bc, $1006
 	ld a, $12
-	jp Call_55_4B33
+	jp FillTileBlock
 
 
-Jump_55_4ACB::
+DebugBattleInit::
 	xor a
 	ld [wTextGroup], a
 	ld a, $05
@@ -647,7 +647,7 @@ Jump_55_4ACB::
 	ld de, $0a0a
 	ld a, $09
 	ld [wTextIndex], a
-	call Call_55_4B1A
+	call DebugPrintTextBox
 	ld hl, wNumberBackup
 	ld a, [wEncCount]
 	ld [hli], a
@@ -670,17 +670,17 @@ Jump_55_4ACB::
 	ld hl, $9885
 	ld bc, $0a0a
 	ld a, $12
-	call Call_55_4B33
-	jp Jump_055_5232
+	call FillTileBlock
+	jp DebugBattleRefresh
 
 
-Call_55_4B1A::
+DebugPrintTextBox::
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
 
-Call_55_4B22::
+DebugPrintText::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
@@ -692,7 +692,7 @@ Call_55_4B22::
 	ret
 
 
-Call_55_4B33::
+FillTileBlock::
 	push hl
 	ld d, b
 
@@ -713,12 +713,12 @@ jr_055_4b35:
 	ld h, a
 	ld a, e
 	dec c
-	jr nz, Call_55_4B33
+	jr nz, FillTileBlock
 
 	ret
 
 
-Data_55_4B4A::
+DebugMenuUpdate::
 	ld a, [wJoyPressed]
 	bit 2, a
 	jr z, jr_055_4b72
@@ -742,14 +742,14 @@ jr_055_4b72:
 	ld a, [wGameModeStep]
 	rst $00
 
-	dw Call_55_4B82
-	dw Call_55_4BF4
-	dw Call_55_4D02
-	dw Call_55_4DA4
-	dw Call_55_4FA0
-	dw Call_55_5116
+	dw DebugMainPage
+	dw DebugModeJumpPage
+	dw DebugMonsterViewPage
+	dw DebugWarpPage
+	dw DebugSoundTestPage
+	dw DebugBattlePage
 
-Call_55_4B82::
+DebugMainPage::
 	ld a, [wJoyRepeat]
 	and $90
 	jr z, jr_055_4b95
@@ -818,7 +818,7 @@ jr_055_4bdc:
 	ret
 
 
-Call_55_4BF4::
+DebugModeJumpPage::
 	ld a, [wJoyPressed]
 	and $08
 	jr z, jr_055_4c52
@@ -954,7 +954,7 @@ jr_055_4cbf:
 
 jr_055_4cda:
 	ld a, [de]
-	call Call_55_5315
+	call DrawHexByte
 
 jr_055_4cde:
 	pop bc
@@ -985,12 +985,12 @@ jr_055_4cfa:
 	ret
 
 
-Call_55_4D02::
+DebugMonsterViewPage::
 	ld hl, $9988
 	ld a, [wMenuChoice]
 	ld b, $01
 	ld c, $00
-	call Call_55_5326
+	call DrawNumberDigits
 	ld a, [wJoyPressed]
 	and $02
 	jr z, jr_055_4d24
@@ -1024,7 +1024,7 @@ jr_055_4d3c:
 	ld a, $59
 	call QueueSound
 
-Call_55_4D44::
+ShowDebugMonster::
 	ld a, [wMenuChoice]
 	ld l, a
 	ld h, $00
@@ -1076,7 +1076,7 @@ jr_055_4da3:
 
 
 
-Call_55_4DA4::
+DebugWarpPage::
 	ld a, [wJoyPressed]
 	and $08
 	jr z, jr_055_4e0a
@@ -1182,22 +1182,22 @@ jr_055_4e53:
 	ld a, [wMenuChoice]
 	ld b, $02
 	cp $00
-	call z, Jump_055_4ed3
+	call z, DebugWarpRefresh
 	ld b, $60
 	cp $01
-	call z, Jump_055_4ed3
+	call z, DebugWarpRefresh
 	ld b, $04
 	cp $02
-	call z, Jump_055_4ed3
+	call z, DebugWarpRefresh
 	ld b, $0a
 	cp $03
-	call z, Jump_055_4ed3
+	call z, DebugWarpRefresh
 	ld b, $0a
 	cp $04
-	call z, Jump_055_4ed3
+	call z, DebugWarpRefresh
 	ld b, $0a
 	cp $05
-	call z, Jump_055_4ed3
+	call z, DebugWarpRefresh
 
 jr_055_4e85:
 	ld a, [wJoyPressed]
@@ -1236,7 +1236,7 @@ jr_055_4ebb:
 	ld a, [de]
 	ld b, $01
 	ld c, $00
-	call Call_55_5366
+	call DrawHexDigits
 
 jr_055_4ec3:
 	pop bc
@@ -1253,7 +1253,7 @@ jr_055_4ec3:
 	jr nz, jr_055_4e9d
 	ret
 
-Jump_055_4ed3::
+DebugWarpRefresh::
 	push af
 	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
@@ -1287,7 +1287,7 @@ jr_055_4eed:
 	ld a, h
 	ld [wTextBoxLineLength], a
 	ld hl, $8800
-	call Call_55_4F8F
+	call PrintTextAt
 	ld a, [wNumberBackup]
 	cp $00
 	jr z, jr_055_4f14
@@ -1309,51 +1309,51 @@ jr_055_4f19:
 	ld a, h
 	ld [wTextBoxLineLength], a
 	ld hl, $8870
-	call Call_55_4F8F
+	call PrintTextAt
 	ld a, $04
 	ld [wTextGroup], a
 	ld a, [wLineUpOrder]
 	ld [wTextIndex], a
 	ld hl, $88e0
-	call Call_55_4F8F
+	call PrintTextAt
 	ld a, [$c0a4]
 	ld [wTextIndex], a
 	ld hl, $8950
-	call Call_55_4F8F
+	call PrintTextAt
 	ld a, [$c0a5]
 	ld [wTextIndex], a
 	ld hl, $89c0
-	call Call_55_4F8F
+	call PrintTextAt
 	ld hl, $98d0
 	ld a, $80
 	ld b, $07
-	call Call_55_4F87
+	call WriteTileRun2
 	ld hl, $98f0
 	ld b, $07
-	call Call_55_4F87
+	call WriteTileRun2
 	ld hl, $9930
 	ld b, $07
-	call Call_55_4F87
+	call WriteTileRun2
 	ld hl, $9950
 	ld b, $07
-	call Call_55_4F87
+	call WriteTileRun2
 	ld hl, $9970
 	ld b, $07
-	call Call_55_4F87
+	call WriteTileRun2
 	pop af
 	ret
 
 
-Call_55_4F87::
+WriteTileRun2::
 	call WriteVRAMInc
 	inc a
 	dec b
-	jr nz, Call_55_4F87
+	jr nz, WriteTileRun2
 
 	ret
 
 
-Call_55_4F8F::
+PrintTextAt::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
@@ -1366,7 +1366,7 @@ Call_55_4F8F::
 
 
 
-Call_55_4FA0::
+DebugSoundTestPage::
 	ld a, [wJoyPressed]
 	and $08
 	jr z, jr_055_4fd2
@@ -1455,10 +1455,10 @@ jr_055_501b:
 	ld a, [wMenuChoice]
 	ld b, $20
 	cp $00
-	call z, jr_055_5098
+	call z, DebugWrapValue
 	ld b, $40
 	cp $01
-	call z, jr_055_5098
+	call z, DebugWrapValue
 
 jr_055_5031:
 	ld a, [wJoyPressed]
@@ -1498,7 +1498,7 @@ jr_055_5050:
 
 jr_055_506b:
 	ld a, [de]
-	call Call_55_5315
+	call DrawHexByte
 
 jr_055_506f:
 	pop bc
@@ -1518,7 +1518,7 @@ jr_055_507c:
 	ld b, a
 	ld a, [bc]
 	inc hl
-	call Call_55_5315
+	call DrawHexByte
 	pop bc
 	pop hl
 	pop de
@@ -1534,7 +1534,7 @@ jr_055_507c:
 	ret
 
 
-jr_055_5098::
+DebugWrapValue::
 	push af
 	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
@@ -1570,7 +1570,7 @@ DebugSoundList::
 	db $8a, $8c, $8d, $8e, $8f, $90, $92, $93, $94, $95, $96, $97, $99, $9b, $9c, $9d
 	db $00, $00
 
-Call_55_5116::
+DebugBattlePage::
 	ld a, [wJoyPressed]
 	and $08
 	jr z, jr_055_5162
@@ -1580,7 +1580,7 @@ Call_55_5116::
 	ld [wGameMode], a
 	ld a, $00
 	ld [wGameModeStep], a
-	call Call_55_5379
+	call DebugSetUpGame
 	ld a, [wPartyCount]
 	or a
 	jr nz, jr_055_5139
@@ -1666,25 +1666,25 @@ jr_055_51ab:
 	ld a, [wMenuChoice]
 	ld b, $03
 	cp $00
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 	ld b, $00
 	cp $01
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 	ld b, $02
 	cp $02
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 	ld b, $00
 	cp $03
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 	ld b, $02
 	cp $04
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 	ld b, $00
 	cp $05
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 	ld b, $02
 	cp $06
-	call z, Jump_055_5232
+	call z, DebugBattleRefresh
 
 jr_055_51e4:
 	ld a, [wJoyPressed]
@@ -1723,7 +1723,7 @@ jr_055_521a:
 	ld a, [de]
 	ld b, $01
 	ld c, $00
-	call Call_55_5366
+	call DrawHexDigits
 
 jr_055_5222:
 	pop bc
@@ -1740,7 +1740,7 @@ jr_055_5222:
 	jr nz, jr_055_51fc
 	ret
 
-Jump_055_5232::
+DebugBattleRefresh::
 	push af
 	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
@@ -1796,7 +1796,7 @@ jr_055_524c:
 	ld a, [wNewMonNameText]
 	ld [wTextIndex], a
 	ld hl, $8800
-	call Call_55_5304
+	call PrintTextAt2
 	ld a, [$da05]
 	ld l, a
 	ld a, [$da06]
@@ -1810,7 +1810,7 @@ jr_055_524c:
 	ld a, [wNewMonNameText]
 	ld [wTextIndex], a
 	ld hl, $8890
-	call Call_55_5304
+	call PrintTextAt2
 	ld a, [$da07]
 	ld l, a
 	ld a, [$da08]
@@ -1824,31 +1824,31 @@ jr_055_524c:
 	ld a, [wNewMonNameText]
 	ld [wTextIndex], a
 	ld hl, $8920
-	call Call_55_5304
+	call PrintTextAt2
 	ld hl, $98ef
 	ld a, $80
 	ld b, $09
-	call Call_55_52FC
+	call WriteTileRun3
 	ld hl, $992f
 	ld b, $09
-	call Call_55_52FC
+	call WriteTileRun3
 	ld hl, $996f
 	ld b, $09
-	call Call_55_52FC
+	call WriteTileRun3
 	pop af
 	ret
 
 
-Call_55_52FC::
+WriteTileRun3::
 	call WriteVRAMInc
 	inc a
 	dec b
-	jr nz, Call_55_52FC
+	jr nz, WriteTileRun3
 
 	ret
 
 
-Call_55_5304::
+PrintTextAt2::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
@@ -1861,7 +1861,7 @@ Call_55_5304::
 
 
 
-Call_55_5315::
+DrawHexByte::
 	ld c, a
 	swap a
 	and $0f
@@ -1874,37 +1874,37 @@ Call_55_5315::
 	ret
 
 
-Call_55_5326::
+DrawNumberDigits::
 	cp $64
 	jr nc, jr_055_5338
-	call jr_055_535f
+	call WriteBlankTile
 	inc hl
 	cp $0a
 	jr nc, jr_055_5341
-	call jr_055_535f
+	call WriteBlankTile
 	inc hl
 	jr jr_055_534a
 
 
 jr_055_5338:
 	ld e, $64
-	call jr_055_534f
-	call jr_055_5357
+	call DivideAByE
+	call WriteDigitTile
 	inc hl
 
 jr_055_5341:
 	ld e, $0a
-	call jr_055_534f
-	call jr_055_5357
+	call DivideAByE
+	call WriteDigitTile
 	inc hl
 
 jr_055_534a:
 	ld d, a
-	call jr_055_5357
+	call WriteDigitTile
 	ret
 
 
-jr_055_534f::
+DivideAByE::
 	ld d, $ff
 
 jr_055_5351:
@@ -1915,7 +1915,7 @@ jr_055_5351:
 	ret
 
 
-jr_055_5357::
+WriteDigitTile::
 	push af
 	ld a, d
 	add b
@@ -1924,7 +1924,7 @@ jr_055_5357::
 	ret
 
 
-jr_055_535f::
+WriteBlankTile::
 	push af
 	ld a, c
 	call WriteVRAM
@@ -1932,22 +1932,22 @@ jr_055_535f::
 	ret
 
 
-Call_55_5366::
+DrawHexDigits::
 	inc hl
 	push af
 	swap a
 	and $0f
 	ld d, a
-	call jr_055_5357
+	call WriteDigitTile
 	inc hl
 	pop af
 	and $0f
 	ld d, a
-	call jr_055_5357
+	call WriteDigitTile
 	ret
 
 
-Call_55_5379::
+DebugSetUpGame::
 	ld a, $6e
 	ld [wPlayerName], a
 	ld a, $86
@@ -1970,7 +1970,7 @@ Call_55_5379::
 jr_055_53a5:
 	push bc
 	ld a, c
-	call Call_55_53F6
+	call DebugMakeMonster
 	pop bc
 	inc c
 	dec b
@@ -2006,7 +2006,7 @@ jr_055_53a5:
 	ret
 
 
-Call_55_53F6::
+DebugMakeMonster::
 	push af
 	ld [wNewMonSlot], a
 	call Random
@@ -2026,7 +2026,7 @@ Call_55_53F6::
 	ld hl, wMonParent1
 	ld c, a
 	pop af
-	call Call_55_549C
+	call SetMonsterField
 	push af
 	pop af
 	push af
@@ -2036,7 +2036,7 @@ Call_55_53F6::
 	ld hl, wMonParent2
 	ld c, a
 	pop af
-	call Call_55_549C
+	call SetMonsterField
 	push af
 	pop af
 	push af
@@ -2046,7 +2046,7 @@ Call_55_53F6::
 	ld c, a
 	pop af
 	ld hl, wMonName
-	call Call_55_54AC
+	call SetRandomMonsterName
 	push af
 	call Random
 	ld a, [wRandomHigh]
@@ -2054,7 +2054,7 @@ Call_55_53F6::
 	ld c, a
 	pop af
 	ld hl, wMonParent1Master
-	call Call_55_54AC
+	call SetRandomMonsterName
 	push af
 	call Random
 	ld a, [wRandomHigh]
@@ -2062,7 +2062,7 @@ Call_55_53F6::
 	ld c, a
 	pop af
 	ld hl, wMonParent2Master
-	call Call_55_54AC
+	call SetRandomMonsterName
 	push af
 	ld hl, wMonParent1
 	call MonsterField
@@ -2074,7 +2074,7 @@ Call_55_53F6::
 	ld c, a
 	pop af
 	ld hl, wMonParent1Name
-	call Call_55_54AC
+	call SetRandomMonsterName
 	push af
 	ld hl, wMonParent2
 	call MonsterField
@@ -2086,11 +2086,11 @@ Call_55_53F6::
 	ld c, a
 	pop af
 	ld hl, wMonParent2Name
-	call Call_55_54AC
+	call SetRandomMonsterName
 	ret
 
 
-Call_55_549C::
+SetMonsterField::
 	push af
 	call MonsterField
 	ld [hl], c
@@ -2099,7 +2099,7 @@ Call_55_549C::
 
 	push af
 
-Call_55_54A4::
+SetMonsterWord::
 	call MonsterField
 	ld [hl], c
 	inc hl
@@ -2108,7 +2108,7 @@ Call_55_54A4::
 	ret
 
 
-Call_55_54AC::
+SetRandomMonsterName::
 	push af
 	push bc
 	call MonsterField

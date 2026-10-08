@@ -10995,8 +10995,8 @@ GetWordFromTable::
 ;@ $5E. Animation $2C, and $15 for skill $C5, are drawn once over each enemy
 ;@ still standing (X $50 for one enemy, $38/$68 for two, $20/$50/$80 for
 ;@ three). Nothing is drawn when the skill's user and target are both on this
-;@ Game Boy's own side. The bytes after it are an unused variant that also
-;@ sets the sprite palettes (OBP0 from SkillAnimOBP0).
+;@ Game Boy's own side. StartSkillAnimSprites, after it, starts the sprites
+;@ (and sets the sprite palettes from SkillAnimOBP0).
 ;@ test: skip calls routines in other banks
 UpdateSkillAnimation::
 ;> if not wSkillAnimActive:
@@ -11274,15 +11274,77 @@ UpdateSkillAnimation::
 	ret
 
 
+;@ def StartSkillAnimSprites()
+;@ path: battle/animation
+;@ Starts the sprites of the skill animation (GetSkillAnim): sprite palettes OBP1 $E0 and
+;@ OBP0 from SkillAnimOBP0, then the animation's start routine in bank $5C (animations below
+;@ $0E), $5D (below $21) or $5E. Called by StartSkillAnimation in bank $5F and by the battle
+;@ code.
+;@ test: skip calls routines in other banks
 StartSkillAnimSprites::
-	db $21, $07, $5f, $d7, $fa, $81, $da, $fe, $ff, $c8, $21, $9b, $c8, $23, $3e, $d0
-	db $22, $3e, $e0, $77, $21, $41, $31, $fa, $81, $da, $85, $6f, $3e, $00, $8c, $67
-	db $7e, $ea, $9c, $c8, $fa, $81, $da, $fe, $0e, $38, $09, $fe, $21, $38, $0a, $21
-	db $01, $5e, $d7, $c9, $21, $01, $5c, $d7, $c9, $21, $01, $5d, $d7, $c9
+;> GetSkillAnim()
+	ld hl, far_GetSkillAnim
+	rst $10
+;> anim = wSkillAnim
+;> if anim == 0xFF:
+	ld a, [wSkillAnim]
+	cp $ff
+;>     return
+	ret z
+
+;> wOBP0 = 0xD0
+	ld hl, wBGP
+	inc hl
+	ld a, $d0
+	ld [hli], a
+;> wOBP1 = 0xE0
+	ld a, $e0
+	ld [hl], a
+;> p = SkillAnimOBP0 + anim
+	ld hl, SkillAnimOBP0
+	ld a, [wSkillAnim]
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+;> wOBP0 = mem[p]
+	ld h, a
+	ld a, [hl]
+	ld [wOBP0], a
+;> if anim < 0x0E:
+;>@c     StartSkillAnimSprite_5C()
+	ld a, [wSkillAnim]
+	cp $0e
+	jr c, .bank5C
+
+;> elif anim < 0x21:
+;>@d     StartSkillAnimSprite_5D()
+	cp $21
+	jr c, .bank5D
+
+;> else:
+;>     StartSkillAnimSprite_5E()
+	ld hl, far_StartSkillAnimSprite_5E
+	rst $10
+	ret
+
+
+.bank5C
+;=@c
+	ld hl, far_StartSkillAnimSprite_5C
+	rst $10
+	ret
+
+
+.bank5D
+;=@d
+	ld hl, far_StartSkillAnimSprite_5D
+	rst $10
+	ret
 
 ;@ path: battle/animation
 ;@ OBP0 sprite palette for each skill animation number ($D0 or $E0, 45
-;@ entries), read only by the unused variant of UpdateSkillAnimation.
+;@ entries), set by StartSkillAnimSprites.
 SkillAnimOBP0::
 	db $e0, $e0
 	db $e0, $e0, $e0, $e0, $d0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0

@@ -484,7 +484,7 @@ SavePromptStart::
 ;@ text $0256 in a message window drawn at the top of the screen).
 ;@ test: skip prints text
 SavePromptWaitButton::
-;> if wJoyPressed & 0x0F == 0:
+;> if (wJoyPressed & 0x0F) == 0:
 ;>     return
 	ld a, [wJoyPressed]
 	and $0f
@@ -2677,7 +2677,7 @@ EffectBlinkTarget::
 ;> flags = wLinkFlags
 	ld a, [wLinkFlags]
 	ld b, a
-;> if wSkillTarget & 0x03 == 3:
+;> if (wSkillTarget & 0x03) == 3:
 ;>     return BlinkTargetEnd()
 	ld a, [wSkillTarget]
 	and $03
@@ -3410,164 +3410,245 @@ FlashLongSteps::
 	dw FlashEnd
 	db $c9
 
+;@ def CopyTileRectVRAM_5F(src: hl, dest: de, rows: c)
+;@ path: gfx/tilemap
+;@ Copies `rows` rows of wScreenEffectTimer tile numbers from `src` into the BG map at `dest`,
+;@ each byte written when VRAM is accessible (used to hide and redraw monster pictures).
+;@ test: skip polls the LCD
 CopyTileRectVRAM_5F::
+;>@loop while True:
+;>     rowstart = dest; width = wScreenEffectTimer
 	push de
 	ld a, [wScreenEffectTimer]
 	ld b, a
 
-jr_05f_4e24:
+.column
+;>@col     for x in range(width):
+;>         mem[dest + x] = mem[src + x]     # when VRAM is accessible
 	di
 	call WaitVRAMAccess
 	ld a, [hli]
 	ld [de], a
 	ei
 	inc de
+;=@col
 	dec b
-	jr nz, jr_05f_4e24
+	jr nz, .column
 
+;>     src += width; rows -= 1
 	pop de
 	dec c
+;>     if rows == 0:
+;>         return
 	ret z
 
+;>     dest = u16(rowstart + 32)
 	ld a, $20
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;=@loop
 	jr CopyTileRectVRAM_5F
 
+;@ def GetTargetPicSlot() -> a
+;@ path: battle/screeneffect
+;@ Returns the screen place (index into PicSlotOffsets) of the picture of the skill's target:
+;@ 0 the middle (a single enemy, or the middle one of three), 1/2 left/right of two, 3/4
+;@ left/right of three. Linked, the clock-driving Game Boy counts the partner's party.
+;@ test: wSkillTarget = rng.randint(0, 7)
 GetTargetPicSlot::
+;> if wLinkActive and wLinkFlags & 0x02:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_05f_4e4e
+	jr z, .enemies
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_05f_4e4e
+	jr z, .enemies
 
+;>     count = wPartyBattlers
 	ld a, [wPartyBattlers]
-	jr jr_05f_4e51
+	jr .count
 
-jr_05f_4e4e:
+;> else:
+;>     count = wEnemyCount
+.enemies
 	ld a, [wEnemyCount]
 
-jr_05f_4e51:
+.count
+;> if count == 1:
 	cp $01
-	jr z, jr_05f_4e7d
+	jr z, .center
 
+;>@c     return 0
+;> if count == 2:
 	cp $02
-	jr z, jr_05f_4e6c
+	jr z, .two
 
+;>@t1     if (wSkillTarget & 0x03) == 1:
+;>@t2         return 2
+;>@t3     return 1
+;> pos = wSkillTarget & 0x03
 	ld a, [wSkillTarget]
 	and $03
+;> if pos == 1:
+;>     return 0
 	cp $01
-	jr z, jr_05f_4e7d
+	jr z, .center
 
-	jr c, jr_05f_4e68
+;> if pos == 0:
+	jr c, .left3
 
+;>@p     return 3
+;> return 4
 	ld a, $04
-	jr jr_05f_4e7f
+	jr .done
 
-jr_05f_4e68:
+.left3
+;=@p
 	ld a, $03
-	jr jr_05f_4e7f
+	jr .done
 
-jr_05f_4e6c:
+.two
+;=@t1
 	ld a, [wSkillTarget]
 	and $03
 	cp $01
-	jr z, jr_05f_4e79
+	jr z, .right2
 
+;=@t3
 	ld a, $01
-	jr jr_05f_4e7f
+	jr .done
 
-jr_05f_4e79:
+.right2
+;=@t2
 	ld a, $02
-	jr jr_05f_4e7f
+	jr .done
 
-jr_05f_4e7d:
+.center
+;=@c
 	ld a, $00
 
-jr_05f_4e7f:
+.done
 	ret
 
 
+;@ def GetUserPicSlot() -> a
+;@ path: battle/screeneffect
+;@ GetTargetPicSlot for the skill's user. Linked, the side whose monsters are counted depends
+;@ on which Game Boy drives the clock, swapped again for the skills of CheckSwappedPicSkill.
+;@ test: wSkillUser = rng.randint(0, 7)
 GetUserPicSlot::
+;> if not wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_05f_4ea3
+	jr z, .enemies
 
+;>@e     count = wEnemyCount
+;> elif CheckSwappedPicSkill():
 	call CheckSwappedPicSkill
-	jr nz, jr_05f_4e97
+	jr nz, .normal
 
+;>     count = wPartyBattlers if wLinkFlags & 0x02 else wEnemyCount
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_05f_4ea3
+	jr z, .enemies
 
 	ld a, [wPartyBattlers]
-	jr jr_05f_4ea6
+	jr .count
 
-jr_05f_4e97:
+;> else:
+;>     count = wEnemyCount if wLinkFlags & 0x02 else wPartyBattlers
+.normal
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_05f_4ea3
+	jr nz, .enemies
 
 	ld a, [wPartyBattlers]
-	jr jr_05f_4ea6
+	jr .count
 
-jr_05f_4ea3:
+.enemies
+;=@e
 	ld a, [wEnemyCount]
 
-jr_05f_4ea6:
+.count
+;> if count == 1:
 	cp $01
-	jr z, jr_05f_4ed2
+	jr z, .center
 
+;>@c     return 0
+;> if count == 2:
 	cp $02
-	jr z, jr_05f_4ec1
+	jr z, .two
 
+;>@t1     if (wSkillUser & 0x03) == 1:
+;>@t2         return 2
+;>@t3     return 1
+;> pos = wSkillUser & 0x03
 	ld a, [wSkillUser]
 	and $03
+;> if pos == 1:
+;>     return 0
 	cp $01
-	jr z, jr_05f_4ed2
+	jr z, .center
 
-	jr c, jr_05f_4ebd
+;> if pos == 0:
+	jr c, .left3
 
+;>@p     return 3
+;> return 4
 	ld a, $04
-	jr jr_05f_4ed4
+	jr .done
 
-jr_05f_4ebd:
+.left3
+;=@p
 	ld a, $03
-	jr jr_05f_4ed4
+	jr .done
 
-jr_05f_4ec1:
+.two
+;=@t1
 	ld a, [wSkillUser]
 	and $03
 	cp $01
-	jr z, jr_05f_4ece
+	jr z, .right2
 
+;=@t3
 	ld a, $01
-	jr jr_05f_4ed4
+	jr .done
 
-jr_05f_4ece:
+.right2
+;=@t2
 	ld a, $02
-	jr jr_05f_4ed4
+	jr .done
 
-jr_05f_4ed2:
+.center
+;=@c
 	ld a, $00
 
-jr_05f_4ed4:
+.done
 	ret
 
 
+;@ def QuakeShake()
+;@ path: battle/screeneffect
+;@ One step of the quake's shaking (until QuakeEnd marks it done): QuakeShakeSteps by
+;@ wScreenEffectTimer.
+;@ test: skip runs the steps through a jump table
 QuakeShake::
+;> if wScreenEffectStep:
+;>     return
 	ld a, [wScreenEffectStep]
 	or a
 	ret nz
 
+;> QuakeShakeSteps[wScreenEffectTimer]()
 	ld a, [wScreenEffectTimer]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ The quake's shaking pattern: down 4, back, right 3, back..., 26 steps, then QuakeEnd.
 QuakeShakeSteps::
 	dw QuakeDown
 	dw QuakeCenter
@@ -3597,52 +3678,85 @@ QuakeShakeSteps::
 	dw QuakeRight
 	dw QuakeEnd
 
+;@ def QuakeDown()
+;@ path: battle/screeneffect
+;@ Scrolls the background 4 pixels (Y).
 QuakeDown::
+;> mem[addr(hScrollY)] = 4
 	ld a, $04
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 0
 	ld a, $00
 	ldh [hScrollX], a
+;> wScreenEffectTimer += 1
 	ld hl, wScreenEffectTimer
 	inc [hl]
 	ret
 
 
+;@ def QuakeRight()
+;@ path: battle/screeneffect
+;@ Scrolls the background 3 pixels (X).
 QuakeRight::
+;> mem[addr(hScrollY)] = 0
 	ld a, $00
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 3
 	ld a, $03
 	ldh [hScrollX], a
+;> wScreenEffectTimer += 1
 	ld hl, wScreenEffectTimer
 	inc [hl]
 	ret
 
 
+;@ def QuakeCenter()
+;@ path: battle/screeneffect
+;@ Puts the background scroll back to 0.
 QuakeCenter::
+;> mem[addr(hScrollY)] = 0
 	xor a
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 0
 	xor a
 	ldh [hScrollX], a
+;> wScreenEffectTimer += 1
 	ld hl, wScreenEffectTimer
 	inc [hl]
 	ret
 
 
+;@ def QuakeEnd()
+;@ path: battle/screeneffect
+;@ Last step of the quake: scroll back to 0, and wScreenEffectStep = 1 tells EffectQuake it is
+;@ over.
 QuakeEnd::
+;> wScreenEffectStep = 1
 	ld a, $01
 	ld [wScreenEffectStep], a
+;> mem[addr(hScrollY)] = 0
 	xor a
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 0
 	xor a
 	ldh [hScrollX], a
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def QuakeFlash()
+;@ path: battle/screeneffect
+;@ Sets the palettes of quake step wScreenEffectTimer (QuakeFlashSteps).
+;@ test: skip runs the steps through a jump table
 QuakeFlash::
+;> QuakeFlashSteps[wScreenEffectTimer]()
 	ld a, [wScreenEffectTimer]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Palettes during the quake: normal for 9 steps, then white and normal in turn.
 QuakeFlashSteps::
 	dw QuakeFlashNormal
 	dw QuakeFlashNormal
@@ -3672,21 +3786,31 @@ QuakeFlashSteps::
 	dw QuakeFlashWhite
 	dw QuakeFlashNormal
 
+;@ def QuakeFlashWhite()
+;@ path: battle/screeneffect
+;@ Makes the three Game Boy palettes white.
 QuakeFlashWhite::
+;> wBGP = 0; wOBP0 = 0
 	ld hl, wBGP
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> wOBP1 = 0
 	inc hl
 	ld [hl], $00
 	ret
 
 
+;@ def QuakeFlashNormal()
+;@ path: battle/screeneffect
+;@ Sets the normal battle palettes ($D2, $D2, $E2).
 QuakeFlashNormal::
+;> wBGP = 0xD2; wOBP0 = 0xD2
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
+;> wOBP1 = 0xE2
 	inc hl
 	ld [hl], $e2
 	ret
@@ -5344,95 +5468,205 @@ SkillVisualBlinkUser::
 	ld [wScreenEffect], a
 	ret
 
+;@ def GetSkillAnim() -> a
+;@ path: battle/animation
+;@ Sets wSkillAnim (and returns it) to the skill animation of skill wSkillId: from
+;@ SkillAnimsOwnUser when the user is on this Game Boy's side (or user $10, no battle position),
+;@ from SkillAnimsEnemyUser otherwise. $FF (none) when a skill goes from one side to the same
+;@ side, except enemy-side skills $1A, $1B, $29, $80, $AA and $D5.
+;@ test: skip calls IsUserOwnSide / IsTargetOwnSide
 GetSkillAnim::
+;>@a if wSkillUser == 0x10 or IsUserOwnSide():
 	ld a, [wSkillUser]
 	cp $10
-	jr z, jr_05f_5649
+	jr z, .noUser
 
+;=@a
 	call IsUserOwnSide
-	jr c, jr_05f_563e
+	jr c, .ownUser
 
-	jr jr_05f_565f
+	jr .enemyUser
 
-jr_05f_563e:
+.ownUser
+;>@t     if IsTargetOwnSide():                # own side to own side: nothing to draw
 	call IsTargetOwnSide
-	jr nc, jr_05f_564e
+	jr nc, .ownTable
 
+;>@f1         wSkillAnim = 0xFF
 	ld a, $ff
 	ld [wSkillAnim], a
+;>@f2         return 0xFF
 	ret
 
 
-jr_05f_5649:
+.noUser
+;=@t
 	call IsTargetOwnSide
-	jr c, jr_05f_5690
+	jr c, .none
 
-jr_05f_564e:
+.ownTable
+;>     else:
+;>         s = wSkillId
 	ld a, [wSkillId]
-	ld de, $56ed
+;>         p = SkillAnimsOwnUser + s
+	ld de, SkillAnimsOwnUser
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;>         wSkillAnim = mem[p]
 	ld a, [de]
 	ld [wSkillAnim], a
+;>         return wSkillAnim
 	ret
 
 
-jr_05f_565f:
+.enemyUser
+;> else:
+;>@e     if wSkillId not in (0x1A, 0x1B, 0x80, 0x29, 0xD5, 0xAA) and IsTargetOwnSide():
 	ld a, [wSkillId]
 	cp $1a
-	jr z, jr_05f_567f
+	jr z, .enemyTable
 
 	cp $1b
-	jr z, jr_05f_567f
+	jr z, .enemyTable
 
+;=@e
 	cp $80
-	jr z, jr_05f_567f
+	jr z, .enemyTable
 
 	cp $29
-	jr z, jr_05f_567f
+	jr z, .enemyTable
 
+;=@e
 	cp $d5
-	jr z, jr_05f_567f
+	jr z, .enemyTable
 
 	cp $aa
-	jr z, jr_05f_567f
+	jr z, .enemyTable
 
+;=@e
 	call IsTargetOwnSide
-	jr c, jr_05f_5690
+	jr c, .none
 
-jr_05f_567f:
+.enemyTable
+;>@g1         wSkillAnim = 0xFF
+;>@g2         return 0xFF
+;>     else:
+;>         s = wSkillId
 	ld a, [wSkillId]
-	ld de, $57d5
+;>         p = SkillAnimsEnemyUser + s
+	ld de, SkillAnimsEnemyUser
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;>         wSkillAnim = mem[p]
 	ld a, [de]
 	ld [wSkillAnim], a
+;>         return wSkillAnim
 	ret
 
 
-jr_05f_5690:
+.none
+;=@f1
+;=@g1
 	ld a, $ff
 	ld [wSkillAnim], a
+;=@f2
+;=@g2
 	ret
 
 
+;@ def StartSkillAnimObject()
+;@ path: battle/animation
+;@ Starts the battle animation object at wBattleAnimRunning with animation set $60 and the
+;@ animation from GetSkillAnimSet, and runs its first frame.
+;@ test: skip calls routines in other banks
 StartSkillAnimObject::
-	db $cd, $b9, $56, $fa, $a4, $da, $ea, $64, $dd, $3e, $60, $ea, $63, $dd, $3e, $00
-	db $ea, $62, $dd, $21, $62, $dd, $7d, $ea, $b4, $d7, $7c, $ea, $b5, $d7, $21, $00
-	db $02, $d7, $c9
+;> GetSkillAnimSet()
+	call GetSkillAnimSet
+;> wBattleAnimIndex = wSkillAnimSet
+	ld a, [wSkillAnimSet]
+	ld [wBattleAnimIndex], a
+;> wBattleAnimSet = 0x60
+	ld a, $60
+	ld [wBattleAnimSet], a
+;> wBattleAnimRunning = 0                    # start its script over
+	ld a, $00
+	ld [wBattleAnimRunning], a
+;> wPlayerAnimPtr = 0xDD62                   # the object that starts at wBattleAnimRunning
+	ld hl, wBattleAnimRunning
+	ld a, l
+	ld [wPlayerAnimPtr], a
+	ld a, h
+	ld [wPlayerAnimPtr + 1], a
+;> StepAnimation()
+	ld hl, far_StepAnimation
+	rst $10
+	ret
 
+;@ def GetSkillAnimSet()
+;@ path: battle/animation
+;@ Sets wSkillAnimSet to the skill animation of skill wSkillId from the same tables as
+;@ GetSkillAnim (SkillAnimsOwnUser when the user is on this Game Boy's side or is $10,
+;@ SkillAnimsEnemyUser otherwise). An own-side skill aimed at the own side leaves it unchanged.
+;@ test: skip calls IsUserOwnSide / IsTargetOwnSide
 GetSkillAnimSet::
-	db $fa, $88, $db, $fe, $10, $28, $07, $cd, $8f, $5b, $38, $02, $18
-	db $15, $cd, $a3, $5b, $d8, $fa, $8a, $db, $21, $ed, $56, $85, $6f, $3e, $00, $8c
-	db $67, $7e, $ea, $a4, $da, $c9, $fa, $8a, $db, $21, $d5, $57, $85, $6f, $3e, $00
-	db $8c, $67, $7e, $ea, $a4, $da, $c9
+;>@a if wSkillUser == 0x10 or IsUserOwnSide():
+	ld a, [wSkillUser]
+	cp $10
+	jr z, .ownTable
 
+;=@a
+	call IsUserOwnSide
+	jr c, .ownTable
+
+	jr .enemyTable
+
+.ownTable
+;>     if IsTargetOwnSide():
+;>         return
+	call IsTargetOwnSide
+	ret c
+
+;>     s = wSkillId
+	ld a, [wSkillId]
+;>     p = SkillAnimsOwnUser + s
+	ld hl, SkillAnimsOwnUser
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+;>     wSkillAnimSet = mem[p]
+	ld a, [hl]
+	ld [wSkillAnimSet], a
+	ret
+
+
+.enemyTable
+;> else:
+;>     s = wSkillId
+	ld a, [wSkillId]
+;>     p = SkillAnimsEnemyUser + s
+	ld hl, SkillAnimsEnemyUser
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+;>     wSkillAnimSet = mem[p]
+	ld a, [hl]
+	ld [wSkillAnimSet], a
+	ret
+
+;@ path: battle/animation
+;@ Skill animation of each skill (232 bytes, indexed by skill number) when the user is on this
+;@ Game Boy's side or is $10: $00-$2C an animation (its sprites are drawn by bank $5C below
+;@ $0E, $5D below $21, $5E from $21 on), $FF none.
 SkillAnimsOwnUser::
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08
 	db $09, $0a, $0b, $0c, $0d, $0e, $0f, $10, $11, $ff, $ff, $ff, $15, $15, $12, $17
@@ -5450,6 +5684,9 @@ SkillAnimsOwnUser::
 	db $12, $04, $0e, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $02, $ff, $22, $22, $1d
 	db $26, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ path: battle/animation
+;@ Skill animation of each skill (232 bytes, indexed by skill number) when the user is on this
+;@ Game Boy's enemy side, same values as SkillAnimsOwnUser; most skills have none ($FF).
 SkillAnimsEnemyUser::
 	db $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -5468,11 +5705,30 @@ SkillAnimsEnemyUser::
 	db $ff, $ff, $ff, $ff, $18, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ path: battle/animation
+;@ The 16 skill visuals RunSkillVisual starts (the values of SkillVisualsOwn/Enemy/Link).
 SkillVisualRoutines::
-	db $91, $55, $9b, $55, $a7, $55, $b1, $55, $cd
-	db $55, $d6, $55, $df, $55, $e8, $55, $f1, $55, $fa, $55, $03, $56, $0c, $56, $15
-	db $56, $cc, $55, $1e, $56, $27, $56
+	dw SkillVisualAtTarget                ; 0 animation at the target
+	dw SkillVisualCenter                  ; 1 animation in the middle
+	dw SkillVisualAtTarget2               ; 2 animation at the target, phase 2
+	dw SkillVisualFlyIn                   ; 3 animation flying in from the left
+	dw SkillVisualFlash                   ; 4 screen effect 4
+	dw SkillVisualDarken                  ; 5 screen effect 5
+	dw SkillVisualInvert                  ; 6 screen effect 6
+	dw SkillVisualDarkenTwice             ; 7 screen effect 7
+	dw SkillVisualQuake                   ; 8 screen effect 8
+	dw SkillVisualWave                    ; 9 screen effect 9
+	dw SkillVisualLighten                 ; 10 screen effect 10
+	dw SkillVisualFlashLong               ; 11 screen effect 11
+	dw SkillVisualShakeX                  ; 12 screen effect 12
+	dw StartSkillAnimation + $11          ; 13 its final ret: nothing
+	dw SkillVisualShakeY                  ; 14 screen effect 3
+	dw SkillVisualBlinkUser               ; 15 screen effect 13
 
+;@ path: battle/animation
+;@ Skill visual (entry of SkillVisualRoutines) of each skill (230 bytes, indexed by skill
+;@ number) when the user is on this Game Boy's side or is $10: 0-3 a skill animation, 4-12, 14
+;@ and 15 a screen effect, 13 nothing.
 SkillVisualsOwn::
 	db $00, $00, $00, $03, $03, $01, $02, $02, $01
 	db $02, $03, $01, $03, $02, $01, $02, $02, $01, $0d, $0d, $0d, $00, $00, $00, $00
@@ -5490,6 +5746,9 @@ SkillVisualsOwn::
 	db $00, $03, $01, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $00, $0d, $00, $00, $00
 	db $00, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 
+;@ path: battle/animation
+;@ Skill visual of each skill (230 bytes, indexed by skill number) when the user is on this
+;@ Game Boy's enemy side; values as in SkillVisualsOwn.
 SkillVisualsEnemy::
 	db $0d, $0d, $0d
 	db $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
@@ -5508,6 +5767,10 @@ SkillVisualsEnemy::
 	db $0d, $0d, $00, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 	db $0d, $0d, $0d
 
+;@ path: battle/animation
+;@ Skill visual of each skill (230 bytes, indexed by skill number) for the other player's
+;@ monster in a link battle (stage 5 of a skill): screen effects where the other tables have
+;@ an animation flying in or at the target; values as in SkillVisualsOwn.
 SkillVisualsLink::
 	db $0d, $0d, $0d, $0b, $0b, $0b, $04, $04, $08, $0d, $0c, $0c, $0b
 	db $04, $0b, $04, $04, $08, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
@@ -5525,34 +5788,50 @@ SkillVisualsLink::
 	db $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 	db $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 
+;@ def IsUserOwnSide() -> carry
+;@ path: battle/animation
+;@ Carry if the skill's user wSkillUser is one of this Game Boy's own monsters: positions 0-3,
+;@ or 4-7 on the Game Boy that drives the link clock.
 IsUserOwnSide::
+;> if wLinkFlags & 0x02:
+;>@m     return wSkillUser >= 4
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_05f_5b9c
+	jr nz, .linkMaster
 
+;> return wSkillUser < 4
 	ld a, [wSkillUser]
 	cp $04
 	ret
 
 
-jr_05f_5b9c:
+.linkMaster
+;=@m
 	ld a, [wSkillUser]
 	cp $04
 	ccf
 	ret
 
 
+;@ def IsTargetOwnSide() -> carry
+;@ path: battle/animation
+;@ Carry if the skill's target wSkillTarget is one of this Game Boy's own monsters: positions
+;@ 0-3, or 4-7 on the Game Boy that drives the link clock.
 IsTargetOwnSide::
+;> if wLinkFlags & 0x02:
+;>@m     return wSkillTarget >= 4
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_05f_5bb0
+	jr nz, .linkMaster
 
+;> return wSkillTarget < 4
 	ld a, [wSkillTarget]
 	cp $04
 	ret
 
 
-jr_05f_5bb0:
+.linkMaster
+;=@m
 	ld a, [wSkillTarget]
 	cp $04
 	ccf

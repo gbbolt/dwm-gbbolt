@@ -4380,11 +4380,17 @@ NextBgColumn2_18::
 	ret
 
 
+;@ path: link/result
+;@ Window layout (format: see DrawWindowLayout_18) of the yes/no window of the VS result
+;@ screen, at screen offset $010E: tiles $D4-$D6 and $A8-$A9 are the two choices.
 VSReplaceYesNoWindow::
 	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $d4, $d5, $d6, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a8, $a9, $e0, $ff, $d8, $fc, $ee
 	db $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/result
+;@ Window layout of the monster list: "WHO" (tiles $6C-$6E) as the title, then four name rows
+;@ (tiles $00-$0F, filled by VSResultDrawListNames).
 VSReplaceListWindow::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $6c, $6d, $6e, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe
@@ -4393,23 +4399,34 @@ VSReplaceListWindow::
 	db $e0, $08, $09, $0a, $0b, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $0c, $0d, $0e, $0f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/result
+;@ Window layout of the INFO / OK menu next to the monster list (tiles $6F-$72 "INFO", $73-$74
+;@ "OK").
 VSInfoOkWindow::
 	db $0d
 	db $00, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $6f, $70, $71, $72, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $73, $74, $e0, $e0, $ff
 	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/result
+;@ Window layout of the INFO / OK menu next to the egg list (one column further left and one
+;@ wider).
 VSEggInfoOkWindow::
 	db $0c, $00, $fa, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $6f, $70, $71, $72, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $73, $74, $e0, $e0, $e0, $ff, $d8, $fc
 	db $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/result
+;@ Window layout of the MON / EGG choice (tiles $75-$77 "MON", $78-$7A "EGG").
 VSKindWindow::
 	db $0e, $00, $fa, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $75, $76, $77, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $78, $79, $7a, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/result
+;@ Window layout of the egg list: four rows of a 9-tile species name (tiles $00-$23) and a sex
+;@ mark (tiles $24-$27).
 VSEggListWindow::
 	db $00, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $00
@@ -4421,15 +4438,26 @@ VSEggListWindow::
 	db $d8, $fe, $e0, $1b, $1c, $1d, $1e, $1f, $20, $21, $22, $23, $27, $ff, $d8, $fc
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: link/result
+;@ Window layout of the line about the monster under the list cursor, at screen offset $0140:
+;@ its name (tiles $10-$13) and sex sign (tile $14); the level is written in by
+;@ VSResultDrawCursorMonLevel.
 VSCursorMonWindow::
 	db $40, $01, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $10
 	db $11, $12, $13, $14, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $fd, $d9
 
+;@ path: text/dialogue
+;@ Text group table of bank $18 (handed to StartText): one group.
 TextGroups_18::
-	db $1f, $56
+	dw TextGroup_18_0
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $18: one pointer per text (wTextIndex), 48 texts. They are texts $9E-$CD
+;@ of bank $49's group 0 (StartText_49 renumbers them): the late story (DeathMore, the King's
+;@ praise for each defeated evil lord, the villagers after the victory). The text format is
+;@ described at TextGroup_1A_0.
 TextGroup_18_0::
 	db $94, $56, $89, $58, $51, $5a, $a8, $5a, $a2, $5b, $31
 	db $5c, $dd, $5c, $15, $5d, $c2, $5d, $8a, $5e, $7a, $5f, $a6, $5f, $b8, $60, $4b
@@ -4439,20 +4467,36 @@ TextGroup_18_0::
 	db $6b, $55, $6b, $b0, $6b, $a0, $6c, $32, $6d, $75, $6d, $b6, $6d, $3d, $6e, $f3
 	db $6e, $31, $6f, $4e, $6f
 
+;@ def StartText_18()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $18 (StartText with this bank's table).
+;@ test: skip runs the text code with this bank switched in
 StartText_18::
-	ld de, $561d
+;> StartText(TextGroups_18)
+	ld de, TextGroups_18
 	call StartText
 	ret
 
 
+;@ def CopyText_18()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $18 to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_18::
-	ld de, $561d
+;> CopyTextString(TextGroups_18)
+	ld de, TextGroups_18
 	call CopyTextString
 	ret
 
 
+;@ def PrintText_18()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $18 at once and waits for its end.
+;@ test: skip runs the text code with this bank switched in
 PrintText_18::
+;> StartText_18()
 	call StartText_18
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
@@ -4854,7 +4898,10 @@ Texts_18::
 	db $4c, $54, $62, $4a, $56, $62, $4b, $3e, $4a, $42, $64, $f7, $f0, $eb, $9f, $a3
 	db $2b, $52, $43, $43, $5e, $62, $ef, $ee, $2c, $62, $41, $4c, $4b, $67, $62, $4b
 	db $42, $42, $41, $62, $56, $4c, $52, $63, $f7, $f0, $eb, $9f, $a3, $37, $45, $42
-	db $4b, $62, $50, $3e, $56, $62, $46, $51, $63, $ef, $ee, $ff, $f0, $31, $82, $33
+	db $4b, $62, $50, $3e, $56, $62, $46, $51, $63, $ef, $ee, $ff, $f0
+
+UnusedSongData_18::
+	db $31, $82, $33
 	db $35, $82, $30, $82, $32, $82, $34, $b1, $01, $00, $13, $6f, $bd, $00, $bc, $4a
 	db $be, $0a, $bf, $78, $d1, $44, $1f, $82, $46, $82, $45, $82, $46, $82, $45, $82
 	db $46, $82, $45, $82, $46, $82, $45, $82, $46, $82, $45, $82, $46, $82, $45, $82

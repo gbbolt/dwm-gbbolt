@@ -5540,8 +5540,8 @@ LevelUpStep11::
 DrawForgetMenu::
 ;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
-;> Call_55_4774()                             # the windows' title texts
-	ld hl, far_Call_55_4774
+;> LoadWindowLetters_1_9()                             # the windows' title texts
+	ld hl, far_LoadWindowLetters_1_9
 	rst $10
 ;> DrawBattleWindow(ForgetSkillListWindow)
 	ld de, ForgetSkillListWindow
@@ -7030,8 +7030,8 @@ RecruitStep08::
 ;@ Draws the release list window (monsters or eggs) with its title tiles and the paged cursor
 ;@ (wListCursor, wListPage; 4 rows per page).
 DrawReleaseList::
-;> Call_55_4813()                             # the title text tiles
-	ld hl, far_Call_55_4813
+;> LoadWindowLetters_10()                             # the title text tiles
+	ld hl, far_LoadWindowLetters_10
 	rst $10
 ;>@w DrawBattleWindow(ResultEggListWindow if wListCursor2 & 1 else ResultMonsterListWindow)
 	ld de, ResultMonsterListWindow
@@ -8067,8 +8067,8 @@ RecruitStep19::
 ;@ Draws the list window of the party and the newcomer with its cursor (wLinkRefused, used here as a
 ;@ menu cursor).
 DrawPartySwapList::
-;> Call_55_4813()                             # the title text tiles
-	ld hl, far_Call_55_4813
+;> LoadWindowLetters_10()                             # the title text tiles
+	ld hl, far_LoadWindowLetters_10
 	rst $10
 ;> DrawBattleWindow(ResultMonsterListWindow)
 	ld de, ResultMonsterListWindow

@@ -3738,7 +3738,7 @@ jr_053_5289:
 	rst $10
 	ld hl, far_ShowActionMessage
 	rst $10
-	ld hl, far_Call_55_401F
+	ld hl, far_PlaySkillSound0
 	rst $10
 	ld a, $18
 	ld [wMonStats], a
@@ -5000,7 +5000,7 @@ Hit_Result_53::
 	ld [wTextIndex], a
 	ld hl, far_StartText_4C
 	rst $10
-	ld hl, far_Call_55_4026
+	ld hl, far_PlaySkillSound1
 	rst $10
 	ld a, $01
 	ld [wHitShown], a
@@ -5045,7 +5045,7 @@ jr_053_5ad2:
 	bit 2, a
 	jr nz, jr_053_5aec
 
-	ld hl, far_Call_55_4026
+	ld hl, far_PlaySkillSound1
 	rst $10
 	ld hl, far_StartSkillVisual
 	rst $10
@@ -5067,7 +5067,7 @@ Hit_Effect_53::
 	bit 4, a
 	ret z
 
-	ld hl, far_Call_55_4035
+	ld hl, far_PlaySkillSound2
 	rst $10
 	ld hl, far_StartSkillHitEffect
 	rst $10
@@ -5117,7 +5117,7 @@ jr_053_5b3a:
 	jr jr_053_5b79
 
 jr_053_5b4c:
-	ld hl, far_Call_55_403C
+	ld hl, far_PlaySkillSound3
 	rst $10
 	ld a, $06
 	ld [wBattleSubStep], a

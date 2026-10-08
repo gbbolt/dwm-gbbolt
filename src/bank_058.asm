@@ -4745,10 +4745,19 @@ AITargetGigaSlash::
 	ret
 
 
+;@ def ChooseTargetsAndOrder()
+;@ path: battle/turn
+;@ Battle sub-step machine (far entry 0) that runs once all commands are given: for every monster
+;@ (wSkillUser 0-7) whose command is chosen it lets the tactic pick a skill (bank $57) and then the
+;@ skill's target picker, then rolls everyone's speed and sorts the turn order into wTurnOrder.
+;@ test: skip runs a whole step machine with far calls
 ChooseTargetsAndOrder::
+;> ChooseTargetsSteps[wBattleSubStep]()
 	ld a, [wBattleSubStep]
 	rst $00
 
+;@ path: battle/turn
+;@ The steps of ChooseTargetsAndOrder, by wBattleSubStep.
 ChooseTargetsSteps::
 	dw ChooseTargetsNext
 	dw ChooseTargetsTactic
@@ -4757,40 +4766,58 @@ ChooseTargetsSteps::
 	dw TurnOrderSort
 	dw ChooseTargetsDone
 
+;@ def ChooseTargetsNext()
+;@ path: battle/turn
+;@ Step 0: looks at monster wSkillUser. Once all eight positions are done it goes on to the turn
+;@ order (step 3); a monster whose command is chosen (wBattlerOrder 1) goes to step 1, any other one
+;@ is skipped.
+;@ test: skip draws random numbers through the link generator
 ChooseTargetsNext::
+;> if wLinkActive:
+;>     LinkRandom()                               # keeps both Game Boys' generators in step
 	ld a, [wLinkActive]
 	or a
 	call nz, LinkRandom
+;>@a8 if wSkillUser == 8:
+;>@a3     wBattleSubStep += 3                        # on to TurnOrderRollSpeeds
 	ld a, [wSkillUser]
 	cp $08
-	jr z, jr_058_5411
+	jr z, .allDone
 
+;>@od elif wBattlerOrder[wSkillUser] == 1:
+;>@s1     wBattleSubStep += 1; wBattleSubStep2 = 0   # step 1 for this monster
 	ld e, a
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@od
 	ld h, a
 	ld a, [hl]
 	cp $01
-	jr z, jr_058_5403
+	jr z, .chosen
 
+;> else:
+;>     wSkillUser += 1
 	inc e
 	ld a, e
 	ld [wSkillUser], a
-	jr jr_058_541d
+	jr .done
 
-jr_058_5403:
+.chosen:
+;=@od
 	ld a, e
 	ld [wSkillUser], a
+;=@s1
 	ld hl, wBattleSubStep
 	inc [hl]
 	xor a
 	ld [wBattleSubStep2], a
-	jr jr_058_541d
+	jr .done
 
-jr_058_5411:
+.allDone:
+;=@a3
 	ld hl, wBattleSubStep
 	inc [hl]
 	ld hl, wBattleSubStep
@@ -4798,240 +4825,339 @@ jr_058_5411:
 	ld hl, wBattleSubStep
 	inc [hl]
 
-jr_058_541d:
+.done:
+;=@a8
 	ret
 
 
+;@ def ChooseTargetsTactic()
+;@ path: battle/turn
+;@ Step 1: bank $57's step machine lets the monster's tactic choose its skill.
+;@ test: skip far call into bank $57
 ChooseTargetsTactic::
+;> Call_57_6E0E()
 	ld hl, far_Call_57_6E0E
 	rst $10
 	ret
 
 
+;@ path: unused
+;@ Leftover bytes after ChooseTargetsTactic, never reached: the code of a jump through the pointer at
+;@ hl (ld a, [hli] / ld h, [hl] / ld l, a / jp hl), like JumpToPointer.
 UnusedJumpToPointer::
 	db $2a, $66, $6f, $e9
 
+;@ def ChooseTargetsPick()
+;@ path: battle/turn
+;@ Step 2: unless the monster's target is already set, a monster that cannot act is given Attack on
+;@ itself; otherwise (after the forced skill of MaybeForceSkill, and Attack when the tactic chose
+;@ nothing) RunTargetPicker aims its skill. Then the personality notes, the monster is marked done
+;@ (wBattlerOrder 2) and step 0 looks at the next one at once.
+;@ test: skip runs the target pickers and the next step
 ChooseTargetsPick::
+;> wHitCount = 0
 	xor a
 	ld [wHitCount], a
+;>@tg if wBattlerAction[2 * wSkillUser + 1] == 0xFF:   # no target yet
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@tg
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $ff
-	jr nz, jr_058_5478
+	jr nz, .notes
 
+;>     if CheckBattlerCanAct(wSkillUser):         # cannot act
 	ld a, [wSkillUser]
 	call CheckBattlerCanAct
-	jr nc, jr_058_545b
+	jr nc, .canAct
 
+;>@at         wBattlerAction[2 * wSkillUser] = 0x3A   # Attack
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@at
 	adc h
 	ld h, a
 	ld a, $3a
 	ld [hli], a
+;>         wBattlerAction[2 * wSkillUser + 1] = wSkillUser
 	ld a, [wSkillUser]
 	ld [hl], a
-	jr jr_058_5478
+	jr .notes
 
-jr_058_545b:
+.canAct:
+;>     else:
+;>         if wGameModeStep:
+;>             MaybeForceSkill()
 	ld a, [wGameModeStep]
 	or a
 	call nz, MaybeForceSkill
+;>@nt         if wBattlerAction[2 * wSkillUser] == 0xFF:
+;>@sa             SetActionAttack(addr(wBattlerAction) + 2 * wSkillUser)
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@nt
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $ff
+;=@sa
 	call z, SetActionAttack
+;>         RunTargetPicker()
 	call RunTargetPicker
 
-jr_058_5478:
+.notes:
+;> NotePersonalitySkill()
 	call NotePersonalitySkill
+;> NotePersonalityAttack()
 	call NotePersonalityAttack
+;>@od wBattlerOrder[wSkillUser] = 2                  # done
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@od
 	ld h, a
 	ld a, $02
 	ld [hl], a
+;> wBattleSubStep = 0
 	xor a
 	ld [wBattleSubStep], a
+;> wSkillUser += 1
 	ld hl, wSkillUser
 	inc [hl]
+;> ChooseTargetsNext()
 	jp ChooseTargetsNext
 
 
+;@ def RunTargetPicker()
+;@ path: battle/ai/targets
+;@ Far entry 8: aims the skill of monster wSkillUser - jumps to FarTable_58 entry 14 + skill, the
+;@ skill's target picker. Called again later in the turn (wBattleSubStep $16 and up) the old target
+;@ is cleared first.
+;@ test: skip jumps to one of the target pickers
 RunTargetPicker::
+;> if wBattleSubStep >= 0x16:
 	ld a, [wBattleSubStep]
 	cp $16
-	jr c, jr_058_54b1
+	jr c, .first
 
+;>@cl     wBattlerAction[2 * wSkillUser + 1] = 0xFF
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@cl
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hld], a
-	jr jr_058_54be
+	jr .skill
 
-jr_058_54b1:
+.first:
+;>@sk wSkillId = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sk
 	adc h
 	ld h, a
 
-jr_058_54be:
+.skill:
+;=@sk
 	ld a, [hl]
 	ld [wSkillId], a
-	ld hl, $401d
+;>@j FarTable_58[14 + wSkillId]()
+	ld hl, FarTable_58 + 2 * 14
 	ld c, a
 	ld b, $00
 	add hl, bc
 	add hl, bc
+;=@j
 	call JumpToPointer
 	ret
 
 
+;@ def SetActionAttack(action: hl)
+;@ path: battle/turn
+;@ Sets the skill of an action to Attack ($3A).
+;@ test: action = 0xDCEC + 2 * rng.randint(0, 7)
 SetActionAttack::
+;> mem[action] = 0x3A
 	ld [hl], $3a
 	ret
 
 
+;@ def TurnOrderRollSpeeds()
+;@ path: battle/turn
+;@ Step 3: rolls the speed of every monster that has its command (wBattlerOrder 2): agility spread at
+;@ random (RollSpeed), at least 2, $600 more for the skills that always go first (IsFirstMoveSkill),
+;@ $200 more for SquallHit, 1 for PsycheUp. Speeds go to the word list at wSkillStatusPtr, the
+;@ positions to wBattleArg0.., Terry's item (position $10) with speed $200. Then the sort.
+;@ test: skip runs the sort step and draws random numbers
 TurnOrderRollSpeeds::
+;> fill(wTurnOrder, 9, 0xFF)
 	ld hl, wTurnOrder
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
+;> fill(wBattleArg0, 9, 0xFF)                     # positions
 	ld hl, wBattleArg0
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
+;> fill(wSkillStatusPtr, 16, 0)                    # speeds
 	ld hl, wSkillStatusPtr
 	ld bc, $0010
 	ld a, $00
 	call FillMemory
+;> wTurnOrderPos = 0
+;> wBattlerReload = 0                              # entries so far
 	xor a
 	ld [wTurnOrderPos], a
 	ld [wBattlerReload], a
+;> wNameDest = addr(wSkillStatusPtr)
 	ld hl, wSkillStatusPtr
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;>@lp for e in range(8):
 	ld de, $0800
 
-Jump_058_5507:
+.loop:
+;>     if wLinkActive:
+;>         LinkRandom()
 	push de
 	ld a, [wLinkActive]
 	or a
 	call nz, LinkRandom
 	pop de
+;>     if CheckBattlerPresent(e):
+;>         continue
 	ld a, e
 	call CheckBattlerPresent
-	jr c, jr_058_5587
+	jr c, .next
 
+;>@od     if wBattlerOrder[e] != 2:
+;>@o2         continue
 	ld a, e
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@od
 	ld h, a
 	ld a, [hl]
 	cp $02
-	jr nz, jr_058_5587
+;=@o2
+	jr nz, .next
 
+;>@ag     speed = RollSpeed(e, mem16[addr(wBattlerAgility) + 2 * e])
 	ld a, e
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@ag
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld a, e
+;=@ag
 	call RollSpeed
+;>@s2     if speed < 2:
 	ld a, b
 	or a
-	jr nz, jr_058_5543
+	jr nz, .fast
 
 	ld a, c
 	cp $02
-	jr nc, jr_058_5543
+	jr nc, .fast
 
+;>         speed = 2
 	ld bc, $0002
 
-jr_058_5543:
+.fast:
+;>     if IsFirstMoveSkill(e):
 	ld a, e
 	call IsFirstMoveSkill
-	jr c, jr_058_5561
+	jr c, .first
 
+;>@f6         speed += 0x600
+;>     else:
+;>@sk         skill = wBattlerAction[2 * e]
 	ld a, e
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sk
 	adc h
 	ld h, a
 	ld a, [hl]
+;>         if skill == 0x55:                       # SquallHit
+;>             speed = SpeedBonusSquallHit(speed)
 	cp $55
 	call z, SpeedBonusSquallHit
+;>         if skill == 0x56:                       # PsycheUp (after SquallHit the new high byte is compared)
+;>             speed = SpeedSlowest()
 	cp $56
 	call z, SpeedSlowest
-	jr jr_058_5565
+	jr .store
 
-jr_058_5561:
+.first:
+;=@f6
 	ld a, b
 	add $06
 	ld b, a
 
-jr_058_5565:
+.store:
+;>@w     mem16[wNameDest] = speed
 	ld hl, wNameDest
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, c
 	ld [hli], a
+;=@w
 	ld [hl], b
+;>@ps     mem[addr(wBattleArg0) + wBattlerReload] = e
 	ld a, [wBattlerReload]
 	ld hl, wBattleArg0
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@ps
 	ld h, a
 	ld [hl], e
+;>     wBattlerReload += 1; wNameDest += 2
 	ld hl, wBattlerReload
 	inc [hl]
 	ld hl, wNameDest
@@ -5039,317 +5165,419 @@ jr_058_5565:
 	ld hl, wNameDest
 	inc [hl]
 
-jr_058_5587:
+.next:
+;=@lp
 	inc e
 	dec d
-	jp nz, Jump_058_5507
+	jp nz, .loop
 
+;> if not wLinkActive and wBattleItemTarget != 0xFF:   # Terry uses an item
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_058_55b3
+	jr nz, .sort
 
 	ld a, [wBattleItemTarget]
 	cp $ff
-	jr z, jr_058_55b3
+	jr z, .sort
 
+;>@it     mem16[wNameDest] = 0x200
 	ld bc, $0200
 	ld hl, wNameDest
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld a, c
+;=@it
 	ld [hli], a
 	ld [hl], b
+;>@ip     mem[addr(wBattleArg0) + wBattlerReload] = 0x10
 	ld a, [wBattlerReload]
 	ld hl, wBattleArg0
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@ip
 	ld h, a
 	ld [hl], $10
 
-jr_058_55b3:
+.sort:
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> TurnOrderSort()
 	jr TurnOrderSort
 
+;@ def SpeedBonusSquallHit(speed: bc) -> bc
+;@ path: battle/turn
+;@ SquallHit strikes early: speed + $200.
+;@ test: speed = rng.randint(0, 0xFDFF)
 SpeedBonusSquallHit::
+;> return speed + 0x200
 	ld a, b
 	add $02
 	ld b, a
 	ret
 
 
+;@ def SpeedSlowest() -> bc
+;@ path: battle/turn
+;@ PsycheUp waits until the end of the turn: speed 1.
 SpeedSlowest::
+;> return 1
 	ld bc, $0001
 	ret
 
 
+;@ def TurnOrderSort()
+;@ path: battle/turn
+;@ Step 4: sorts the speed list (wSkillStatusPtr..) with the positions (wBattleArg0..) by bubble sort,
+;@ fastest first (equal speeds are swapped too), and copies the positions up to the first $FF into
+;@ wTurnOrder. Then step 5.
+;@ test: skip sorts lists kept in several scratch variables
 TurnOrderSort::
+;>@ps for passes in range(8, 0, -1):
 	ld d, $08
 
-jr_058_55c4:
+.pass:
+;>     wNameDest = addr(wSkillStatusPtr)
 	ld hl, wSkillStatusPtr
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;>     first = mem16[wSkillStatusPtr]; second = mem16[wStatPtr]
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld hl, wStatPtr
 	ld a, [hli]
 	ld h, [hl]
+;=@ps
 	ld l, a
 	ld e, $00
 
-jr_058_55da:
+.compare:
+;>@e     for e in range(passes):
+;>         if second >= first:                    # swap the speeds and the positions
 	call CompareHLBC
-	jr c, jr_058_5615
+	jr c, .noSwap
 
+;>@sw             wSkillAmount = second; wTargetScores = first      # scratch for the swap
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
 	ld a, c
 	ld [wTargetScores], a
+;=@sw
 	ld a, b
 	ld [$db59], a
+;>@wr             mem16[wNameDest] = wSkillAmount; mem16[wNameDest + 2] = wTargetScores
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, [wSkillAmount]
 	ld [hli], a
+;=@wr
 	ld a, [$db57]
 	ld [hli], a
 	ld a, [wTargetScores]
 	ld [hli], a
 	ld a, [$db59]
 	ld [hl], a
+;>@xp             p = addr(wBattleArg0) + e; mem[p], mem[p + 1] = mem[p + 1], mem[p]
 	ld a, e
 	ld hl, wBattleArg0
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@xp
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
 	ld [hld], a
 	ld [hl], b
 
-jr_058_5615:
+.noSwap:
+;>         if e + 1 == passes:
+;>             break
 	inc e
 	ld a, e
 	cp d
-	jr z, jr_058_5635
+	jr z, .passDone
 
+;>@nx         wNameDest += 2
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	inc hl
 	inc hl
+;=@nx
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;>@ld         first = mem16[wNameDest]; second = mem16[wNameDest + 2]
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	inc hl
 	ld a, [hli]
 	ld h, [hl]
+;=@ld
 	ld l, a
-	jr jr_058_55da
+;=@e
+	jr .compare
 
-jr_058_5635:
+.passDone:
+;=@ps
 	dec d
-	jr nz, jr_058_55c4
+	jr nz, .pass
 
+;>@cp de = addr(wTurnOrder) + wTurnOrderPos
 	ld a, [wTurnOrderPos]
 	ld de, wTurnOrder
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@cp
 	ld d, a
+;> for i in range(8):                             # copy the positions up to the first $FF
 	ld a, [wTurnOrderPos]
 	ld hl, wBattleArg0
 	ld b, $08
 
-jr_058_564c:
+.copy:
+;>@cc     if mem[addr(wBattleArg0) + i] == 0xFF:
+;>         break
 	ld a, [hli]
 	cp $ff
-	jr z, jr_058_5656
+	jr z, .copied
 
+;>     mem[de] = mem[addr(wBattleArg0) + i]; de += 1
 	ld [de], a
 	inc de
+;=@cc
 	dec b
-	jr nz, jr_058_564c
+	jr nz, .copy
 
-jr_058_5656:
+.copied:
+;> wTurnOrderPos = 0
 	ld a, $00
 	ld [wTurnOrderPos], a
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> ChooseTargetsDone()
 	jp ChooseTargetsDone
 
 
+;@ def RollSpeed(pos: a, agility: bc) -> bc
+;@ path: battle/turn
+;@ The speed of a monster this turn: a random value between agility - spread and agility, spread =
+;@ 1 + agility/4 + agility/16 (agility 0 counts as 1). $200 more for SquallHit, 0 for PsycheUp.
+;@ test: skip draws random numbers through the link generator
 RollSpeed::
+;> BattleRandom_58()
 	push hl
 	push de
 	push af
 	push bc
 	call BattleRandom_58
+;> spread = 1
 	ld hl, $0001
+;> if agility == 0:
+;>     agility = 1
 	pop bc
 	ld a, b
 	or c
-	jr nz, jr_058_5674
+	jr nz, .spread
 
 	ld bc, $0001
 
-jr_058_5674:
+.spread:
+;>@sp spread += agility // 4 + agility // 16
 	ld d, b
 	ld e, c
 	srl b
 	rr c
 	srl b
 	rr c
+;=@sp
 	add hl, bc
 	srl b
 	rr c
 	srl b
 	rr c
 	add hl, bc
+;> low = agility - spread
 	ld a, e
 	sub l
 	ld e, a
 	ld a, d
 	sbc h
 	ld d, a
+;>@r r = (wRandomLow & 3) * 256 + wRandomHigh
 	ld b, h
 	ld c, l
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;=@r
 	ld a, h
 	and $03
 	ld h, a
 
-jr_058_569c:
+.reduce:
+;>@rr while r > spread:
+;>     r -= spread
 	call CompareHLBC
-	jr z, jr_058_56ab
+	jr z, .done
 
-	jr c, jr_058_56ab
+	jr c, .done
 
 	ld a, l
 	sub c
 	ld l, a
+;=@rr
 	ld a, h
 	sbc b
 	ld h, a
-	jr jr_058_569c
+	jr .reduce
 
-jr_058_56ab:
+.done:
+;> speed = low + r
 	add hl, de
 	ld b, h
 	ld c, l
+;>@sk skill = wBattlerAction[2 * pos]
 	pop af
 	ld e, a
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
+;=@sk
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;> if skill == 0x55:                              # SquallHit
 	cp $55
-	jr nz, jr_058_56c5
+	jr nz, .notSquall
 
+;>     speed += 0x200
 	ld a, b
 	add $02
 	ld b, a
-	jr jr_058_56cc
+	jr .end
 
-jr_058_56c5:
+.notSquall:
+;> elif skill == 0x56:                            # PsycheUp
+;>     speed = 0
 	cp $56
-	jr nz, jr_058_56cc
+	jr nz, .end
 
 	ld bc, $0000
 
-jr_058_56cc:
+.end:
+;> return speed
 	pop de
 	pop hl
 	ret
 
 
+;@ def IsFirstMoveSkill(pos: a) -> carry
+;@ path: battle/turn
+;@ Carry when the monster at `pos` has chosen a skill that always comes first in the turn: Ironize,
+;@ Imitate, Cover, Guardian, Dodge, Defence, StrongD, SuckAll, BladeD or IRONIZE ($DC).
+;@ test: pos = rng.randint(0, 7)
 IsFirstMoveSkill::
+;>@sk skill = wBattlerAction[2 * pos]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sk
 	ld h, a
 	ld a, [hl]
+;>@f return skill in (0x2A, 0x7F, 0x88, 0x89, 0x8C, 0x8D, 0x8E, 0x8F, 0x90, 0xDC)
 	cp $2a
-	jr z, jr_058_5705
+	jr z, .yes
 
 	cp $7f
-	jr z, jr_058_5705
+	jr z, .yes
 
 	cp $88
-	jr z, jr_058_5705
+	jr z, .yes
 
+;=@f
 	cp $89
-	jr z, jr_058_5705
+	jr z, .yes
 
 	cp $8c
-	jr z, jr_058_5705
+	jr z, .yes
 
 	cp $8d
-	jr z, jr_058_5705
+	jr z, .yes
 
+;=@f
 	cp $8e
-	jr z, jr_058_5705
+	jr z, .yes
 
 	cp $8f
-	jr z, jr_058_5705
+	jr z, .yes
 
 	cp $90
-	jr z, jr_058_5705
+	jr z, .yes
 
+;=@f
 	cp $dc
-	jr z, jr_058_5705
+	jr z, .yes
 
 	xor a
-	jr jr_058_5706
+	jr .done
 
-jr_058_5705:
+.yes:
+;=@f
 	scf
 
-jr_058_5706:
+.done:
 	ret
 
 
+;@ def ChooseTargetsDone()
+;@ path: battle/turn
+;@ Step 5: clears the step and the skill variables and moves the battle on (wBattleStep + 1).
 ChooseTargetsDone::
+;> wBattleSubStep = 0
+;> wTurnOrderPos = 0
 	xor a
 	ld [wBattleSubStep], a
 	ld [wTurnOrderPos], a
+;> wSkillUser = 0
+;> wSkillTarget = 0
 	ld [wSkillUser], a
 	ld [wSkillTarget], a
+;> wSkillId = 0
 	ld [wSkillId], a
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
+;@ path: unused
+;@ Code nothing calls (45 bytes): puts a random one of the user's eight skills (or its first skill,
+;@ or Attack $3A when it has none) at hl.
 UnusedRandomSkill::
 	db $e5, $fa, $88, $db, $21, $65, $dc, $cb, $37, $85, $6f, $3e, $00, $8c, $67, $44
 	db $4d, $fa, $99, $c8, $e6, $07, $87, $85, $6f, $3e, $00, $8c, $67, $7e, $fe, $ff

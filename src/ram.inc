@@ -399,7 +399,7 @@ DEF wSoundCurChannel EQU $DE23 ;@ u8 Channel (0-5) being updated
 DEF wSyncSwitchChannels EQU $DE26 ;@ u8 Channels that switch their sound bank together at their next note (bit per channel)
 DEF wSyncSwitchBank EQU $DE27 ;@ u8 Low nibble of the sound bank they switch to
 DEF wSyncNoteEnds EQU $DE28 ;@ u8 Channels that started a new note this frame (bit per channel)
-DEF wSoundFirstChannel EQU $DE29 ;@ u8 First channel the sound update runs (0 all, 4 sound effects only)
+DEF wSoundFirstChannel EQU $DE29 ;@ u8 First sound channel record UpdateSound runs (0 all; 4 only the music's wave and noise parts, records 4-5 - records 0-1 are the sound effects, 2-5 the music)
 DEF wSoundWave EQU $DE2B ;@ u8 Wave pattern now in wave RAM
 DEF hChanPos EQU $FFE4 ;@ u8 Sound channel being updated: event number, low byte ($FF with hChanPosHi $FF = channel off)
 DEF hChanConfig EQU $FFE5 ;@ u8 bits 0-1 hardware channel, bit 7 vibrato on, bits 4-6 vibrato table
