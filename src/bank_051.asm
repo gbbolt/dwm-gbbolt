@@ -4498,253 +4498,356 @@ ThirteenSixteenths::
 	ret
 
 
+;@ def BattlerFallSequence()
+;@ path: battle/state
+;@ Far entry, run once per frame while the skill target wSkillTarget goes down: step wFallStep of
+;@ FallSteps.
 BattlerFallSequence::
+;> FallSteps[wFallStep]()
 	ld a, [wFallStep]
 	rst $00
 
+;@ path: battle/state
+;@ The steps of BattlerFallSequence.
 FallSteps::
 	dw FallStep0
 	dw FallStep1
 	dw FallStep2
 
+;@ def FallStep0()
+;@ path: battle/state
+;@ The target is out: it gives no more orders this turn and its state becomes 1 (down); a monster
+;@ gets its record stats back. A fallen monster shown at the top of the screen goes on to step 1 (its
+;@ picture is blanked), the others straight to step 2. A called monster (slot 3) leaves the fight.
 FallStep0::
+;> wFallStep += 1
 	ld hl, wFallStep
 	inc [hl]
+;>@o wBattlerOrder[wSkillTarget] = 0xFF
 	ld a, [wSkillTarget]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $ff
+;>@s wBattlerState[wSkillTarget] = 1
 	ld a, [wSkillTarget]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld [hl], $01
+;> wBattleArg0 = wSkillTarget; wBattleTemp = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wBattleArg0], a
 	ld a, [wBattleArg0]
 	ld [wBattleTemp], a
+;> if wSkillTarget & 3 != 3:
 	and $03
 	cp $03
-	jr z, jr_051_53d6
+	jr z, .called
 
+;>     ReloadBattler()
 	call ReloadBattler
+;>     if wLinkFlags & 2:
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
-	jr nz, jr_051_53cd
+	jr nz, .master
 
+;>@m         if wSkillTarget < 3: return FallStep1()     # the partner's monsters are 0-2 there
+;>     elif 4 <= wSkillTarget < 7:
 	cp $04
-	jr c, jr_051_53d1
+	jr c, .skip
 
 	cp $07
-	jr z, jr_051_53d1
+	jr z, .skip
 
+;>         return FallStep1()
 	jr FallStep1
 
-jr_051_53cd:
+;=@m
+.master:
 	cp $03
 	jr c, FallStep1
 
-jr_051_53d1:
+;>     wFallStep += 1
+.skip:
 	ld hl, wFallStep
 	inc [hl]
+;>     return
 	ret
 
-
-jr_051_53d6:
+;> wFallStep += 1
+.called:
 	ld hl, wFallStep
 	inc [hl]
+;>@cs wBattlerState[wBattleArg0] = 0xFF        # the called monster leaves
 	ld a, [wBattleArg0]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@cs
 	ld h, a
 	ld [hl], $ff
+;> side = wBattleArg0 >> 2 & 1
 	ld a, [wBattleArg0]
 	and $04
 	rrca
 	rrca
 	and $01
+;>@sf wSideFlags[side] &= ~4
 	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@sf
 	res 2, [hl]
+;> SetBattlerDown()
 	call SetBattlerDown
+;> return
 	ret
 
 
+;@ def FallStep1()
+;@ path: battle/state
+;@ Blanks the fallen monster's picture, starts battle sub-step $1A and moves on to step 2.
 FallStep1::
+;> BlankEnemyPicture()
 	ld hl, far_BlankEnemyPicture
 	rst $10
+;> wBattleSubStep = 0x1A
 	ld a, $1a
 	ld [wBattleSubStep], a
+;> wFallStep = 2
 	ld a, $02
 	ld [wFallStep], a
+;> return
 	ret
 
 
+;@ def FallStep2()
+;@ path: battle/state
+;@ Puts the target down for good, remembers a fallen enemy as the one that may ask to join, redraws
+;@ the panel and prints "<name> is defeated" (battle message $E3 for the own side, $E4 for the enemy
+;@ side), then hands back to battle sub-step 3.
 FallStep2::
+;> wBattleArg0 = wSkillTarget; wBattleTemp = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wBattleArg0], a
 	ld [wBattleTemp], a
+;> SetBattlerDown()
 	call SetBattlerDown
+;>@j if not wLinkActive and 4 <= wSkillTarget < 7:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_543f
+	jr nz, .print
 
 	ld a, [wSkillTarget]
 	cp $04
-	jr c, jr_051_543f
+	jr c, .print
 
+;=@j
 	cp $07
-	jr z, jr_051_543f
+	jr z, .print
 
 	ld a, [wSkillTarget]
 	cp $03
-	jr c, jr_051_543f
+	jr c, .print
 
-	jr z, jr_051_543f
+;=@j
+	jr z, .print
 
 	cp $07
-	jr z, jr_051_543f
+	jr z, .print
 
+;>     wJoinCandidate = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wJoinCandidate], a
 
-jr_051_543f:
+;> PrintPanelHPMP()
+.print:
 	ld hl, far_PrintPanelHPMP
 	rst $10
+;> wBattleArg2 = addr(wTextArg0) & 0xFF; wBattleArg3 = addr(wTextArg0) >> 8
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
+;> GetBattlerName(wSkillTarget, addr(wTextArg0))
 	ld a, [wSkillTarget]
 	call GetBattlerName
+;> side = GetMessageSide() >> 2 & 1
 	call GetMessageSide
 	and $04
 	srl a
 	srl a
+;> wTextIndex = 0xE3 + side; wTextGroup = 0
 	add $e3
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleSubStep = 3; wFallStep = 0
 	ld a, $03
 	ld [wBattleSubStep], a
 	xor a
 	ld [wFallStep], a
+;> wMonStats[0] = 2
 	ld a, $02
 	ld [wMonStats], a
+;> return
 	ret
 
 
+;@ def GetMessageSide() -> a
+;@ path: battle/state
+;@ The position a fall message is worded for: the target, or on the link master the skill user.
 GetMessageSide::
+;> if not wLinkFlags & 2: return wSkillTarget
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
 	ret z
 
+;> return wSkillUser
 	ld a, [wSkillUser]
 	ret
 
 
+;@ def ClearMonStatsCopy()
+;@ path: battle/setup
+;@ Clears wMonStats (the copy of a MonsterStats record).
 ClearMonStatsCopy::
+;> fill(wMonStats, 0x2B, 0)
 	push bc
 	push hl
 	ld hl, wMonStats
 	ld bc, $002b
 	xor a
 	call FillMemory
+;> return
 	pop hl
 	pop bc
 	ret
 
 
+;@ def ReloadPartyBattlers()
+;@ path: battle/end
+;@ After a level-up or a change of the party on the after-battle screens (not in link battles): clears
+;@ the top of the tilemap buffer and all status flags, reloads the party monsters into battle positions
+;@ 0-2 and redraws their name tiles. wNewMonSlot and wNewMonNameText are kept.
 ReloadPartyBattlers::
+;> if wLinkActive: return
 	ld a, [wLinkActive]
 	or a
 	ret nz
 
+;> saved = (wNewMonNameText, wNewMonSlot)
 	ld a, [wNewMonNameText]
 	ld b, a
 	ld a, [wNewMonSlot]
 	ld c, a
 	push bc
+;> fill(wTilemapBuffer, 0xC0, 0xE0)
 	ld hl, wTilemapBuffer
 	ld bc, $00c0
 	ld a, $e0
 	call FillMemory
+;> fill(wBattlerStatus, 0x40, 0)
 	ld hl, wBattlerStatus
 	ld bc, $0040
 	xor a
 	call FillMemory
+;> wPartyBattlers = wPartyCount; wPanelCount = wPartyCount
 	ld a, [wPartyCount]
 	ld [wPartyBattlers], a
 	ld [wPanelCount], a
+;>@l for pos in range(wPartyCount):
 	ld b, a
 	ld c, $00
 
-jr_051_54ca:
+;>     LoadBattlerFromRecord(pos)
+.load:
 	call LoadBattlerFromRecord
+;=@l
 	inc c
 	dec b
-	jr nz, jr_051_54ca
+	jr nz, .load
 
+;> DrawSlotNameTiles(wParty[0], 0x9700)
 	ld a, [wParty]
 	ld hl, $9700
 	call DrawSlotNameTiles
+;> DrawSlotNameTiles(wParty[1], 0x9740)
 	ld a, [$ca8f]
 	ld hl, $9740
 	call DrawSlotNameTiles
+;> DrawSlotNameTiles(wParty[2], 0x9780)
 	ld a, [$ca90]
 	ld hl, $9780
 	call DrawSlotNameTiles
+;> wNewMonSlot = saved[1]
 	pop bc
 	ld a, c
 	ld [wNewMonSlot], a
+;> wNewMonNameText = saved[0]
 	ld a, b
 	ld [wNewMonNameText], a
+;> return
 	ret
 
 
+;@ def DrawSlotNameTiles(slot: a, tiles: hl)
+;@ path: battle/screen
+;@ Draws the name of the monster in record slot `slot` into the name tiles at `tiles` ($FF: nothing).
 DrawSlotNameTiles::
+;> if slot == 0xFF: return
 	cp $ff
 	ret z
 
+;> name = MonsterField(slot, wMonName)
 	push hl
 	ld hl, wMonName
 	call MonsterField
+;> DrawMonNameTiles(name, tiles)
 	ld e, l
 	ld d, h
 	pop hl
 	call DrawMonNameTiles
+;> return
 	ret
 
 
+;@ def ResetStatusIcons()
+;@ path: battle/screen
+;@ Marks the status icons of all eight positions as not loaded ($FF), so they are drawn again.
 ResetStatusIcons::
+;> fill(wStatusIconShown, 8, 0xFF)
 	ld a, $ff
 	ld hl, wStatusIconShown
 	ld bc, $0008
 	call FillMemory
+;> return
 	ret
 
-
+; unused code: works out the status icon of all eight positions into wStatusIconShown
 	db $01, $00, $08, $79, $cd, $a5, $2f, $30, $04, $16, $07, $18, $39, $79, $21, $02
 	db $db, $cd, $6c, $2f, $cb, $76, $20, $18, $cb, $6e, $20, $18, $cb, $66, $20, $18
 	db $cb, $7e, $20, $18, $cb, $4e, $20, $18, $cb, $46, $20, $18, $16, $00, $18, $16
@@ -4752,20 +4855,33 @@ ResetStatusIcons::
 	db $16, $02, $18, $02, $16, $01, $79, $21, $0a, $da, $85, $6f, $3e, $00, $8c, $67
 	db $72, $0c, $05, $20, $ae, $c9
 
+;@ def LoadMonsterPicFar()
+;@ path: battle/screen
+;@ Far entry for LoadMonsterPic: the species in $C0DE, the destination tiles in $C0DC/$C0DD.
 LoadMonsterPicFar::
+;> LoadMonsterPic(mem[0xC0DE], mem16[0xC0DC])
 	ld a, [$c0dc]
 	ld l, a
 	ld a, [$c0dd]
 	ld h, a
 	ld a, [$c0de]
 	call LoadMonsterPic
+;> return
 	ret
 
 
+;@ def LevelUpScreen()
+;@ path: battle/levelup
+;@ Far entry, run once per frame after a battle while party member wCurPartyMember gains a level:
+;@ step wCommandStep of LevelUpSteps. It announces the level and the stat gains, teaches new skills
+;@ (letting the player forget one when more than 8 are known) and finally applies the gains.
 LevelUpScreen::
+;> LevelUpSteps[wCommandStep]()
 	ld a, [wCommandStep]
 	rst $00
 
+;@ path: battle/levelup
+;@ The steps of LevelUpScreen.
 LevelUpSteps::
 	dw LevelUpStep00
 	dw LevelUpStep01
@@ -4786,443 +4902,599 @@ LevelUpSteps::
 	dw LevelUpStep16
 	dw LevelUpStep17
 
+;@ def LevelUpStep00()
+;@ path: battle/levelup
+;@ A monster already at level 99 gets nothing (the after-battle sequence moves on). Otherwise draws
+;@ the two window titles (system texts $0B0A and $0B1B) into their tiles and resets the menu state.
 LevelUpStep00::
+;> if mem[MonsterField(wCurPartyMember, wMonLevel)] >= 99:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	cp $63
-	jr c, jr_051_55b7
+	jr c, .start
 
+;>     wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     return
 	ret
 
-
-jr_051_55b7:
+;> wTextIndex = 0x0A; wTextGroup = 0x0B
+.start:
 	ld a, $0a
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x8820, 1, 10)
 	ld hl, $8820
 	ld de, $0a01
 	call PrintTextToTiles
+;> wTextIndex = 0x1B; wTextGroup = 0x0B
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x89C0, 1, 15)
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
+;> fill(wMenuChoice, 8, 0)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> fill(wCommandStep, 8, 0)
 	xor a
 	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
+;> wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep01()
+;@ path: battle/levelup
+;@ Plays the level-up fanfare, prints "<name> grew to level N" (system text $0B01) and rolls the stat
+;@ gains (RollLevelUpGains).
 LevelUpStep01::
+;>@n CopyName(MonsterField(wCurPartyMember, wMonName), addr(wTextArg0))
 	ld a, [wCurPartyMember]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
+;=@n
 	call CopyName
+;>@d ByteToDecimal(mem[MonsterField(wCurPartyMember, wMonLevel)] + 1, addr(wTextArg1))
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	inc a
 	ld hl, wTextArg1
+;=@d
 	call ByteToDecimal
+;> QueueMusic(0x47)
 	ld a, $47
 	call QueueMusic
+;> PrintSystemText(0x0B01)
 	ld hl, $0b01
 	call PrintSystemText
+;> RollLevelUpGains()
 	ld hl, far_RollLevelUpGains
 	rst $10
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep02()
+;@ path: battle/levelup
+;@ Once the text is done: a stat already at its limit (HP, MP, attack and defense 999, agility 511,
+;@ intelligence 255) gains nothing, unless the monster is past its level limit. Then prints the six
+;@ gains (system text $0B1E, or $0B1F past the level limit, where the stats drop instead).
 LevelUpStep02::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if not wOverLevelLimit:
 	ld a, [wOverLevelLimit]
 	or a
-	jp nz, Jump_051_56ec
+	jp nz, .print
 
+;>@s0     if mem16[MonsterField(wCurPartyMember, wMonMaxHP)] == 999: wLevelGains[0] = 0
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxHP
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@s0
 	ld a, l
 	sub $e7
 	ld l, a
 	ld a, h
 	sbc $03
 	ld h, a
+;=@s0
 	ld a, h
 	or l
-	jr nz, jr_051_5660
+	jr nz, .mp
 
 	xor a
 	ld [wLevelGains], a
 
-jr_051_5660:
+;>@s1     if mem16[MonsterField(wCurPartyMember, wMonMaxMP)] == 999: wLevelGains[1] = 0
+.mp:
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxMP
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@s1
 	ld a, l
 	sub $e7
 	ld l, a
 	ld a, h
 	sbc $03
 	ld h, a
+;=@s1
 	ld a, h
 	or l
-	jr nz, jr_051_567c
+	jr nz, .attack
 
 	xor a
 	ld [$c8cb], a
 
-jr_051_567c:
+;>@s2     if mem16[MonsterField(wCurPartyMember, wMonAttack)] == 999: wLevelGains[2] = 0
+.attack:
 	ld a, [wCurPartyMember]
 	ld hl, wMonAttack
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@s2
 	ld a, l
 	sub $e7
 	ld l, a
 	ld a, h
 	sbc $03
 	ld h, a
+;=@s2
 	ld a, h
 	or l
-	jr nz, jr_051_5698
+	jr nz, .defense
 
 	xor a
 	ld [$c8cc], a
 
-jr_051_5698:
+;>@s3     if mem16[MonsterField(wCurPartyMember, wMonDefense)] == 999: wLevelGains[3] = 0
+.defense:
 	ld a, [wCurPartyMember]
 	ld hl, wMonDefense
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@s3
 	ld a, l
 	sub $e7
 	ld l, a
 	ld a, h
 	sbc $03
 	ld h, a
+;=@s3
 	ld a, h
 	or l
-	jr nz, jr_051_56b4
+	jr nz, .agility
 
 	xor a
 	ld [$c8cd], a
 
-jr_051_56b4:
+;>@s4     if mem16[MonsterField(wCurPartyMember, wMonAgility)] == 511: wLevelGains[4] = 0
+.agility:
 	ld a, [wCurPartyMember]
 	ld hl, wMonAgility
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@s4
 	ld a, l
 	sub $ff
 	ld l, a
 	ld a, h
 	sbc $01
 	ld h, a
+;=@s4
 	ld a, h
 	or l
-	jr nz, jr_051_56d0
+	jr nz, .intelligence
 
 	xor a
 	ld [$c8ce], a
 
-jr_051_56d0:
+;>@s5     if mem16[MonsterField(wCurPartyMember, wMonIntelligence)] == 255: wLevelGains[5] = 0
+.intelligence:
 	ld a, [wCurPartyMember]
 	ld hl, wMonIntelligence
 	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@s5
 	ld a, l
 	sub $ff
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
+;=@s5
 	ld a, h
 	or l
-	jr nz, jr_051_56ec
+	jr nz, .print
 
 	xor a
 	ld [$c8cf], a
 
-Jump_051_56ec:
-jr_051_56ec:
+;> ByteToDecimal(wLevelGains[0], addr(wTextArg2))
+.print:
 	ld a, [wLevelGains]
 	ld hl, wTextArg2
 	call ByteToDecimal
+;> ByteToDecimal(wLevelGains[1], addr(wTextArg2) + 4)
 	ld a, [$c8cb]
 	ld hl, $c1a4
 	call ByteToDecimal
+;> ByteToDecimal(wLevelGains[2], addr(wTextArg2) + 8)
 	ld a, [$c8cc]
 	ld hl, $c1a8
 	call ByteToDecimal
+;> ByteToDecimal(wLevelGains[3], addr(wTextArg2) + 12)
 	ld a, [$c8cd]
 	ld hl, $c1ac
 	call ByteToDecimal
+;> ByteToDecimal(wLevelGains[4], addr(wTextArgs))
 	ld a, [$c8ce]
 	ld hl, wTextArgs
 	call ByteToDecimal
+;> ByteToDecimal(wLevelGains[5], addr(wTextArgs) + 4)
 	ld a, [$c8cf]
 	ld hl, $c1b4
 	call ByteToDecimal
+;>@txt PrintSystemText(0x0B1F if wOverLevelLimit else 0x0B1E)
 	ld hl, $0b1e
 	ld a, [wOverLevelLimit]
 	or a
-	jr z, jr_051_572e
+	jr z, .text
 
 	ld hl, $0b1f
 
-jr_051_572e:
+;=@txt
+.text:
 	call PrintSystemText
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep03()
+;@ path: battle/levelup
+;@ Once the text is done: copies the monster's 8 skills into a 40-entry scratch list in wSceneObjects
+;@ (the rest $FF), where the newly learned skills are collected.
 LevelUpStep03::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> fill(wSceneObjects, 0x28, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0028
 	ld a, $ff
 	call FillMemory
+;> src = MonsterField(wCurPartyMember, wMonSkills)
 	ld a, [wCurPartyMember]
 	ld hl, wMonSkills
 	call MonsterField
+;>@c for i in range(8):
 	ld de, wSceneObjects
 	ld b, $08
 
-jr_051_5754:
+;>     wSceneObjects[i] = mem[src + i]
+.copy:
 	ld a, [hli]
 	ld [de], a
 	inc de
+;=@c
 	dec b
-	jr nz, jr_051_5754
+	jr nz, .copy
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep04()
+;@ path: battle/levelup
+;@ Once the text is done: looks for a skill the monster learns now (FindLearnableSkill) and prints it:
+;@ system text $0B02 for a skill from its own list, $0B0F for one grown from several skills, $0B03 for
+;@ one grown from a single skill (that skill is replaced in the scratch list). The step repeats until
+;@ no skill is left, then the learnable lists are tidied up.
 LevelUpStep04::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> FindLearnableSkill()
 	ld hl, far_FindLearnableSkill
 	rst $10
+;> if mem[0xFFD8] != 0xFF:
 	ldh a, [$ffd8]
 	cp $ff
-	jr z, jr_051_57b1
+	jr z, .none
 
+;>     CopySystemText(0x0600 + mem[0xFFD8], addr(wTextArg2))    # the skill's name
 	ld l, a
 	ld h, $06
 	ld de, wTextArg2
 	call CopySystemText
+;>     old = 0xFF; text = 0x0B02
 	ld c, $ff
 	ld hl, $0b02
+;>     if mem[0xFFD9] != 0:
 	ldh a, [$ffd9]
 	or a
-	jr z, jr_051_5799
+	jr z, .print
 
+;>         text = 0x0B0F
 	ld hl, $0b0f
+;>         if mem[0xFFD9] != 2:
 	cp $02
-	jr z, jr_051_5799
+	jr z, .print
 
+;>             CopySystemText(0x0600 + mem[0xFFDA], addr(wTextArgs))    # the skill it grew from
 	ldh a, [$ffda]
 	ld l, a
 	ld h, $06
 	ld de, wTextArgs
 	call CopySystemText
+;>             text = 0x0B03; old = mem[0xFFDA]
 	ld hl, $0b03
 	ldh a, [$ffda]
 	ld c, a
 
-jr_051_5799:
+;>     PrintSystemText(text)
+.print:
 	push bc
 	call PrintSystemText
 	pop bc
+;>@f     for i in range(0x28):
 	ld hl, wSceneObjects
 	ld b, $28
 
-jr_051_57a3:
+;>         if mem[addr(wSceneObjects) + i] == old:
+.find:
 	ld a, [hl]
 	cp c
-	jr nz, jr_051_57ac
+	jr nz, .next
 
+;>             mem[addr(wSceneObjects) + i] = mem[0xFFD8]
 	ldh a, [$ffd8]
 	ld [hl], a
-	jr jr_051_57b0
+;>             break
+	jr .done
 
-jr_051_57ac:
+;=@f
+.next:
 	inc hl
 	dec b
-	jr nz, jr_051_57a3
+	jr nz, .find
 
-jr_051_57b0:
+;>     return
+.done:
 	ret
 
-
-jr_051_57b1:
+;> PruneLearnableSkills()
+.none:
 	ld hl, far_PruneLearnableSkills
 	rst $10
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep05()
+;@ path: battle/levelup
+;@ Waits for the text to finish.
 LevelUpStep05::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep06()
+;@ path: battle/levelup
+;@ Waits for the text to finish.
 LevelUpStep06::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep07()
+;@ path: battle/levelup
+;@ Waits for the text to finish.
 LevelUpStep07::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep08()
+;@ path: battle/levelup
+;@ Waits for the text to finish.
 LevelUpStep08::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep09()
+;@ path: battle/levelup
+;@ Goes straight on.
 LevelUpStep09::
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep10()
+;@ path: battle/levelup
+;@ Once the text is done: with 8 skills or fewer the list is kept and the sequence jumps to step 16.
+;@ With more, prints "forget a skill" (system text $0B04) and goes on to the forget menu.
 LevelUpStep10::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if CompactSkillList() < 9:
 	call CompactSkillList
 	cp $09
-	jr nc, jr_051_57f9
+	jr nc, .tooMany
 
+;>     wCommandStep = 16
 	ld a, $10
 	ld [wCommandStep], a
+;>     return
 	ret
 
-
-jr_051_57f9:
+;> wCommandStep += 1
+.tooMany:
 	ld hl, wCommandStep
 	inc [hl]
+;> PrintSystemText(0x0B04)
 	ld hl, $0b04
 	call PrintSystemText
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def CompactSkillList() -> a
+;@ path: battle/levelup
+;@ Closes the gaps ($FF) in the 40-entry skill scratch list in wSceneObjects (through wNumberBackup)
+;@ and returns the number of skills in it.
 CompactSkillList::
+;> fill(wNumberBackup, 0x28, 0xFF)
 	ld hl, wNumberBackup
 	ld bc, $0028
 	ld a, $ff
 	call FillMemory
+;> n = 0
 	ld hl, wSceneObjects
 	ld de, wNumberBackup
 	ld b, $28
 	ld c, $00
 
-jr_051_5822:
+;>@a for i in range(0x28):
+;>     if mem[addr(wSceneObjects) + i] != 0xFF:
+.gather:
 	ld a, [hli]
 	cp $ff
-	jr z, jr_051_582a
+	jr z, .skip
 
+;>         mem[addr(wNumberBackup) + n] = mem[addr(wSceneObjects) + i]; n += 1
 	ld [de], a
 	inc de
 	inc c
 
-jr_051_582a:
+;=@a
+.skip:
 	dec b
-	jr nz, jr_051_5822
+	jr nz, .gather
 
+;>@b for i in range(0x28):
 	ld a, c
 	push af
 	ld hl, wSceneObjects
 	ld de, wNumberBackup
 	ld b, $28
 
-jr_051_5837:
+;>     mem[addr(wSceneObjects) + i] = mem[addr(wNumberBackup) + i]
+.back:
 	ld a, [de]
 	ld [hli], a
 	inc de
+;=@b
 	dec b
-	jr nz, jr_051_5837
+	jr nz, .back
 
+;> return n
 	pop af
 	ret
 

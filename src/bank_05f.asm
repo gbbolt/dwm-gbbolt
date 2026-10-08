@@ -4,9 +4,15 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $05f", ROMX[$4000], BANK[$5f]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_5F::
 	db $5f
 
+;@ path: system/banks
+;@ Entry points of bank $5F for far calls: the ending (game mode 4), the opening, the battle
+;@ screen effects and skill animations, the debug animation viewer (game mode 5) and the debug
+;@ window with the battlers' personality numbers. Entry 3 is the opening's per-frame routine.
 FarTable_5F::
 	dw EndingInit
 	dw EndingUpdate
@@ -20,130 +26,212 @@ FarTable_5F::
 	dw AnimViewerUpdate
 	dw DebugStatsWindow
 
+;@ def EndingInit()
+;@ path: event/ending
+;@ Start-up routine of game mode 4, the ending: blanks the BG map and sets up step
+;@ wGameModeStep (0 the staff credits, 1 the closing screen with the save question).
+;@ test: skip calls routines in other banks
 EndingInit::
+;> DisableSTATInterrupts()
 	call DisableSTATInterrupts
+;> wSGBPalSet = 0; wSGBAttrSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> fill(0x9800, 0xE0, 0x400)              # blank BG map
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $e0
 	call FillMemory
+;> EndingInitSteps[wGameModeStep]()
 	ld a, [wGameModeStep]
 	rst $00
 
+;@ path: event/ending
+;@ Start-up routine of each step of the ending (game mode 4).
 EndingInitSteps::
 	dw EndingInitCredits
 	dw EndingInitSavePrompt
 
+;@ def EndingInitCredits()
+;@ path: event/ending
+;@ Step 0: sets up the staff credits. Every tile starts as plain light grey, the text box
+;@ letters go to $8B00 (2 lines of 18), the window frame tiles to $8D00; the screen frame
+;@ CreditsTilemap is drawn and the first credits page (text and monster picture) shown, then
+;@ the screen fades in to song $21.
+;@ test: skip calls routines in other banks
 EndingInitCredits::
+;> FillTileStripes(0x8000, 0xC00)          # all 384 tiles light grey
 	ld hl, $8000
 	ld bc, $0c00
 	call FillTileStripes
+;> SetUpTextBox(0x8B00, 2, 18)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
+;> Decompress(0x2E, 0x00, 0x8D00)          # window frame tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
-	ld de, $66b3
+;> CopyTileRect_5F(CreditsTilemap, 0x9800, 20, 18)
+	ld de, CreditsTilemap
 	ld hl, $9800
-	ld bc, Clear4Bytes
+	ld bc, $1412
 	call CopyTileRect_5F
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> PrintCreditsPage()
 	call PrintCreditsPage
+;> LoadCreditsMonster()
 	call LoadCreditsMonster
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> QueueMusic(0x21)
 	ld a, $21
 	call QueueMusic
+;> hScrollX = 0
 	xor a
 	ldh [hScrollX], a
+;> hScrollY = 0
 	xor a
 	ldh [hScrollY], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLCDC = 0x11                            # BG on, BG tiles at $8000
 	ld a, $11
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x01)            # VBlank interrupt only
 	ld a, $01
 	jp EnableLCDAndInterrupts
 
 
+;@ def EndingInitSavePrompt()
+;@ path: event/ending
+;@ Step 1: sets up the closing screen: plain tiles from $8800 on, the text box of
+;@ EndingSaveBoxTilemap at the bottom (rows 13-16), the window frame tiles, and song $31.
+;@ test: skip calls routines in other banks
 EndingInitSavePrompt::
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> FillTileStripes(0x8800, 0x800)
 	ld hl, $8800
 	ld bc, $0800
 	call FillTileStripes
-	ld de, $42cf
+;> CopyTileRect_5F(EndingSaveBoxTilemap, 0x99A0, 20, 4)
+	ld de, EndingSaveBoxTilemap
 	ld hl, $99a0
 	ld bc, $1404
 	call CopyTileRect_5F
+;> Decompress(0x2E, 0x00, 0x8D00)          # window frame tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> SetUpTextBox(0x8B00, 2, 18)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> QueueMusic(0x31)
 	ld a, $31
 	call QueueMusic
+;> hScrollX = 0
 	xor a
 	ldh [hScrollX], a
+;> hScrollY = 0
 	xor a
 	ldh [hScrollY], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [$c8a5], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLCDC = 0x01                            # BG on, BG tiles at $8800
 	ld a, $01
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(0x01)            # VBlank interrupt only
 	ld a, $01
 	jp EnableLCDAndInterrupts
 
 
+;@ def FillTileStripes(dest: hl, count: bc)
+;@ path: gfx/tiles
+;@ Writes `count` byte pairs $FF, $00 from `dest` on: tile rows of colour 1, so the tiles
+;@ there become plain light grey.
+;@ test: dest = 0xC100; count = rng.randint(1, 64)
 FillTileStripes::
+;> while True:
+;>     mem[dest] = 0xFF; mem[dest + 1] = 0x00
 	ld [hl], $ff
 	inc hl
 	ld [hl], $00
+;>     dest += 2
 	inc hl
+;>     count = u16(count - 1)
 	dec bc
+;>     if count == 0:
 	ld a, b
 	or c
 	jr nz, FillTileStripes
 
+;>         return
 	ret
 
 
+;@ def EndingUpdate()
+;@ path: event/ending
+;@ Per-frame routine of game mode 4 (the ending); does nothing while a fade runs.
+;@ test: skip runs the steps through a jump table
 EndingUpdate::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> EndingUpdateSteps[wGameModeStep]()
 	ld a, [wGameModeStep]
 	rst $00
 
+;@ path: event/ending
+;@ Per-frame routine of each step of the ending.
 EndingUpdateSteps::
 	dw EndingCredits
 	dw EndingSavePrompt
 
+;@ def EndingCredits()
+;@ path: event/ending
+;@ Step 0 of the ending: runs state wSceneObjects[0] of the staff credits. The credits keep
+;@ their counters in wSceneObjects: [1] page (0-26), [2] frames, [3] seconds shown; [4-5] VRAM
+;@ address and [6] species of the page's monster picture.
+;@ test: skip runs the states through a jump table
 EndingCredits::
+;> EndingCreditsStates[wSceneObjects[0]]()
 	ld a, [wSceneObjects]
 	rst $00
 
+;@ path: event/ending
+;@ States of the staff credits: 0 show the page for 5 seconds, 1 draw the next page, 2 fade it
+;@ in, 3 go on (or stop after the last page), 4 wait and go back to the field.
 EndingCreditsStates::
 	dw CreditsWaitPage
 	dw CreditsNextPage
@@ -151,10 +239,18 @@ EndingCreditsStates::
 	dw CreditsCheckLast
 	dw CreditsLeaveToField
 
+;@ def EndingSavePrompt()
+;@ path: event/ending
+;@ Step 1 of the ending: runs state wSceneObjects[0] of the closing screen.
+;@ test: skip runs the states through a jump table
 EndingSavePrompt::
+;> EndingSavePromptStates[wSceneObjects[0]]()
 	ld a, [wSceneObjects]
 	rst $00
 
+;@ path: event/ending
+;@ States of the closing screen: 0 print the closing text, 1 start, 2 wait for a button and
+;@ ask whether to save, 3 save on yes and print the answer, 4 wait for the text.
 EndingSavePromptStates::
 	dw SavePromptPrintEnd
 	dw SavePromptStart

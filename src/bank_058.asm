@@ -7,472 +7,553 @@ SECTION "ROM Bank $058", ROMX[$4000], BANK[$58]
 BankNumber_58::
 	db $58
 
+;@ path: battle/ai/targets
+;@ Entry points of bank $58, the battle's target choice and turn order. Entries 0-13 are called
+;@ directly; entry 14 + n is the target picker of skill n (n = $00-$E5, the skill numbers of
+;@ SysText_SkillNames; the item "skills" $B0-$D4 and the last ones simply aim at the user).
+;@ RunTargetPicker (entry 8) jumps through it: it reads the monster's chosen skill from wBattlerAction
+;@ and goes to entry 14 + skill with JumpToPointer, inside this bank, so these entries are never
+;@ far-called by number. Each picker writes the chosen battle position into the target byte of the
+;@ user's action (wBattlerAction[2 * wSkillUser + 1]). Many share a plain picker: AITargetEnemySide
+;@ (spells that hit the whole enemy group: the first enemy still standing), AITargetOwnSide (the whole
+;@ own group), AITargetSelf, AITargetSelfLoadSkill (items, Chance, Focus, the dragon calls),
+;@ AITargetRandomEnemy / AITargetRandomAlly.
 FarTable_58::
-	dw ChooseTargetsAndOrder
-	dw BlankEnemyPicture
-	dw CountTargetNames
-	dw NameTargetForMessage
-	dw AITargetAnyone
-	dw AITargetRandomEnemy
-	dw GetSkillMessage
-	dw GetItemMessage
-	dw RunTargetPicker
-	dw SetNameFormMessage
-	dw AITargetAttack
-	dw AIAttackWeight
-	dw PickTargetForSkill
-	dw FixActionTarget
-	dw AITargetBlaze
-	dw AITargetBlaze
-	dw AITargetBlaze
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetBeat
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetSleep
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetRobMagic
-	dw AITargetSelf
-	dw AITargetSap
-	dw AITargetEnemySide
-	dw AITargetUpper
-	dw AITargetOwnSide
-	dw AITargetSlow
-	dw AITargetEnemySide
-	dw AITargetSpeed
-	dw AITargetOwnSide
-	dw AITargetOwnSide
-	dw AITargetTwinHits
-	dw AITargetOwnSide
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetTransform
-	dw AITargetOwnSide
-	dw AITargetHeal
-	dw AITargetHeal
-	dw AITargetHeal
-	dw AITargetOwnSide
-	dw AITargetOwnSide
-	dw AITargetRevive
-	dw AITargetRevive
-	dw AITargetOwnFirst
-	dw AITargetAntidote
-	dw AITargetOwnSide
-	dw AITargetOwnSide
-	dw AITargetOwnSide
-	dw AITargetAttack
-	dw AITargetAttack
-	dw AITargetSelfLoadSkill
-	dw AITargetAttack
-	dw AITargetAttack
-	dw AITargetRamming
-	dw AITargetAttack
-	dw AITargetRamming
-	dw AITargetAnyone
-	dw AITargetAttack
-	dw AITargetSelf
-	dw AITargetRandomEnemy
-	dw AITargetSelf
-	dw AITargetFireSlash
-	dw AITargetBoltSlash
-	dw AITargetVacuSlash
-	dw AITargetIceSlash
-	dw AITargetMetalCut
-	dw AITargetDrakSlash
-	dw AITargetBeastCut
-	dw AITargetBirdBlow
-	dw AITargetDevilCut
-	dw AITargetZombieCut
-	dw AITargetCleanCut
-	dw AITargetEnemySide
-	dw AITargetAttack
-	dw AITargetRandomEnemy
-	dw AITargetRandomEnemy
-	dw AITargetRandomEnemy
-	dw AITargetSelfLoadSkill
-	dw AITargetAttack
-	dw AITargetAttack
-	dw AITargetEnemySide
-	dw AITargetWindBeast
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetPoisonHit
-	dw AITargetNapAttack
-	dw AITargetParalyze
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetAhhh
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetOddDance
-	dw AITargetOddDance
-	dw AITargetSelf
-	dw AITargetEnemySide
-	dw AITargetAhhh
-	dw AITargetSickLick
-	dw AITargetLegSweep
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetAttack
-	dw AITargetSelf
-	dw AITargetEnemySide
-	dw AITargetOwnSide
-	dw AITargetUltraDown
-	dw AITargetSweep
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetCover
-	dw AITargetOwnSide
-	dw AITargetSelf
-	dw AITargetOwnSide
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetOwnSide
-	dw AITargetSelf
-	dw AITargetEnemySide
-	dw AITargetMouthShut
-	dw AITargetSelf
-	dw AITargetOwnSide
-	dw AITargetOwnFirst
-	dw AITargetOwnFirst
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetRandomAlly
-	dw AITargetRandomEnemy
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetRandomEnemy
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSweep
-	dw AITargetOwnSide
-	dw AITargetEnemySide
-	dw AITargetSweep
-	dw AITargetOwnSide
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetEnemySide
-	dw AITargetEnemySide
-	dw AITargetOwnFirst
-	dw AITargetOwnSide
-	dw AITargetEnemySide
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelfLoadSkill
-	dw AITargetSelf
-	dw AITargetSmashlime
-	dw AITargetSheldodge
-	dw AITargetBranching
-	dw AITargetGigaSlash
-	dw AITargetLife
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetAttack
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
-	dw AITargetSelf
+	dw ChooseTargetsAndOrder       ; entry 0
+	dw BlankEnemyPicture           ; entry 1
+	dw CountTargetNames            ; entry 2
+	dw NameTargetForMessage        ; entry 3
+	dw AITargetAnyone              ; entry 4
+	dw AITargetRandomEnemy         ; entry 5
+	dw GetSkillMessage             ; entry 6
+	dw GetItemMessage              ; entry 7
+	dw RunTargetPicker             ; entry 8
+	dw SetNameFormMessage          ; entry 9
+	dw AITargetAttack              ; entry 10
+	dw AIAttackWeight              ; entry 11
+	dw PickTargetForSkill          ; entry 12
+	dw FixActionTarget             ; entry 13
+	dw AITargetBlaze               ; skill $00 Blaze
+	dw AITargetBlaze               ; skill $01 Blazemore
+	dw AITargetBlaze               ; skill $02 Blazemost
+	dw AITargetEnemySide           ; skill $03 Firebal
+	dw AITargetEnemySide           ; skill $04 Firebane
+	dw AITargetEnemySide           ; skill $05 Firebolt
+	dw AITargetEnemySide           ; skill $06 Bang
+	dw AITargetEnemySide           ; skill $07 Boom
+	dw AITargetEnemySide           ; skill $08 Explodet
+	dw AITargetEnemySide           ; skill $09 Infernos
+	dw AITargetEnemySide           ; skill $0A Infermore
+	dw AITargetEnemySide           ; skill $0B Infermost
+	dw AITargetEnemySide           ; skill $0C IceBolt
+	dw AITargetEnemySide           ; skill $0D SnowStorm
+	dw AITargetEnemySide           ; skill $0E Blizzard
+	dw AITargetEnemySide           ; skill $0F Bolt
+	dw AITargetEnemySide           ; skill $10 Zap
+	dw AITargetEnemySide           ; skill $11 Thordain
+	dw AITargetBeat                ; skill $12 Beat
+	dw AITargetEnemySide           ; skill $13 Defeat
+	dw AITargetEnemySide           ; skill $14 Sacrifice
+	dw AITargetSleep               ; skill $15 Sleep
+	dw AITargetEnemySide           ; skill $16 SleepAll
+	dw AITargetEnemySide           ; skill $17 StopSpell
+	dw AITargetEnemySide           ; skill $18 Surround
+	dw AITargetEnemySide           ; skill $19 PanicAll
+	dw AITargetRobMagic            ; skill $1A RobMagic
+	dw AITargetSelf                ; skill $1B TakeMagic
+	dw AITargetSap                 ; skill $1C Sap
+	dw AITargetEnemySide           ; skill $1D Defence
+	dw AITargetUpper               ; skill $1E Upper
+	dw AITargetOwnSide             ; skill $1F Increase
+	dw AITargetSlow                ; skill $20 Slow
+	dw AITargetEnemySide           ; skill $21 SlowAll
+	dw AITargetSpeed               ; skill $22 Speed
+	dw AITargetOwnSide             ; skill $23 SpeedUp
+	dw AITargetOwnSide             ; skill $24 Barrier
+	dw AITargetTwinHits            ; skill $25 TwinHits
+	dw AITargetOwnSide             ; skill $26 MagicWall
+	dw AITargetSelf                ; skill $27 MagicBack
+	dw AITargetSelf                ; skill $28 Bounce
+	dw AITargetTransform           ; skill $29 Transform
+	dw AITargetOwnSide             ; skill $2A Ironize
+	dw AITargetHeal                ; skill $2B Heal
+	dw AITargetHeal                ; skill $2C HealMore
+	dw AITargetHeal                ; skill $2D HealAll
+	dw AITargetOwnSide             ; skill $2E HealUs
+	dw AITargetOwnSide             ; skill $2F HealUsAll
+	dw AITargetRevive              ; skill $30 Vivify
+	dw AITargetRevive              ; skill $31 Revive
+	dw AITargetOwnFirst            ; skill $32 Farewell
+	dw AITargetAntidote            ; skill $33 Antidote
+	dw AITargetOwnSide             ; skill $34 NumbOff
+	dw AITargetOwnSide             ; skill $35 DeChaos
+	dw AITargetOwnSide             ; skill $36 CurseOff
+	dw AITargetAttack              ; skill $37 StepGuard
+	dw AITargetAttack              ; skill $38 MapMagic
+	dw AITargetSelfLoadSkill       ; skill $39 Chance
+	dw AITargetAttack              ; skill $3A Attack
+	dw AITargetAttack              ; skill $3B TwinSlash
+	dw AITargetRamming             ; skill $3C Ramming
+	dw AITargetAttack              ; skill $3D Beserker
+	dw AITargetRamming             ; skill $3E Kamikaze
+	dw AITargetAnyone              ; skill $3F Massacre
+	dw AITargetAttack              ; skill $40 EvilSlash
+	dw AITargetSelf                ; skill $41 ChargeUP
+	dw AITargetRandomEnemy         ; skill $42 HighJump
+	dw AITargetSelf                ; skill $43 SuckAir
+	dw AITargetFireSlash           ; skill $44 FireSlash
+	dw AITargetBoltSlash           ; skill $45 BoltSlash
+	dw AITargetVacuSlash           ; skill $46 VacuSlash
+	dw AITargetIceSlash            ; skill $47 IceSlash
+	dw AITargetMetalCut            ; skill $48 MetalCut
+	dw AITargetDrakSlash           ; skill $49 DrakSlash
+	dw AITargetBeastCut            ; skill $4A BeastCut
+	dw AITargetBirdBlow            ; skill $4B BirdBlow
+	dw AITargetDevilCut            ; skill $4C DevilCut
+	dw AITargetZombieCut           ; skill $4D ZombieCut
+	dw AITargetCleanCut            ; skill $4E CleanCut
+	dw AITargetEnemySide           ; skill $4F MultiCut
+	dw AITargetAttack              ; skill $50 BiAttack
+	dw AITargetRandomEnemy         ; skill $51 QuadHits
+	dw AITargetRandomEnemy         ; skill $52 CallHelp
+	dw AITargetRandomEnemy         ; skill $53 YellHelp
+	dw AITargetSelfLoadSkill       ; skill $54 Focus
+	dw AITargetAttack              ; skill $55 SquallHit
+	dw AITargetAttack              ; skill $56 PsycheUp
+	dw AITargetEnemySide           ; skill $57 RainSlash
+	dw AITargetWindBeast           ; skill $58 WindBeast
+	dw AITargetEnemySide           ; skill $59 Vacuum
+	dw AITargetEnemySide           ; skill $5A Lightning
+	dw AITargetEnemySide           ; skill $5B RockThrow
+	dw AITargetEnemySide           ; skill $5C FireAir
+	dw AITargetEnemySide           ; skill $5D BlazeAir
+	dw AITargetEnemySide           ; skill $5E Scorching
+	dw AITargetEnemySide           ; skill $5F WhiteFire
+	dw AITargetEnemySide           ; skill $60 FrigidAir
+	dw AITargetEnemySide           ; skill $61 IceAir
+	dw AITargetEnemySide           ; skill $62 IceStorm
+	dw AITargetEnemySide           ; skill $63 WhiteAir
+	dw AITargetEnemySide           ; skill $64 Hellblast
+	dw AITargetEnemySide           ; skill $65 BigBang
+	dw AITargetEnemySide           ; skill $66 MegaMagic
+	dw AITargetPoisonHit           ; skill $67 PoisonHit
+	dw AITargetNapAttack           ; skill $68 NapAttack
+	dw AITargetParalyze            ; skill $69 Paralyze
+	dw AITargetEnemySide           ; skill $6A SleepAir
+	dw AITargetEnemySide           ; skill $6B PalsyAir
+	dw AITargetEnemySide           ; skill $6C PoisonGas
+	dw AITargetEnemySide           ; skill $6D PoisonAir
+	dw AITargetEnemySide           ; skill $6E PaniDance
+	dw AITargetEnemySide           ; skill $6F Curse
+	dw AITargetAhhh                ; skill $70 Ahhh
+	dw AITargetEnemySide           ; skill $71 K.O.Dan
+	dw AITargetEnemySide           ; skill $72 SandStorm
+	dw AITargetEnemySide           ; skill $73 Radiant
+	dw AITargetEnemySide           ; skill $74 EerieLite
+	dw AITargetOddDance            ; skill $75 OddDance
+	dw AITargetOddDance            ; skill $76 RobDance
+	dw AITargetSelf                ; skill $77 SideStep
+	dw AITargetEnemySide           ; skill $78 LureDance
+	dw AITargetAhhh                ; skill $79 LushLicks
+	dw AITargetSickLick            ; skill $7A SickLick
+	dw AITargetLegSweep            ; skill $7B LegSweep
+	dw AITargetEnemySide           ; skill $7C BigTrip
+	dw AITargetEnemySide           ; skill $7D WarCry
+	dw AITargetAttack              ; skill $7E Whistle
+	dw AITargetSelf                ; skill $7F Imitate
+	dw AITargetEnemySide           ; skill $80 DeMagic
+	dw AITargetOwnSide             ; skill $81 Surge
+	dw AITargetUltraDown           ; skill $82 UltraDown
+	dw AITargetSweep               ; skill $83 ThickFog
+	dw AITargetSelfLoadSkill       ; skill $84 TatsuCall
+	dw AITargetSelfLoadSkill       ; skill $85 DiagoCall
+	dw AITargetSelfLoadSkill       ; skill $86 SamsiCall
+	dw AITargetSelfLoadSkill       ; skill $87 BazooCall
+	dw AITargetCover               ; skill $88 Cover
+	dw AITargetOwnSide             ; skill $89 Guardian
+	dw AITargetSelf                ; skill $8A TailWind
+	dw AITargetOwnSide             ; skill $8B StormWind
+	dw AITargetSelf                ; skill $8C Dodge
+	dw AITargetSelf                ; skill $8D Defence
+	dw AITargetSelf                ; skill $8E StrongD
+	dw AITargetOwnSide             ; skill $8F SuckAll
+	dw AITargetSelf                ; skill $90 BladeD
+	dw AITargetEnemySide           ; skill $91 DanceShut
+	dw AITargetMouthShut           ; skill $92 MouthShut
+	dw AITargetSelf                ; skill $93 Meditate
+	dw AITargetOwnSide             ; skill $94 Hustle
+	dw AITargetOwnFirst            ; skill $95 LifeSong
+	dw AITargetOwnFirst            ; skill $96 LifeDance
+	dw AITargetSelf                ; skill $97 Run
+	dw AITargetSelf                ; skill $98 Daze
+	dw AITargetRandomAlly          ; skill $99 HitAlly
+	dw AITargetRandomEnemy         ; skill $9A HitEnemy
+	dw AITargetSelf                ; skill $9B HitRandom
+	dw AITargetSelf                ; skill $9C Scared
+	dw AITargetSelf                ; skill $9D Dance
+	dw AITargetRandomEnemy         ; skill $9E Trip
+	dw AITargetSelf                ; skill $9F Paralyze
+	dw AITargetSelf                ; skill $A0 CANTMOVE
+	dw AITargetSelf                ; skill $A1 RUN
+	dw AITargetSweep               ; skill $A2 CALLHOROR
+	dw AITargetOwnSide             ; skill $A3 HealUsAll
+	dw AITargetEnemySide           ; skill $A4 Smashed
+	dw AITargetSweep               ; skill $A5 FILTHZONE
+	dw AITargetOwnSide             ; skill $A6 ALLCHANGE
+	dw AITargetEnemySide           ; skill $A7 BIGSLEEP
+	dw AITargetEnemySide           ; skill $A8 MP0
+	dw AITargetSelf                ; skill $A9 ECHO
+	dw AITargetSelf                ; skill $AA CHGDRAGON
+	dw AITargetEnemySide           ; skill $AB CALLEVIL
+	dw AITargetEnemySide           ; skill $AC FREEZY
+	dw AITargetOwnFirst            ; skill $AD ALLREVIVE
+	dw AITargetOwnSide             ; skill $AE RESTOREMP
+	dw AITargetEnemySide           ; skill $AF METEOR
+	dw AITargetSelfLoadSkill       ; skill $B0 HERB
+	dw AITargetSelfLoadSkill       ; skill $B1 HEALWATER
+	dw AITargetSelfLoadSkill       ; skill $B2 SAGESTONE
+	dw AITargetSelfLoadSkill       ; skill $B3 WARLDDEW
+	dw AITargetSelfLoadSkill       ; skill $B4 POTION
+	dw AITargetSelfLoadSkill       ; skill $B5 ELFWATER
+	dw AITargetSelfLoadSkill       ; skill $B6 ANTIDOTE
+	dw AITargetSelfLoadSkill       ; skill $B7 MOONHERB
+	dw AITargetSelfLoadSkill       ; skill $B8 SKYBELL
+	dw AITargetSelfLoadSkill       ; skill $B9 LAUREL
+	dw AITargetSelfLoadSkill       ; skill $BA AWAKESAND
+	dw AITargetSelfLoadSkill       ; skill $BB WARLDLEAF
+	dw AITargetSelfLoadSkill       ; skill $BC LIFEACORN
+	dw AITargetSelfLoadSkill       ; skill $BD MYSTICNUT
+	dw AITargetSelfLoadSkill       ; skill $BE PWRSEED
+	dw AITargetSelfLoadSkill       ; skill $BF DEFSEED
+	dw AITargetSelfLoadSkill       ; skill $C0 AGILSEED
+	dw AITargetSelfLoadSkill       ; skill $C1 INTSEED
+	dw AITargetSelfLoadSkill       ; skill $C2 FEEDMEAT
+	dw AITargetSelfLoadSkill       ; skill $C3 BEFFJERKY
+	dw AITargetSelfLoadSkill       ; skill $C4 PORKCHOP
+	dw AITargetSelfLoadSkill       ; skill $C5 BADMEAT
+	dw AITargetSelfLoadSkill       ; skill $C6 SIRLOIN
+	dw AITargetSelfLoadSkill       ; skill $C7 BOLTSTAFF
+	dw AITargetSelfLoadSkill       ; skill $C8 STAFF
+	dw AITargetSelfLoadSkill       ; skill $C9 BLOKSTAFF
+	dw AITargetSelfLoadSkill       ; skill $CA LAVASTAFF
+	dw AITargetSelfLoadSkill       ; skill $CB SNOWSTAFF
+	dw AITargetSelfLoadSkill       ; skill $CC FIRESTAFF
+	dw AITargetSelfLoadSkill       ; skill $CD WARPWING
+	dw AITargetSelfLoadSkill       ; skill $CE TINYMEDAL
+	dw AITargetSelfLoadSkill       ; skill $CF QuestBk
+	dw AITargetSelfLoadSkill       ; skill $D0 HORRORBK
+	dw AITargetSelfLoadSkill       ; skill $D1 BENICEBK
+	dw AITargetSelfLoadSkill       ; skill $D2 CHEATERBK
+	dw AITargetSelfLoadSkill       ; skill $D3 SMARTBK
+	dw AITargetSelfLoadSkill       ; skill $D4 COMEDYBK
+	dw AITargetSelf                ; skill $D5 BeDragon
+	dw AITargetSmashlime           ; skill $D6 Smashlime
+	dw AITargetSheldodge           ; skill $D7 Sheldodge
+	dw AITargetBranching           ; skill $D8 Branching
+	dw AITargetGigaSlash           ; skill $D9 GigaSlash
+	dw AITargetLife                ; skill $DA LIFE
+	dw AITargetSelf                ; skill $DB RUN
+	dw AITargetSelf                ; skill $DC IRONIZE
+	dw AITargetAttack              ; skill $DD Ahhh
+	dw AITargetSelf                ; skill $DE (no name)
+	dw AITargetSelf                ; skill $DF (no name)
+	dw AITargetSelf                ; skill $E0 (no name)
+	dw AITargetSelf                ; skill $E1 (no name)
+	dw AITargetSelf                ; skill $E2 (no name)
+	dw AITargetSelf                ; skill $E3 (no name)
+	dw AITargetSelf                ; skill $E4 (no name)
+	dw AITargetSelf                ; skill $E5 (no name)
 
+;@ def AITargetAttack()
+;@ path: battle/ai/targets
+;@ Target picker of Attack and the other weapon skills (StepGuard, MapMagic, TwinSlash, Beserker,
+;@ EvilSlash, BiAttack, SquallHit, PsycheUp, Whistle, Ahhh $DD). A dim monster (intelligence class 0)
+;@ hits a random enemy; an enemy monster in a normal battle uses AITargetWeakAtRandom. Otherwise
+;@ the enemies are scored and the lowest score wins: if none can be reached (all high in the sky),
+;@ HP + defense of all; if none is exposed (sky, Dodge, a defence stance), HP + defense with a
+;@ Beserker's defense halved; else the HP each exposed enemy would keep after the estimated damage
+;@ (times 50 for a metal monster) - a smart monster (class 2) only looks at enemies that can still
+;@ act. Ties are broken at random.
+;@ test: skip far calls into the damage estimate
 AITargetAttack::
+;> fill(wSkillAmount, 8, 0)                      # the score scratch
 	ld hl, wSkillAmount
 	ld bc, $0008
 	xor a
 	call FillMemory
+;> if AIRandomEnemyIfDim():
+;>     return
 	call AIRandomEnemyIfDim
 	ret z
 
+;> if not wLinkActive and wSkillUser >= 4:       # an enemy monster
+;>     return AITargetWeakAtRandom()
 	ld a, [wLinkActive]
 	or a
-	jp nz, Jump_058_4206
+	jp nz, .scoring
 
 	ld a, [wSkillUser]
 	cp $04
 	jp nc, AITargetWeakAtRandom
 
-Jump_058_4206:
+.scoring:
+;> side = (wSkillUser & 4) ^ 4                   # first position of the enemy side
 	ld a, [wSkillUser]
 	and $04
 	xor $04
+;> wSkillTarget = side
 	ld [wSkillTarget], a
+;>@h if not any(not CheckBattlerPresent(c) and CheckHittable(c) for c in range(side, side + 3)):
 	ld b, $03
 	ld c, a
 
-jr_058_4213:
+.findHittable:
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_058_421e
+	jr c, .nextHittable
 
+;=@h
 	call CheckHittable
-	jr c, jr_058_4228
+	jr c, .someHittable
 
-jr_058_421e:
+.nextHittable:
+;=@h
 	inc c
 	dec b
-	jr nz, jr_058_4213
+	jr nz, .findHittable
 
+;>     AIScoreEnemies()                          # nobody can be reached: HP + defense of all
 	call AIScoreEnemies
-	jp Jump_058_431a
+	jp .store
 
 
-jr_058_4228:
+.someHittable:
+;>@x elif not any(not CheckBattlerPresent(c) and CheckTargetExposed(c) for c in range(side, side + 3)):
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_058_422e:
+.findExposed:
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_058_4239
+	jr c, .nextExposed
 
+;=@x
 	call CheckTargetExposed
-	jr z, jr_058_4243
+	jr z, .someExposed
 
-jr_058_4239:
+.nextExposed:
+;=@x
 	inc c
 	dec b
-	jr nz, jr_058_422e
+	jr nz, .findExposed
 
+;>     AIScoreGroundedEnemies()                  # everyone protected
 	call AIScoreGroundedEnemies
-	jp Jump_058_431a
+	jp .store
 
 
-jr_058_4243:
+.someExposed:
+;>@cl elif wBattlerIntClass[wSkillUser] == 2:    # a smart monster
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@cl
 	ld h, a
 	ld a, [hl]
 	cp $02
-	jr nz, jr_058_4270
+	jr nz, .scoreExposed
 
+;>@s     if not any(CheckTargetExposed(c) and not CheckBattlerCanAct(c) for c in range(side, side + 3)):
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_058_425a:
+.findActive:
 	ld a, c
 	call CheckTargetExposed
-	jr nz, jr_058_4266
+	jr nz, .nextActive
 
+;=@s
 	ld a, c
 	call CheckBattlerCanAct
-	jr nc, jr_058_42c6
+	jr nc, .scoreActive
 
-jr_058_4266:
+.nextActive:
+;=@s
 	inc c
 	dec b
-	jr nz, jr_058_425a
+	jr nz, .findActive
 
+;>         AIScoreGroundedEnemies()
 	call AIScoreGroundedEnemies
-	jp Jump_058_431a
+	jp .store
 
-
-jr_058_4270:
+;>@a1     else:
+;>@a2         for c in range(side, side + 3):
+;>@a3             if not CheckBattlerCanAct(c) and CheckTargetExposed(c):
+;>@a6                 AIEstimateDamage()
+;>@a7                 wSkillAmount = max(GetBattlerHP(c) - wSkillAmount, 0)   # HP left after the hit
+;>@a4             else:
+;>@a5                 wSkillAmount = 0xFFFF
+;>@a8             AIMetalPenalty(c)
+;>@a9             AISetScore(c, wSkillAmount)
+;>@a10         AIPickLowestScore()
+;> else:
+;>     for c in range(side, side + 3):
+.scoreExposed:
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_058_4276:
+.exposedLoop:
+;>         if not CheckBattlerPresent(c) and CheckTargetExposed(c):
 	push bc
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_058_42a6
+	jr c, .exposedNone
 
 	call CheckTargetExposed
-	jr nz, jr_058_42a6
+	jr nz, .exposedNone
 
+;>             AIEstimateDamage()
 	call AIEstimateDamage
+;>@hp             hp = GetBattlerHP(c) - wSkillAmount     # HP left after the hit
 	ld a, c
 	call GetBattlerHP
 	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
+;=@hp
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
-	jr nc, jr_058_429c
+;>             if hp < 0:
+;>                 hp = 0
+	jr nc, .exposedLeft
 
 	ld hl, $0000
 
-jr_058_429c:
+.exposedLeft:
+;>             wSkillAmount = hp
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
-	jr jr_058_42ae
+	jr .exposedScore
 
-jr_058_42a6:
+.exposedNone:
+;>         else:
+;>             wSkillAmount = 0xFFFF
 	ld a, $ff
 	ld [wSkillAmount], a
 	ld [$db57], a
 
-jr_058_42ae:
+.exposedScore:
+;>         AIMetalPenalty(c)
 	pop bc
 	call AIMetalPenalty
+;>         AISetScore(c, wSkillAmount)
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
 	call AISetScore
+;=@a2
 	inc c
 	dec b
-	jr nz, jr_058_4276
+	jr nz, .exposedLoop
 
+;>     AIPickLowestScore()
 	call AIPickLowestScore
-	jr jr_058_431a
+	jr .store
 
-jr_058_42c6:
+.scoreActive:
+;=@a2
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_058_42cc:
+.activeLoop:
+;=@a3
 	push bc
 	ld a, c
 	call CheckBattlerCanAct
-	jr c, jr_058_42fc
+	jr c, .activeNone
 
+;=@a3
 	call CheckTargetExposed
-	jr nz, jr_058_42fc
+	jr nz, .activeNone
 
+;=@a6
 	call AIEstimateDamage
+;=@a7
 	ld a, c
 	call GetBattlerHP
 	ld a, [wSkillAmount]
 	ld c, a
 	ld a, [$db57]
 	ld b, a
+;=@a7
 	ld a, l
 	sub c
 	ld l, a
 	ld a, h
 	sbc b
 	ld h, a
-	jr nc, jr_058_42f2
+;=@a7
+	jr nc, .activeLeft
 
 	ld hl, $0000
 
-jr_058_42f2:
+.activeLeft:
+;=@a7
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [$db57], a
-	jr jr_058_4304
+	jr .activeScore
 
-jr_058_42fc:
+.activeNone:
+;=@a4
 	ld a, $ff
 	ld [wSkillAmount], a
 	ld [$db57], a
 
-jr_058_4304:
+.activeScore:
+;=@a8
 	pop bc
 	call AIMetalPenalty
+;=@a9
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [$db57]
 	ld h, a
 	call AISetScore
+;=@a2
 	inc c
 	dec b
-	jr nz, jr_058_42cc
+	jr nz, .activeLoop
 
+;=@a10
 	call AIPickLowestScore
 
-Jump_058_431a:
-jr_058_431a:
+.store:
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -480,63 +561,96 @@ jr_058_431a:
 	ret
 
 
+;@ def AIScoreEnemies()
+;@ path: battle/ai/targets
+;@ Scores the three positions from wSkillTarget on by HP + defense (empty ones $FFFF) and picks the
+;@ lowest (AIPickLowestScore, which this runs into).
+;@ test: wSkillTarget = rng.choice([0, 4])
 AIScoreEnemies::
+;> mem[wStatPtr] = 0                         # flag: no Beserker halving
 	ld a, $00
 	ld [wStatPtr], a
+;>@f for c in range(wSkillTarget, wSkillTarget + 3):
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_058_4337:
+.loop:
+;>     AIScoreHPDefense(c)
 	call AIScoreHPDefense
+;=@f
 	inc c
 	dec b
-	jr nz, jr_058_4337
+	jr nz, .loop
 
+;> AIPickLowestScore()                       # runs into it
+
+;@ def AIPickLowestScore()
+;@ path: battle/ai/targets
+;@ Adds to wSkillTarget (the first position of a side) the index 0-2 of the lowest of the three
+;@ scores in wTargetScores; on a tie a random draw decides. The index is kept in the low byte of
+;@ wSkillStatusPtr meanwhile.
+;@ test: wSkillTarget = rng.choice([0, 4])
 AIPickLowestScore::
+;> mem[wSkillStatusPtr] = 0                  # index of the lowest score so far
 	ld a, $00
 	ld [wSkillStatusPtr], a
+;> low = wTargetScores
 	ld a, [wTargetScores]
 	ld c, a
 	ld a, [$db59]
 	ld b, a
+;>@l for e in (1, 2):
 	ld de, $0201
 
-jr_058_434e:
+.loop:
+;>@sc     s = mem16[addr(wTargetScores) + 2 * e]
 	ld a, e
 	ld hl, wTargetScores
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sc
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>     if s == low:
 	call CompareHLBC
-	jr z, jr_058_436b
+	jr z, .tie
 
-	jr nc, jr_058_4375
+;>@t1         BattleRandom_58()
+;>@t2         take = not (wRandomHigh & 0x02)
+;>     else:
+;>         take = s < low
+	jr nc, .next
 
-jr_058_4363:
+.take:
+;>     if take:
+;>         low = s; mem[wSkillStatusPtr] = e
 	ld b, h
 	ld c, l
 	ld a, e
 	ld [wSkillStatusPtr], a
-	jr jr_058_4375
+	jr .next
 
-jr_058_436b:
+.tie:
+;=@t1
 	call BattleRandom_58
+;=@t2
 	ld a, [wRandomHigh]
 	bit 1, a
-	jr z, jr_058_4363
+	jr z, .take
 
-jr_058_4375:
+.next:
+;=@l
 	inc e
 	dec d
-	jr nz, jr_058_434e
+	jr nz, .loop
 
+;> wSkillTarget += mem[wSkillStatusPtr]
 	ld hl, wSkillTarget
 	ld a, [wSkillStatusPtr]
 	add [hl]
@@ -544,126 +658,186 @@ jr_058_4375:
 	ret
 
 
+;@ def AIScoreGroundedEnemies()
+;@ path: battle/ai/targets
+;@ Like AIScoreEnemies, but a monster high in the sky (HighJump) gets no score and a Beserker's
+;@ defense counts half; then picks the lowest score.
+;@ test: wSkillTarget = rng.choice([0, 4])
 AIScoreGroundedEnemies::
+;> mem[wStatPtr] = 1                         # flag: halve a Beserker's defense
 	ld a, $01
 	ld [wStatPtr], a
+;>@lp for c in range(wSkillTarget, wSkillTarget + 3):
 	ld b, $03
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_058_438f:
+.loop:
+;>     if not wBattlerStatus[8 * c + 4] & 0x04:     # not high in the sky
 	ld a, c
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
-	jr nz, jr_058_439f
+	jr nz, .sky
 
+;>         AIScoreHPDefense(c)
 	call AIScoreHPDefense
-	jr jr_058_43a2
+	jr .next
 
-jr_058_439f:
+.sky:
+;>     else:
+;>         AISetNoScore(c)
 	call AISetNoScore
 
-jr_058_43a2:
+.next:
+;=@lp
 	inc c
 	dec b
-	jr nz, jr_058_438f
+	jr nz, .loop
 
+;> AIPickLowestScore()
 	call AIPickLowestScore
 	ret
 
 
+;@ def AIScoreHPDefense(pos: c)
+;@ path: battle/ai/targets
+;@ Score of position `pos`: HP + defense ($FFFF when the position is empty or out of action); with
+;@ the flag in wStatPtr set, a Beserker's defense counts half.
+;@ test: pos = rng.randint(0, 7)
 AIScoreHPDefense::
+;> if CheckBattlerPresent(pos):
+;>     return AISetNoScore(pos)
 	ld a, c
 	call CheckBattlerPresent
 	jr c, AISetNoScore
 
+;> hp = GetBattlerHP(pos)
 	call GetBattlerHP
 	push hl
+;> defense = GetBattlerDefense(pos)
 	ld a, c
 	call GetBattlerDefense
+;>@b if mem[wStatPtr] and wBattlerStatus[8 * pos + 6] & 0x04:   # Beserker
 	ld a, [wStatPtr]
 	or a
-	jr z, jr_058_43d0
+	jr z, .add
 
 	push hl
 	ld a, c
 	ld hl, wBattlerStatus6
+;=@b
 	call AddEightTimes
 	ld a, [hl]
 	pop hl
 	bit 2, a
-	jr z, jr_058_43d0
+	jr z, .add
 
+;>     defense >>= 1
 	srl h
 	rr l
 
-jr_058_43d0:
+.add:
+;> AISetScore(pos, hp + defense)             # runs into it
 	pop de
 	add hl, de
 	jr AISetScore
 
+;@ def AISetNoScore(pos: c)
+;@ path: battle/ai/targets
+;@ Gives position `pos` the score $FFFF (never the lowest).
+;@ test: pos = rng.randint(0, 7)
 AISetNoScore::
+;> AISetScore(pos, 0xFFFF)
 	ld hl, $ffff
 
+;@ def AISetScore(pos: c, score: hl)
+;@ path: battle/ai/targets
+;@ Stores `score` as the score of position `pos` (its slot 0-2 on the side) in wTargetScores.
+;@ test: pos = rng.randint(0, 6)
 AISetScore::
+;>@w mem16[addr(wTargetScores) + 2 * (pos & 3)] = score
 	ld a, c
 	and $03
 	add a
 	ld de, wTargetScores
 	add e
 	ld e, a
+;=@w
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, l
 	ld [de], a
 	inc de
+;=@w
 	ld a, h
 	ld [de], a
 	ret
 
 
+;@ def CheckTargetExposed(pos: a) -> zero
+;@ path: battle/ai/targets
+;@ Zero (True) when the monster at `pos` is open to a weapon attack: not high in the sky (HighJump),
+;@ not dodging (Dodge) and in no defence stance (Defence, StrongD, BladeD).
+;@ test: pos = rng.randint(0, 7)
 CheckTargetExposed::
+;> if wBattlerStatus[8 * pos + 4] & 0x04:       # high in the sky
+;>     return False
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	bit 2, [hl]
-	jr nz, jr_058_43fe
+	jr nz, .done
 
+;> if wBattlerStatus[8 * pos + 6] & 0x20:       # Dodge
+;>     return False
 	inc hl
 	inc hl
 	ld a, [hli]
 	and $20
-	jr nz, jr_058_43fe
+	jr nz, .done
 
+;> return not wBattlerStatus[8 * pos + 7] & 0x07   # defence stance
 	ld a, [hl]
 	and $07
 
-jr_058_43fe:
+.done:
 	ret
 
 
+;@ def AIEstimateDamage()
+;@ path: battle/ai/targets
+;@ Works out the amount of skill wSkillId into wSkillAmount for the target choice: the spells (below
+;@ $37), GigaSlash ($D9) and Ahhh ($DD) through GetSkillBaseAmount (bank $54), the other skills
+;@ through SkillDamageByKind (bank $52).
+;@ test: skip far calls into the damage routines
 AIEstimateDamage::
+;>@i if wSkillId < 0x37 or wSkillId == 0xD9 or wSkillId == 0xDD:
 	push bc
 	ld a, [wSkillId]
 	cp $37
-	jr c, jr_058_4415
+	jr c, .base
 
+;=@i
 	cp $d9
-	jr z, jr_058_4415
+	jr z, .base
 
 	cp $dd
-	jr z, jr_058_4415
+	jr z, .base
 
+;>@b     GetSkillBaseAmount()
+;> else:
+;>     SkillDamageByKind()
 	ld hl, far_SkillDamageByKind
 	rst $10
-	jr jr_058_4419
+	jr .done
 
-jr_058_4415:
+.base:
+;=@b
 	ld hl, far_GetSkillBaseAmount
 	rst $10
 
-jr_058_4419:
+.done:
 	pop bc
 	ret
 
@@ -681,7 +855,7 @@ AITargetWeakAtRandom::
 	ld h, a
 	ld a, [hl]
 	cp $02
-	jr z, jr_058_448a
+	jr z, AITargetWeakSmart
 
 	call AIListPresentEnemies
 	call AIListStart
@@ -748,7 +922,7 @@ AIPickOfOne::
 	ret
 
 
-jr_058_448a:
+AITargetWeakSmart::
 	call AIStartScoresAlt
 
 jr_058_448d:

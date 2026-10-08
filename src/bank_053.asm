@@ -426,10 +426,19 @@ GetUserName_53::
 	ret
 
 
+;@ def RunActionStart_53()
+;@ path: battle/actions
+;@ Battle action step 0, once per frame: runs stage wBattleSubStep2 of starting the next action of
+;@ the turn (ActionStartStages_53) - who acts, whether an ailment stops it, whether it still wants
+;@ and can afford its skill.
+;@ test: skip jump table
 RunActionStart_53::
+;> ActionStartStages_53[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages of RunActionStart_53 (wBattleSubStep2 0-8).
 ActionStartStages_53::
 	dw ActionStart_Begin_53
 	dw ActionStart_Reconsider_53
@@ -441,467 +450,614 @@ ActionStartStages_53::
 	dw ActionStart_StartPause_53
 	dw ActionStart_Pause_53
 
+;@ def ActionStart_Begin_53()
+;@ path: battle/actions
+;@ Stage 0: takes the next battle position from wTurnOrder (a reaction keeps its user) and checks
+;@ what keeps it from acting: an iron lump, paralysis, sleep (it may wake up), the one-turn
+;@ conditions of status byte 3 (frozen, lured, stumbling, licked, shocked, feeling good) - each
+;@ shows its message and costs the monster its turn. A cursed monster may suffer the curse
+;@ (CurseEffect_53), a confused one acts at random (action step $11). An enemy that would repeat a
+;@ group skill of its group may switch to Attack. Otherwise it goes on to stage 1.
+;@ test: skip calls routines in other banks
 ActionStart_Begin_53::
+;> wBattleTemp = 0
 	xor a
 	ld [wBattleTemp], a
+;> if wBattleSubStep == 0x12:             # a second action in the same turn
 	ld a, [wBattleSubStep]
 	cp $12
-	jr nz, jr_053_4500
+	jr nz, .reset
 
+;>     wBattleTemp = 0x12; wBattleSubStep = 0
 	ld [wBattleTemp], a
 	xor a
 	ld [wBattleSubStep], a
+;>@o     wBattlerOrder[wSkillUser] = 2
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $02
 
-jr_053_4500:
+.reset
+;> wHitCount = 0; wBattleStepArg0 = 0
 	xor a
 	ld [wHitCount], a
 	ld [wBattleStepArg0], a
+;> wBattleStepArg1 = 0; mem[0xDD6D] = 0
 	ld [wBattleStepArg1], a
 	ld [$dd6d], a
+;> mem[0xDD6E] = 0; wBattleAnimRunning = 0
 	ld [$dd6e], a
 	ld [wBattleAnimRunning], a
+;> if not wLinkActive:
+;>     wOrderFlag0 = 0
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_053_451e
+	jr nz, .link
 
 	ld a, $00
 	ld [wOrderFlag0], a
 
-jr_053_451e:
+.link
+;> wBattleAnimDone = 1; wSkillTarget = 0xFF
 	ld a, $01
 	ld [wBattleAnimDone], a
 	ld a, $ff
 	ld [wSkillTarget], a
+;> if not wReactionKind:                   # a reaction keeps its user
 	ld a, [wReactionKind]
 	or a
-	jr nz, jr_053_454f
+	jr nz, .user
 
+;>     if wTurnOrderPos == 9:
+;>         return EndOfTurn()
 	ld a, [wTurnOrderPos]
 	cp $09
-	jp z, Jump_053_4640
+	jp z, .endOfTurn
 
+;>     pos = wTurnOrder[wTurnOrderPos]
 	ld hl, wTurnOrder
 	call ReadTableByte_53
+;>     if pos == 0x10:                    # Terry uses an item
 	cp $10
-	jr nz, jr_053_4546
+	jr nz, .monster
 
+;>         wBattleSubStep = 9; return
 	ld a, $09
 	ld [wBattleSubStep], a
 	ret
 
 
-jr_053_4546:
+.monster
+;>     wSkillUser = pos
 	ld [wSkillUser], a
+;>     if CheckBattlerPresent(pos):
+;>         wTurnOrderPos += 1; return
 	call CheckBattlerPresent
-	jp c, Jump_053_463b
+	jp c, .skip
 
-jr_053_454f:
+.user
+;> if wBattlerOrder[wSkillUser] != 2:
+;>     wTurnOrderPos += 1; return
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	call ReadTableByte_53
 	cp $02
-	jp nz, Jump_053_463b
+	jp nz, .skip
 
+;> status = addr(wBattlerStatus) + 8 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
+;> if mem[status + 5] & 0xC0: return LoseTurn(0x11)        # "... became a lump of iron!"
 	ld a, [hl]
 	and $c0
-	jr z, jr_053_4570
+	jr z, .notIron
 
 	ld a, $11
-	jp Jump_053_462c
+	jp .loseTurn
 
 
-jr_053_4570:
+.notIron
+;>@sp wSkillStatusPtr = status
 	ld a, l
 	sub $05
 	ld l, a
 	ld [wSkillStatusPtr], a
 	ld a, h
 	sbc $00
+;=@sp
 	ld h, a
-	ld [$db62], a
+	ld [wSkillStatusPtr + 1], a
+;> if mem[status] & 0x40: return LoseTurn(0x13)            # "... is paralyzed!"
 	bit 6, [hl]
-	jr z, jr_053_4587
+	jr z, .notParalyzed
 
 	ld a, $13
-	jp Jump_053_462c
+	jp .loseTurn
 
 
-jr_053_4587:
+.notParalyzed
+;> if mem[status] & 0x80: return LoseTurn(SleepTurn_53(status))   # asleep, or waking up
 	bit 7, [hl]
-	jr z, jr_053_4591
+	jr z, .notAsleep
 
 	call SleepTurn_53
-	jp Jump_053_462c
+	jp .loseTurn
 
 
-jr_053_4591:
+.notAsleep
+;> cond = mem[status + 3]
 	inc hl
 	inc hl
 	inc hl
 	ld a, [hl]
+;> if cond:
 	or a
-	jr z, jr_053_45ca
+	jr z, .noCondition
 
+;>     if cond & 0x04: return LoseTurn(0x16)                # stumbling: "can't get up yet"
 	bit 2, a
-	jr z, jr_053_45a1
+	jr z, .notStumbling
 
 	ld a, $16
-	jp Jump_053_462c
+	jp .loseTurn
 
 
-jr_053_45a1:
+.notStumbling
+;>     if cond & 0x01: return LoseTurn(0x12)                # "... is frozen solid!"
 	bit 0, a
-	jr z, jr_053_45aa
+	jr z, .notFrozen
 
 	ld a, $12
-	jp Jump_053_462c
+	jp .loseTurn
 
 
-jr_053_45aa:
+.notFrozen
+;>     if cond & 0x02: return LoseTurn(0x14)                # lured: "can't resist dancing"
 	bit 1, a
-	jr z, jr_053_45b2
+	jr z, .notLured
 
 	ld a, $14
-	jr jr_053_462c
+	jr .loseTurn
 
-jr_053_45b2:
+.notLured
+;>     if cond & 0x08: return LoseTurn(0x15)                # licked: "... is shivering!"
 	bit 3, a
-	jr z, jr_053_45ba
+	jr z, .notLicked
 
 	ld a, $15
-	jr jr_053_462c
+	jr .loseTurn
 
-jr_053_45ba:
+.notLicked
+;>     if cond & 0x10: return LoseTurn(0x17)                # shocked: "cowers in fear"
 	bit 4, a
-	jr z, jr_053_45c2
+	jr z, .notShocked
 
 	ld a, $17
-	jr jr_053_462c
+	jr .loseTurn
 
-jr_053_45c2:
+.notShocked
+;>     if cond & 0x20: return LoseTurn(0x18)                # feeling good: "daydreaming"
 	bit 5, a
-	jr z, jr_053_45ca
+	jr z, .noCondition
 
 	ld a, $18
-	jr jr_053_462c
+	jr .loseTurn
 
-jr_053_45ca:
+.noCondition
+;> DrawRandom_53()
 	call DrawRandom_53
+;> status = wSkillStatusPtr
 	ld a, [wSkillStatusPtr]
 	ld l, a
-	ld a, [$db62]
+	ld a, [wSkillStatusPtr + 1]
 	ld h, a
+;> if mem[status] & 0x20 and wRandomHigh < 0x40:           # cursed: one turn in four
 	bit 5, [hl]
-	jr z, jr_053_45f9
+	jr z, .notCursed
 
 	ld a, [wRandomHigh]
 	cp $40
-	jr nc, jr_053_45f9
+	jr nc, .notCursed
 
+;>     CurseEffect_53()
 	call CurseEffect_53
+;>@hp     if wBattlerHP[wSkillUser] == 0:
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@hp
 	adc h
 	ld h, a
 	ld a, [hli]
 	or [hl]
 	ret nz
 
+;>         wBattleSubStep2 = 5            # the curse brought it down
 	ld a, $05
 	ld [wBattleSubStep2], a
+;>     return
 	ret
 
 
-jr_053_45f9:
+.notCursed
+;> if mem[status] & 0x10:                 # confused
 	bit 4, [hl]
-	jr z, jr_053_4621
+	jr z, .notConfused
 
+;>     GetUserName_53()
 	call GetUserName_53
+;>     wTextIndex = 0x10; wTextGroup = 0  # "... is confused!"
 	ld a, $10
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     wBattleSubStep = 0x11              # a random action (PickConfusedAction_53)
 	ld a, $11
 	ld [wBattleSubStep], a
+;>@nu     wPersonalityNudge[wSkillUser] = 0
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@nu
 	ld h, a
 	ld [hl], $00
+;>     return
 	ret
 
 
-jr_053_4621:
+.notConfused
+;> if not CheckEnemyRepeatsSkill_53():
 	call CheckEnemyRepeatsSkill_53
-	jr c, jr_053_464c
+	jr c, .repeats
 
+;>     wBattleSubStep2 += 1; return LoadActionSkill_53()
 	ld hl, wBattleSubStep2
 	inc [hl]
 	jr LoadActionSkill_53
 
-Jump_053_462c:
-jr_053_462c:
+.loseTurn
+;> def LoseTurn(msg):                     # the end of the checks above: the monster cannot act
+;>     wBattleArg0 = msg; Call_50_59EB()  # show the message
 	ld [wBattleArg0], a
 	ld hl, far_Call_50_59EB
 	rst $10
+;>     ClearTurnAilments_53()
 	call ClearTurnAilments_53
+;>     wBattleSubStep2 = 7                # a pause, then the next monster
 	ld a, $07
 	ld [wBattleSubStep2], a
 
-Jump_053_463b:
+.skip
+;>     wTurnOrderPos += 1
 	ld hl, wTurnOrderPos
 	inc [hl]
 	ret
 
 
-Jump_053_4640:
+.endOfTurn
+;> def EndOfTurn():
+;>     wBattleSubStep = 0; wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep], a
 	ld [wBattleSubStep2], a
+;>     wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
-jr_053_464c:
+.repeats
+;> if IsSmart_53():                       # a clever enemy rethinks in stage 1
 	call IsSmart_53
 	jr nz, ReplaceWithAttack_53
 
+;>     wBattleSubStep2 += 1; return LoadActionSkill_53()
 	ld hl, wBattleSubStep2
 	inc [hl]
 	jr LoadActionSkill_53
 
+;> return ReplaceWithAttack_53()
+
+;@ def ReplaceWithAttack_53()
+;@ path: battle/actions
+;@ Turns the action of the skill user into a plain Attack (skill $3A) whose target the battle AI
+;@ picks again (RechooseAction_53), and marks that in wOrderFlag0.
+;@ test: skip calls routines in other banks
 ReplaceWithAttack_53::
+;>@a wBattlerAction[2 * wSkillUser] = 0x3A        # Attack
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld [hl], $3a
+;>@nu wPersonalityNudge[wSkillUser] = 0
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@nu
 	ld h, a
 	ld [hl], $00
+;> RechooseAction_53()
 	call RechooseAction_53
+;> wOrderFlag0 = 1
 	ld a, $01
 	ld [wOrderFlag0], a
 
+;@ def LoadActionSkill_53()
+;@ path: battle/actions
+;@ Makes the skill of the user's action the skill being used (wSkillId) and loads its flags.
+;@ test: skip calls a routine in another bank
 LoadActionSkill_53::
+;>@s wSkillId = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@s
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wSkillId], a
+;> LoadSkillFlags()                         # the skill's targets and flags
 	ld hl, far_LoadSkillFlags
 	rst $10
 	ret
 
 
+;@ def ActionStart_Reconsider_53()
+;@ path: battle/actions
+;@ Stage 1: a clever monster (intelligence class 2) that is not under a direct order and has no
+;@ personality effect pending may choose its whole action again now (action step $18), unless its
+;@ skill must not be changed (SquallHit, skills with flag bit 3 of wSkillFlags1, a confused monster,
+;@ the second turn of HighJump or LifeSong, the first action of the turn). Then the target is
+;@ checked: a missing target is replaced (ActionStart_TargetGone_53); a monster of intelligence
+;@ class 1-2 that is neither confused nor under direct orders lets the AI pick the target anew.
+;@ test: skip calls routines in other banks
 ActionStart_Reconsider_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wBattleStepArg0:                    # the target was already worked out
 	ld a, [wBattleStepArg0]
 	or a
-	jr z, jr_053_46a8
+	jr z, .think
 
+;>     if wBattleStepArg0 != 2:
+;>         wBattleSubStep2 += 1
 	cp $02
 	jp z, KeepActionTarget_53
 
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>     return KeepActionTarget_53()
 	jp KeepActionTarget_53
 
 
-jr_053_46a8:
+.think
+;> if wBattleTemp or wGameModeStep: return CheckTarget()
 	ld a, [wBattleTemp]
 	or a
-	jp nz, Jump_053_4733
+	jp nz, .checkTarget
 
 	ld a, [wGameModeStep]
 	or a
-	jp nz, Jump_053_4733
+	jp nz, .checkTarget
 
+;> if wBattlerIntClass[wSkillUser] != 2: return CheckTarget()
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	call ReadTableByte_53
 	cp $02
-	jr nz, jr_053_4733
+	jr nz, .checkTarget
 
+;> if IsUnderDirectOrder_53(): return CheckTarget()
 	call IsUnderDirectOrder_53
-	jr z, jr_053_4733
+	jr z, .checkTarget
 
+;>@nu if wPersonalityNudge[wSkillUser]: return CheckTarget()
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@nu
 	ld h, a
 	ld a, [hl]
 	or a
-	jr nz, jr_053_4733
+	jr nz, .checkTarget
 
+;>@sk wSkillId = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sk
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wSkillId], a
+;> if wSkillId == 0x55: return CheckTarget()          # SquallHit
 	ld a, [wSkillId]
 	cp $55
-	jr z, jr_053_4733
+	jr z, .checkTarget
 
+;> LoadSkillFlags()                         # the skill's targets and flags
 	ld hl, far_LoadSkillFlags
 	rst $10
+;> if wSkillFlags1 & 0x08: return CheckTarget()
 	ld a, [wSkillFlags1]
 	bit 3, a
-	jr nz, jr_053_4733
+	jr nz, .checkTarget
 
+;> status = addr(wBattlerStatus) + 8 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;> if mem[status] & 0x10: return CheckTarget()        # confused
 	bit 4, [hl]
-	jr nz, jr_053_4733
+	jr nz, .checkTarget
 
+;> if mem[status + 4] & 0x04: return CheckTarget()    # high in the sky (HighJump)
 	ld bc, $0004
 	add hl, bc
 	bit 2, [hl]
-	jr nz, jr_053_4733
+	jr nz, .checkTarget
 
+;> if mem[status + 5] & 0x10: return CheckTarget()    # singing the LifeSong
 	inc hl
 	bit 4, [hl]
-	jr nz, jr_053_4733
+	jr nz, .checkTarget
 
+;> if wTurnOrderPos == 0: return CheckTarget()
 	ld a, [wTurnOrderPos]
 	or a
-	jr z, jr_053_4733
+	jr z, .checkTarget
 
+;> wBattleSubStep2 = 0; wBattleSubStep = 0x18          # choose the action again
 	xor a
 	ld [wBattleSubStep2], a
 	ld a, $18
 	ld [wBattleSubStep], a
+;>@o wBattlerOrder[wSkillUser] = 1
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $01
+;> return
 	ret
 
 
-Jump_053_4733:
-jr_053_4733:
+.checkTarget
+;> def CheckTarget():
+;>     wSkillId = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	call ReadTableByte_53
 	ld [wSkillId], a
+;>     wSkillTarget = wBattlerAction[2 * wSkillUser + 1]
 	inc hl
 	ld a, [hl]
 	ld [wSkillTarget], a
+;>     LoadSkillFlags()
 	ld hl, far_LoadSkillFlags
 	rst $10
+;>     if wSkillId == 0x14:               # Sacrifice
 	ld a, [wSkillId]
 	cp $14
-	jr nz, jr_053_475e
+	jr nz, .notSacrifice
 
+;>         if not (wBattlerStatus[8 * wSkillUser + 1] & 0x01): return RechooseAction_53()
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 0, [hl]
 	jr z, RechooseAction_53
 
+;>         return
 	ret
 
 
-jr_053_475e:
+.notSacrifice
+;>     if wSkillId in (0x32, 0x96): return          # Farewell, LifeDance
 	cp $32
 	ret z
 
 	cp $96
 	ret z
 
+;>     if wSkillId in (0x95, 0xAD): return          # LifeSong, ALLREVIVE
 	cp $95
 	ret z
 
 	cp $ad
 	ret z
 
+;>     if CheckBattlerPresent(wSkillTarget): return ActionStart_TargetGone_53()
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	jr c, ActionStart_TargetGone_53
 
+;>     if wBattlerIntClass[wSkillUser] == 0: return
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	call ReadTableByte_53
 	or a
 	ret z
 
+;>     if wBattlerStatus[8 * wSkillUser] & 0x10: return  # confused
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	bit 4, [hl]
 	ret nz
 
+;>@t     if wBattlerTactic[wSkillUser] == 3: return        # direct orders
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t
 	ld h, a
 	ld a, [hl]
 	cp $03
 	ret z
 
+;>     return RechooseAction_53()
+
+;@ def RechooseAction_53()
+;@ path: battle/actions
+;@ Clears the target of the user's action and switches to action step $19, where the battle AI
+;@ picks the target again.
 RechooseAction_53::
+;>@t wBattlerAction[2 * wSkillUser + 1] = 0xFF
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@t
 	adc h
 	ld h, a
 	ld [hl], $ff
+;> wBattleSubStep2 = 0; wBattleSubStep = 0x19
 	xor a
 	ld [wBattleSubStep2], a
 	ld a, $19
@@ -909,237 +1065,320 @@ RechooseAction_53::
 	ret
 
 
+;@ def ActionStart_TargetGone_53()
+;@ path: battle/actions
+;@ The target of the action is no longer in the fight. CallHelp, YellHelp and QuadHits ($51-$53)
+;@ and single-target skills of monsters that think (intelligence class 1-2, not under a direct
+;@ order) get a new target from the battle AI (RunTargetPicker); a skill on a whole side is aimed at
+;@ the first monster still present on that side.
+;@ test: skip calls routines in other banks
 ActionStart_TargetGone_53::
+;>@q if wSkillId not in (0x51, 0x52, 0x53):
 	ld a, [wSkillId]
 	cp $51
-	jr z, jr_053_47d1
+	jr z, .choose
 
 	cp $52
-	jr z, jr_053_47d1
+	jr z, .choose
 
+;=@q
 	cp $53
-	jr z, jr_053_47d1
+	jr z, .choose
 
+;>     if not (wSkillTargeting & 0x01): return RetargetSide()   # a skill on a whole side
 	ld a, [wSkillTargeting]
 	and $01
-	jr z, jr_053_47e8
+	jr z, KeepActionTarget_53.side
 
+;>     if wBattlerIntClass[wSkillUser] == 0: return
 	call IsSmart_53
 	or a
 	ret z
 
+;>     if IsUnderDirectOrder_53(): return
 	call IsUnderDirectOrder_53
 	ret z
 
-jr_053_47d1:
+.choose
+;> RunTargetPicker()                         # the battle AI picks a target
 	ld hl, far_RunTargetPicker
 	rst $10
 
 KeepActionTarget_53:
+;> wBattleStepArg0 = 0
 	xor a
 	ld [wBattleStepArg0], a
+;>@k entry = addr(wBattlerAction) + 2 * wSkillUser + 1
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@k
 	adc h
 	ld h, a
-	jr jr_053_4809
+	jr .setTarget
 
-jr_053_47e8:
+.side
+;> def RetargetSide():
+;>     side = wSkillTarget & 4
 	ld a, [wSkillTarget]
 	and $04
 	ld c, a
+;>@f     for pos in range(side, side + 3):
 	ld b, $03
 
-jr_053_47f0:
+.find
+;>         if not CheckBattlerPresent(pos): break
 	ld a, c
 	call CheckBattlerPresent
-	jr nc, jr_053_47fb
+	jr nc, .found
 
+;=@f
 	inc c
 	dec b
-	jr nz, jr_053_47f0
+	jr nz, .find
 
+;>     else: return
 	ret
 
 
-jr_053_47fb:
+.found
+;>@e     entry = addr(wBattlerAction) + 2 * wSkillUser + 1
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@e
 	adc h
 	ld h, a
+;>     mem[entry] = pos
 	ld [hl], c
+;>     wSkillTarget = pos
 
-jr_053_4809:
+.setTarget
+;> wSkillTarget = mem[entry]
 	ld a, [hl]
 	ld [wSkillTarget], a
 	ret
 
 
+;@ def ActionStart_CheckMP_53()
+;@ path: battle/actions
+;@ Stage 2: checks that the user has the MP for its skill (the MP cost is the low byte of word 2 of
+;@ the skill's record; the second turn of HighJump and LifeSong is free) and that nothing blocks
+;@ the kind of skill: a spell against a MagicWall (the MP are spent anyway) or under StopSpell, a
+;@ dance under DanceShut, a breath under MouthShut. A failing skill shows its message and ends the
+;@ action (a clever monster rethinks instead, RethinkUnusableSkill_53); otherwise it goes on.
+;@ test: skip calls routines in other banks
 ActionStart_CheckMP_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> LoadSkillFlags()                         # the skill's targets and flags
 	ld hl, far_LoadSkillFlags
 	rst $10
+;> wBattleArg0 = wSkillId; wBattleArg1 = 0
 	ld a, [wSkillId]
 	ld [wBattleArg0], a
 	xor a
 	ld [wBattleArg1], a
+;> wBattleArg2 = 4; GetSkillWord()        # word 2 of the skill record: the MP cost
 	ld a, $04
 	ld [wBattleArg2], a
 	ld hl, far_GetSkillWord
 	rst $10
+;> cost = wBattleArg0
 	ld a, [wBattleArg0]
 	ld c, a
+;> if cost:
 	or a
-	jp z, Jump_053_4871
+	jp z, .enoughMP
 
+;>     mp = GetBattlerMP(wSkillUser)
 	ld b, $00
 	ld a, [wSkillUser]
 	call GetBattlerMP
+;>@lt     if mp < cost:
 	call CompareHLBC
-	jr z, jr_053_4871
+	jr z, .enoughMP
 
 	ld a, l
 	sub c
 	ld a, h
+;=@lt
 	sbc b
-	jr nc, jr_053_4871
+	jr nc, .enoughMP
 
+;>         if not IsSecondTurnOfSkill_53():   # not enough MP
 	call IsSecondTurnOfSkill_53
-	jr c, jr_053_4871
+	jr c, .enoughMP
 
+;>             if IsSmart_53(): RethinkUnusableSkill_53()
 	call IsSmart_53
 	call z, RethinkUnusableSkill_53
+;>             if wSkillFlags1 & 0x40: return ShowActionFailed_53(0xF7)    # a spell
 	ld a, [wSkillFlags1]
 	bit 6, a
-	jr z, jr_053_485b
+	jr z, .notSpell
 
 	ld a, $f7
 	jp ShowActionFailed_53
 
 
-jr_053_485b:
+.notSpell
+;>             if wSkillFlags1 & 0x20: return ShowActionFailed_53(0xF9)    # a dance
 	bit 5, a
-	jr z, jr_053_4864
+	jr z, .notDance
 
 	ld a, $f9
 	jp ShowActionFailed_53
 
 
-jr_053_4864:
+.notDance
+;>             if wSkillFlags1 & 0x10: return ShowActionFailed_53(0xF8)    # a breath
 	bit 4, a
-	jr z, jr_053_486d
+	jr z, .notBreath
 
 	ld a, $f8
 	jp ShowActionFailed_53
 
 
-jr_053_486d:
+.notBreath
+;>             ShowNotEnoughMP_53(); return
 	call ShowNotEnoughMP_53
 	ret
 
 
-Jump_053_4871:
-jr_053_4871:
+.enoughMP
+;> if wSkillFlags1 & 0x40:                # a spell
 	ld a, [wSkillFlags1]
 	bit 6, a
-	jr z, jr_053_48af
+	jr z, .notSpell2
 
+;>@w     if wSideFlags[wSkillUser >> 2] & 0x08:   # the user's side is behind a MagicWall
 	ld a, [wSkillUser]
 	rrca
 	rrca
 	and $01
 	ld hl, wSideFlags
 	add l
+;=@w
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	bit 3, [hl]
-	jr z, jr_053_4899
+	jr z, .notWall
 
+;>         if IsSmart_53(): RethinkUnusableSkill_53()
 	call IsSmart_53
 	call z, RethinkUnusableSkill_53
+;>         PayMPClamped_53(); msg = 0x1F            # "But spell was broken!"
 	call PayMPClamped_53
 	ld a, $1f
-	jr jr_053_48e0
+	jr .fail
 
-jr_053_4899:
+.notWall
+;>     else:
+;>         if not (wBattlerStatus[8 * wSkillUser + 1] & 0x01): return   # no StopSpell
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 0, [hl]
 	ret z
 
+;>         if IsSmart_53(): RethinkUnusableSkill_53()
 	call IsSmart_53
 	call z, RethinkUnusableSkill_53
+;>         msg = 0x1E                     # "But the spell is blocked"
 	ld a, $1e
-	jr jr_053_48e0
+	jr .fail
 
-jr_053_48af:
+.notSpell2
+;> elif wSkillFlags1 & 0x20:              # a dance
 	bit 5, a
-	jr z, jr_053_48c9
+	jr z, .notDance2
 
+;>     if not (wBattlerStatus[8 * wSkillUser + 1] & 0x40): return   # DanceShut
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 6, [hl]
 	ret z
 
+;>     if IsSmart_53(): RethinkUnusableSkill_53()
 	call IsSmart_53
 	call z, RethinkUnusableSkill_53
+;>     msg = 0x21                         # "But the dance ..."
 	ld a, $21
-	jr jr_053_48e0
+	jr .fail
 
-jr_053_48c9:
+.notDance2
+;> elif not (wSkillFlags1 & 0x10): return
 	bit 4, a
 	ret z
 
+;> else:                                  # a breath
+;>     if not (wBattlerStatus[8 * wSkillUser + 1] & 0x80): return   # MouthShut
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 7, [hl]
 	ret z
 
+;>     if IsSmart_53(): RethinkUnusableSkill_53()
 	call IsSmart_53
 	call z, RethinkUnusableSkill_53
+;>     msg = 0x20                         # "But its mouth is bound shut"
 	ld a, $20
 
-jr_053_48e0:
+.fail
+;> PayMP_53()
 	push af
 	call PayMP_53
 	pop af
+;> return ShowActionFailed_53(msg)
 
+;@ def ShowActionFailed_53(msg: a)
+;@ path: battle/actions
+;@ Shows action message `msg` for the user (Call_50_59EB) and ends its action (EndFailedAction_53).
+;@ test: skip calls routines in other banks
 ShowActionFailed_53::
+;> wBattleArg0 = msg; Call_50_59EB()
 	ld [wBattleArg0], a
 	ld hl, far_Call_50_59EB
 	rst $10
 
+;@ def EndFailedAction_53()
+;@ path: battle/actions
+;@ Ends an action that did not happen: an ordinary action goes on with the next monster of the turn;
+;@ a reaction goes to action step 6 and wReactionKind becomes $20.
 EndFailedAction_53::
+;> if not wReactionKind:
 	ld a, [wReactionKind]
 	or a
-	jr nz, jr_053_48fb
+	jr nz, .reaction
 
+;>     wTurnOrderPos += 1; wBattleSubStep2 = 0
 	ld hl, wTurnOrderPos
 	inc [hl]
 	xor a
 	ld [wBattleSubStep2], a
+;>     return
 	ret
 
 
-jr_053_48fb:
+.reaction
+;> wBattleSubStep = 6; wBattleSubStep2 = 0
 	ld a, $06
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
+;> wReactionKind = 0x20
 	ld a, $20
 	ld [wReactionKind], a
 	ret

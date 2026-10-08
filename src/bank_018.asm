@@ -1426,91 +1426,144 @@ IsInStashedParty_18::
 	ret
 
 
+;@ def VSResultShowReplaceList()
+;@ path: link/result
+;@ Step 18: once the question is shown, draws the list of monsters (or eggs) to replace.
+;@ test: skip draws through helpers
 VSResultShowReplaceList::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;> VSResultDrawCursorMonName()
 	call VSResultDrawCursorMonName
+;> VSResultDrawListNames()
 	call VSResultDrawListNames
+;> VSResultDrawListWindows()
 	call VSResultDrawListWindows
+;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;> wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 	ret
 
 
+;@ def VSResultDrawListWindows()
+;@ path: link/result
+;@ Draws the list screen into wTilemapBuffer: the monster/egg menu under the banner, then for
+;@ monsters the line with the chosen monster's name, sex and level and the 4-row name list,
+;@ for eggs the wider 4-row species list; then the list cursor.
+;@ test: skip draws through helpers
 VSResultDrawListWindows::
+;> VSResultDrawKindMenu()
 	call VSResultDrawKindMenu
-	ld de, $5577
+;> if wLinkPartnerChoice & 1:           # eggs
+;>     DrawWindowLayout_18(VSEggListWindow)
+	ld de, VSEggListWindow
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr nz, jr_018_47ed
+	jr nz, .draw
 
-	ld de, $55f7
+;> else:
+;>     DrawWindowLayout_18(VSCursorMonWindow)
+	ld de, VSCursorMonWindow
 	call DrawWindowLayout_18
+;>     VSResultDrawCursorMonLevel()
 	call VSResultDrawCursorMonLevel
-	ld de, $549f
+;>@list     DrawWindowLayout_18(VSReplaceListWindow)
+	ld de, VSReplaceListWindow
 
-jr_018_47ed:
+.draw
+;=@list
 	call DrawWindowLayout_18
+;> MenuResetBlink_18()
 	call MenuResetBlink_18
-	ld de, $4aec
+;>@marks marks = VSReplaceEggListCursor if wLinkPartnerChoice & 1 else VSReplaceListCursor
+	ld de, VSReplaceListCursor
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4800
+	jr z, .cursor
 
-	ld de, $4af8
+	ld de, VSReplaceEggListCursor
 
-jr_018_4800:
+.cursor
+;>@cur MenuDrawListCursor_18(wListCursor, marks, 4, wTitleListCount)
 	ld b, $04
 	ld a, [wTitleListCount]
 	ld c, a
 	ld hl, wListCursor
+;=@cur
 	call MenuDrawListCursor_18
 	ret
 
 
+;@ def VSResultDrawListNames()
+;@ path: link/result
+;@ Draws the entries of the current list page (wListPage, 4 per page, from the list in
+;@ wSceneObjects): monster names into the tiles from $9000 on, or for eggs their species names
+;@ and sex marks (VSResultDrawEggNames).
+;@ test: skip writes VRAM
 VSResultDrawListNames::
+;>@entry entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@entry
 	ld a, $00
 	adc d
 	ld d, a
+;> if wLinkPartnerChoice & 1:
+;>     return VSResultDrawEggNames(entry)
 	ld a, [wLinkPartnerChoice]
 	and $01
 	jr nz, VSResultDrawEggNames
 
+;> tiles = 0x9000
 	ld hl, $9000
+;> for i in range(4):                   # the fourth by running on into VSResultDrawListName
+;>     entry, tiles = VSResultDrawListName(entry, tiles)
 	call VSResultDrawListName
 	call VSResultDrawListName
 	call VSResultDrawListName
 
+;@ def VSResultDrawListName(entry: de, tiles: hl) -> (de, hl)
+;@ path: link/result
+;@ The name of the monster in list entry `entry` into the 4 tiles at `tiles` (blank for an
+;@ empty entry); returns the next entry and tiles.
+;@ test: skip writes VRAM
 VSResultDrawListName::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_018_484f
+	jr z, .blank
 
+;>@name     DrawNameTiles_18(MonsterField(mem[entry], wMonName), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@name
 	pop hl
 	push hl
 	call DrawNameTiles_18
+;>@ret     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret
 	adc $00
 	ld h, a
 	pop de
@@ -1518,22 +1571,28 @@ VSResultDrawListName::
 	ret
 
 
-jr_018_484f:
+;> else:
+;>     for i in range(32):              # blank tiles
+.blank
 	ld b, $20
 
-jr_018_4851:
+.blankLoop
+;>         tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_018_4851
+	jr nz, .blankLoop
 
+;>@ret2     return entry + 1, tiles + 0x40
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
+;=@ret2
 	adc $00
 	ld h, a
 	pop de
@@ -1541,38 +1600,58 @@ jr_018_4851:
 	ret
 
 
+;@ def VSResultDrawEggNames(entry: de)
+;@ path: link/result
+;@ Egg list page: the species names of the four entries into tiles from $9000 on (9 tiles each),
+;@ then their sex marks.
+;@ test: skip writes VRAM
 VSResultDrawEggNames::
+;> tiles = 0x9000
 	ld hl, $9000
+;> for i in range(4):
+;>     entry, tiles = VSResultDrawEggName(entry, tiles)
 	call VSResultDrawEggName
 	call VSResultDrawEggName
 	call VSResultDrawEggName
 	call VSResultDrawEggName
+;> VSResultDrawEggGenders()
 	call VSResultDrawEggGenders
 	ret
 
 
+;@ def VSResultDrawEggName(entry: de, tiles: hl) -> (de, hl)
+;@ path: link/result
+;@ The species name (text group 5) of the egg in list entry `entry` into the 9 tiles at `tiles`
+;@ (blank for an empty entry); returns the next entry and tiles.
+;@ test: skip writes VRAM
 VSResultDrawEggName::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_018_48a6
+	jr z, .blank
 
+;>     wTextIndex = mem[MonsterField(mem[entry], wMonRecSpecies)]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wTextIndex], a
+;>     wTextGroup = 5                   # species names
 	ld a, $05
 	ld [wTextGroup], a
+;>     DrawTextTiles_18(tiles, 1, 9)
 	ld de, $0901
 	pop hl
 	push hl
 	call DrawTextTiles_18
+;>@ret     return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
+;=@ret
 	adc $00
 	ld h, a
 	pop de
@@ -1580,22 +1659,28 @@ VSResultDrawEggName::
 	ret
 
 
-jr_018_48a6:
+;> else:
+;>     for i in range(72):              # blank tiles
+.blank
 	ld b, $48
 
-jr_018_48a8:
+.blankLoop
+;>         tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_018_48a8
+	jr nz, .blankLoop
 
+;>@ret2     return entry + 1, tiles + 0x90
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
+;=@ret2
 	adc $00
 	ld h, a
 	pop de
@@ -1603,91 +1688,125 @@ jr_018_48a8:
 	ret
 
 
+;@ def VSResultDrawEggGenders()
+;@ path: link/result
+;@ The sex marks of the four eggs of the current list page into the tiles from $9240 on.
+;@ test: skip writes VRAM
 VSResultDrawEggGenders::
+;>@entry entry = wSceneObjects + wListPage * 4
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;=@entry
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x9240
 	ld hl, $9240
+;> for i in range(4):                   # the fourth by running on into VSResultDrawEggGender
+;>     entry, tiles = VSResultDrawEggGender(entry, tiles)
 	call VSResultDrawEggGender
 	call VSResultDrawEggGender
 	call VSResultDrawEggGender
 
+;@ def VSResultDrawEggGender(entry: de, tiles: hl) -> (de, hl)
+;@ path: link/result
+;@ The sex mark of the egg in list entry `entry` into the tile at `tiles`: the male or female
+;@ sign ($A7 / $A8) when its sex is known (egg state 2), else $98; blank for an empty entry.
+;@ Returns the next entry and tile.
+;@ test: skip prints text
 VSResultDrawEggGender::
+;> if mem[entry] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_018_4956
+	jr z, .blank
 
+;>     egg = MonsterField(mem[entry], wMonEgg)
 	ld hl, wMonEgg
 	call MonsterField
+;>     mark = 0x98                      # sex unknown
+;>     if mem[egg] == 2:
 	ld a, [hl]
 	cp $02
 	ld a, $98
-	jr nz, jr_018_48fb
+	jr nz, .print
 
+;>@sex         mark = 0xA7 + (mem[egg - 0x58] & 1)   # wMonGender of the record
 	ld a, l
 	add $a8
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@sex
 	ld a, [hl]
 	and $01
 	add $a7
 
-jr_018_48fb:
+.print
+;>     wTextArg0[0] = mark; wTextArg0[1] = 0xF0
 	ld [wTextArg0], a
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;>@saved     saved_tiles = wTextTiles
 	pop hl
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
+;=@saved
 	push bc
+;>     saved_box = (wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;>     wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;>     wTextBoxLines = 1; wTextBoxLineLength = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>     wTextGroup = 2; wTextIndex = 0      # prints wTextArg0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;>     PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>     wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;>     wTextBoxLines = saved_box[0]
 	ld a, e
 	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = saved_box[1]
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>@ret     return entry + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
+;=@ret
 	adc $00
 	ld h, a
 	pop de
@@ -1695,22 +1814,28 @@ jr_018_48fb:
 	ret
 
 
-jr_018_4956:
+;> else:
+;>     for i in range(8):               # blank tile
+.blank
 	ld b, $08
 
-jr_018_4958:
+.blankLoop
+;>         tiles = WriteVRAMInc(0xFF, tiles)
 	ld a, $ff
 	call WriteVRAMInc
+;>         tiles = WriteVRAMInc(0x00, tiles)
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, jr_018_4958
+	jr nz, .blankLoop
 
+;>@ret2     return entry + 1, tiles + 0x10
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
+;=@ret2
 	adc $00
 	ld h, a
 	pop de
@@ -1718,129 +1843,174 @@ jr_018_4958:
 	ret
 
 
+;@ def VSResultDrawCursorMonName()
+;@ path: link/result
+;@ Monster list only: the name of the monster under the cursor into the tiles at $9100 and its
+;@ sex sign into the tile at $9140.
+;@ test: skip prints text
 VSResultDrawCursorMonName::
+;> if wLinkPartnerChoice & 1:
+;>     return
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ret nz
 
+;>@slot slot = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@slot
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
+;=@slot
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	push af
+;>@name DrawNameTiles_18(MonsterField(slot, wMonName), 0x9100)
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9100
 	call DrawNameTiles_18
+;>@sex wTextArg0[0] = 0xA7 + (mem[MonsterField(slot, wMonGender)] & 1)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld hl, $9140
 	and $01
+;=@sex
 	add $a7
 	ld [wTextArg0], a
+;> wTextArg0[1] = 0xF0
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_box = (wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x9140
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1; wTextBoxLineLength = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2; wTextIndex = 0      # prints wTextArg0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_box[0]
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_box[1]
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def VSResultDrawCursorMonLevel()
+;@ path: link/result
+;@ Monster list only: "Lv" ($DE) and the level of the monster under the cursor at screen offset
+;@ $0161 of wTilemapBuffer, and at $0169 the mark $E3 when it is in the party (or the party a
+;@ script put aside), else blank.
+;@ test: skip reads battery RAM
 VSResultDrawCursorMonLevel::
+;> if wLinkPartnerChoice & 1:
+;>     return
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ret nz
 
+;>@slot slot = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@slot
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
+;=@slot
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	push af
+;> level = mem[MonsterField(slot, wMonLevel)]
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
 	ld b, $00
+;> p = TilemapBufferAddr_18(0x0161)
 	ld hl, $0161
 	call TilemapBufferAddr_18
+;> mem[p] = 0xDE                        # "Lv"
 	ld a, $de
 	ld [hli], a
+;> mem[p + 1] = mem[p + 2] = 0xE0
 	ld a, $e0
 	ld [hli], a
 	ld a, $e0
 	ld [hld], a
+;> PrintTwoDigits_18(level, p + 1)
 	call PrintTwoDigits_18
+;>@st if mem[MonsterField(slot, wMonsters)] == 2 or IsInStashedParty_18(slot):
 	pop af
 	push af
 	ld hl, wMonsters
 	call MonsterField
 	pop af
 	ld b, a
+;=@st
 	ld a, [hl]
 	cp $02
-	jr z, jr_018_4a46
+	jr z, .inParty
 
 	call IsInStashedParty_18
-	jr nz, jr_018_4a46
+	jr nz, .inParty
 
-	jr jr_018_4a50
+;>@yes     mem[TilemapBufferAddr_18(0x0169)] = 0xE3   # in the party
+;> else:
+;>@no     mem[TilemapBufferAddr_18(0x0169)] = 0xE0
+	jr .notInParty
 
-jr_018_4a46:
+.inParty
+;=@yes
 	ld hl, $0169
 	call TilemapBufferAddr_18
 	ld a, $e3
@@ -1848,7 +2018,8 @@ jr_018_4a46:
 	ret
 
 
-jr_018_4a50:
+.notInParty
+;=@no
 	ld hl, $0169
 	call TilemapBufferAddr_18
 	ld a, $e0
@@ -1856,101 +2027,139 @@ jr_018_4a50:
 	ret
 
 
+;@ def VSResultReplaceListInput()
+;@ path: link/result
+;@ Step 19: moves the cursor through the list (redrawing the name line and the page as they
+;@ change). B goes back to the monster/egg choice (step $1D); A picks the entry
+;@ (wCurPartyMember) and opens the INFO / OK menu.
+;@ test: skip draws through helpers
 VSResultReplaceListInput::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld de, $4aec
+;>@marks marks = VSReplaceEggListCursor if wLinkPartnerChoice & 1 else VSReplaceListCursor
+	ld de, VSReplaceListCursor
 	ld a, [wLinkPartnerChoice]
 	and $01
-	jr z, jr_018_4a6c
+	jr z, .move
 
-	ld de, $4af8
+	ld de, VSReplaceEggListCursor
 
-jr_018_4a6c:
+.move
+;>@old old_page = wListPage; old_cursor = wListCursor
 	ld hl, wListCursor
 	ld a, [wTitleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@old
 	ld a, [hld]
 	push af
 	ld a, [hl]
 	push af
+;> MovePagedListCursor_18(wListCursor, 4, wTitleListCount, marks)
 	call MovePagedListCursor_18
+;> if wListCursor != old_cursor:
 	pop af
 	ld hl, wListCursor
 	cp [hl]
-	jr z, jr_018_4a8d
+	jr z, .samePos
 
+;>     VSResultDrawCursorMonName()
 	call VSResultDrawCursorMonName
+;>     VSResultDrawCursorMonLevel()
 	call VSResultDrawCursorMonLevel
+;>     CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
 
-jr_018_4a8d:
+.samePos
+;> if wListPage != old_page:
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_018_4aa0
+	jr z, .samePage
 
+;>     VSResultDrawListNames()
 	call VSResultDrawListNames
+;>     VSResultDrawCursorMonName()
 	call VSResultDrawCursorMonName
+;>     VSResultDrawCursorMonLevel()
 	call VSResultDrawCursorMonLevel
+;>     CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
 
-jr_018_4aa0:
+.samePage
+;> if wJoyPressed & B_BUTTON:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_018_4abd
+	jr z, .notB
 
+;>     PrintSystemText(0x0251)          # "Replace with which monster?"
 	ld hl, $0251
 	call PrintSystemText
+;>     ClearTilemapBuffer_18()
 	call ClearTilemapBuffer_18
+;>     VSResultDrawKindMenu()
 	call VSResultDrawKindMenu
+;>     CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
+;>     wTitleStep = 0x1D                # back to the monster / egg choice
 	ld a, $1d
 	ld [wTitleStep], a
-	jr jr_018_4aeb
+	jr .done
 
-jr_018_4abd:
+;> elif wJoyPressed & A_BUTTON:
+.notB
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_018_4aeb
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wLinkRefused = 0                 # cursor of the INFO / OK menu
 	xor a
 	ld [wLinkRefused], a
+;>@slot     wCurPartyMember = wSceneObjects[wListPage * 4 + (wListCursor & 0x7F)]
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
 	ld a, [wListCursor]
 	and $7f
+;=@slot
 	add b
 	ld hl, wSceneObjects
 	add l
 	ld l, a
+;=@slot
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;>     wTitleStep += 1
 	ld hl, wTitleStep
 	inc [hl]
 
-Jump_018_4aeb:
-jr_018_4aeb:
+.done
 	ret
 
 
+;@ path: link/result
+;@ Cursor table of the monster list: the page number position ($0145), then the four rows; $FFFF
+;@ ends.
 VSReplaceListCursor::
-	db $45, $01, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
+	dw $0145, $0061, $00a1, $00e1, $0121, $ffff
 
+;@ path: link/result
+;@ Cursor table of the egg list: the page number position ($010B), then the four rows; $FFFF
+;@ ends.
 VSReplaceEggListCursor::
-	db $0b, $01, $21, $00
-	db $61, $00, $a1, $00, $e1, $00, $ff, $ff
+	dw $010b, $0021, $0061, $00a1, $00e1, $ffff
 
 VSResultReplacePicked::
 	ld hl, wTitleStep

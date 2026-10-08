@@ -58,7 +58,8 @@ class Rom:
         while self.r[a] != 0xF0:
             x = self.r[a]
             out += (chr(65 + x - 0x24) if 0x24 <= x < 0x3E else chr(97 + x - 0x3E) if 0x3E <= x < 0x58 else
-                    chr(48 + x - 0x1A) if 0x1A <= x < 0x24 else ' ' if x == 0x62 else '')
+                    chr(48 + x - 0x1A) if 0x1A <= x < 0x24 else chr(48 + x) if x < 10 else
+                    ' ' if x in (0x62, 0xF1) else '')
             a += 1
         return out
 
@@ -188,14 +189,17 @@ def breeding(ctx, rom, names, pics, pals):
             'users': ['BreedPairTable', 'MakeOffspring']}]
     a = rom.lin('SpecialPairTable')
     rows = []
-    while r[a] != 0xFF and len(rows) < 100:
+    while r[a] != 0xFF and len(rows) < 1000:
         p, m, plus, child, bonus = r[a:a + 5]
-        rows.append(who(child) + who(p) + who(m) + ['+{}'.format(plus), '+{}'.format(bonus)])
+        rows.append(who(child)[1:] + who(p)[1:] + who(m)[1:] + ['+{}'.format(plus) if plus else '',
+                                                           '+{}'.format(bonus) if bonus else ''])
         a += 5
     out.append({'name': 'breeding-special', 'type': 'table', 'title': 'Special pairs',
-                'columns': ['', 'Offspring', '', 'Pedigree', '', 'Mate', 'Lowest plus', 'Plus bonus'], 'rows': rows,
-                'doc': ['Pairs that only work from a minimum plus value of the parents (SpecialPairTable, 5 bytes each: '
-                        'pedigree, mate, lowest plus, offspring, plus bonus).'],
+                'columns': ['Offspring', 'Pedigree', 'Mate', 'Lowest plus', 'Plus bonus'], 'rows': rows,
+                'doc': ['The pairs checked before the chart above (SpecialPairTable, 5 bytes each: pedigree, mate, '
+                        'lowest plus, offspring, plus bonus). CheckSpecialPair goes through them in order and the '
+                        'first that fits wins; a few only work once the offspring\'s plus value reaches a minimum, '
+                        'which is how two Slimes of +5 or more make a KingSlime.'],
                 'users': ['SpecialPairTable', 'MakeOffspring']})
     return out
 

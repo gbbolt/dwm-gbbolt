@@ -4,496 +4,661 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $052", ROMX[$4000], BANK[$52]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_52::
 	db $52
 
+;@ path: battle/skills/effects
+;@ Entry points of bank $52, the skill effects. Entries 0-7 are far-call entries used by
+;@ other banks (RunActionStep runs one step of a battler's action, CalcAttackDamage works out
+;@ a normal attack, ...). Entries 8-229 are the effect routines of the 222 skills, in skill
+;@ order: the effect of skill n is entry 8 + n. They are not reached with far-call numbers:
+;@ the skill step of the action (Jump_52_6CB2, in this bank) indexes the table directly,
+;@ `call JumpToPointer` on mem16[$4011 + 2 * wSkillId] ($4011 = entry 8). Every effect
+;@ routine sets wSkillResult and its two messages (SkillFails, SkillWorks and the like)
+;@ for the message and animation steps that follow; the skills from $B0 on are the
+;@ battle items, which have their own routines (UseBattleItem) and get SkillAttack here.
 FarTable_52::
-	dw RunActionStep
-	dw Call_52_76C8
-	dw Call_52_7A18
-	dw SkillDamageByKind
-	dw GetBaseAgilityTemp
-	dw CalcAttackDamage
-	dw GetResistByte
-	dw Call_52_7EF1
-	dw SkillBlaze
-	dw SkillBlaze
-	dw SkillBlaze
-	dw SkillFirebal
-	dw SkillFirebal
-	dw SkillFirebal
-	dw SkillBang
-	dw SkillBang
-	dw SkillBang
-	dw SkillInfernos
-	dw SkillInfernos
-	dw SkillInfernos
-	dw SkillIceBolt
-	dw SkillIceBolt
-	dw SkillIceBolt
-	dw SkillBolt
-	dw SkillBolt
-	dw SkillBolt
-	dw SkillBeat
-	dw SkillBeat
-	dw SkillSacrifice
-	dw SkillSleep
-	dw SkillSleep
-	dw SkillStopSpell
-	dw SkillSurround
-	dw SkillPanicAll
-	dw SkillRobMagic
-	dw SkillTakeMagic
-	dw SkillSap
-	dw SkillSap
-	dw SkillUpper
-	dw SkillUpper
-	dw SkillSlow
-	dw SkillSlow
-	dw SkillSpeed
-	dw SkillSpeed
-	dw SkillBarrier
-	dw SkillTwinHits
-	dw SkillMagicWall
-	dw SkillMagicBack
-	dw SkillMagicBack
-	dw SkillTransform
-	dw SkillIronize
-	dw SkillHeal
-	dw SkillHeal
-	dw SkillHeal
-	dw SkillHeal
-	dw SkillHeal
-	dw SkillVivify
-	dw SkillVivify
-	dw SkillFarewell
-	dw SkillAntidote
-	dw SkillNumbOff
-	dw SkillDeChaos
-	dw SkillCurseOff
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillChance
-	dw SkillAttack
-	dw SkillTwinSlash
-	dw SkillRamming
-	dw SkillBeserker
-	dw SkillKamikaze
-	dw SkillMassacre
-	dw SkillMassacre
-	dw SkillChargeUp
-	dw SkillHighJump
-	dw SkillSuckAir
-	dw SkillFireSlash
-	dw SkillBoltSlash
-	dw SkillVacuSlash
-	dw SkillIceSlash
-	dw SkillMetalCut
-	dw SkillDrakSlash
-	dw SkillBeastCut
-	dw SkillBirdBlow
-	dw SkillDevilCut
-	dw SkillZombieCut
-	dw SkillCleanCut
-	dw SkillMultiCut
-	dw SkillBiAttack
-	dw SkillBiAttack
-	dw SkillCallHelp
-	dw SkillCallHelp
-	dw SkillFocus
-	dw SkillSquallHit
-	dw SkillTwinSlash
-	dw SkillRainSlash
-	dw SkillWindBeast
-	dw SkillWindBeast
-	dw SkillBolt
-	dw SkillRockThrow
-	dw SkillFireAir
-	dw SkillFireAir
-	dw SkillFireAir
-	dw SkillFireAir
-	dw SkillFrigidAir
-	dw SkillFrigidAir
-	dw SkillFrigidAir
-	dw SkillFrigidAir
-	dw SkillBolt
-	dw SkillBigBang
-	dw SkillMegaMagic
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillSleep
-	dw SkillPalsyAir
-	dw SkillPoisonGas
-	dw SkillPoisonGas
-	dw SkillPanicAll
-	dw SkillCurse
-	dw SkillAhhh
-	dw SkillBeat
-	dw SkillSandStorm
-	dw SkillSandStorm
-	dw SkillEerieLite
-	dw SkillOddDance
-	dw SkillRobMagic
-	dw SkillSideStep
-	dw SkillLureDance
-	dw SkillLushLicks
-	dw SkillLushLicks
-	dw SkillLegSweep
-	dw SkillLegSweep
-	dw SkillWarCry
-	dw SkillAttack
-	dw SkillImitate
-	dw SkillDeMagic
-	dw SkillSurge
-	dw SkillUltraDown
-	dw SkillDeMagic
-	dw SkillTatsuCall
-	dw SkillTatsuCall
-	dw SkillTatsuCall
-	dw SkillTatsuCall
-	dw SkillCover
-	dw SkillCover
-	dw SkillTailWind
-	dw SkillTailWind
-	dw SkillDodge
-	dw SkillDefence
-	dw SkillDefence
-	dw SkillSuckAll
-	dw SkillDefence
-	dw SkillDanceShut
-	dw SkillMouthShut
-	dw SkillMeditate
-	dw SkillHeal
-	dw SkillLifeSong
-	dw SkillLifeDance
-	dw SkillAttack
-	dw SkillDaze
-	dw SkillHitAlly
-	dw SkillHitEnemy
-	dw SkillHitSelf
-	dw SkillNoEffect
-	dw SkillNoEffect
-	dw SkillTrip
-	dw SkillCantMove
-	dw SkillCantMove
-	dw SkillRunAway
-	dw SkillCallHorror
-	dw SkillHealUsAllSpecial
-	dw SkillCallHorror
-	dw SkillDeMagic
-	dw SkillAllChange
-	dw SkillBigSleep
-	dw SkillMP0
-	dw SkillNoEffect
-	dw SkillChgDragon
-	dw SkillCallEvil
-	dw SkillFreezy
-	dw SkillVivify
-	dw SkillRestoreMP
-	dw SkillMeteor
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillAttack
-	dw SkillChgDragon
-	dw SkillSmashlime
-	dw SkillSheldodge
-	dw SkillBranching
-	dw SkillGigaSlash
-	dw SkillPanicAll
-	dw SkillRunAway
-	dw SkillIronizeSelf
-	dw SkillHalfAttack
+	dw RunActionStep  ; entry 0
+	dw Call_52_76C8  ; entry 1
+	dw Call_52_7A18  ; entry 2
+	dw SkillDamageByKind  ; entry 3
+	dw GetBaseAgilityTemp  ; entry 4
+	dw CalcAttackDamage  ; entry 5
+	dw GetResistByte  ; entry 6
+	dw Call_52_7EF1  ; entry 7
+	dw SkillBlaze  ; skill $00 Blaze
+	dw SkillBlaze  ; skill $01 Blazemore
+	dw SkillBlaze  ; skill $02 Blazemost
+	dw SkillFirebal  ; skill $03 Firebal
+	dw SkillFirebal  ; skill $04 Firebane
+	dw SkillFirebal  ; skill $05 Firebolt
+	dw SkillBang  ; skill $06 Bang
+	dw SkillBang  ; skill $07 Boom
+	dw SkillBang  ; skill $08 Explodet
+	dw SkillInfernos  ; skill $09 Infernos
+	dw SkillInfernos  ; skill $0A Infermore
+	dw SkillInfernos  ; skill $0B Infermost
+	dw SkillIceBolt  ; skill $0C IceBolt
+	dw SkillIceBolt  ; skill $0D SnowStorm
+	dw SkillIceBolt  ; skill $0E Blizzard
+	dw SkillBolt  ; skill $0F Bolt
+	dw SkillBolt  ; skill $10 Zap
+	dw SkillBolt  ; skill $11 Thordain
+	dw SkillBeat  ; skill $12 Beat
+	dw SkillBeat  ; skill $13 Defeat
+	dw SkillSacrifice  ; skill $14 Sacrifice
+	dw SkillSleep  ; skill $15 Sleep
+	dw SkillSleep  ; skill $16 SleepAll
+	dw SkillStopSpell  ; skill $17 StopSpell
+	dw SkillSurround  ; skill $18 Surround
+	dw SkillPanicAll  ; skill $19 PanicAll
+	dw SkillRobMagic  ; skill $1A RobMagic
+	dw SkillTakeMagic  ; skill $1B TakeMagic
+	dw SkillSap  ; skill $1C Sap
+	dw SkillSap  ; skill $1D Defence
+	dw SkillUpper  ; skill $1E Upper
+	dw SkillUpper  ; skill $1F Increase
+	dw SkillSlow  ; skill $20 Slow
+	dw SkillSlow  ; skill $21 SlowAll
+	dw SkillSpeed  ; skill $22 Speed
+	dw SkillSpeed  ; skill $23 SpeedUp
+	dw SkillBarrier  ; skill $24 Barrier
+	dw SkillTwinHits  ; skill $25 TwinHits
+	dw SkillMagicWall  ; skill $26 MagicWall
+	dw SkillMagicBack  ; skill $27 MagicBack
+	dw SkillMagicBack  ; skill $28 Bounce
+	dw SkillTransform  ; skill $29 Transform
+	dw SkillIronize  ; skill $2A Ironize
+	dw SkillHeal  ; skill $2B Heal
+	dw SkillHeal  ; skill $2C HealMore
+	dw SkillHeal  ; skill $2D HealAll
+	dw SkillHeal  ; skill $2E HealUs
+	dw SkillHeal  ; skill $2F HealUsAll
+	dw SkillVivify  ; skill $30 Vivify
+	dw SkillVivify  ; skill $31 Revive
+	dw SkillFarewell  ; skill $32 Farewell
+	dw SkillAntidote  ; skill $33 Antidote
+	dw SkillNumbOff  ; skill $34 NumbOff
+	dw SkillDeChaos  ; skill $35 DeChaos
+	dw SkillCurseOff  ; skill $36 CurseOff
+	dw SkillAttack  ; skill $37 StepGuard
+	dw SkillAttack  ; skill $38 MapMagic
+	dw SkillChance  ; skill $39 Chance
+	dw SkillAttack  ; skill $3A Attack
+	dw SkillTwinSlash  ; skill $3B TwinSlash
+	dw SkillRamming  ; skill $3C Ramming
+	dw SkillBeserker  ; skill $3D Beserker
+	dw SkillKamikaze  ; skill $3E Kamikaze
+	dw SkillMassacre  ; skill $3F Massacre
+	dw SkillMassacre  ; skill $40 EvilSlash
+	dw SkillChargeUp  ; skill $41 ChargeUP
+	dw SkillHighJump  ; skill $42 HighJump
+	dw SkillSuckAir  ; skill $43 SuckAir
+	dw SkillFireSlash  ; skill $44 FireSlash
+	dw SkillBoltSlash  ; skill $45 BoltSlash
+	dw SkillVacuSlash  ; skill $46 VacuSlash
+	dw SkillIceSlash  ; skill $47 IceSlash
+	dw SkillMetalCut  ; skill $48 MetalCut
+	dw SkillDrakSlash  ; skill $49 DrakSlash
+	dw SkillBeastCut  ; skill $4A BeastCut
+	dw SkillBirdBlow  ; skill $4B BirdBlow
+	dw SkillDevilCut  ; skill $4C DevilCut
+	dw SkillZombieCut  ; skill $4D ZombieCut
+	dw SkillCleanCut  ; skill $4E CleanCut
+	dw SkillMultiCut  ; skill $4F MultiCut
+	dw SkillBiAttack  ; skill $50 BiAttack
+	dw SkillBiAttack  ; skill $51 QuadHits
+	dw SkillCallHelp  ; skill $52 CallHelp
+	dw SkillCallHelp  ; skill $53 YellHelp
+	dw SkillFocus  ; skill $54 Focus
+	dw SkillSquallHit  ; skill $55 SquallHit
+	dw SkillTwinSlash  ; skill $56 PsycheUp
+	dw SkillRainSlash  ; skill $57 RainSlash
+	dw SkillWindBeast  ; skill $58 WindBeast
+	dw SkillWindBeast  ; skill $59 Vacuum
+	dw SkillBolt  ; skill $5A Lightning
+	dw SkillRockThrow  ; skill $5B RockThrow
+	dw SkillFireAir  ; skill $5C FireAir
+	dw SkillFireAir  ; skill $5D BlazeAir
+	dw SkillFireAir  ; skill $5E Scorching
+	dw SkillFireAir  ; skill $5F WhiteFire
+	dw SkillFrigidAir  ; skill $60 FrigidAir
+	dw SkillFrigidAir  ; skill $61 IceAir
+	dw SkillFrigidAir  ; skill $62 IceStorm
+	dw SkillFrigidAir  ; skill $63 WhiteAir
+	dw SkillBolt  ; skill $64 Hellblast
+	dw SkillBigBang  ; skill $65 BigBang
+	dw SkillMegaMagic  ; skill $66 MegaMagic
+	dw SkillAttack  ; skill $67 PoisonHit
+	dw SkillAttack  ; skill $68 NapAttack
+	dw SkillAttack  ; skill $69 Paralyze
+	dw SkillSleep  ; skill $6A SleepAir
+	dw SkillPalsyAir  ; skill $6B PalsyAir
+	dw SkillPoisonGas  ; skill $6C PoisonGas
+	dw SkillPoisonGas  ; skill $6D PoisonAir
+	dw SkillPanicAll  ; skill $6E PaniDance
+	dw SkillCurse  ; skill $6F Curse
+	dw SkillAhhh  ; skill $70 Ahhh
+	dw SkillBeat  ; skill $71 K.O.Dance
+	dw SkillSandStorm  ; skill $72 SandStorm
+	dw SkillSandStorm  ; skill $73 Radiant
+	dw SkillEerieLite  ; skill $74 EerieLite
+	dw SkillOddDance  ; skill $75 OddDance
+	dw SkillRobMagic  ; skill $76 RobDance
+	dw SkillSideStep  ; skill $77 SideStep
+	dw SkillLureDance  ; skill $78 LureDance
+	dw SkillLushLicks  ; skill $79 LushLicks
+	dw SkillLushLicks  ; skill $7A SickLick
+	dw SkillLegSweep  ; skill $7B LegSweep
+	dw SkillLegSweep  ; skill $7C BigTrip
+	dw SkillWarCry  ; skill $7D WarCry
+	dw SkillAttack  ; skill $7E Whistle
+	dw SkillImitate  ; skill $7F Imitate
+	dw SkillDeMagic  ; skill $80 DeMagic
+	dw SkillSurge  ; skill $81 Surge
+	dw SkillUltraDown  ; skill $82 UltraDown
+	dw SkillDeMagic  ; skill $83 ThickFog
+	dw SkillTatsuCall  ; skill $84 TatsuCall
+	dw SkillTatsuCall  ; skill $85 DiagoCall
+	dw SkillTatsuCall  ; skill $86 SamsiCall
+	dw SkillTatsuCall  ; skill $87 BazooCall
+	dw SkillCover  ; skill $88 Cover
+	dw SkillCover  ; skill $89 Guardian
+	dw SkillTailWind  ; skill $8A TailWind
+	dw SkillTailWind  ; skill $8B StormWind
+	dw SkillDodge  ; skill $8C Dodge
+	dw SkillDefence  ; skill $8D Defence
+	dw SkillDefence  ; skill $8E StrongD
+	dw SkillSuckAll  ; skill $8F SuckAll
+	dw SkillDefence  ; skill $90 BladeD
+	dw SkillDanceShut  ; skill $91 DanceShut
+	dw SkillMouthShut  ; skill $92 MouthShut
+	dw SkillMeditate  ; skill $93 Meditate
+	dw SkillHeal  ; skill $94 Hustle
+	dw SkillLifeSong  ; skill $95 LifeSong
+	dw SkillLifeDance  ; skill $96 LifeDance
+	dw SkillAttack  ; skill $97 Run
+	dw SkillDaze  ; skill $98 Daze
+	dw SkillHitAlly  ; skill $99 HitAlly
+	dw SkillHitEnemy  ; skill $9A HitEnemy
+	dw SkillHitSelf  ; skill $9B HitRandom
+	dw SkillNoEffect  ; skill $9C Scared
+	dw SkillNoEffect  ; skill $9D Dance
+	dw SkillTrip  ; skill $9E Trip
+	dw SkillCantMove  ; skill $9F Paralyze
+	dw SkillCantMove  ; skill $A0 CANTMOVE
+	dw SkillRunAway  ; skill $A1 RUN
+	dw SkillCallHorror  ; skill $A2 CALLHOROR
+	dw SkillHealUsAllSpecial  ; skill $A3 HealUsAll
+	dw SkillCallHorror  ; skill $A4 Smashed
+	dw SkillDeMagic  ; skill $A5 FILTHZONE
+	dw SkillAllChange  ; skill $A6 ALLCHANGE
+	dw SkillBigSleep  ; skill $A7 BIGSLEEP
+	dw SkillMP0  ; skill $A8 MP0
+	dw SkillNoEffect  ; skill $A9 ECHO
+	dw SkillChgDragon  ; skill $AA CHGDRAGON
+	dw SkillCallEvil  ; skill $AB CALLEVIL
+	dw SkillFreezy  ; skill $AC FREEZY
+	dw SkillVivify  ; skill $AD ALLREVIVE
+	dw SkillRestoreMP  ; skill $AE RESTOREMP
+	dw SkillMeteor  ; skill $AF METEOR
+	dw SkillAttack  ; skill $B0 HERB
+	dw SkillAttack  ; skill $B1 HEALWATER
+	dw SkillAttack  ; skill $B2 SAGESTONE
+	dw SkillAttack  ; skill $B3 WARLDDEW
+	dw SkillAttack  ; skill $B4 POTION
+	dw SkillAttack  ; skill $B5 ELFWATER
+	dw SkillAttack  ; skill $B6 ANTIDOTE
+	dw SkillAttack  ; skill $B7 MOONHERB
+	dw SkillAttack  ; skill $B8 SKYBELL
+	dw SkillAttack  ; skill $B9 LAUREL
+	dw SkillAttack  ; skill $BA AWAKESAND
+	dw SkillAttack  ; skill $BB WARLDLEAF
+	dw SkillAttack  ; skill $BC LIFEACORN
+	dw SkillAttack  ; skill $BD MYSTICNUT
+	dw SkillAttack  ; skill $BE PWRSEED
+	dw SkillAttack  ; skill $BF DEFSEED
+	dw SkillAttack  ; skill $C0 AGILSEED
+	dw SkillAttack  ; skill $C1 INTSEED
+	dw SkillAttack  ; skill $C2 FEEDMEAT
+	dw SkillAttack  ; skill $C3 BEFFJERKY
+	dw SkillAttack  ; skill $C4 PORKCHOP
+	dw SkillAttack  ; skill $C5 BADMEAT
+	dw SkillAttack  ; skill $C6 SIRLOIN
+	dw SkillAttack  ; skill $C7 BOLTSTAFF
+	dw SkillAttack  ; skill $C8 STAFF
+	dw SkillAttack  ; skill $C9 BLOKSTAFF
+	dw SkillAttack  ; skill $CA LAVASTAFF
+	dw SkillAttack  ; skill $CB SNOWSTAFF
+	dw SkillAttack  ; skill $CC FIRESTAFF
+	dw SkillAttack  ; skill $CD WARPWING
+	dw SkillAttack  ; skill $CE TINYMEDAL
+	dw SkillAttack  ; skill $CF QuestBk
+	dw SkillAttack  ; skill $D0 HORRORBK
+	dw SkillAttack  ; skill $D1 BENICEBK
+	dw SkillAttack  ; skill $D2 CHEATERBK
+	dw SkillAttack  ; skill $D3 SMARTBK
+	dw SkillAttack  ; skill $D4 COMEDYBK
+	dw SkillChgDragon  ; skill $D5 BeDragon
+	dw SkillSmashlime  ; skill $D6 Smashlime
+	dw SkillSheldodge  ; skill $D7 Sheldodge
+	dw SkillBranching  ; skill $D8 Branching
+	dw SkillGigaSlash  ; skill $D9 GigaSlash
+	dw SkillPanicAll  ; skill $DA LIFE
+	dw SkillRunAway  ; skill $DB RUN
+	dw SkillIronizeSelf  ; skill $DC IRONIZE
+	dw SkillHalfAttack  ; skill $DD Ahhh
 
+;@ def SkillBlaze()
+;@ path: battle/skills/effects/spells
+;@ Effect of Blaze, Blazemore and Blazemost (skills $00-$02): fire damage taken from the
+;@ skill table and cut by the target's resistance, shown as "takes N damage".
 SkillBlaze::
+;> BlazeDamage()
 	call BlazeDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillFirebal()
+;@ path: battle/skills/effects/spells
+;@ Effect of Firebal, Firebane and Firebolt (skills $03-$05): damage from the skill table,
+;@ cut by the target's resistance.
 SkillFirebal::
+;> FirebalDamage()
 	call FirebalDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillBang()
+;@ path: battle/skills/effects/spells
+;@ Effect of Bang, Boom and Explodet (skills $06-$08): explosion damage from the skill table,
+;@ cut by the target's resistance.
 SkillBang::
+;> BangDamage()
 	call BangDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillInfernos()
+;@ path: battle/skills/effects/spells
+;@ Effect of Infernos, Infermore and Infermost (skills $09-$0B): wind damage from the skill
+;@ table, cut by the target's resistance.
 SkillInfernos::
+;> InfernosDamage()
 	call InfernosDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillIceBolt()
+;@ path: battle/skills/effects/spells
+;@ Effect of IceBolt, SnowStorm and Blizzard (skills $0C-$0E): ice damage from the skill
+;@ table, cut by the target's resistance.
 SkillIceBolt::
+;> IceBoltDamage()
 	call IceBoltDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillBolt()
+;@ path: battle/skills/effects/spells
+;@ Effect of the lightning skills Bolt, Zap, Thordain, Lightning and Hellblast (skills
+;@ $0F-$11, $5A, $64): damage from the skill table, cut by the target's resistance.
 SkillBolt::
+;> BoltDamage()
 	call BoltDamage
+;> SkillDealsDamage()
 	call SkillDealsDamage
+;> return
 	ret
 
 
+;@ def SkillBeat()
+;@ path: battle/skills/effects/status
+;@ Effect of Beat, Defeat and K.O.Dance (skills $12, $13, $71): if the instant-death roll
+;@ against the target's resistance works, the target is knocked out (state 1, HP 0) with
+;@ "X is finished!"; otherwise "Has no effect on X!".
 SkillBeat::
+;> wBattleStepArg1 = 0
 	xor a
 	ld [wBattleStepArg1], a
+;>@miss if not RollInstantDeath():
 	call RollInstantDeath
-	jr nc, jr_052_4225
+	jr nc, .resisted
 
+;>@miss1     return SkillFails(0xB8)          # "Has no effect on X!"
+;>@st wBattlerState[wSkillTarget] = 1         # knocked out
 	ld a, [wSkillTarget]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@st
 	ld h, a
 	ld [hl], $01
+;> SkillWorksSide(0xB8E8)                     # "X is finished!" / "Has no effect on X!"
 	ld hl, $b8e8
 	call SkillWorksSide
+;>@hp0 mem16[wBattlerHP + 2 * wSkillTarget] = 0
 	push hl
 	ld a, [wSkillTarget]
 	ld hl, wBattlerHP
 	call IndexWords
 	ld a, $00
 	ld [hli], a
+;=@hp0
 	ld [hl], $00
 	pop hl
+;> return
 	ret
 
 
-jr_052_4225:
+.resisted
+;=@miss1
 	ld a, $b8
 	call SkillFails
 	ret
 
 
+;@ def SkillSacrifice()
+;@ path: battle/skills/effects/special
+;@ Effect of Sacrifice (skill $14): goes on with battle sub-step 3 (the user gives its life
+;@ to defeat the enemies) from its first stage.
 SkillSacrifice::
+;> wBattleSubStep = 3
 	ld a, $03
 	ld [wBattleSubStep], a
+;> wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep2], a
+;> return
 	ret
 
 
+;@ def SkillSleep()
+;@ path: battle/skills/effects/status
+;@ Effect of Sleep, SleepAll and SleepAir (skills $15, $16, $6A): the target's name goes
+;@ into the message; a target already asleep gives "X is already sleeping!", a resisted roll
+;@ "X doesn't fall asleep!"; otherwise "X is sent to sleep!" and the sleep bits
+;@ ($8C of status byte 0) are set (PutTargetToSleep).
 SkillSleep::
+;> wBattleArg2 = lo(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
+;> wBattleArg3 = hi(wTextArg0)
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
+;> GetBattlerNameTo()
 	call GetBattlerNameTo
+;>@slp if wBattlerStatus[8 * wSkillTarget] & 0x8C:     # already asleep
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, [hl]
 	and $8c
-	jr nz, jr_052_4276
+	jr nz, SleepAlready
 
+;>     return SkillFailsNoAnim(0xBD)                 # "X is already sleeping!" (code after PutTargetToSleep)
+;> if not RollSleep():
 	call RollSleep
-	jr nc, jr_052_4270
+	jr nc, SleepResisted
 
+;>     return SkillFails(0xBC)                       # "X doesn't fall asleep!" (code after PutTargetToSleep)
+;> SkillWorksSideNoDamage(0xBCCC)                    # "X is sent to sleep!"
 	ld hl, $bccc
 	call SkillWorksSideNoDamage
+;> PutTargetToSleep()                                # (falls through)
+;> return
 
+;@ def PutTargetToSleep()
+;@ path: battle/skills/effects/status
+;@ Sets the sleep bits ($8C) of the target's status byte 0. The end of SkillSleep; the
+;@ battle flow of this bank also calls it on its own.
 PutTargetToSleep::
+;> wBattlerStatus[8 * wSkillTarget] |= 0x8C
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, [hl]
 	or $8c
 	ld [hl], a
+;> return
 	ret
 
 
-jr_052_4270:
+SleepResisted:
+;> # (SkillSleep, roll resisted: SkillFails(0xBC))
 	ld a, $bc
 	call SkillFails
 	ret
 
 
-jr_052_4276:
+SleepAlready:
+;> # (SkillSleep, already asleep: SkillFailsNoAnim(0xBD))
 	ld a, $bd
 	call SkillFailsNoAnim
 	ret
 
 
+;@ def SkillStopSpell()
+;@ path: battle/skills/effects/status
+;@ Effect of StopSpell (skill $17): suspends the target's spells (bit 0 of status byte 1,
+;@ wBattlerStatus1) when the roll against its resistance works: "X's spells are all
+;@ suspended!", else "Has no effect on X!". Already suspended: ends without a message.
 SkillStopSpell::
+;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x01:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 0, [hl]
-	jr nz, jr_052_42a0
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;>@res if not RollStopSpell():
 	call RollStopSpell
-	jr nc, jr_052_42a4
+	jr nc, .resisted
 
+;>@res1     return SkillFails(0xB8)                  # "Has no effect on X!"
+;> wBattlerStatus[8 * wSkillTarget + 1] |= 0x01
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	set 0, [hl]
+;> SkillWorksSideNoDamage(0xB888)                    # "X's spells are all suspended!"
 	ld hl, $b888
 	call SkillWorksSideNoDamage
+;> return
 	ret
 
 
-jr_052_42a0:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
-jr_052_42a4:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFails
 	ret
 
 
+;@ def SkillSurround()
+;@ path: battle/skills/effects/status
+;@ Effect of Surround (skill $18): an illusion engulfs the target (bit 1 of status byte 1)
+;@ when the roll works: "An illusion engulfs X!", else "Has no effect on X!".
 SkillSurround::
+;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x02:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 1, [hl]
-	jr nz, jr_052_42ce
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;>@res if not RollSurround():
 	call RollSurround
-	jr nc, jr_052_42d2
+	jr nc, .resisted
 
+;>@res1     return SkillFails(0xB8)                  # "Has no effect on X!"
+;> wBattlerStatus[8 * wSkillTarget + 1] |= 0x02
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	set 1, [hl]
+;> SkillWorks(0xB898)                                # "An illusion engulfs X!"
 	ld hl, $b898
 	call SkillWorks
+;> return
 	ret
 
 
-jr_052_42ce:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
 
-jr_052_42d2:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFails
 	ret
 
 
+;@ def SkillPanicAll()
+;@ path: battle/skills/effects/status
+;@ Effect of PanicAll, PaniDance and LIFE (skills $19, $6E, $DA): confuses the target (bit 4
+;@ of status byte 0): "X is confused!". An already confused target gives "X becomes more
+;@ confused!", a resisted roll "Has no effect on X!".
 SkillPanicAll::
+;>@on if wBattlerStatus[8 * wSkillTarget] & 0x10:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	bit 4, [hl]
-	jr z, jr_052_42eb
+	jr z, .notConfused
 
+;>     return SkillFailsNoAnim(0xBE)                 # "X becomes more confused!"
 	ld a, $be
 	call SkillFailsNoAnim
 	ret
 
 
-jr_052_42eb:
+.notConfused
+;>@res if not RollConfusion():
 	call RollConfusion
-	jr nc, jr_052_4302
+	jr nc, .resisted
 
+;>@res1     return SkillFails(0xB8)                  # "Has no effect on X!"
+;> wBattlerStatus[8 * wSkillTarget] |= 0x10
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	set 4, [hl]
+;> SkillWorksSide(0xB88E)                            # "X is confused!"
 	ld hl, $b88e
 	call SkillWorksSide
+;> return
 	ret
 
 
-jr_052_4302:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFails
 	ret
 
 
+;@ def SkillRobMagic()
+;@ path: battle/skills/effects/status
+;@ Effect of RobMagic and RobDance (skills $1A, $76): when the target has MP and the roll
+;@ works, drains MP from it into the user (RobMagic): "X's MP is drained by Y!". A target
+;@ without MP: "But nothing happens!"; resisted: "Has no effect on X!".
 SkillRobMagic::
+;>@mp0 if mem16[wBattlerMP + 2 * wSkillTarget] == 0:
 	ld a, [wSkillTarget]
 	ld hl, wBattlerMP
 	call IndexWords
 	ld a, [hli]
 	or [hl]
-	jr z, jr_052_432a
+	jr z, .noMP
 
+;>@mp1     return SkillFails(0xBB)                  # "But nothing happens!"
+;>@res if not RollRobMagic():
 	call RollRobMagic
-	jr nc, jr_052_4324
+	jr nc, .resisted
 
+;>@res1     return SkillFails(0xB8)                  # "Has no effect on X!"
+;> RobMagic()
 	call RobMagic
+;> SkillWorksSide(0xB88A)                            # "X's MP is drained by Y!"
 	ld hl, $b88a
 	call SkillWorksSide
+;> return
 	ret
 
 
-jr_052_4324:
+.resisted
+;=@res1
 	ld a, $b8
 	call SkillFails
 	ret
 
 
-jr_052_432a:
+.noMP
+;=@mp1
 	ld a, $bb
 	call SkillFails
 	ret
 
 
+;@ def SkillTakeMagic()
+;@ path: battle/skills/effects/status
+;@ Effect of TakeMagic (skill $1B): the user starts to glow (bit 0 of status byte 2); the
+;@ message "X starts to glow faintly!" is shown at once. Already glowing: no message.
 SkillTakeMagic::
+;>@on if wBattlerStatus[8 * wSkillUser + 2] & 0x01:
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus2
 	call AddEightTimes
 	bit 0, [hl]
-	jr nz, jr_052_4346
+	jr nz, .already
 
+;>@on1     return SkillEndsQuietly()
+;> wBattlerStatus[8 * wSkillUser + 2] |= 0x01
 	set 0, [hl]
+;> SkillWorksAtOnce(0x8C00)                          # "X starts to glow faintly!"
 	ld hl, $8c00
 	call SkillWorksAtOnce
+;> return
 	ret
 
 
-jr_052_4346:
+.already
+;=@on1
 	call SkillEndsQuietly
 	ret
 
