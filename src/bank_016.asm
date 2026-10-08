@@ -20,7 +20,7 @@ FarTable_16::
 	dw Call_16_7033
 
 Call_16_4015::
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -44,52 +44,52 @@ jr_016_401c:
 
 jr_016_402d:
 	ld a, c
-	ld [$cac0], a
-	ld [$ca40], a
-	ld hl, $cac1
+	ld [wCurPartyMember], a
+	ld [wLeaderSlot], a
+	ld hl, wMonsters
 	call Call_16_41B1
 	ld bc, $0095
 	xor a
-	call Call_12C7
-	ld hl, $caea
+	call FillMemory
+	ld hl, wMonSkills
 	call Call_16_41B1
 	ld bc, $0008
 	ld a, $ff
-	call Call_12C7
-	ld hl, $caf2
+	call FillMemory
+	ld hl, wMonSkillList
 	call Call_16_41B1
 	ld bc, $0019
 	ld a, $ff
-	call Call_12C7
-	ld hl, $cac1
+	call FillMemory
+	ld hl, wMonsters
 	call Call_16_41B1
 	ld [hl], $01
 	ld a, [$d66e]
-	ld [$da6f], a
+	ld [wBreedQuery], a
 	ld a, [$d703]
-	ld [$da70], a
+	ld [wBreedSpecies2], a
 	ld a, $14
-	ld [$da75], a
+	ld [wBreedSlot1], a
 	ld a, $15
-	ld [$da76], a
+	ld [wBreedSlot2], a
 	call Call_16_456E
-	ld hl, $caca
+	ld hl, wMonRecSpecies
 	call Call_16_41B1
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	ld [hl], a
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da31]
-	ld hl, $ca94
-	call Call_2670
-	ld hl, $cacb
+	ld a, [wMonSpecies]
+	ld hl, wLibraryFlags
+	call SetFlag
+	ld hl, wMonFamily
 	call Call_16_41B1
-	ld a, [$da33]
+	ld a, [wMonStats]
 	ld [hl], a
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	push af
-	ld hl, $cb23
+	ld hl, wMonPlus
 	call Call_16_41B1
 	pop af
 	cp $63
@@ -99,7 +99,7 @@ jr_016_402d:
 
 jr_016_40b3:
 	ld [hl], a
-	ld hl, $cb23
+	ld hl, wMonPlus
 	call Call_16_41B1
 	ld a, [hl]
 	ld l, a
@@ -130,53 +130,53 @@ jr_016_40d7:
 
 jr_016_40d9:
 	push af
-	ld hl, $cb0d
+	ld hl, wMonMaxLevel
 	call Call_16_41B1
 	pop af
 	ld [hl], a
-	ld hl, $cb0c
+	ld hl, wMonLevel
 	call Call_16_41B1
 	ld [hl], $01
-	ld hl, $cb13
+	ld hl, wMonMaxHP
 	call Call_16_41B8
 	push bc
-	ld hl, $cb11
+	ld hl, wMonHP
 	call Call_16_41B1
 	pop bc
 	ld a, c
 	ld [hli], a
 	ld [hl], b
-	ld hl, $cb17
+	ld hl, wMonMaxMP
 	call Call_16_41B8
 	push bc
-	ld hl, $cb15
+	ld hl, wMonMP
 	call Call_16_41B1
 	pop bc
 	ld a, c
 	ld [hli], a
 	ld [hl], b
-	ld hl, $cb19
+	ld hl, wMonAttack
 	call Call_16_41B8
-	ld hl, $cb1b
+	ld hl, wMonDefense
 	call Call_16_41B8
-	ld hl, $cb1d
+	ld hl, wMonAgility
 	call Call_16_41B8
-	ld hl, $cb1f
+	ld hl, wMonIntelligence
 	call Call_16_41B8
-	ld hl, $cb25
+	ld hl, wMonStat64
 	call Call_16_41FF
-	ld hl, $cb26
+	ld hl, wMonStat65
 	call Call_16_41FF
-	ld hl, $cb28
+	ld hl, wMonStat67
 	call Call_16_41FF
-	ld hl, $cb27
+	ld hl, wMonStat66
 	call Call_16_41FF
 	ld hl, $cb29
-	ld de, $da42
+	ld de, wMonResistances
 	ld b, $1b
 	call Call_16_4227
 	call Call_16_4360
-	call Call_12D0
+	call Random
 	ld hl, $44cc
 	ld a, [$da36]
 	add l
@@ -184,18 +184,18 @@ jr_016_40d9:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	cp [hl]
 	jr z, jr_016_4169
 
 	jr nc, jr_016_4169
 
-	ld hl, $cacc
+	ld hl, wMonGender
 	call Call_16_41B1
 	ld [hl], $01
 
 jr_016_4169:
-	ld hl, $cb24
+	ld hl, wMonEgg
 	call Call_16_41B1
 	ld [hl], $01
 	call Call_16_4238
@@ -203,15 +203,15 @@ jr_016_4169:
 	ld b, $03
 	call Call_16_4496
 	ld a, [$d66e]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
 	call Call_16_4496
 	ld a, [$d703]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
@@ -226,8 +226,8 @@ jr_016_4169:
 
 
 Call_16_41B1::
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ret
 
 
@@ -267,9 +267,9 @@ Call_16_41B8::
 	push bc
 	call Call_16_4313
 	pop bc
-	call Call_1DE6
+	call Multiply24
 	ld a, $32
-	call Call_1E0D
+	call Divide16
 	pop bc
 	add hl, bc
 	ld c, l
@@ -324,8 +324,8 @@ Call_16_41FF::
 Call_16_4227::
 	push bc
 	push de
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	pop de
 	pop bc
 
@@ -345,11 +345,11 @@ Call_16_4238::
 	or a
 	jp nz, Jump_016_42aa
 
-	ld hl, $cad6
+	ld hl, wMonParent1
 	call Call_16_41B1
 	ld a, [$d66e]
 	ld [hl], a
-	ld hl, $cad8
+	ld hl, wMonParent1Master
 	ld de, $d671
 	ld b, $08
 	call Call_16_4227
@@ -357,19 +357,19 @@ Call_16_4238::
 	call Call_16_41B1
 	ld a, [$ca4a]
 	ld [hl], a
-	ld hl, $cb44
+	ld hl, wMonParent1Name
 	ld de, $d666
 	ld b, $08
 	call Call_16_4227
-	ld hl, $cb4c
+	ld hl, wMonParent1Plus
 	call Call_16_41B1
 	ld a, [$d6c7]
 	ld [hl], a
-	ld hl, $cad7
+	ld hl, wMonParent2
 	call Call_16_41B1
 	ld a, [$d703]
 	ld [hl], a
-	ld hl, $cae1
+	ld hl, wMonParent2Master
 	ld de, $d706
 	ld b, $08
 	call Call_16_4227
@@ -377,11 +377,11 @@ Call_16_4238::
 	call Call_16_41B1
 	ld a, [$ca4a]
 	ld [hl], a
-	ld hl, $cb4d
+	ld hl, wMonParent2Name
 	ld de, $d6fb
 	ld b, $08
 	call Call_16_4227
-	ld hl, $cb55
+	ld hl, wMonParent2Plus
 	call Call_16_41B1
 	ld a, [$d75c]
 	ld [hl], a
@@ -389,11 +389,11 @@ Call_16_4238::
 
 
 Jump_016_42aa:
-	ld hl, $cad6
+	ld hl, wMonParent1
 	call Call_16_41B1
 	ld a, [$d703]
 	ld [hl], a
-	ld hl, $cad8
+	ld hl, wMonParent1Master
 	ld de, $d706
 	ld b, $08
 	call Call_16_4227
@@ -401,19 +401,19 @@ Jump_016_42aa:
 	call Call_16_41B1
 	ld a, [$ca4a]
 	ld [hl], a
-	ld hl, $cb44
+	ld hl, wMonParent1Name
 	ld de, $d6fb
 	ld b, $08
 	call Call_16_4227
-	ld hl, $cb4c
+	ld hl, wMonParent1Plus
 	call Call_16_41B1
 	ld a, [$d75c]
 	ld [hl], a
-	ld hl, $cad7
+	ld hl, wMonParent2
 	call Call_16_41B1
 	ld a, [$d66e]
 	ld [hl], a
-	ld hl, $cae1
+	ld hl, wMonParent2Master
 	ld de, $d671
 	ld b, $08
 	call Call_16_4227
@@ -421,11 +421,11 @@ Jump_016_42aa:
 	call Call_16_41B1
 	ld a, [$ca4a]
 	ld [hl], a
-	ld hl, $cb4d
+	ld hl, wMonParent2Name
 	ld de, $d666
 	ld b, $08
 	call Call_16_4227
-	ld hl, $cb55
+	ld hl, wMonParent2Plus
 	call Call_16_41B1
 	ld a, [$d6c7]
 	ld [hl], a
@@ -459,7 +459,7 @@ Call_16_4313::
 
 
 Call_16_434F::
-	ld de, $ca42
+	ld de, wPlayerName
 	ld b, $09
 
 jr_016_4354:
@@ -548,7 +548,7 @@ Jump_16_43B8::
 
 
 Jump_16_43B9::
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $64
 	call Call_16_4444
@@ -557,7 +557,7 @@ Jump_16_43B9::
 
 
 Jump_16_43C6::
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $1e
 	call Call_16_4444
@@ -566,12 +566,12 @@ Jump_16_43C6::
 
 
 Jump_16_43D3::
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $0a
 	call Call_16_4444
 	call c, Call_16_4481
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $1e
 	call Call_16_4444
@@ -581,7 +581,7 @@ Jump_16_43D3::
 
 Jump_16_43EC::
 	call Call_16_4481
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $14
 	call Call_16_4444
@@ -625,7 +625,7 @@ Jump_16_4429::
 
 
 Jump_16_442A::
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $c8
 	call Call_16_4444
@@ -634,7 +634,7 @@ Jump_16_442A::
 
 
 Jump_16_4437::
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	ld b, a
 	ld a, $28
 	call Call_16_4444
@@ -645,13 +645,13 @@ Jump_16_4437::
 Call_16_4444::
 	push bc
 	push af
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	pop af
-	call Call_1E0D
+	call Divide16
 	pop bc
 	cp b
 	ret
@@ -723,7 +723,7 @@ Call_16_44A3::
 	ret z
 
 	push af
-	ld hl, $caf2
+	ld hl, wMonSkillList
 	call Call_16_41B1
 	pop af
 	ld b, $19
@@ -752,7 +752,7 @@ jr_016_44c7:
 	db $00, $1a, $80, $d6
 
 Call_16_44D0::
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	ret nz
 
@@ -774,7 +774,7 @@ Call_16_44D0::
 
 Call_16_456E::
 	ld a, $ff
-	ld [$da71], a
+	ld [wBreedPair], a
 	ld a, $ff
 	ld [$da72], a
 	ld a, $ff
@@ -782,26 +782,26 @@ Call_16_456E::
 	ld a, $ff
 	ld [$da74], a
 	ld a, $ff
-	ld [$da77], a
+	ld [wOffspringPlus], a
 	call Call_16_4653
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
 	call Call_16_45D5
 	call Call_16_44D0
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
-	ld a, [$da6f]
-	ld [$da71], a
+	ld a, [wBreedQuery]
+	ld [wBreedPair], a
 	ret
 
 
 Call_16_45A3::
 	ld a, $ff
-	ld [$da71], a
+	ld [wBreedPair], a
 	ld a, $ff
 	ld [$da72], a
 	ld a, $ff
@@ -809,53 +809,53 @@ Call_16_45A3::
 	ld a, $ff
 	ld [$da74], a
 	ld a, $ff
-	ld [$da77], a
+	ld [wOffspringPlus], a
 	call Call_16_4653
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
 	call Call_16_45D5
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
-	ld a, [$da6f]
-	ld [$da71], a
+	ld a, [wBreedQuery]
+	ld [wBreedPair], a
 	ret
 
 
 Call_16_45D5::
-	ld a, [$da70]
+	ld a, [wBreedSpecies2]
 	cp $f0
 	jr nc, Call_16_45FF
 
-	ld a, [$da6f]
+	ld a, [wBreedQuery]
 	push af
 	call Call_16_45FF
 	pop af
-	ld [$da6f], a
-	ld a, [$da71]
+	ld [wBreedQuery], a
+	ld a, [wBreedPair]
 	cp $ff
 	ret nz
 
-	ld a, [$da70]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld a, [wBreedSpecies2]
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 	add $f0
-	ld [$da70], a
+	ld [wBreedSpecies2], a
 
 Call_16_45FF::
-	ld a, [$da6f]
+	ld a, [wBreedQuery]
 	cp $f0
 	jr nc, jr_016_4615
 
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 	add $f0
 	ld [$da72], a
 
@@ -878,7 +878,7 @@ jr_016_461a:
 	cp $ff
 	jr z, jr_016_461a
 
-	ld a, [$da70]
+	ld a, [wBreedSpecies2]
 	and $f0
 	cp $f0
 	jr nz, jr_016_4636
@@ -888,12 +888,12 @@ jr_016_461a:
 	jr z, jr_016_463c
 
 jr_016_4636:
-	ld a, [$da70]
+	ld a, [wBreedSpecies2]
 	cp c
 	jr nz, jr_016_461a
 
 jr_016_463c:
-	ld a, [$da6f]
+	ld a, [wBreedQuery]
 	cp b
 	jr z, jr_016_464e
 
@@ -902,35 +902,35 @@ jr_016_463c:
 	jr nz, jr_016_464c
 
 	ld a, d
-	ld [$da71], a
+	ld [wBreedPair], a
 
 jr_016_464c:
 	jr jr_016_461a
 
 jr_016_464e:
 	ld a, d
-	ld [$da71], a
+	ld [wBreedPair], a
 	ret
 
 
 Call_16_4653::
-	ld a, [$da75]
-	ld hl, $cb23
-	call Call_223B
+	ld a, [wBreedSlot1]
+	ld hl, wMonPlus
+	call MonsterField
 	ld a, [hl]
 	ld b, a
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	jr nz, jr_016_467d
 
-	ld a, [$da75]
-	ld hl, $cb23
-	call Call_223B
+	ld a, [wBreedSlot1]
+	ld hl, wMonPlus
+	call MonsterField
 	ld b, [hl]
 	push bc
-	ld a, [$da76]
-	ld hl, $cb23
-	call Call_223B
+	ld a, [wBreedSlot2]
+	ld hl, wMonPlus
+	call MonsterField
 	ld a, [hl]
 	pop bc
 	cp b
@@ -941,15 +941,15 @@ jr_016_467d:
 
 jr_016_467e:
 	inc a
-	ld [$da77], a
-	ld a, [$da75]
-	ld hl, $cb0c
-	call Call_223B
+	ld [wOffspringPlus], a
+	ld a, [wBreedSlot1]
+	ld hl, wMonLevel
+	call MonsterField
 	ld b, [hl]
 	push bc
-	ld a, [$da76]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wBreedSlot2]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	pop bc
 	add b
@@ -972,37 +972,37 @@ jr_016_467e:
 	ld c, $00
 
 jr_016_46b3:
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	add c
-	ld [$da77], a
-	ld a, [$da77]
+	ld [wOffspringPlus], a
+	ld a, [wOffspringPlus]
 	cp $63
 	jr c, jr_016_46c6
 
 	ld a, $63
-	ld [$da77], a
+	ld [wOffspringPlus], a
 
 jr_016_46c6:
-	ld a, [$da6f]
+	ld a, [wBreedQuery]
 	cp $f0
 	jr nc, jr_016_46dc
 
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 	add $f0
 	ld [$da73], a
 
 jr_016_46dc:
-	ld a, [$da70]
+	ld a, [wBreedSpecies2]
 	cp $f0
 	jr nc, jr_016_46f2
 
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 	add $f0
 	ld [$da74], a
 
@@ -1017,7 +1017,7 @@ jr_016_46f5:
 	push hl
 	call Call_16_471C
 	pop hl
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	jr nz, jr_016_4710
 
@@ -1030,17 +1030,17 @@ jr_016_46f5:
 	jr jr_016_46f5
 
 jr_016_4710:
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	cp $63
 	ret c
 
 	ld a, $63
-	ld [$da77], a
+	ld [wOffspringPlus], a
 	ret
 
 
 Call_16_471C::
-	ld a, [$da6f]
+	ld a, [wBreedQuery]
 	cp [hl]
 	jr z, jr_016_4728
 
@@ -1050,7 +1050,7 @@ Call_16_471C::
 
 jr_016_4728:
 	inc hl
-	ld a, [$da70]
+	ld a, [wBreedSpecies2]
 	cp [hl]
 	jr z, jr_016_4735
 
@@ -1060,81 +1060,81 @@ jr_016_4728:
 
 jr_016_4735:
 	inc hl
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	cp [hl]
 	jr c, jr_016_4749
 
 	inc hl
 	ld a, [hl]
-	ld [$da71], a
+	ld [wBreedPair], a
 	inc hl
-	ld a, [$da77]
+	ld a, [wOffspringPlus]
 	add [hl]
-	ld [$da77], a
+	ld [wOffspringPlus], a
 
 jr_016_4749:
 	ret
 
 
 Call_16_474A::
-	ld hl, $cb21
+	ld hl, wMonWildness
 	call Call_16_47E0
 	xor a
 	ld [hli], a
 	ld [hl], a
-	ld hl, $cacd
-	ld de, $ca42
+	ld hl, wMonMaster
+	ld de, wPlayerName
 	ld b, $08
 	call Call_16_47E7
 	ld hl, $cad5
 	call Call_16_47E0
 	ld a, [$ca4a]
 	ld [hl], a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0019
 	ld a, $ff
-	call Call_12C7
-	ld hl, $caca
+	call FillMemory
+	ld hl, wMonRecSpecies
 	call Call_16_47E0
 	ld a, [hl]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
 	call Call_16_47F8
-	ld hl, $cad6
+	ld hl, wMonParent1
 	call Call_16_47E0
 	ld a, [hl]
 	cp $ff
 	jr z, jr_016_47b9
 
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
 	call Call_16_47F8
-	ld hl, $cad7
+	ld hl, wMonParent2
 	call Call_16_47E0
 	ld a, [hl]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld b, $03
 	call Call_16_47F8
 
 jr_016_47b9:
-	ld hl, $caf2
+	ld hl, wMonSkillList
 	call Call_16_47E0
 	ld e, l
 	ld d, h
 	ld b, $19
 	call Call_16_4805
-	ld hl, $caf2
+	ld hl, wMonSkillList
 	call Call_16_47E0
-	ld de, $c0d8
+	ld de, wSceneObjects
 	ld b, $19
 
 jr_016_47d1:
@@ -1144,23 +1144,23 @@ jr_016_47d1:
 	dec b
 	jr nz, jr_016_47d1
 
-	ld hl, $cb24
+	ld hl, wMonEgg
 	call Call_16_47E0
 	ld [hl], $00
 	ret
 
 
 Call_16_47E0::
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ret
 
 
 Call_16_47E7::
 	push bc
 	push de
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	pop de
 	pop bc
 
@@ -1191,16 +1191,16 @@ Call_16_47F8::
 Call_16_4805::
 	push bc
 	push de
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
-	call Call_1E0D
+	call Divide16
 	ld b, a
 	push bc
-	ld hl, $cb23
+	ld hl, wMonPlus
 	call Call_16_47E0
 	pop bc
 	ld a, [hl]
@@ -1239,7 +1239,7 @@ Call_16_4838::
 	cp $ff
 	ret z
 
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld b, $19
 	ld c, a
 
@@ -1264,7 +1264,7 @@ jr_016_4857:
 
 
 Call_16_485C::
-	ld a, [$da6f]
+	ld a, [wBreedQuery]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1275,7 +1275,7 @@ Call_16_485C::
 	adc $49
 	ld h, a
 	ld a, [hli]
-	ld [$da71], a
+	ld [wBreedPair], a
 	ld a, [hl]
 	ld [$da72], a
 	ret
@@ -1585,31 +1585,31 @@ Call_16_485C::
 	db $7f, $00, $c5, $00, $f8, $81, $00, $c5, $00, $ff
 
 Call_16_5B4E::
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret z
 
-	ld a, [$c8ea]
+	ld a, [wGameStarted]
 	bit 7, a
 	ret nz
 
-	ld hl, $c939
+	ld hl, wGateFloor
 	inc [hl]
 	xor a
-	ld [$c93e], a
-	ld a, [$c969]
+	ld [wWorldFlags], a
+	ld a, [wOnGateFloor]
 	bit 7, a
 	jr nz, jr_016_5b72
 
-	ld a, [$c968]
-	ld [$c935], a
+	ld a, [wMapId]
+	ld [wGateWorld], a
 	xor a
-	ld [$c939], a
+	ld [wGateFloor], a
 
 jr_016_5b72:
-	ld hl, far_Call_01_69C8
+	ld hl, far_LoadFloorMusic
 	rst $10
-	ld a, [$c935]
+	ld a, [wGateWorld]
 	add a
 	add a
 	add a
@@ -1627,30 +1627,30 @@ jr_016_5b72:
 	ld [$c938], a
 	push hl
 	ld a, [hli]
-	ld [$c93a], a
+	ld [wGateFloors], a
 	ld a, [hli]
-	ld [$c93b], a
+	ld [wGateWorldMap], a
 	inc hl
 	inc hl
 	ld a, [hl]
-	ld [$c93c], a
+	ld [wFloorLoot], a
 	pop hl
-	ld a, [$c939]
+	ld a, [wGateFloor]
 	ld b, a
 	inc a
 	cp [hl]
 	jr z, jr_016_5be1
 
-	ld a, [$c935]
+	ld a, [wGateWorld]
 	or a
 	jr z, jr_016_5bbf
 
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	bit 4, a
 	jr z, jr_016_5bbf
 
 	ld a, $03
-	call Call_1DFB
+	call Divide8
 	cp $02
 	jr z, jr_016_5c1c
 
@@ -1669,14 +1669,14 @@ jr_016_5bbf:
 	call Call_16_5FC0
 	ld [$c936], a
 	ld a, [$c936]
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $01
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ret
 
 
 jr_016_5be1:
-	ld a, [$c935]
+	ld a, [wGateWorld]
 	add a
 	add a
 	add a
@@ -1687,15 +1687,15 @@ jr_016_5be1:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld a, [hli]
 	swap a
 	ld b, a
 	and $f0
 	or $08
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, b
 	and $0f
 	ld [$c970], a
@@ -1704,7 +1704,7 @@ jr_016_5be1:
 	ld b, a
 	and $f0
 	or $08
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, b
 	and $0f
 	ld [$c972], a
@@ -1740,10 +1740,10 @@ Jump_16_5C42::
 	call Call_16_6DB0
 
 Call_16_5C45::
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
-	call Call_1DFB
+	call Divide8
 	cp $01
 	jr z, jr_016_5c77
 
@@ -1751,17 +1751,17 @@ Call_16_5C45::
 	jr z, jr_016_5c98
 
 	ld a, $5a
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0048
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -1769,17 +1769,17 @@ Call_16_5C45::
 
 jr_016_5c77:
 	ld a, $5b
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0048
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -1787,27 +1787,27 @@ jr_016_5c77:
 
 jr_016_5c98:
 	ld a, $5c
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0068
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0048
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
 
 
 Jump_16_5CB9::
-	ld hl, $d9cf
+	ld hl, wArenaWins
 	ld bc, $0008
 	ld a, $ff
-	call Call_12C7
+	call FillMemory
 	call Call_16_6DDB
 	call Call_16_5C45
 	ret
@@ -1815,17 +1815,17 @@ Jump_16_5CB9::
 
 Jump_16_5CCB::
 	ld a, $53
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0068
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -1833,17 +1833,17 @@ Jump_16_5CCB::
 
 Jump_16_5CEC::
 	ld a, $51
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0068
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -1851,17 +1851,17 @@ Jump_16_5CEC::
 
 Jump_16_5D0D::
 	ld a, $50
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0068
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -1869,10 +1869,10 @@ Jump_16_5D0D::
 
 Jump_16_5D2E::
 	xor a
-	ld [$d9cf], a
-	ld [$d9d0], a
+	ld [wArenaWins], a
+	ld [wArenaPrize], a
 	call Call_16_5E38
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
@@ -1897,7 +1897,7 @@ Jump_16_5D2E::
 	ld a, h
 	ld [$d9d6], a
 	call Call_16_5E38
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
@@ -1922,23 +1922,23 @@ Jump_16_5D2E::
 	ld a, h
 	ld [$d9de], a
 	call Call_16_5E38
-	ld hl, $d7ca
+	ld hl, wEncGfx
 	call Call_16_5DC6
 	ld a, $52
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0068
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	xor a
-	ld [$d9cd], a
+	ld [wArenaRound], a
 	ret
 
 
@@ -1958,12 +1958,12 @@ Call_16_5DC6::
 	ld [hl], a
 	pop hl
 	push hl
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
 	call Call_16_5E2E
@@ -1971,7 +1971,7 @@ Call_16_5DC6::
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-	ld a, [$da02]
+	ld a, [wEncCount]
 	or a
 	ret z
 
@@ -1981,7 +1981,7 @@ Call_16_5DC6::
 	ld a, [$da06]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
 	call Call_16_5E2E
@@ -1989,7 +1989,7 @@ Call_16_5DC6::
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-	ld a, [$da02]
+	ld a, [wEncCount]
 	cp $01
 	ret z
 
@@ -1999,7 +1999,7 @@ Call_16_5DC6::
 	ld a, [$da08]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
 	call Call_16_5E2E
@@ -2011,9 +2011,9 @@ Call_16_5DC6::
 
 
 Call_16_5E2E::
-	ld hl, far_Call_14_4016
+	ld hl, far_LoadMonTemplate2
 	rst $10
-	ld a, [$da18]
+	ld a, [wNewMonNameText]
 	add $10
 	ret
 
@@ -2021,14 +2021,14 @@ Call_16_5E2E::
 Call_16_5E38::
 	ld hl, $0000
 	ld c, $00
-	ld a, [$ca8e]
+	ld a, [wParty]
 	call Call_16_5E91
 	ld a, [$ca8f]
 	call Call_16_5E91
 	ld a, [$ca90]
 	call Call_16_5E91
 	ld a, c
-	call Call_1E0D
+	call Divide16
 	ld a, l
 	ld hl, $0209
 	cp $04
@@ -2071,8 +2071,8 @@ Call_16_5E91::
 
 	push bc
 	push hl
-	ld hl, $cb0c
-	call Call_223B
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	pop hl
 	pop bc
@@ -2087,9 +2087,9 @@ Call_16_5E91::
 
 jr_016_5ea7:
 	ld a, $02
-	ld [$da02], a
+	ld [wEncCount], a
 	call Call_16_5EC9
-	ld [$da03], a
+	ld [wEncSpecies], a
 	call Call_16_5EC9
 	ld [$da05], a
 	call Call_16_5EC9
@@ -2103,21 +2103,21 @@ jr_016_5ea7:
 
 Call_16_5EC9::
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, l
-	call Call_1DFB
+	call Divide8
 	pop hl
 	add h
 	ret
 
 
 Jump_16_5ED8::
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
-	call Call_1DFB
+	call Divide8
 	cp $01
 	jr z, jr_016_5f0a
 
@@ -2125,17 +2125,17 @@ Jump_16_5ED8::
 	jr z, jr_016_5f2b
 
 	ld a, $57
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $00f8
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $00b8
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -2143,17 +2143,17 @@ Jump_16_5ED8::
 
 jr_016_5f0a:
 	ld a, $58
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0018
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0028
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -2161,27 +2161,27 @@ jr_016_5f0a:
 
 jr_016_5f2b:
 	ld a, $59
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0018
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0028
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
 
 
 Jump_16_5F4C::
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
-	call Call_1DFB
+	call Divide8
 	cp $01
 	jr z, jr_016_5f7e
 
@@ -2189,17 +2189,17 @@ Jump_16_5F4C::
 	jr z, jr_016_5f9f
 
 	ld a, $54
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $00d8
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $00d8
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -2207,17 +2207,17 @@ Jump_16_5F4C::
 
 jr_016_5f7e:
 	ld a, $55
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0168
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -2225,17 +2225,17 @@ jr_016_5f7e:
 
 jr_016_5f9f:
 	ld a, $56
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, $00
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	ld hl, $00e8
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $00b8
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ret
@@ -2243,13 +2243,13 @@ jr_016_5f9f:
 
 Call_16_5FC0::
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
-	call Call_1E0D
+	call Divide16
 	pop hl
 	ld c, a
 	ld b, $ff
@@ -2274,7 +2274,7 @@ jr_016_5fe2:
 
 Call_16_5FE4::
 	call Call_16_6E14
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_016_6002
 
@@ -2284,43 +2284,43 @@ Call_16_5FE4::
 	ld [$c92b], a
 	ld [$c92c], a
 	xor a
-	ld [$c92d], a
+	ld [wFloorEvent], a
 	xor a
-	ld [$c92e], a
+	ld [wFloorSteps], a
 	ret
 
 
 jr_016_6002:
 	ld de, $2e15
 	ld hl, $8500
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e16
 	ld hl, $8540
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e17
 	ld hl, $8580
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e18
 	ld hl, $85c0
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e19
 	ld hl, $8600
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1a
 	ld hl, $8640
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1b
 	ld hl, $8680
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1c
 	ld hl, $86c0
-	call Call_1577
-	ld a, [$c8ea]
+	call DecompressVRAM
+	ld a, [wGameStarted]
 	bit 7, a
 	jr z, jr_016_605b
 
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
@@ -2328,11 +2328,11 @@ jr_016_6002:
 
 Jump_016_605b:
 jr_016_605b:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $05
-	call Call_1DFB
+	call Divide8
 	ld hl, $6056
 	add l
 	ld l, a
@@ -2341,23 +2341,23 @@ jr_016_605b:
 	ld h, a
 	ld a, [hl]
 	ld [$c93f], a
-	ld hl, $c950
+	ld hl, wFloorsSeen
 	ld bc, $0010
 	xor a
-	call Call_12C7
+	call FillMemory
 	ld hl, $c940
 	ld bc, $0010
 	ld a, $ff
-	call Call_12C7
+	call FillMemory
 	ld a, [$c93f]
 	cp $02
 	jr nz, jr_016_60b9
 
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $15
-	call Call_1DFB
+	call Divide8
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -2385,7 +2385,7 @@ jr_016_60b0:
 
 jr_016_60b9:
 	ld hl, $7096
-	ld a, [$c93d]
+	ld a, [wFloorMusic]
 	inc a
 	ld b, a
 	push hl
@@ -2397,7 +2397,7 @@ jr_016_60b9:
 	ld bc, $0000
 	jr nc, jr_016_60d8
 
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld b, a
 
 jr_016_60d1:
@@ -2512,11 +2512,11 @@ jr_016_614a:
 	cp $01
 	jr z, jr_016_6162
 
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0c
-	call Call_1DFB
+	call Divide8
 	ld c, a
 
 jr_016_6162:
@@ -2540,13 +2540,13 @@ jr_016_6171:
 	jp z, Jump_016_605b
 
 	call Call_16_66AE
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld [$c960], a
-	ldh a, [$ffa5]
+	ldh a, [hTestX]
 	ld [$c0a5], a
 	ldh a, [$ffa6]
 	ld [$c0a6], a
-	ldh a, [$ffa7]
+	ldh a, [hTestY]
 	ld [$c0a7], a
 	ldh a, [$ffa8]
 	ld [$c0a8], a
@@ -2554,7 +2554,7 @@ jr_016_6171:
 	jr z, jr_016_6171
 
 	ld a, [$c0a7]
-	ld [$c966], a
+	ld [wGoalY], a
 	and $f0
 	ld l, a
 	ld a, [$c0a8]
@@ -2568,7 +2568,7 @@ jr_016_6171:
 	ld [$c965], a
 	ld d, a
 	ld a, [$c0a5]
-	ld [$c964], a
+	ld [wGoalX], a
 	srl d
 	rra
 	srl d
@@ -2592,17 +2592,17 @@ jr_016_6171:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c964]
+	ld a, [wGoalX]
 	add [hl]
-	ld [$c964], a
+	ld [wGoalX], a
 	inc hl
 	ld a, [$c965]
 	adc [hl]
 	ld [$c965], a
 	inc hl
-	ld a, [$c966]
+	ld a, [wGoalY]
 	add [hl]
-	ld [$c966], a
+	ld [wGoalY], a
 	inc hl
 	ld a, [$c967]
 	adc [hl]
@@ -2620,11 +2620,11 @@ jr_016_620a:
 	call Call_16_6585
 	ld a, [$c960]
 	ld b, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp b
 	jr z, jr_016_620a
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld [$c926], a
 	add a
 	add a
@@ -2643,20 +2643,20 @@ jr_016_620a:
 	ld a, [hli]
 	ld [$c92a], a
 	ld hl, $c927
-	ldh a, [$ffa5]
+	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
 	ld [hl], a
 	ld hl, $c929
-	ldh a, [$ffa7]
+	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
 	adc [hl]
 	ld [hl], a
-	ld a, [$cab4]
+	ld a, [wScriptBossIndex]
 	or a
 	jr z, jr_016_6262
 
@@ -2665,10 +2665,10 @@ jr_016_620a:
 
 jr_016_6262:
 	xor a
-	ld [$c92d], a
+	ld [wFloorEvent], a
 
 jr_016_6266:
-	ld a, [$c92d]
+	ld a, [wFloorEvent]
 	ld [$c92b], a
 	cp $04
 	jr z, jr_016_627e
@@ -2685,15 +2685,15 @@ jr_016_6266:
 	jr jr_016_628a
 
 jr_016_627e:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	bit 0, a
 	jr z, jr_016_62cf
 
 	jr jr_016_629f
 
 jr_016_628a:
-	call Call_12D0
+	call Random
 	ld a, [$c938]
 	ld hl, $7886
 	add l
@@ -2701,7 +2701,7 @@ jr_016_628a:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	cp [hl]
 	jr c, jr_016_62b5
 
@@ -2710,28 +2710,28 @@ jr_016_629f:
 	ld [$c92b], a
 	ld [$c92c], a
 	xor a
-	ld [$c92d], a
+	ld [wFloorEvent], a
 	xor a
-	ld [$c92e], a
+	ld [wFloorSteps], a
 	ld a, $ff
 	ld [$c926], a
 	jr jr_016_62cf
 
 jr_016_62b5:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $05
-	call Call_1DFB
+	call Divide8
 	ld [$c92c], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	and $03
 	ld [$c92b], a
 
 jr_016_62cf:
 	xor a
-	ld [$c92d], a
+	ld [wFloorEvent], a
 	ld a, $40
 	ld [$c0a9], a
 
@@ -2744,26 +2744,26 @@ jr_016_62d8:
 
 	call Call_16_661B
 	ld hl, $c960
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp [hl]
 	jr nz, jr_016_62f1
 
 	call Call_16_661B
 
 jr_016_62f1:
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld [$c0af], a
 	call Call_16_68C6
 	jp z, Jump_016_62d8
 
 	ld a, [$c926]
 	ld b, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp b
 	jr z, jr_016_62d8
 
-	ld a, [$c925]
-	ld [$c0a0], a
+	ld a, [wMapScreen]
+	ld [wNumberBackup], a
 	add a
 	add a
 	ld hl, $2da7
@@ -2773,39 +2773,39 @@ jr_016_62f1:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, [hli]
 	ld [$c970], a
 	ld a, [hli]
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, [hli]
 	ld [$c972], a
-	ldh a, [$ffa5]
+	ldh a, [hTestX]
 	ld [$c0a1], a
 	ldh a, [$ffa6]
 	ld [$c0a2], a
-	ldh a, [$ffa7]
-	ld [$c0a3], a
+	ldh a, [hTestY]
+	ld [wLineUpOrder], a
 	ldh a, [$ffa8]
 	ld [$c0a4], a
-	ld hl, $c96f
-	ldh a, [$ffa5]
+	ld hl, wWarpX
+	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
 	ld [hl], a
-	ld hl, $c971
-	ldh a, [$ffa7]
+	ld hl, wWarpY
+	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
 	adc [hl]
 	ld [hl], a
-	ld hl, $c100
+	ld hl, wLineScroll
 	ld bc, $0010
 	xor a
-	call Call_12C7
+	call FillMemory
 	ld a, [$c938]
 	ld hl, $732f
 	add a
@@ -2819,12 +2819,12 @@ jr_016_62f1:
 	ld h, a
 	ld a, [hli]
 	push af
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, [hli]
 	inc a
 	push hl
-	call Call_1DFB
+	call Divide8
 	pop hl
 	ld b, a
 	pop af
@@ -2857,7 +2857,7 @@ jr_016_638e:
 	res 7, b
 
 jr_016_639b:
-	ld hl, $d793
+	ld hl, wFloorObjects
 	ld a, b
 	or a
 	jr z, jr_016_63ac
@@ -2876,15 +2876,15 @@ jr_016_63ac:
 
 
 Call_16_63AF::
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 
 jr_016_63b6:
 	inc b
 	ld a, b
 	and $0f
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld hl, $c940
 	add l
 	ld l, a
@@ -2898,21 +2898,21 @@ jr_016_63b6:
 
 	ld hl, far_Call_0B_4239
 	rst $10
-	ld hl, $c300
-	call Call_14CF
+	ld hl, wSavedTilemap
+	call Decompress
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ldh [$ffb8], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ldh [$ffbc], a
 
 jr_016_63e1:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $08
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -2923,14 +2923,14 @@ jr_016_63e1:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -2941,11 +2941,11 @@ jr_016_63e1:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -2974,13 +2974,13 @@ Call_16_6432::
 	ld h, a
 	call Call_16_5FC0
 	ld [$c0ae], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
-	call Call_1E0D
+	call Divide16
 	pop bc
 	cp c
 	jr z, jr_016_646d
@@ -3004,7 +3004,7 @@ jr_016_646d:
 
 jr_016_6478:
 	call Call_16_63AF
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c960]
 	cp b
@@ -3013,7 +3013,7 @@ jr_016_6478:
 	call Call_16_63AF
 
 jr_016_6488:
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c0af]
 	cp b
@@ -3022,8 +3022,8 @@ jr_016_6488:
 	call Call_16_63AF
 
 jr_016_6495:
-	ld a, [$c925]
-	ld hl, $c100
+	ld a, [wMapScreen]
+	ld hl, wLineScroll
 	add l
 	ld l, a
 	ld a, $00
@@ -3036,11 +3036,11 @@ jr_016_6495:
 	call Call_16_63AF
 
 jr_016_64a8:
-	ldh a, [$ffa5]
+	ldh a, [hTestX]
 	ld [$c0aa], a
 	ldh a, [$ffa6]
 	ld [$c0ab], a
-	ldh a, [$ffa7]
+	ldh a, [hTestY]
 	ld [$c0ac], a
 	ldh a, [$ffa8]
 	ld [$c0ad], a
@@ -3048,11 +3048,11 @@ jr_016_64a8:
 	jr z, jr_016_646d
 
 	ld a, [$c0aa]
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, [$c0ab]
 	ldh [$ffa6], a
 	ld a, [$c0ac]
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, [$c0ad]
 	ldh [$ffa8], a
 	call Call_16_68C6
@@ -3064,14 +3064,14 @@ jr_016_64a8:
 	call Call_16_690E
 	jr z, jr_016_646d
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c926]
 	cp b
 	jp z, Jump_016_646d
 
-	ld a, [$c925]
-	ld hl, $c100
+	ld a, [wMapScreen]
+	ld hl, wLineScroll
 	add l
 	ld l, a
 	ld a, $00
@@ -3082,7 +3082,7 @@ jr_016_64a8:
 	jp z, Jump_016_646d
 
 	inc [hl]
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add a
 	ld hl, $2da7
@@ -3092,22 +3092,22 @@ jr_016_64a8:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld a, [hli]
 	ldh [$ffdc], a
 	ld a, [hli]
-	ldh [$ffdd], a
+	ldh [hFindY], a
 	ld a, [hli]
 	ldh [$ffde], a
-	ld hl, $ffdb
-	ldh a, [$ffa5]
+	ld hl, hDivisorHigh
+	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
 	ld [hl], a
-	ld hl, $ffdd
-	ldh a, [$ffa7]
+	ld hl, hFindY
+	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
@@ -3151,7 +3151,7 @@ jr_016_64a8:
 jr_016_6564:
 	pop hl
 	ld [hli], a
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	swap a
 	and $0f
 	ld b, a
@@ -3160,7 +3160,7 @@ jr_016_6564:
 	and $f0
 	or b
 	ld [hli], a
-	ldh a, [$ffdd]
+	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
@@ -3173,8 +3173,8 @@ jr_016_6564:
 
 
 Call_16_6585::
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 
 Jump_016_658c:
@@ -3182,7 +3182,7 @@ jr_016_658c:
 	inc b
 	ld a, b
 	and $0f
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld hl, $c940
 	add l
 	ld l, a
@@ -3196,23 +3196,23 @@ jr_016_658c:
 
 	ld hl, far_Call_0B_4239
 	rst $10
-	ld hl, $c300
-	call Call_14CF
+	ld hl, wSavedTilemap
+	call Decompress
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ldh [$ffb8], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ldh [$ffbc], a
 	ld a, $40
-	ldh [$ffd5], a
+	ldh [hNumber], a
 
 jr_016_65bb:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $08
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -3223,14 +3223,14 @@ jr_016_65bb:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -3241,11 +3241,11 @@ jr_016_65bb:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -3257,19 +3257,19 @@ jr_016_65bb:
 	cp $0e
 	ret z
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	dec a
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	jr nz, jr_016_65bb
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	jp Jump_016_658c
 
 
 Call_16_661B::
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 
 Jump_016_6622:
@@ -3277,7 +3277,7 @@ jr_016_6622:
 	inc b
 	ld a, b
 	and $0f
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld hl, $c940
 	add l
 	ld l, a
@@ -3291,23 +3291,23 @@ jr_016_6622:
 
 	ld hl, far_Call_0B_4239
 	rst $10
-	ld hl, $c300
-	call Call_14CF
+	ld hl, wSavedTilemap
+	call Decompress
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ldh [$ffb8], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ldh [$ffbc], a
 	ld a, $40
-	ldh [$ffd5], a
+	ldh [hNumber], a
 
 jr_016_6651:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $08
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -3318,14 +3318,14 @@ jr_016_6651:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -3336,11 +3336,11 @@ jr_016_6651:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -3349,19 +3349,19 @@ jr_016_6651:
 	cp $0d
 	ret z
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	dec a
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	jr nz, jr_016_6651
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	jp Jump_016_6622
 
 
 Call_16_66AE::
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 
 Jump_016_66b5:
@@ -3369,7 +3369,7 @@ jr_016_66b5:
 	inc b
 	ld a, b
 	and $0f
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld hl, $c940
 	add l
 	ld l, a
@@ -3383,23 +3383,23 @@ jr_016_66b5:
 
 	ld hl, far_Call_0B_4239
 	rst $10
-	ld hl, $c300
-	call Call_14CF
+	ld hl, wSavedTilemap
+	call Decompress
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ldh [$ffb8], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ldh [$ffbc], a
 	ld a, $40
-	ldh [$ffd5], a
+	ldh [hNumber], a
 
 jr_016_66e4:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
-	call Call_1DFB
+	call Divide8
 	add $02
 	swap a
 	ld h, a
@@ -3410,14 +3410,14 @@ jr_016_66e4:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $04
-	call Call_1DFB
+	call Divide8
 	add $02
 	swap a
 	ld h, a
@@ -3428,11 +3428,11 @@ jr_016_66e4:
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -3444,12 +3444,12 @@ jr_016_66e4:
 	cp $0e
 	ret z
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	dec a
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	jr nz, jr_016_66e4
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	jp Jump_016_66b5
 
@@ -3610,7 +3610,7 @@ jr_016_67ff:
 
 
 Call_16_6800::
-	ld de, $c500
+	ld de, wTilemapBuffer
 	ld hl, $7055
 
 jr_016_6806:
@@ -3649,10 +3649,10 @@ jr_016_6826:
 	ld [de], a
 	inc de
 	ld [de], a
-	ld hl, $c0a0
+	ld hl, wNumberBackup
 	ld bc, $0005
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	ld hl, $c501
 
 jr_016_6837:
@@ -3661,7 +3661,7 @@ jr_016_6837:
 	jr z, jr_016_684b
 
 	inc hl
-	ld de, $c0a0
+	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
@@ -3674,25 +3674,25 @@ jr_016_6837:
 
 jr_016_684b:
 	xor a
-	ld [$c0a0], a
+	ld [wNumberBackup], a
 	ld a, [$c0a1]
 	ld b, $14
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	ld [$c0a1], a
 	ld a, [$c0a2]
 	ld b, $28
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	ld [$c0a2], a
-	ld a, [$c0a3]
+	ld a, [wLineUpOrder]
 	ld b, $3c
-	call Call_1DFB
+	call Divide8
 	ld a, b
-	ld [$c0a3], a
+	ld [wLineUpOrder], a
 	ld a, [$c0a4]
 	ld b, $50
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	ld [$c0a4], a
 	ld hl, $c501
@@ -3703,7 +3703,7 @@ jr_016_6884:
 	cp $ff
 	jr z, jr_016_689a
 
-	ld de, $c0a0
+	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
@@ -3719,16 +3719,16 @@ jr_016_6884:
 
 jr_016_689a:
 	push bc
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	pop af
 	or a
 	jr z, jr_016_68ad
 
-	call Call_1E0D
+	call Divide16
 
 jr_016_68ad:
 	ld b, a
@@ -3761,11 +3761,11 @@ jr_016_68c5:
 
 Call_16_68C6::
 	ld hl, $c960
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
-	ld hl, $ffa5
+	ld hl, hTestX
 	ld a, [$c0a5]
 	cp [hl]
 	ret nz
@@ -3775,7 +3775,7 @@ Call_16_68C6::
 	cp [hl]
 	ret nz
 
-	ld hl, $ffa7
+	ld hl, hTestY
 	ld a, [$c0a7]
 	cp [hl]
 	ret nz
@@ -3787,12 +3787,12 @@ Call_16_68C6::
 
 
 Call_16_68EA::
-	ld hl, $c0a0
-	ld a, [$c925]
+	ld hl, wNumberBackup
+	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
-	ld hl, $ffa5
+	ld hl, hTestX
 	ld a, [$c0a1]
 	cp [hl]
 	ret nz
@@ -3802,8 +3802,8 @@ Call_16_68EA::
 	cp [hl]
 	ret nz
 
-	ld hl, $ffa7
-	ld a, [$c0a3]
+	ld hl, hTestY
+	ld a, [wLineUpOrder]
 	cp [hl]
 	ret nz
 
@@ -3814,7 +3814,7 @@ Call_16_68EA::
 
 
 Call_16_690E::
-	ld hl, $d793
+	ld hl, wFloorObjects
 
 jr_016_6911:
 	ld a, [hl]
@@ -3844,7 +3844,7 @@ Call_16_6924::
 	inc hl
 	push hl
 	ld a, $0a
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	ldh [$ffda], a
 	pop hl
@@ -3859,14 +3859,14 @@ Call_16_6924::
 	and $07
 	swap a
 	or $08
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld hl, $ffda
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
-	ld hl, $ffa7
-	ldh a, [$ffdb]
+	ld hl, hTestY
+	ldh a, [hDivisorHigh]
 	cp [hl]
 	ret
 
@@ -3887,7 +3887,7 @@ Call_16_6955::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -3901,7 +3901,7 @@ Call_16_6955::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -3912,7 +3912,7 @@ Call_16_6955::
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -3926,7 +3926,7 @@ Call_16_6955::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -3943,7 +3943,7 @@ Call_16_6955::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -3957,7 +3957,7 @@ Call_16_6955::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -3974,7 +3974,7 @@ Call_16_6955::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -3982,7 +3982,7 @@ Call_16_6955::
 	ld a, [$c0ad]
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -3993,7 +3993,7 @@ Call_16_6955::
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -4001,7 +4001,7 @@ Call_16_6955::
 	ld a, [$c0ad]
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4018,7 +4018,7 @@ Call_16_6955::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -4026,7 +4026,7 @@ Call_16_6955::
 	ld a, [$c0ad]
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4043,7 +4043,7 @@ Call_16_6955::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -4057,7 +4057,7 @@ Call_16_6955::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4068,7 +4068,7 @@ Call_16_6955::
 	ld a, [$c0ab]
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -4082,7 +4082,7 @@ Call_16_6955::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4099,7 +4099,7 @@ Call_16_6955::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0ac]
@@ -4113,7 +4113,7 @@ Call_16_6955::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4134,7 +4134,7 @@ Call_16_6AFB::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4148,7 +4148,7 @@ Call_16_6AFB::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4159,7 +4159,7 @@ Call_16_6AFB::
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4173,7 +4173,7 @@ Call_16_6AFB::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4190,7 +4190,7 @@ Call_16_6AFB::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4204,7 +4204,7 @@ Call_16_6AFB::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4221,7 +4221,7 @@ Call_16_6AFB::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4229,7 +4229,7 @@ Call_16_6AFB::
 	ld a, [$c0a8]
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4240,7 +4240,7 @@ Call_16_6AFB::
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4248,7 +4248,7 @@ Call_16_6AFB::
 	ld a, [$c0a8]
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4265,7 +4265,7 @@ Call_16_6AFB::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4273,7 +4273,7 @@ Call_16_6AFB::
 	ld a, [$c0a8]
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4290,7 +4290,7 @@ Call_16_6AFB::
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4304,7 +4304,7 @@ Call_16_6AFB::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4315,7 +4315,7 @@ Call_16_6AFB::
 	ld a, [$c0a6]
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4329,7 +4329,7 @@ Call_16_6AFB::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4346,7 +4346,7 @@ Call_16_6AFB::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	ld a, [$c0a7]
@@ -4360,7 +4360,7 @@ Call_16_6AFB::
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	call Call_16_6D99
@@ -4557,9 +4557,9 @@ jr_016_6d97:
 
 
 Call_16_6D99::
-	call Call_1E31
+	call GetCollisionAt
 	ld b, $00
-	ldh a, [$ffaa]
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -4576,7 +4576,7 @@ Call_16_6D99::
 
 
 Call_16_6DB0::
-	ld hl, $d9cf
+	ld hl, wArenaWins
 	ld b, $08
 
 jr_016_6db5:
@@ -4615,10 +4615,10 @@ Call_16_6DC1::
 
 
 Call_16_6DDB::
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	and $03
-	ld hl, $d9cf
+	ld hl, wArenaWins
 	add l
 	ld l, a
 	ld a, $00
@@ -4627,8 +4627,8 @@ Call_16_6DDB::
 	ld de, $6e04
 	push de
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	and $0f
 	pop hl
 	pop de
@@ -4645,13 +4645,13 @@ Call_16_6DDB::
 	db $03, $04, $06, $0c, $15, $17, $18, $19, $1a, $1b, $1c, $25, $1a, $1b, $1c, $25
 
 Call_16_6E14::
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $65
-	call Call_1E0D
+	call Divide16
 	ld hl, $6e3d
 
 jr_016_6e27:
@@ -4691,7 +4691,7 @@ jr_016_6e32:
 	db $62, $00, $0c, $17, $ff, $00, $70, $17
 
 Call_16_6F05::
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
 
@@ -4701,20 +4701,20 @@ Call_16_6F05::
 	bit 6, a
 	ret nz
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c93e]
+	ld a, [wWorldFlags]
 	bit 1, a
 	ret nz
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_016_6f39
 
 	ld bc, $0050
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $54
 	jr z, jr_016_6f62
 
@@ -4729,7 +4729,7 @@ Call_16_6F05::
 
 jr_016_6f39:
 	ld hl, $6fab
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add a
 	add a
@@ -4738,7 +4738,7 @@ jr_016_6f39:
 	ld a, $00
 	adc h
 	ld h, a
-	ldh a, [$ffaa]
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -4764,10 +4764,10 @@ jr_016_6f5f:
 
 jr_016_6f62:
 	push bc
-	ld hl, far_Call_01_69E1
+	ld hl, far_SelectFloorTable
 	rst $10
 	ld hl, $702b
-	ld a, [$c8a9]
+	ld a, [wFloorStyle]
 	add l
 	ld l, a
 	ld a, $00
@@ -4775,9 +4775,9 @@ jr_016_6f62:
 	ld h, a
 	ld a, [hl]
 	pop bc
-	call Call_1DE6
+	call Multiply24
 	ld a, $40
-	call Call_1E1E
+	call Divide24
 	ld e, l
 	ld d, h
 	ld a, [$ca39]
@@ -4792,14 +4792,14 @@ jr_016_6f62:
 	ld h, a
 	jr nc, jr_016_6fa2
 
-	ld hl, far_Call_01_683E
+	ld hl, far_RollEncounterGroup
 	rst $10
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $00
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
@@ -4830,7 +4830,7 @@ Call_16_7033::
 	ld de, $7a96
 
 jr_016_7040:
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld hl, $c940
 	add l
 	ld l, a

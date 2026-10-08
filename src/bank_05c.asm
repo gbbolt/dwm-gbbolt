@@ -8,16 +8,16 @@ BankNumber_5C::
 	db $5c
 
 FarTable_5C::
-	dw Call_5C_4005
-	dw Call_5C_408D
+	dw DrawSkillAnimSprite_5C
+	dw StartSkillAnimSprite_5C
 
-Call_5C_4005::
-	ld a, [$dd60]
+DrawSkillAnimSprite_5C::
+	ld a, [wSkillAnimSprites]
 	or a
 	ret z
 
 	ld de, $4071
-	call Call_5C_40FC
+	call DrawSkillAnimFrame_5C
 	ld a, [$dd68]
 	or a
 	jr z, jr_05c_4021
@@ -30,24 +30,24 @@ Call_5C_4005::
 	jr nz, jr_05c_4031
 
 jr_05c_4021:
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	inc [hl]
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	inc [hl]
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	inc [hl]
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	inc [hl]
 
 jr_05c_4031:
 	ld a, [$dd66]
-	ldh [$ffc8], a
+	ldh [hSpriteFrame], a
 	ld a, [$dd62]
 	or a
 	jr nz, jr_05c_4041
 
 	ld a, $00
-	ld [$dd60], a
+	ld [wSkillAnimSprites], a
 
 jr_05c_4041:
 	ld a, [$dd68]
@@ -62,7 +62,7 @@ jr_05c_4041:
 	jr nz, jr_05c_4061
 
 jr_05c_4051:
-	ldh a, [$ffc3]
+	ldh a, [hSpriteX]
 	cp $d0
 	ret c
 
@@ -74,12 +74,12 @@ jr_05c_4051:
 
 
 jr_05c_4061:
-	ldh a, [$ffc3]
+	ldh a, [hSpriteX]
 	cp $c0
 	ret c
 
 	ld a, $00
-	ld [$dd60], a
+	ld [wSkillAnimSprites], a
 	ld a, $01
 	ld [$dd68], a
 	ret
@@ -88,7 +88,7 @@ jr_05c_4061:
 	db $4d, $41, $59, $42, $7c, $45, $18, $49, $17, $4a, $5e, $4b, $79, $4f, $52, $50
 	db $c3, $52, $cf, $5c, $a4, $5e, $69, $65, $64, $74, $87, $78
 
-Call_5C_408D::
+StartSkillAnimSprite_5C::
 	ld a, $01
 	ld [$dd62], a
 	ld a, [$dd68]
@@ -109,7 +109,7 @@ Call_5C_408D::
 	ld a, [hl]
 
 jr_05c_40aa:
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, a
 	ld [hli], a
 	ld a, $00
@@ -127,17 +127,17 @@ jr_05c_40aa:
 	ld a, $00
 	ld [hli], a
 	ld a, $01
-	ld [$dd60], a
+	ld [wSkillAnimSprites], a
 	ld hl, $dd63
 	ld a, l
-	ld [$d7b4], a
+	ld [wPlayerAnimPtr], a
 	ld a, h
 	ld [$d7b5], a
-	ld hl, far_Call_02_6B0A
+	ld hl, far_GetAnimationFirstPose
 	rst $10
 	ld hl, $dd62
 	ld a, l
-	ld [$d7b4], a
+	ld [wPlayerAnimPtr], a
 	ld a, h
 	ld [$d7b5], a
 	ret
@@ -145,7 +145,7 @@ jr_05c_40aa:
 
 jr_05c_40e5:
 	xor a
-	ld [$dd60], a
+	ld [wSkillAnimSprites], a
 	xor a
 	ld [$dd62], a
 	ret
@@ -153,12 +153,12 @@ jr_05c_40e5:
 
 	db $00, $00, $50, $00, $38, $00, $68, $00, $20, $00, $50, $00, $80, $00
 
-Call_5C_40FC::
-	ldh a, [$ffcb]
+DrawSkillAnimFrame_5C::
+	ldh a, [hOAMCount]
 	cp $28
 	jr nc, jr_05c_414c
 
-	ldh a, [$ffc7]
+	ldh a, [hSpriteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -166,7 +166,7 @@ Call_5C_40FC::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ffc8]
+	ldh a, [hSpriteFrame]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -174,7 +174,7 @@ Call_5C_40FC::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	sla a
 	sla a
 	ld l, a
@@ -187,18 +187,18 @@ jr_05c_411f:
 	jr z, jr_05c_414c
 
 	ld b, a
-	ldh a, [$ffc5]
+	ldh a, [hSpriteY]
 	add b
 	add $10
 	ld [hli], a
 	ld a, [de]
 	inc de
 	ld b, a
-	ldh a, [$ffc3]
+	ldh a, [hSpriteX]
 	add b
 	add $08
 	ld [hli], a
-	ldh a, [$ffc9]
+	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [de]
 	inc de
@@ -207,12 +207,12 @@ jr_05c_411f:
 	ld a, [de]
 	inc de
 	ld b, a
-	ldh a, [$ffca]
+	ldh a, [hSpriteAttr]
 	xor b
 	ld [hli], a
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
 	cp $28
 	jr c, jr_05c_411f
 

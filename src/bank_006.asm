@@ -16,7 +16,7 @@ FarTable_06::
 	dw Call_06_4F9A
 	dw $6034
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 1, a
 	ret nz
 
@@ -32,12 +32,12 @@ FarTable_06::
 	bit 2, a
 	jr z, Call_06_4028
 
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	cp $01
 	ret z
 
 Call_06_4028::
-	ld hl, $d7d2
+	ld hl, wActors
 
 jr_006_402b:
 	ld a, [hl]
@@ -61,7 +61,7 @@ jr_006_402b:
 
 Call_06_4043::
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	ld a, [hl]
@@ -90,7 +90,7 @@ JumpTable_06_4050::
 	dw Jump_06_4691
 
 Jump_06_4070::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -99,11 +99,11 @@ Jump_06_4070::
 	bit 6, [hl]
 	jr nz, jr_006_408d
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_4a83
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $07
 	jp nz, Jump_006_4aa1
 
@@ -112,15 +112,15 @@ jr_006_408d:
 
 
 Jump_06_4090::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $07
 	jp nz, Jump_006_4aa1
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $0f
 	jr nz, jr_006_40ae
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
@@ -136,11 +136,11 @@ jr_006_40ae:
 
 
 Jump_06_40B1::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -160,7 +160,7 @@ Jump_06_40B1::
 	bit 6, [hl]
 	jp nz, Jump_006_40fd
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_40fd
 
@@ -176,7 +176,7 @@ Jump_06_40B1::
 	or b
 	jr nz, jr_006_40fd
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -194,7 +194,7 @@ jr_006_40fd:
 
 
 Call_06_4100::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -220,11 +220,11 @@ Jump_06_4119::
 
 
 Jump_06_4122::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -241,7 +241,7 @@ Jump_06_4122::
 	bit 6, [hl]
 	jp nz, Jump_006_416a
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_416a
 
@@ -257,7 +257,7 @@ Jump_06_4122::
 	or b
 	jr nz, jr_006_416a
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -275,7 +275,7 @@ jr_006_416a:
 
 
 Call_06_416D::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -315,11 +315,11 @@ Jump_06_419C::
 
 
 Jump_06_41A5::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -343,7 +343,7 @@ Jump_06_41A5::
 	bit 6, [hl]
 	jp nz, Jump_006_41f7
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_41f7
 
@@ -359,7 +359,7 @@ Jump_06_41A5::
 	or b
 	jr nz, jr_006_41f7
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -377,7 +377,7 @@ jr_006_41f7:
 
 
 Call_06_41FA::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -447,11 +447,11 @@ Jump_06_4255::
 	db $01, $02, $01, $00, $03, $02, $03, $00
 
 Jump_06_4266::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -471,7 +471,7 @@ Jump_06_4266::
 	bit 6, [hl]
 	jp nz, Jump_006_42b2
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_42b2
 
@@ -487,7 +487,7 @@ Jump_06_4266::
 	or b
 	jr nz, jr_006_42b2
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -505,7 +505,7 @@ jr_006_42b2:
 
 
 Call_06_42B5::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -531,7 +531,7 @@ Jump_06_42CE::
 
 
 Jump_06_42D7::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -540,20 +540,20 @@ Jump_06_42D7::
 	bit 6, [hl]
 	jr nz, jr_006_42f4
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_4a83
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $07
 	jp nz, Jump_006_4aa1
 
 jr_006_42f4:
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jr nz, jr_006_4306
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -566,7 +566,7 @@ jr_006_4306:
 
 
 Jump_06_4309::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -575,15 +575,15 @@ Jump_06_4309::
 	bit 6, [hl]
 	jr nz, jr_006_433c
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_4a83
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $07
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -605,11 +605,11 @@ jr_006_433c:
 
 
 Jump_06_433F::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -629,7 +629,7 @@ Jump_06_433F::
 	bit 6, [hl]
 	jp nz, Jump_006_438b
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_438b
 
@@ -645,7 +645,7 @@ Jump_06_433F::
 	or b
 	jr nz, jr_006_438b
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -663,7 +663,7 @@ jr_006_438b:
 
 
 Call_06_438E::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -689,11 +689,11 @@ Jump_06_43A7::
 
 
 Jump_06_43B0::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -712,7 +712,7 @@ Jump_06_43B0::
 	bit 6, [hl]
 	jp nz, Jump_006_43fa
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_43fa
 
@@ -728,7 +728,7 @@ Jump_06_43B0::
 	or b
 	jr nz, jr_006_43fa
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -746,7 +746,7 @@ jr_006_43fa:
 
 
 Call_06_43FD::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -772,11 +772,11 @@ Jump_06_4416::
 
 
 Jump_06_441F::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $07
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -786,7 +786,7 @@ Jump_06_441F::
 	or a
 	jp nz, Jump_006_446a
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -795,7 +795,7 @@ Jump_06_441F::
 	bit 6, [hl]
 	jp nz, Jump_006_446a
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_446a
 
@@ -811,7 +811,7 @@ Jump_06_441F::
 	or b
 	jr nz, jr_006_446a
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -828,7 +828,7 @@ jr_006_446a:
 
 
 Call_06_446D::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $08
 	ld l, a
 	ldh a, [$ffd6]
@@ -854,11 +854,11 @@ Jump_06_4486::
 
 
 Jump_006_448f:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -872,7 +872,7 @@ Jump_006_448f:
 	adc b
 	ld [hl], a
 	ld b, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $02
 	ld l, a
 	ldh a, [$ffd6]
@@ -897,21 +897,21 @@ Jump_006_448f:
 
 
 Jump_06_44C5::
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c926]
 	cp b
 	ret nz
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -921,7 +921,7 @@ Jump_06_44C5::
 	or a
 	jp nz, Jump_006_4540
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -930,7 +930,7 @@ Jump_06_44C5::
 	bit 6, [hl]
 	jp nz, Jump_006_4540
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_4540
 
@@ -943,32 +943,32 @@ Jump_06_44C5::
 	jr z, jr_006_4524
 
 	call Call_06_457D
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld [hl], $04
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $c0
 	jr nz, jr_006_4540
 
 jr_006_4524:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld [hl], $04
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $03
 	ld [hl], a
 
@@ -978,7 +978,7 @@ jr_006_4540:
 
 
 Call_06_4543::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
@@ -1019,28 +1019,28 @@ Jump_06_4574::
 
 
 Call_06_457D::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $0010
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
 	call Call_06_467C
 	jr nz, jr_006_45ae
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $0000
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld e, a
 	ldh a, [$ff96]
 	ld d, a
@@ -1048,28 +1048,28 @@ Call_06_457D::
 	jp z, Jump_006_463f
 
 jr_006_45ae:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $fff0
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
 	call Call_06_467C
 	jr nz, jr_006_45de
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $0000
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld e, a
 	ldh a, [$ff96]
 	ld d, a
@@ -1077,28 +1077,28 @@ jr_006_45ae:
 	jr z, jr_006_463f
 
 jr_006_45de:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $0000
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
 	call Call_06_467C
 	jr nz, jr_006_460e
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $0010
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld e, a
 	ldh a, [$ff96]
 	ld d, a
@@ -1106,28 +1106,28 @@ jr_006_45de:
 	jr z, jr_006_463f
 
 jr_006_460e:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $0000
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
 	call Call_06_467C
 	jr nz, jr_006_463e
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld bc, $fff0
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld e, a
 	ldh a, [$ff96]
 	ld d, a
@@ -1140,22 +1140,22 @@ jr_006_463e:
 
 Jump_006_463f:
 jr_006_463f:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $04
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	ld a, [hli]
-	ld [$d8d4], a
+	ld [wScriptId], a
 	ld a, $70
-	ld [$d8d3], a
+	ld [wScriptMap], a
 	set 6, [hl]
 	xor a
-	ld [$d8d7], a
-	ld hl, far_Call_04_55EC
+	ld [wScriptRunning], a
+	ld hl, far_StartScript
 	rst $10
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	ret z
 
@@ -1164,13 +1164,13 @@ jr_006_463f:
 
 	ld hl, $ffff
 	ld a, l
-	ld [$c917], a
+	ld [wEventRoutine], a
 	ld a, h
 	ld [$c918], a
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 0, [hl]
 	xor a
-	ld [$c915], a
+	ld [wEventStep], a
 	ld [$c916], a
 	ret
 
@@ -1198,21 +1198,21 @@ Call_06_467C::
 
 
 Jump_06_4691::
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c926]
 	cp b
 	ret nz
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $01
 	jp nz, Jump_006_4aa1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1222,7 +1222,7 @@ Jump_06_4691::
 	or a
 	jp nz, Jump_006_46f1
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1231,7 +1231,7 @@ Jump_06_4691::
 	bit 6, [hl]
 	jp nz, Jump_006_46f1
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_46f1
 
@@ -1243,18 +1243,18 @@ Jump_06_4691::
 	cp $02
 	jr z, jr_006_46e1
 
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $c0
 	jr nz, jr_006_46f1
 
 jr_006_46e1:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $03
 	ld [hl], a
 
@@ -1264,7 +1264,7 @@ jr_006_46f1:
 
 
 Call_06_46F4::
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
@@ -1305,11 +1305,11 @@ Jump_06_4725::
 
 
 Jump_006_472e:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1325,10 +1325,10 @@ Jump_006_472e:
 	ld l, a
 	add hl, de
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1338,22 +1338,22 @@ Jump_006_472e:
 	ld h, [hl]
 	ld l, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
 	push bc
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	push af
-	ldh a, [$ff92]
-	ldh [$ffa5], a
+	ldh a, [hPlayerX]
+	ldh [hTestX], a
 	ldh a, [$ff93]
 	ldh [$ffa6], a
-	ldh a, [$ff95]
-	ldh [$ffa7], a
+	ldh a, [hPlayerY]
+	ldh [hTestY], a
 	ldh a, [$ff96]
 	ldh [$ffa8], a
-	call Call_1E31
+	call GetCollisionAt
 	pop af
 	pop bc
 	srl a
@@ -1367,7 +1367,7 @@ Jump_006_472e:
 	cp $0e
 	jr z, jr_006_47bd
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1377,7 +1377,7 @@ Jump_006_472e:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1387,7 +1387,7 @@ Jump_006_472e:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1399,7 +1399,7 @@ Jump_006_472e:
 
 
 jr_006_47bd:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1414,7 +1414,7 @@ jr_006_47bd:
 	ld a, d
 	adc b
 	ld d, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $02
 	ld l, a
 	ldh a, [$ffd6]
@@ -1444,7 +1444,7 @@ jr_006_47bd:
 	jr c, jr_006_4825
 
 jr_006_47f6:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1454,7 +1454,7 @@ jr_006_47f6:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1464,7 +1464,7 @@ jr_006_47f6:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1477,7 +1477,7 @@ jr_006_47f6:
 
 jr_006_4825:
 	push hl
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1503,7 +1503,7 @@ jr_006_4825:
 	ld a, $00
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1513,7 +1513,7 @@ jr_006_4825:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1523,7 +1523,7 @@ jr_006_4825:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1535,11 +1535,11 @@ jr_006_4825:
 
 
 Jump_006_4874:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1555,10 +1555,10 @@ Jump_006_4874:
 	ld l, a
 	add hl, de
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1568,22 +1568,22 @@ Jump_006_4874:
 	ld h, [hl]
 	ld l, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
 	push bc
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	push af
-	ldh a, [$ff92]
-	ldh [$ffa5], a
+	ldh a, [hPlayerX]
+	ldh [hTestX], a
 	ldh a, [$ff93]
 	ldh [$ffa6], a
-	ldh a, [$ff95]
-	ldh [$ffa7], a
+	ldh a, [hPlayerY]
+	ldh [hTestY], a
 	ldh a, [$ff96]
 	ldh [$ffa8], a
-	call Call_1E31
+	call GetCollisionAt
 	pop af
 	pop bc
 	srl a
@@ -1597,7 +1597,7 @@ Jump_006_4874:
 	cp $0e
 	jr z, jr_006_4903
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1607,7 +1607,7 @@ Jump_006_4874:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1617,7 +1617,7 @@ Jump_006_4874:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1629,7 +1629,7 @@ Jump_006_4874:
 
 
 jr_006_4903:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1644,7 +1644,7 @@ jr_006_4903:
 	ld a, d
 	adc b
 	ld d, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $03
 	ld l, a
 	ldh a, [$ffd6]
@@ -1674,7 +1674,7 @@ jr_006_4903:
 	jr c, jr_006_496b
 
 jr_006_493c:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1684,7 +1684,7 @@ jr_006_493c:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1694,7 +1694,7 @@ jr_006_493c:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1707,7 +1707,7 @@ jr_006_493c:
 
 jr_006_496b:
 	push hl
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1733,7 +1733,7 @@ jr_006_496b:
 	ld a, $00
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1743,7 +1743,7 @@ jr_006_496b:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1753,7 +1753,7 @@ jr_006_496b:
 	and $f0
 	or $08
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1765,11 +1765,11 @@ jr_006_496b:
 
 
 Jump_006_49ba:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1783,7 +1783,7 @@ Jump_006_49ba:
 	adc b
 	ld [hl], a
 	ld b, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $02
 	ld l, a
 	ldh a, [$ffd6]
@@ -1808,7 +1808,7 @@ Jump_006_49ba:
 	and $0f
 	jr nz, jr_006_4a00
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1821,11 +1821,11 @@ jr_006_4a00:
 
 
 Jump_006_4a01:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -1839,7 +1839,7 @@ Jump_006_4a01:
 	adc b
 	ld [hl], a
 	ld b, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $03
 	ld l, a
 	ldh a, [$ffd6]
@@ -1864,7 +1864,7 @@ Jump_006_4a01:
 	and $0f
 	jr nz, jr_006_4a47
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1877,7 +1877,7 @@ jr_006_4a47:
 
 
 Jump_006_4a48:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $07
 	ld l, a
 	ldh a, [$ffd6]
@@ -1893,11 +1893,11 @@ Jump_006_4a48:
 	res 0, [hl]
 
 jr_006_4a5b:
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jr nz, jr_006_4a6d
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1906,7 +1906,7 @@ jr_006_4a5b:
 	res 6, [hl]
 
 jr_006_4a6d:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1915,7 +1915,7 @@ jr_006_4a6d:
 	bit 6, [hl]
 	jr z, jr_006_4a83
 
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	add $02
 	and $03
 	inc hl
@@ -1923,7 +1923,7 @@ jr_006_4a6d:
 
 Jump_006_4a83:
 jr_006_4a83:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
@@ -1946,7 +1946,7 @@ jr_006_4a83:
 	ld [hl], a
 
 Jump_006_4aa1:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1984,7 +1984,7 @@ jr_006_4abc:
 	adc $00
 	ld h, a
 	ld a, l
-	ld [$d7b4], a
+	ld [wPlayerAnimPtr], a
 	ld a, h
 	ld [$d7b5], a
 	inc hl
@@ -1993,7 +1993,7 @@ jr_006_4abc:
 	cp b
 	jr nz, jr_006_4ae8
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	jr z, jr_006_4af7
 
@@ -2006,14 +2006,14 @@ jr_006_4ae8:
 	inc hl
 	ld [hli], a
 	ld [hli], a
-	ld a, [$d7b4]
+	ld a, [wPlayerAnimPtr]
 	ld l, a
 	ld a, [$d7b5]
 	ld h, a
 	ld [hl], $00
 
 jr_006_4af7:
-	ld a, [$d7b4]
+	ld a, [wPlayerAnimPtr]
 	ld l, a
 	ld a, [$d7b5]
 	ld h, a
@@ -2022,7 +2022,7 @@ jr_006_4af7:
 	or a
 	jr nz, jr_006_4b09
 
-	ld hl, far_Call_02_400D
+	ld hl, far_StepAnimation
 	rst $10
 	ret
 
@@ -2033,7 +2033,7 @@ jr_006_4b09:
 	push af
 	push hl
 	ld [hl], $00
-	ld hl, far_Call_02_400D
+	ld hl, far_StepAnimation
 	rst $10
 	pop hl
 	pop af
@@ -2044,9 +2044,9 @@ jr_006_4b09:
 	db $00, $01, $02, $01, $00, $20, $00, $00
 
 Call_06_4B1F::
-	ld hl, $ff90
+	ld hl, hPlayerFlags
 	res 5, [hl]
-	ld hl, $d7d2
+	ld hl, wActors
 
 jr_006_4b27:
 	ld a, [hl]
@@ -2069,16 +2069,16 @@ jr_006_4b27:
 	jr jr_006_4b27
 
 jr_006_4b40:
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	ret nz
 
-	ld hl, $ffdb
-	ldh a, [$ff92]
+	ld hl, hDivisorHigh
+	ldh a, [hPlayerX]
 	ld [hli], a
 	ldh a, [$ff93]
 	ld [hli], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld [hli], a
 	ldh a, [$ff96]
 	ld [hli], a
@@ -2087,12 +2087,12 @@ jr_006_4b40:
 
 
 Call_06_4B58::
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	and $0f
 	cp $08
 	jr nz, jr_006_4b6c
 
-	ldh a, [$ffdd]
+	ldh a, [hFindY]
 	and $0f
 	cp $08
 	jr nz, jr_006_4b89
@@ -2102,7 +2102,7 @@ Call_06_4B58::
 
 
 jr_006_4b6c:
-	ld hl, $ffdb
+	ld hl, hDivisorHigh
 	ld a, [hl]
 	add $08
 	ld [hli], a
@@ -2110,7 +2110,7 @@ jr_006_4b6c:
 	adc $00
 	ld [hl], a
 	call Call_06_4BA6
-	ld hl, $ffdb
+	ld hl, hDivisorHigh
 	ld a, [hl]
 	sub $10
 	ld [hli], a
@@ -2122,7 +2122,7 @@ jr_006_4b6c:
 
 
 jr_006_4b89:
-	ld hl, $ffdd
+	ld hl, hFindY
 	ld a, [hl]
 	add $08
 	ld [hli], a
@@ -2130,7 +2130,7 @@ jr_006_4b89:
 	adc $00
 	ld [hl], a
 	call Call_06_4BA6
-	ld hl, $ffdd
+	ld hl, hFindY
 	ld a, [hl]
 	sub $10
 	ld [hli], a
@@ -2142,7 +2142,7 @@ jr_006_4b89:
 
 
 Call_06_4BA6::
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	ld l, a
 	ldh a, [$ffdc]
 	ld h, a
@@ -2154,8 +2154,8 @@ Call_06_4BA6::
 	ld a, l
 	and $0f
 	or h
-	ldh [$ffd5], a
-	ldh a, [$ffdd]
+	ldh [hNumber], a
+	ldh a, [hFindY]
 	ld l, a
 	ldh a, [$ffde]
 	ld h, a
@@ -2169,7 +2169,7 @@ Call_06_4BA6::
 	or h
 	ldh [$ffd6], a
 	ld d, $00
-	ld hl, $d7d2
+	ld hl, wActors
 
 jr_006_4bd3:
 	ld a, [hl]
@@ -2279,7 +2279,7 @@ jr_006_4c37:
 	jr nz, jr_006_4c6e
 
 jr_006_4c55:
-	ld hl, $ff90
+	ld hl, hPlayerFlags
 	set 5, [hl]
 	pop de
 	ld a, d
@@ -2315,7 +2315,7 @@ Call_06_4C72::
 	and $0f
 	or d
 	ld b, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	cp b
 	ret nz
 
@@ -2337,11 +2337,11 @@ Call_06_4C72::
 	db $6f, $7c, $ce, $c9, $67, $2a, $e0, $db, $2a, $e0, $dd, $7e, $cb, $37, $e6, $0f
 	db $e0, $dc, $7e, $e6, $0f, $e0, $de, $c9
 
-	ld a, [$c8ec]
+	ld a, [wMenuOverlay]
 	or a
 	ret nz
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 1, a
 	ret nz
 
@@ -2354,25 +2354,25 @@ Call_06_4C72::
 	bit 4, a
 	jr z, jr_006_4cd7
 
-	ld a, [$c8ef]
+	ld a, [wScriptMenu]
 	cp $0f
 	ret z
 
 jr_006_4cd7:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 2, a
 	jr z, jr_006_4cea
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_006_4cea
 
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	cp $01
 	ret z
 
 jr_006_4cea:
-	ld de, $d7d2
+	ld de, wActors
 
 jr_006_4ced:
 	ld a, [de]
@@ -2410,7 +2410,7 @@ Call_06_4D0A::
 	ld a, d
 	adc $00
 	ld d, a
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, [de]
 	ld [hli], a
 	inc de
@@ -2464,7 +2464,7 @@ Call_06_4D0A::
 	jr jr_006_4d58
 
 jr_006_4d54:
-	ld hl, far_Call_04_4081
+	ld hl, far_DrawActorSprite
 	rst $10
 
 jr_006_4d58:
@@ -2518,7 +2518,7 @@ jr_006_4d86:
 	ld a, c
 	add $80
 	ld h, a
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_006_4d99
 
@@ -2528,7 +2528,7 @@ jr_006_4d86:
 	jr jr_006_4dae
 
 jr_006_4d99:
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $08
 	jr z, jr_006_4dae
 
@@ -2548,7 +2548,7 @@ jr_006_4daa:
 jr_006_4dae:
 	ld h, a
 	ld l, $00
-	call Call_1577
+	call DecompressVRAM
 	pop bc
 	pop hl
 	ld a, [hl]
@@ -2607,9 +2607,9 @@ jr_006_4dc5:
 	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
 
 Call_06_4F9A::
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $50e0
@@ -2872,7 +2872,7 @@ jr_006_50c9:
 
 
 Call_06_50D2::
-	ld de, $c0d8
+	ld de, wSceneObjects
 	ld b, $28
 
 jr_006_50d7:
@@ -3135,11 +3135,11 @@ jr_006_50d7:
 	db $ff, $ff, $21, $e7, $00, $a4, $00, $c6, $00, $00, $00, $c6, $00, $c6, $00, $44
 	db $45, $46, $47, $ff
 
-	ld a, [$c88f]
+	ld a, [wMapLoadState]
 	or a
 	ret nz
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 5, a
 	jp nz, Jump_006_6b87
 
@@ -3155,7 +3155,7 @@ jr_006_50d7:
 	bit 1, a
 	jr z, jr_006_6059
 
-	ld hl, far_Call_07_4009
+	ld hl, far_FieldMenu
 	rst $10
 	ret
 
@@ -3164,7 +3164,7 @@ jr_006_6059:
 	bit 3, a
 	jr z, jr_006_6062
 
-	ld hl, far_Call_19_4003
+	ld hl, far_RunGateMap
 	rst $10
 	ret
 
@@ -3173,7 +3173,7 @@ jr_006_6062:
 	bit 6, a
 	jr z, jr_006_606b
 
-	ld hl, far_Call_13_7366
+	ld hl, far_RunBattleWipe
 	rst $10
 	ret
 
@@ -3186,59 +3186,59 @@ jr_006_606b:
 	or a
 	jp nz, Jump_006_6284
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_6284
 
-	ld a, [$c8a8]
+	ld a, [wPlayerPause]
 	or a
 	jp nz, Jump_006_6284
 
-	ldh a, [$ff90]
+	ldh a, [hPlayerFlags]
 	bit 0, a
 	jp nz, Jump_006_6284
 
-	ld a, [$c8aa]
+	ld a, [wFieldPaused]
 	or a
 	jp nz, Jump_006_611d
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	jp nz, Jump_006_60b8
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $08
 	jr z, jr_006_60b8
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	or a
 	jr z, jr_006_60ac
 
-	ld a, [$ca3f]
+	ld a, [wStatusBarMode]
 	xor $01
 
 jr_006_60ac:
-	ld [$ca3f], a
-	call Call_2518
-	call Call_25F1
+	ld [wStatusBarMode], a
+	call BuildStatusBar
+	call DrawStatusBar
 	jp Jump_006_6284
 
 
 Jump_006_60b8:
 jr_006_60b8:
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	jp nz, Jump_006_611d
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $04
 	jr z, jr_006_611d
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_006_60e7
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $61
 	jr z, jr_006_60e7
 
@@ -3258,15 +3258,15 @@ jr_006_60b8:
 	jr nc, jr_006_611d
 
 jr_006_60e7:
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 3, [hl]
 	xor a
-	ld [$c905], a
-	ld [$c906], a
+	ld [wMenuStep], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c907], a
-	ld [$c908], a
-	ldh a, [$ffb7]
+	ld [wItemsHandedIn], a
+	ld [wHatchSlot], a
+	ldh a, [hScrollX]
 	ld l, a
 	ldh a, [$ffb8]
 	ld h, a
@@ -3274,7 +3274,7 @@ jr_006_60e7:
 	ldh [$ffbf], a
 	ld a, h
 	ldh [$ffc0], a
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld l, a
 	ldh a, [$ffbc]
 	ld h, a
@@ -3284,48 +3284,48 @@ jr_006_60e7:
 	ldh [$ffc2], a
 	call Call_06_62B7
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	jp Jump_006_6284
 
 
 Jump_006_611d:
 jr_006_611d:
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_6247
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	jp nz, Jump_006_6247
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $01
 	jp z, Jump_006_6247
 
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
 	ld a, l
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld a, h
 	ldh [$ffdc], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	ld a, l
-	ldh [$ffdd], a
+	ldh [hFindY], a
 	ld a, h
 	ldh [$ffde], a
 	ld hl, $0b04
 	rst $10
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	cp $ff
 	jr nz, jr_006_618e
 
 	ld hl, $6285
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	add a
 	add a
 	add l
@@ -3340,40 +3340,40 @@ jr_006_611d:
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
 	add hl, bc
 	ld a, l
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld a, h
 	ldh [$ffdc], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	add hl, de
 	ld a, l
-	ldh [$ffdd], a
+	ldh [hFindY], a
 	ld a, h
 	ldh [$ffde], a
 	ld hl, $0b04
 	rst $10
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	cp $ff
 	jp z, Jump_006_61e9
 
 jr_006_618e:
-	ld [$d8d4], a
-	ld a, [$c968]
-	ld [$d8d3], a
-	ld a, [$c969]
+	ld [wScriptId], a
+	ld a, [wMapId]
+	ld [wScriptMap], a
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_006_61a2
 
 	ld a, $70
-	ld [$d8d3], a
+	ld [wScriptMap], a
 
 jr_006_61a2:
 	ldh a, [$ffd6]
@@ -3381,7 +3381,7 @@ jr_006_61a2:
 	jr z, jr_006_61b7
 
 	ld c, $20
-	call Call_1DBE
+	call Multiply
 	ld a, l
 	add $d7
 	ld l, a
@@ -3391,14 +3391,14 @@ jr_006_61a2:
 	set 6, [hl]
 
 jr_006_61b7:
-	ld hl, $d8d8
+	ld hl, wScriptFlags
 	res 0, [hl]
 	res 1, [hl]
 	xor a
-	ld [$d8d7], a
-	ld hl, far_Call_04_55EC
+	ld [wScriptRunning], a
+	ld hl, far_StartScript
 	rst $10
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp z, Jump_006_61e9
 
@@ -3407,22 +3407,22 @@ jr_006_61b7:
 
 	ld hl, $ffff
 	ld a, l
-	ld [$c917], a
+	ld [wEventRoutine], a
 	ld a, h
 	ld [$c918], a
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 0, [hl]
 	xor a
-	ld [$c915], a
+	ld [wEventStep], a
 	ld [$c916], a
 
 Jump_006_61e9:
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jp z, Jump_006_6247
 
 	ld hl, $6285
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	add a
 	add a
 	add l
@@ -3437,25 +3437,25 @@ Jump_006_61e9:
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
 	add hl, bc
 	ld a, l
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld a, h
 	ldh [$ffdc], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	add hl, de
 	ld a, l
-	ldh [$ffdd], a
+	ldh [hFindY], a
 	ld a, h
 	ldh [$ffde], a
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	swap a
 	and $0f
 	ld b, a
@@ -3463,8 +3463,8 @@ Jump_006_61e9:
 	swap a
 	and $f0
 	or b
-	ldh [$ffdb], a
-	ldh a, [$ffdd]
+	ldh [hDivisorHigh], a
+	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
@@ -3472,43 +3472,43 @@ Jump_006_61e9:
 	swap a
 	and $f0
 	or b
-	ldh [$ffdd], a
+	ldh [hFindY], a
 	ld a, $01
-	ld [$d78f], a
-	ld hl, far_Call_01_5A72
+	ld [wFloorObjectItem], a
+	ld hl, far_TouchFloorObject
 	rst $10
 
 Jump_006_6247:
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jp nz, Jump_006_6284
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	or a
 	jp nz, Jump_006_6284
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	jp nz, Jump_006_6284
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $01
 	jr z, jr_006_6284
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	or a
 	jr z, jr_006_6284
 
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 1, [hl]
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	xor a
-	ld [$c90f], a
+	ld [wMenuCount], a
 	ld [$c910], a
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	jp Jump_006_6284
 
 
@@ -3521,14 +3521,14 @@ jr_006_6284:
 
 Jump_006_6295:
 	call Call_06_62A0
-	ld hl, far_Call_09_6120
+	ld hl, far_NameEntryMenu
 	rst $10
 	call Call_06_62A0
 	ret
 
 
 Call_06_62A0::
-	ld hl, $c905
+	ld hl, wMenuStep
 	ld de, $c876
 	ld b, $08
 
@@ -3553,9 +3553,9 @@ Jump_006_62b2:
 
 Call_06_62B7::
 	ld a, $80
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld hl, $9c00
-	ld de, $c1c0
+	ld de, wPartyBarTiles
 	ld c, $02
 
 jr_006_62c3:
@@ -3564,7 +3564,7 @@ jr_006_62c3:
 
 jr_006_62c6:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -3604,7 +3604,7 @@ jr_006_62c6:
 
 
 Jump_006_62f6:
-	ld a, [$c91d]
+	ld a, [wScrollDir]
 	rst $00
 
 JumpTable_06_62FA::
@@ -3614,7 +3614,7 @@ JumpTable_06_62FA::
 	dw Jump_06_65EA
 
 Jump_06_6302::
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	rst $00
 
 JumpTable_06_6306::
@@ -3625,21 +3625,21 @@ JumpTable_06_6306::
 	dw Jump_06_63D7
 
 Jump_06_6310::
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	dec a
-	ld [$c925], a
+	ld [wMapScreen], a
 	call Call_06_66E5
 	ld hl, $0b03
 	rst $10
 	ld a, $13
 	ld [$c91f], a
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_6328::
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -3650,7 +3650,7 @@ Jump_06_6328::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -3662,21 +3662,21 @@ Jump_06_6328::
 	adc h
 	ld h, a
 	ld a, l
-	ld [$c740], a
+	ld [wMapUpdateDest], a
 	ld a, h
 	ld [$c741], a
 	ld a, [$c91f]
-	ld de, $c500
+	ld de, wTilemapBuffer
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, $01
-	ld [$c742], a
+	ld [wMapUpdateDir], a
 	ld a, $10
-	ld [$c743], a
-	ld hl, $c744
+	ld [wMapUpdateLen], a
+	ld hl, wMapUpdateTiles
 	ld b, $10
 
 jr_006_6369:
@@ -3694,7 +3694,7 @@ jr_006_6369:
 	ld a, [$c91f]
 	srl a
 	push af
-	ld de, $c200
+	ld de, wScreenMap
 	add e
 	ld e, a
 	ld a, $00
@@ -3736,8 +3736,8 @@ jr_006_63a0:
 
 jr_006_63af:
 	ld a, $01
-	ld [$c8a3], a
-	ldh a, [$ffb7]
+	ld [wMapUpdateOn], a
+	ldh a, [hScrollX]
 	ld l, a
 	ldh a, [$ffb8]
 	ld h, a
@@ -3748,7 +3748,7 @@ jr_006_63af:
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, h
 	ldh [$ffb8], a
 	ld a, [$c91f]
@@ -3757,14 +3757,14 @@ jr_006_63af:
 	cp $ff
 	ret nz
 
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_63D7::
-	ld hl, $c300
-	ld de, $c500
+	ld hl, wSavedTilemap
+	ld de, wTilemapBuffer
 	ld bc, $0200
 
 jr_006_63e0:
@@ -3776,13 +3776,13 @@ jr_006_63e0:
 	or c
 	jr nz, jr_006_63e0
 
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 2, [hl]
 	call Call_06_66F0
 	ld b, $31
 
 jr_006_63f2:
-	ld a, [$ca37]
+	ld a, [wTrailPos]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -3793,9 +3793,9 @@ jr_006_63f2:
 	ld a, h
 	adc $c9
 	ld h, a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld [hli], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld [hli], a
 	ldh a, [$ff93]
 	swap a
@@ -3803,34 +3803,34 @@ jr_006_63f2:
 	ldh a, [$ff96]
 	or c
 	ld [hli], a
-	ldh a, [$ff8b]
+	ldh a, [hPlayerFrame]
 	ld c, a
-	ldh a, [$ff8d]
+	ldh a, [hPlayerAttr]
 	or c
 	ld [hli], a
-	ld a, [$ca37]
+	ld a, [wTrailPos]
 	inc a
-	ld [$ca37], a
+	ld [wTrailPos], a
 	cp $31
 	jr c, jr_006_6427
 
 	xor a
-	ld [$ca37], a
+	ld [wTrailPos], a
 
 jr_006_6427:
 	dec b
 	jr nz, jr_006_63f2
 
-	ldh a, [$ff92]
-	ldh [$ffa5], a
+	ldh a, [hPlayerX]
+	ldh [hTestX], a
 	ldh a, [$ff93]
 	ldh [$ffa6], a
-	ldh a, [$ff95]
-	ldh [$ffa7], a
+	ldh a, [hPlayerY]
+	ldh [hTestY], a
 	ldh a, [$ff96]
 	ldh [$ffa8], a
-	call Call_1E31
-	ld hl, far_Call_01_5D6D
+	call GetCollisionAt
+	ld hl, far_HandleConveyor
 	rst $10
 	xor a
 	ld [$d9e8], a
@@ -3838,7 +3838,7 @@ jr_006_6427:
 
 
 Jump_06_6446::
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	rst $00
 
 JumpTable_06_644A::
@@ -3849,21 +3849,21 @@ JumpTable_06_644A::
 	dw Jump_06_63D7
 
 Jump_06_6454::
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	inc a
-	ld [$c925], a
+	ld [wMapScreen], a
 	call Call_06_66E5
 	ld hl, $0b03
 	rst $10
 	xor a
 	ld [$c91f], a
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_646B::
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -3874,7 +3874,7 @@ Jump_06_646B::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -3886,21 +3886,21 @@ Jump_06_646B::
 	adc h
 	ld h, a
 	ld a, l
-	ld [$c740], a
+	ld [wMapUpdateDest], a
 	ld a, h
 	ld [$c741], a
 	ld a, [$c91f]
-	ld de, $c500
+	ld de, wTilemapBuffer
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, $01
-	ld [$c742], a
+	ld [wMapUpdateDir], a
 	ld a, $10
-	ld [$c743], a
-	ld hl, $c744
+	ld [wMapUpdateLen], a
+	ld hl, wMapUpdateTiles
 	ld b, $10
 
 jr_006_64ad:
@@ -3918,7 +3918,7 @@ jr_006_64ad:
 	ld a, [$c91f]
 	srl a
 	push af
-	ld de, $c200
+	ld de, wScreenMap
 	add e
 	ld e, a
 	ld a, $00
@@ -3960,8 +3960,8 @@ jr_006_64e4:
 
 jr_006_64f3:
 	ld a, $01
-	ld [$c8a3], a
-	ldh a, [$ffb7]
+	ld [wMapUpdateOn], a
+	ldh a, [hScrollX]
 	ld l, a
 	ldh a, [$ffb8]
 	ld h, a
@@ -3972,7 +3972,7 @@ jr_006_64f3:
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, h
 	ldh [$ffb8], a
 	ld a, [$c91f]
@@ -3981,13 +3981,13 @@ jr_006_64f3:
 	cp $14
 	ret nz
 
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_651B::
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	rst $00
 
 JumpTable_06_651F::
@@ -3998,21 +3998,21 @@ JumpTable_06_651F::
 	dw Jump_06_63D7
 
 Jump_06_6529::
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	sub $04
-	ld [$c925], a
+	ld [wMapScreen], a
 	call Call_06_66E5
 	ld hl, $0b03
 	rst $10
 	ld a, $0f
 	ld [$c91f], a
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_6542::
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -4023,7 +4023,7 @@ Jump_06_6542::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -4041,7 +4041,7 @@ Jump_06_6542::
 	ld h, a
 	res 2, h
 	ld a, l
-	ld [$c740], a
+	ld [wMapUpdateDest], a
 	ld a, h
 	ld [$c741], a
 	ld a, [$c91f]
@@ -4061,10 +4061,10 @@ Jump_06_6542::
 	ld e, l
 	ld d, h
 	ld a, $00
-	ld [$c742], a
+	ld [wMapUpdateDir], a
 	ld a, $14
-	ld [$c743], a
-	ld hl, $c744
+	ld [wMapUpdateLen], a
+	ld hl, wMapUpdateTiles
 	ld b, $14
 
 jr_006_6595:
@@ -4105,8 +4105,8 @@ jr_006_65b4:
 	jr nz, jr_006_65b4
 
 	ld a, $01
-	ld [$c8a3], a
-	ldh a, [$ffbb]
+	ld [wMapUpdateOn], a
+	ldh a, [hScrollY]
 	ld l, a
 	ldh a, [$ffbc]
 	ld h, a
@@ -4117,7 +4117,7 @@ jr_006_65b4:
 	adc $ff
 	ld h, a
 	ld a, l
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, h
 	ldh [$ffbc], a
 	ld a, [$c91f]
@@ -4126,13 +4126,13 @@ jr_006_65b4:
 	cp $ff
 	ret nz
 
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_65EA::
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	rst $00
 
 JumpTable_06_65EE::
@@ -4143,21 +4143,21 @@ JumpTable_06_65EE::
 	dw Jump_06_63D7
 
 Jump_06_65F8::
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add $04
-	ld [$c925], a
+	ld [wMapScreen], a
 	call Call_06_66E5
 	ld hl, $0b03
 	rst $10
 	xor a
 	ld [$c91f], a
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_6610::
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -4168,7 +4168,7 @@ Jump_06_6610::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -4186,7 +4186,7 @@ Jump_06_6610::
 	ld h, a
 	res 2, h
 	ld a, l
-	ld [$c740], a
+	ld [wMapUpdateDest], a
 	ld a, h
 	ld [$c741], a
 	ld a, [$c91f]
@@ -4206,10 +4206,10 @@ Jump_06_6610::
 	ld e, l
 	ld d, h
 	ld a, $00
-	ld [$c742], a
+	ld [wMapUpdateDir], a
 	ld a, $14
-	ld [$c743], a
-	ld hl, $c744
+	ld [wMapUpdateLen], a
+	ld hl, wMapUpdateTiles
 	ld b, $14
 
 jr_006_6663:
@@ -4250,8 +4250,8 @@ jr_006_6682:
 	jr nz, jr_006_6682
 
 	ld a, $01
-	ld [$c8a3], a
-	ldh a, [$ffbb]
+	ld [wMapUpdateOn], a
+	ldh a, [hScrollY]
 	ld l, a
 	ldh a, [$ffbc]
 	ld h, a
@@ -4262,7 +4262,7 @@ jr_006_6682:
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, h
 	ldh [$ffbc], a
 	ld a, [$c91f]
@@ -4271,13 +4271,13 @@ jr_006_6682:
 	cp $10
 	ret nz
 
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_66B8::
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_006_66c2
 
@@ -4285,34 +4285,34 @@ Jump_06_66B8::
 	rst $10
 
 jr_006_66c2:
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
 	ret
 
 
 Jump_06_66C7::
-	ld hl, $c91e
+	ld hl, wScrollStep
 	inc [hl]
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	ret nz
 
 	ld a, $00
-	ld [$d8d4], a
-	ld a, [$c968]
-	ld [$d8d3], a
-	ld hl, far_Call_04_55EC
+	ld [wScriptId], a
+	ld a, [wMapId]
+	ld [wScriptMap], a
+	ld hl, far_StartScript
 	rst $10
 	ret
 
 
 Call_06_66E5::
 	ld a, $80
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld hl, $9c00
 	call Call_06_671F
 	ret
@@ -4320,8 +4320,8 @@ Call_06_66E5::
 
 Call_06_66F0::
 	ld a, $ff
-	ldh [$ffb6], a
-	ldh a, [$ffbb]
+	ldh [hWY], a
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -4332,7 +4332,7 @@ Call_06_66F0::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -4357,12 +4357,12 @@ Call_06_671F::
 	push hl
 	call Call_06_6771
 	pop hl
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
@@ -4374,7 +4374,7 @@ jr_006_6734:
 
 jr_006_6737:
 	ld a, $07
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -4411,7 +4411,7 @@ jr_006_6737:
 	jr nz, jr_006_6734
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
@@ -4419,7 +4419,7 @@ jr_006_6737:
 
 
 Call_06_6771::
-	ld de, $c1c0
+	ld de, wPartyBarTiles
 	ld c, $02
 
 jr_006_6776:
@@ -4428,7 +4428,7 @@ jr_006_6776:
 
 jr_006_6779:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -4468,11 +4468,11 @@ jr_006_6779:
 
 
 Jump_006_67a9:
-	ld hl, $ffb7
+	ld hl, hScrollX
 	call Call_06_67E3
-	ld hl, $ffbb
+	ld hl, hScrollY
 	call Call_06_67E3
-	ld a, [$c915]
+	ld a, [wEventStep]
 	rst $00
 
 JumpTable_06_67B9::
@@ -4532,7 +4532,7 @@ Jump_06_67FF::
 	ld [$c83b], a
 	ld hl, far_Call_56_4485
 	rst $10
-	ld a, [$c917]
+	ld a, [wEventRoutine]
 	ld l, a
 	ld a, [$c918]
 	ld h, a
@@ -4541,20 +4541,20 @@ Jump_06_67FF::
 	cp $ff
 	jr z, jr_006_6819
 
-	call Call_096D
+	call PrintSystemText
 
 jr_006_6819:
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld hl, $0020
 	call Call_06_682F
 	call Call_06_67F0
-	call Call_0CA0
+	call DrawTextBoxTiles
 	ret
 
 
 Jump_06_682A::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ret
 
@@ -4575,20 +4575,20 @@ Call_06_682F::
 
 
 Jump_06_6843::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld a, $01
-	ldh [$ffd3], a
+	ldh [hSpriteClip], a
 	ld a, $00
-	ld [$c83c], a
+	ld [wTextChoice], a
 	ld a, $20
 	ld [$c83d], a
 	ld de, $0000
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	jr z, jr_006_686e
 
-	ld hl, $d8d8
+	ld hl, wScriptFlags
 	ld a, [hl]
 	res 0, [hl]
 	res 1, [hl]
@@ -4599,9 +4599,9 @@ Jump_06_6843::
 	jr nz, jr_006_6893
 
 jr_006_686e:
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld c, a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	sub c
 	ld c, a
 	ldh a, [$ffbc]
@@ -4616,19 +4616,19 @@ jr_006_686e:
 
 jr_006_6882:
 	ld a, $02
-	ldh [$ffd3], a
+	ldh [hSpriteClip], a
 	ld a, $00
-	ld [$c83c], a
+	ld [wTextChoice], a
 	ld a, $80
 	ld [$c83d], a
 	ld de, $01a0
 
 jr_006_6893:
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_006_68a7
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $08
 	jr z, jr_006_68a4
 
@@ -4637,19 +4637,19 @@ jr_006_6893:
 
 jr_006_68a4:
 	xor a
-	ldh [$ffd3], a
+	ldh [hSpriteClip], a
 
 jr_006_68a7:
-	ld hl, $ffb7
+	ld hl, hScrollX
 	call Call_06_6957
-	ld hl, $ffbb
+	ld hl, hScrollY
 	call Call_06_6957
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -4669,14 +4669,14 @@ jr_006_68a7:
 	ld [$c91a], a
 
 Jump_06_68D4::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld a, [$c919]
 	ld l, a
 	ld a, [$c91a]
 	ld h, a
 	ld bc, $0000
-	ld de, $c100
+	ld de, wLineScroll
 	call Call_06_690A
 	ld bc, $0020
 	ld de, $c114
@@ -4707,7 +4707,7 @@ Call_06_690A::
 
 jr_006_6920:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hl]
 	ei
 	ld [de], a
@@ -4720,24 +4720,24 @@ jr_006_6920:
 
 
 Jump_06_692F::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld hl, $0040
 	call Call_06_682F
 
 Call_06_6939::
 	ld a, $fe
-	call Call_1AAD
+	call WriteVRAM
 	call Call_06_67F0
 	ld b, $12
 	ld a, $e0
 	call Call_06_694D
 	ld a, $ff
-	jp Call_1AAD
+	jp WriteVRAM
 
 
 Call_06_694D::
-	call Call_1AAD
+	call WriteVRAM
 	call Call_06_67F0
 	dec b
 	jr nz, Call_06_694D
@@ -4759,7 +4759,7 @@ Call_06_6957::
 
 
 Jump_06_6964::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld hl, $0020
 	call Call_06_682F
@@ -4769,33 +4769,33 @@ Jump_06_6964::
 	jr Call_06_6939
 
 Jump_06_6979::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld a, [$c919]
 	ld l, a
 	ld a, [$c91a]
 	ld h, a
 	ld a, $fa
-	call Call_1AAD
+	call WriteVRAM
 	call Call_06_67F0
 	ld b, $12
 	ld a, $ef
 	call Call_06_694D
 	ld a, $fb
-	call Call_1AAD
+	call WriteVRAM
 	ld hl, $0080
 	call Call_06_682F
 	ld a, $fc
-	call Call_1AAD
+	call WriteVRAM
 	call Call_06_67F0
 	ld b, $12
 	ld a, $ee
 	call Call_06_694D
 	ld a, $fd
-	call Call_1AAD
-	call Call_1ED5
+	call WriteVRAM
+	call SGBAttrBlkBegin
 	ld hl, $0000
-	ldh a, [$ffd3]
+	ldh a, [hSpriteClip]
 	cp $02
 	jr nz, jr_006_69c2
 
@@ -4805,25 +4805,25 @@ jr_006_69c2:
 	ld a, $00
 	ld bc, $1304
 	ld d, $01
-	call Call_1F27
-	call Call_1F59
+	call SGBAttrBlkAdd
+	call SGBAttrBlkSend
 	ret
 
 
 Jump_06_69D0::
-	ld a, [$c8aa]
+	ld a, [wFieldPaused]
 	or a
 	ret nz
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$c917]
+	ld a, [wEventRoutine]
 	ld l, a
 	ld a, [$c918]
 	ld h, a
@@ -4832,11 +4832,11 @@ Jump_06_69D0::
 	cp $ff
 	jr nz, jr_006_6a02
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 1, a
 	jr z, jr_006_6a02
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 7, a
 	ret nz
 
@@ -4853,17 +4853,17 @@ jr_006_6a02:
 	cp $02
 	jr nz, jr_006_6a25
 
-	ld a, [$c917]
+	ld a, [wEventRoutine]
 	cp $11
 	jr nz, jr_006_6a1a
 
 	call Call_06_6AC2
-	ld a, [$c917]
+	ld a, [wEventRoutine]
 	cp $17
 	jr nz, jr_006_6a1a
 
 jr_006_6a1a:
-	ld a, [$c917]
+	ld a, [wEventRoutine]
 	cp $17
 	jr nz, jr_006_6a25
 
@@ -4872,51 +4872,51 @@ jr_006_6a1a:
 
 
 jr_006_6a25:
-	ld a, [$c917]
+	ld a, [wEventRoutine]
 	cp $1a
 	jp nz, Jump_006_6ab9
 
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c915], a
+	ld [wEventStep], a
 	ld [$c916], a
 	ld a, $08
 	ld [$d92b], a
 	ld hl, $0000
 	ld a, l
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, h
-	ld [$c96e], a
+	ld [wWarpOnGateFloor], a
 	ld hl, $00e8
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0058
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
-	ld hl, $c8ea
+	ld [wWarpPending], a
+	ld hl, wGameStarted
 	res 7, [hl]
-	ld a, [$ca4b]
+	ld a, [wGold]
 	ld l, a
 	ld a, [$ca4c]
 	ld h, a
 	ld a, [$ca4d]
 	ld e, a
 	ld a, $02
-	call Call_1E1E
+	call Divide24
 	ld a, l
-	ld [$ca4b], a
+	ld [wGold], a
 	ld a, h
 	ld [$ca4c], a
 	ld a, e
 	ld [$ca4d], a
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_006_6a8b:
@@ -4927,10 +4927,10 @@ jr_006_6a8b:
 	cp $ff
 	jr z, jr_006_6aa7
 
-	ld [$da5e], a
+	ld [wItemId], a
 	push hl
 	push bc
-	ld hl, far_Call_03_6980
+	ld hl, far_GetItemData
 	rst $10
 	pop bc
 	pop hl
@@ -4945,25 +4945,25 @@ jr_006_6aa7:
 	dec b
 	jr nz, jr_006_6a8b
 
-	ld hl, far_Call_03_7160
+	ld hl, far_CompactBag
 	rst $10
 	ld a, $04
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	ret
 
 
 Jump_006_6ab9:
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ret
 
 
 Call_06_6AC2::
-	ld de, $d793
+	ld de, wFloorObjects
 
 jr_006_6ac5:
 	ld a, [de]
@@ -4982,12 +4982,12 @@ jr_006_6ac5:
 	jr jr_006_6ac5
 
 Call_06_6AD7::
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c915], a
+	ld [wEventStep], a
 	ld [$c916], a
-	ld a, [$cab4]
+	ld a, [wScriptBossIndex]
 	add a
 	ld hl, $6b0c
 	add l
@@ -4996,17 +4996,17 @@ Call_06_6AD7::
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, [hl]
 	ld [$da04], a
 	ld a, $00
-	ld [$da02], a
-	ld hl, $c8eb
+	ld [wEncCount], a
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $00
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
@@ -5014,13 +5014,13 @@ Call_06_6AD7::
 	db $44, $01
 
 Jump_06_6B1E::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld a, [$c919]
 	ld l, a
 	ld a, [$c91a]
 	ld h, a
-	ld de, $c100
+	ld de, wLineScroll
 	ld b, $14
 	call Call_06_6B3D
 	ld hl, $0080
@@ -5030,7 +5030,7 @@ Jump_06_6B1E::
 
 Call_06_6B3D::
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	inc de
 	call Call_06_67F0
 	dec b
@@ -5041,8 +5041,8 @@ Call_06_6B3D::
 
 Jump_06_6B49::
 	ld a, $00
-	ldh [$ffd3], a
-	ld hl, $c915
+	ldh [hSpriteClip], a
+	ld hl, wEventStep
 	inc [hl]
 	ld hl, $0020
 	call Call_06_682F
@@ -5056,7 +5056,7 @@ Jump_06_6B49::
 	jr Call_06_6B3D
 
 Jump_06_6B6C::
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ld hl, $0040
 	call Call_06_682F
@@ -5065,23 +5065,23 @@ Jump_06_6B6C::
 	jr Call_06_6B3D
 
 Jump_06_6B7D::
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c915], a
+	ld [wEventStep], a
 	ret
 
 
 Jump_006_6b87:
-	ld a, [$c905]
+	ld a, [wMenuStep]
 	or a
 	jr nz, jr_006_6ba7
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_006_6ba2
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $50
 	jr c, jr_006_6ba7
 
@@ -5093,10 +5093,10 @@ Jump_006_6b87:
 
 jr_006_6ba2:
 	ld a, $10
-	ld [$c905], a
+	ld [wMenuStep], a
 
 jr_006_6ba7:
-	ld a, [$c905]
+	ld a, [wMenuStep]
 	rst $00
 
 JumpTable_06_6BAB::
@@ -5131,24 +5131,24 @@ Jump_06_6BDB::
 
 Jump_06_6BDC::
 	ld a, $02
-	call Call_1AE1
-	call Call_3331
+	call QueueMusic
+	call InitSound
 	ld a, $52
-	call Call_1B2C
-	ld hl, $ffb7
+	call QueueSound
+	ld hl, hScrollX
 	call Call_06_6E4F
-	ld hl, $ffbb
+	ld hl, hScrollY
 	call Call_06_6E4F
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -5164,7 +5164,7 @@ Jump_06_6BDC::
 	ld a, l
 	ld [$c90b], a
 	ld a, h
-	ld [$c90c], a
+	ld [wCursorBlink], a
 	ld hl, $0014
 	ld b, $10
 
@@ -5194,82 +5194,82 @@ jr_006_6c29:
 	dec b
 	jr nz, jr_006_6c25
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
-	ld hl, $c100
+	ld hl, wLineScroll
 	ld b, $80
 
 jr_006_6c4a:
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	ld [hli], a
 	dec b
 	jr nz, jr_006_6c4a
 
 	ld a, $1e
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 Jump_06_6C56::
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	and $01
-	ld [$c8ec], a
-	ld a, [$c906]
+	ld [wMenuOverlay], a
+	ld a, [wMenuSubStep]
 	dec a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ld a, $01
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	di
 	ld a, $02
 	ldh [rLYC], a
 	ld a, $02
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ei
 	ret
 
 
 Jump_06_6C7B::
 	ld a, $01
-	ld [$c8ec], a
-	ld a, [$c8a6]
+	ld [wMenuOverlay], a
+	ld a, [wFieldTimer]
 	and $07
 	jr nz, Call_06_6CA3
 
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	swap a
 	and $0f
 	inc a
 	ld b, a
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	add b
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	cp $38
 	jr c, Call_06_6CA3
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c908], a
+	ld [wHatchSlot], a
 
 Call_06_6CA3::
-	ld a, [$c907]
-	ldh [$ffd5], a
-	ld a, [$c8a6]
+	ld a, [wItemsHandedIn]
+	ldh [hNumber], a
+	ld a, [wFieldTimer]
 	rra
 	rra
 	and $0f
 	ld e, a
 	ld d, $00
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $03
 	cp $00
 	jr nz, jr_006_6cc5
 
-	ld bc, $c100
+	ld bc, wLineScroll
 	ld a, $20
 	ldh [$ffd6], a
 	jp Jump_006_6ce8
@@ -5310,18 +5310,18 @@ jr_006_6ce8:
 	add hl, de
 	push bc
 	ld c, [hl]
-	ldh a, [$ffd5]
-	call Call_1DBE
+	ldh a, [hNumber]
+	call Multiply
 	pop bc
 	bit 3, e
 	jr z, jr_006_6d02
 
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	sub h
 	jr jr_006_6d05
 
 jr_006_6d02:
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	add h
 
 jr_006_6d05:
@@ -5339,23 +5339,23 @@ jr_006_6d05:
 	db $00, $60, $b6, $ec, $ff, $ec, $b6, $60, $00, $60, $b6, $ec, $ff, $ec, $b6, $60
 
 Jump_06_6D1F::
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $0f
 	jr nz, jr_006_6d3a
 
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	inc a
-	ld [$c908], a
+	ld [wHatchSlot], a
 	cp $04
 	jr nz, jr_006_6d3a
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ld a, $00
-	ld [$c892], a
+	ld [wLCDEffect], a
 
 jr_006_6d3a:
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	ld hl, $6d4e
 	add l
 	ld l, a
@@ -5363,7 +5363,7 @@ jr_006_6d3a:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$c89b], a
+	ld [wBGP], a
 	call Call_06_6CA3
 	ret
 
@@ -5371,25 +5371,25 @@ jr_006_6d3a:
 	db $d2, $81, $40, $00, $00
 
 Jump_06_6D53::
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
-	ld hl, $c88f
+	ld hl, wMapLoadState
 	inc [hl]
 	ld a, $28
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ld a, $00
-	ld [$c89b], a
+	ld [wBGP], a
 	ld a, $00
-	ld [$c89c], a
+	ld [wOBP0], a
 	ld a, $00
-	ld [$c89d], a
+	ld [wOBP1], a
 	ld a, $01
-	ld [$c8ec], a
-	ld a, [$c96e]
+	ld [wMenuOverlay], a
+	ld a, [wWarpOnGateFloor]
 	or a
 	ret nz
 
-	ld a, [$c96d]
+	ld a, [wWarpMap]
 	or a
 	ret nz
 
@@ -5410,16 +5410,16 @@ Jump_06_6D53::
 	ret z
 
 	ld a, $00
-	ld [$c8ec], a
-	ld hl, $c8eb
+	ld [wMenuOverlay], a
+	ld hl, wFieldFlags
 	res 5, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	di
 	ld a, $7f
 	ldh [rLYC], a
 	ld a, $01
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ei
 	ret
 
@@ -5437,39 +5437,39 @@ Jump_06_6E12::
 	ld a, $7f
 	ldh [rLYC], a
 	ld a, $01
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ei
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_006_6e26
 
 	xor a
-	ldh [$ff90], a
+	ldh [hPlayerFlags], a
 
 jr_006_6e26:
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
 Jump_06_6E2B::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	and $01
-	ld [$c8ec], a
-	ld a, [$c906]
+	ld [wMenuOverlay], a
+	ld a, [wMenuSubStep]
 	dec a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret nz
 
 	ld a, $00
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	xor a
-	ld [$c905], a
-	ld hl, $c8eb
+	ld [wMenuStep], a
+	ld hl, wFieldFlags
 	res 5, [hl]
 	ret
 
@@ -5507,11 +5507,11 @@ Call_06_6E6B::
 	ld a, [$c90b]
 	add l
 	ld l, a
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	adc h
 	and $03
 	ld h, a
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	and $fc
 	or h
 	ld h, a
@@ -5521,7 +5521,7 @@ Call_06_6E6B::
 Call_06_6E7F::
 	call Call_06_6E88
 	ld a, $e0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
@@ -5550,21 +5550,21 @@ jr_006_6e9d:
 
 Jump_06_6E9F::
 	ld a, $55
-	call Call_1B2C
-	ld hl, $ffb7
+	call QueueSound
+	ld hl, hScrollX
 	call Call_06_6E4F
-	ld hl, $ffbb
+	ld hl, hScrollY
 	call Call_06_6E4F
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -5580,7 +5580,7 @@ Jump_06_6E9F::
 	ld a, l
 	ld [$c90b], a
 	ld a, h
-	ld [$c90c], a
+	ld [wCursorBlink], a
 	ld hl, $0240
 	ld b, $0e
 
@@ -5610,57 +5610,57 @@ jr_006_6ee4:
 	dec b
 	jr nz, jr_006_6ee0
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
-	ld hl, $c100
+	ld hl, wLineScroll
 	ld b, $80
 
 jr_006_6f05:
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld [hli], a
 	dec b
 	jr nz, jr_006_6f05
 
 	ld a, $1e
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	call Call_06_7031
 	ret
 
 
 Jump_06_6F14::
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	and $01
-	ld [$c8ec], a
-	ld a, [$c906]
+	ld [wMenuOverlay], a
+	ld a, [wMenuSubStep]
 	dec a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ld hl, $0000
 	ld a, l
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	ld a, h
-	ld [$c908], a
+	ld [wHatchSlot], a
 	di
 	ld a, $02
 	ldh [rLYC], a
 	ld a, $03
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ei
 	ret
 
 
 Jump_06_6F3F::
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	add $20
-	ld [$c180], a
+	ld [wTextArg0], a
 	ld [$c181], a
 	ld [$c182], a
 	ld [$c183], a
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ld hl, $0000
 	ld de, $c140
 	ld bc, $c140
@@ -5671,31 +5671,31 @@ jr_006_6f5d:
 	cp $7c
 	jr c, jr_006_6f73
 
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	add $98
 	sub e
 	ld [de], a
 	inc de
 	dec bc
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	sub $08
 	sub c
 	ld [bc], a
 	jr jr_006_6f87
 
 jr_006_6f73:
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	add l
 	ld l, a
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	adc h
 	ld h, a
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	add h
 	ld [de], a
 	inc de
 	dec bc
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	sub h
 	ld [bc], a
 
@@ -5704,9 +5704,9 @@ jr_006_6f87:
 	or a
 	jr nz, jr_006_6f5d
 
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	ld l, a
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	ld h, a
 	ld a, h
 	cp $20
@@ -5724,29 +5724,29 @@ jr_006_6f87:
 	ld a, h
 	adc $00
 	ld h, a
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	ld c, a
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	ld b, a
 	add hl, bc
 	ld a, l
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	ld a, h
-	ld [$c908], a
+	ld [wHatchSlot], a
 	ret
 
 
 jr_006_6fbe:
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c908], a
+	ld [wHatchSlot], a
 	ret
 
 
 Jump_06_6FC7::
 	ld hl, $0000
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
@@ -5757,7 +5757,7 @@ Jump_06_6FC7::
 
 jr_006_6fd8:
 	ld a, $e0
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	add $20
 	ld l, a
@@ -5768,7 +5768,7 @@ jr_006_6fd8:
 	jr nz, jr_006_6fd8
 
 	ld hl, $0013
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	ld b, a
 	ld a, l
 	sub b
@@ -5781,7 +5781,7 @@ jr_006_6fd8:
 
 jr_006_6ffb:
 	ld a, $e0
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	add $20
 	ld l, a
@@ -5791,42 +5791,42 @@ jr_006_6ffb:
 	dec b
 	jr nz, jr_006_6ffb
 
-	ld hl, $c908
+	ld hl, wHatchSlot
 	inc [hl]
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	cp $0a
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c908], a
-	ldh a, [$ffbb]
+	ld [wHatchSlot], a
+	ldh a, [hScrollY]
 	ldh [rSCY], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	di
 	ld a, $7f
 	ldh [rLYC], a
 	ld a, $01
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ei
 	ret
 
 
 Call_06_7031::
 	ld a, $80
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld hl, $9c00
 	push hl
 	call Call_06_708A
 	pop hl
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
@@ -5838,7 +5838,7 @@ jr_006_704d:
 
 jr_006_7050:
 	ld a, $07
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -5875,7 +5875,7 @@ jr_006_7050:
 	jr nz, jr_006_704d
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
@@ -5883,7 +5883,7 @@ jr_006_7050:
 
 
 Call_06_708A::
-	ld de, $c1c0
+	ld de, wPartyBarTiles
 	ld c, $02
 
 jr_006_708f:
@@ -5892,7 +5892,7 @@ jr_006_708f:
 
 jr_006_7092:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af

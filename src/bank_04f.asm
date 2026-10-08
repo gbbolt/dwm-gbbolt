@@ -8,9 +8,9 @@ BankNumber_4F::
 	db $4f
 
 FarTable_4F::
-	dw Call_4F_5246
-	dw Call_4F_524D
-	dw Call_4F_5254
+	dw StartText_4F
+	dw CopyText_4F
+	dw PrintText_4F
 
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $ff, $7c, $ff, $82, $ff, $82, $ff
 	db $82, $ff, $82, $ff, $82, $ff, $7c, $ff, $00, $ff, $10, $ff, $30, $ff, $10, $ff
@@ -305,21 +305,21 @@ FarTable_4F::
 	db $67, $f9, $67, $21, $68, $40, $68, $94, $68, $ad, $68, $be, $68, $fe, $68, $2e
 	db $69, $6f, $69, $b2, $69, $e3, $69, $0a, $6a, $6d, $6a, $db, $6a, $3b, $6b
 
-Call_4F_5246::
+StartText_4F::
 	ld de, $5010
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_4F_524D::
+CopyText_4F::
 	ld de, $5010
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_4F_5254::
-	call Call_4F_5246
-	call Call_0609
+PrintText_4F::
+	call StartText_4F
+	call RunTextToEnd
 	ret
 
 

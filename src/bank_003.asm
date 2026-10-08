@@ -8,38 +8,38 @@ BankNumber_03::
 	db $03
 
 FarTable_03::
-	dw Call_03_4013
-	dw Call_03_443F
-	dw Call_03_6980
-	dw Call_03_69A2
-	dw Call_03_6E24
-	dw Call_03_7160
-	dw Call_03_7190
-	dw Call_03_71B6
-	dw Call_03_7134
+	dw SerialInterruptHandler
+	dw GetMonsterStats
+	dw GetItemData
+	dw CheckItemUsable
+	dw UseItem
+	dw CompactBag
+	dw AddItemToBag
+	dw RemoveItemFromBag
+	dw MaybeUseUpItem
 
-Call_03_4013::
-	ld a, [$c864]
+SerialInterruptHandler::
+	ld a, [wSerialLock]
 	bit 7, a
 	jr z, jr_003_4020
 
 	set 6, a
-	ld [$c864], a
+	ld [wSerialLock], a
 	ret
 
 
 jr_003_4020:
-	ld a, [$c865]
+	ld a, [wLinkMode]
 	rst $00
 
-JumpTable_03_4024::
-	dw Jump_03_402C
-	dw Jump_03_414D
-	dw Jump_03_4182
-	dw Jump_03_41B7
+SerialModeTable::
+	dw LinkHandshake
+	dw LinkTickMode1
+	dw LinkTickMode2
+	dw LinkTickMode3
 
-Jump_03_402C::
-	call Call_1220
+LinkHandshake::
+	call WaitSerialTransfer
 	ldh a, [rSB]
 	ld b, a
 	cp $f0
@@ -51,7 +51,7 @@ Jump_03_402C::
 	cp $f2
 	jr nz, jr_003_4049
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	cp $02
 	jr z, jr_003_405e
@@ -62,40 +62,40 @@ jr_003_4049:
 	cp $f3
 	jr nz, jr_003_4056
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	cp $03
 	jr z, jr_003_405e
 
 jr_003_4056:
 	ld a, $ff
-	ld [$c8df], a
-	jp Jump_003_4142
+	ld [wLinkRefused], a
+	jp LinkHandshakeReply
 
 
 jr_003_405e:
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	set 0, a
 	res 1, a
-	ld [$c863], a
+	ld [wLinkFlags], a
 	ld a, b
 	cp $f2
-	jp nz, Jump_003_4107
+	jp nz, StartLinkMode3
 
-	jp Jump_003_40c8
+	jp StartLinkMode2
 
 
 jr_003_4071:
 	ld hl, $a002
-	call Call_20EE
+	call ReadSRAMByte
 	or a
-	jp z, Jump_003_4142
+	jp z, LinkHandshakeReply
 
-	ld a, [$c88a]
+	ld a, [wGameMode]
 	or a
 	jr nz, jr_003_40b5
 
-	ld a, [$c88b]
+	ld a, [wGameModeStep]
 	cp $01
 	jr nz, jr_003_40b5
 
@@ -107,12 +107,12 @@ jr_003_4071:
 	cp $f0
 	jr nz, jr_003_40a2
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	cp $02
 	jr z, jr_003_40b8
 
 	ld a, $02
-	ld [$c8e0], a
+	ld [wLinkPartnerChoice], a
 	jr jr_003_40b5
 
 jr_003_40a2:
@@ -120,40 +120,40 @@ jr_003_40a2:
 	cp $f1
 	jr nz, jr_003_40b5
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	cp $03
 	jr z, jr_003_40b8
 
 	ld a, $03
-	ld [$c8e0], a
+	ld [wLinkPartnerChoice], a
 	jr jr_003_40b5
 
 jr_003_40b5:
-	jp Jump_003_4142
+	jp LinkHandshakeReply
 
 
 jr_003_40b8:
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	set 0, a
 	set 1, a
-	ld [$c863], a
+	ld [wLinkFlags], a
 	ld a, b
 	cp $f0
-	jp nz, Jump_003_4107
+	jp nz, StartLinkMode3
 
-Jump_003_40c8:
+StartLinkMode2::
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld a, $00
-	ld [$c841], a
+	ld [wJoy2Active], a
 	ld a, $01
-	ld [$c86c], a
+	ld [wLinkActive], a
 	di
-	call Call_21B2
+	call LoadGame
 	ei
-	ld hl, far_Call_01_4BC1
+	ld hl, far_HealAllMonsters
 	rst $10
-	ld hl, $c88a
+	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $02
@@ -161,30 +161,30 @@ Jump_003_40c8:
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $02
-	ld [$c865], a
+	ld [wLinkMode], a
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, $00
 	ld [$c867], a
 	xor a
 	ld [$c86d], a
-	jp Jump_003_4142
+	jp LinkHandshakeReply
 
 
-Jump_003_4107:
+StartLinkMode3::
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld a, $00
-	ld [$c841], a
+	ld [wJoy2Active], a
 	ld a, $01
-	ld [$c86c], a
+	ld [wLinkActive], a
 	di
-	call Call_21B2
+	call LoadGame
 	ei
-	ld hl, $c88a
+	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $03
@@ -192,428 +192,431 @@ Jump_003_4107:
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $03
-	ld [$c865], a
+	ld [wLinkMode], a
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, $00
 	ld [$c867], a
 	xor a
 	ld [$c86d], a
-	jp Jump_003_4142
+	jp LinkHandshakeReply
 
 
-Jump_003_4142:
+LinkHandshakeReply::
 	ld a, $03
-	ld [$c864], a
+	ld [wSerialLock], a
 	ld a, $f8
-	call Call_1275
+	call SerialSendSlave
 	ret
 
 
-Jump_03_414D::
-	ld a, [$c86c]
+LinkTickMode1::
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_003_415d
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 0, a
 	jr z, jr_003_415d
 
-	call Call_03_415E
+	call LinkPhaseMode1
 
 jr_003_415d:
 	ret
 
 
-Call_03_415E::
-	ld a, [$c866]
+LinkPhaseMode1::
+	ld a, [wLinkPhase]
 	rst $00
 
-JumpTable_03_4162::
-	dw Jump_03_4166
-	dw Jump_03_416A
+LinkPhaseTableMode1::
+	dw LinkSendMode1
+	dw LinkReceiveMode1
 
-Jump_03_4166::
-	call Call_03_42D5
+LinkSendMode1::
+	call LinkSendPhase
 	ret
 
 
-Jump_03_416A::
-	call Call_03_4387
-	ld hl, $c8a2
+LinkReceiveMode1::
+	call LinkReceivePhase
+	ld hl, wVBlankFlags
 	bit 7, [hl]
 	res 7, [hl]
 	ret nz
 
-	call Call_03_441B
+	call LinkFrameDone
 	ld hl, far_Call_50_5E49
 	rst $10
-	ld hl, $c8a2
+	ld hl, wVBlankFlags
 	res 1, [hl]
 	ret
 
 
-Jump_03_4182::
-	ld a, [$c86c]
+LinkTickMode2::
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_003_4192
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 0, a
 	jr z, jr_003_4192
 
-	call Call_03_4193
+	call LinkPhaseMode2
 
 jr_003_4192:
 	ret
 
 
-Call_03_4193::
-	ld a, [$c866]
+LinkPhaseMode2::
+	ld a, [wLinkPhase]
 	rst $00
 
-JumpTable_03_4197::
-	dw Jump_03_419B
-	dw Jump_03_419F
+LinkPhaseTableMode2::
+	dw LinkSendMode2
+	dw LinkReceiveMode2
 
-Jump_03_419B::
-	call Call_03_42D5
+LinkSendMode2::
+	call LinkSendPhase
 	ret
 
 
-Jump_03_419F::
-	call Call_03_4387
-	ld hl, $c8a2
+LinkReceiveMode2::
+	call LinkReceivePhase
+	ld hl, wVBlankFlags
 	bit 7, [hl]
 	res 7, [hl]
 	ret nz
 
-	call Call_03_441B
+	call LinkFrameDone
 	ld hl, far_Call_15_46D7
 	rst $10
-	ld hl, $c8a2
+	ld hl, wVBlankFlags
 	res 1, [hl]
 	ret
 
 
-Jump_03_41B7::
-	ld a, [$c86c]
+LinkTickMode3::
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_003_41c7
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 0, a
 	jr z, jr_003_41c7
 
-	call Call_03_41C8
+	call LinkPhaseMode3
 
 jr_003_41c7:
 	ret
 
 
-Call_03_41C8::
-	ld a, [$c866]
+LinkPhaseMode3::
+	ld a, [wLinkPhase]
 	rst $00
 
-JumpTable_03_41CC::
-	dw Jump_03_41D0
-	dw Jump_03_41D4
+LinkPhaseTableMode3::
+	dw LinkSendMode3
+	dw LinkReceiveMode3
 
-Jump_03_41D0::
-	call Call_03_42D5
+LinkSendMode3::
+	call LinkSendPhase
 	ret
 
 
-Jump_03_41D4::
-	call Call_03_4387
-	ld hl, $c8a2
+LinkReceiveMode3::
+	call LinkReceivePhase
+	ld hl, wVBlankFlags
 	bit 7, [hl]
 	res 7, [hl]
 	ret nz
 
-	call Call_03_441B
+	call LinkFrameDone
 	ld hl, far_Call_15_547C
 	rst $10
-	ld hl, $c8a2
+	ld hl, wVBlankFlags
 	res 1, [hl]
 	ret
 
 
+UnusedLinkSendPhase::
 	db $fa, $63, $c8, $cb, $4f, $20, $0a, $3e, $01, $ea, $66, $c8, $3e, $f9, $c3, $75
 	db $12, $fa, $a2, $c8, $cb, $4f, $20, $22, $f0, $01, $ea, $6a, $c8, $fa, $44, $c8
 	db $ea, $45, $c8, $fa, $6a, $c8, $ea, $44, $c8, $cd, $ee, $12, $cd, $64, $13, $3e
 	db $01, $ea, $66, $c8, $fa, $42, $c8, $c3, $6b, $12
 
-Jump_003_4226:
+LinkSendStall::
 	ld a, $20
 
 jr_003_4228:
 	dec a
 	jr nz, jr_003_4228
 
-	ld hl, $c8a2
+	ld hl, wVBlankFlags
 	set 2, [hl]
 	ld a, $01
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, $f3
-	jp Call_126B
+	jp SerialSendMaster
 
 
+UnusedLinkReceivePhase::
 	db $fa, $63, $c8, $cb, $4f, $20, $65, $fa, $c7, $c8, $b7, $20, $0c, $f0, $01, $ea
 	db $6a, $c8, $fe, $f3, $ca, $79, $42, $18, $05, $f0, $01, $ea, $6a, $c8, $21, $a2
 	db $c8, $cb, $ce, $fa, $44, $c8, $ea, $45, $c8, $fa, $6a, $c8, $ea, $44, $c8, $cd
 	db $64, $13, $cd, $1b, $44, $af, $ea, $66, $c8, $21, $a2, $c8, $cb, $8e, $c9
 
-Jump_003_4279:
-	ld a, [$c84e]
-	ld [$c842], a
-	ld a, [$c84f]
-	ld [$c843], a
-	ld a, [$c873]
+LinkPartnerStalled::
+	ld a, [wLinkJoyHeld]
+	ld [wJoyHeld], a
+	ld a, [wLinkJoyHeldLast]
+	ld [wJoyHeldLast], a
+	ld a, [wLinkSendByte]
 	cp $ff
 	jr nz, jr_003_429c
 
-	ld a, [$c874]
+	ld a, [wLinkSendPtr]
 	sub $01
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, [$c875]
 	sbc $00
 	ld [$c875], a
 
 jr_003_429c:
 	xor a
-	ld [$c866], a
-	ld hl, $c8a2
+	ld [wLinkPhase], a
+	ld hl, wVBlankFlags
 	set 7, [hl]
 	ret
 
 
+UnusedLinkReceiveMaster::
 	db $21, $a2, $c8, $cb, $56, $20, $14, $cb, $ce, $af, $ea, $66, $c8, $3e, $fa, $cd
 	db $75, $12, $cd, $1b, $44, $21, $a2, $c8, $cb, $8e, $c9
 
-Jump_003_42c1:
-	ld hl, $c8a2
+LinkStallAnswered::
+	ld hl, wVBlankFlags
 	res 2, [hl]
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, $fb
-	call Call_1275
-	ld hl, $c8a2
+	call SerialSendSlave
+	ld hl, wVBlankFlags
 	set 7, [hl]
 	ret
 
 
-Call_03_42D5::
-	ld a, [$c863]
+LinkSendPhase::
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_003_42e6
 
 	ld a, $01
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, $f9
-	jp Call_1275
+	jp SerialSendSlave
 
 
 jr_003_42e6:
-	ld a, [$c8a2]
+	ld a, [wVBlankFlags]
 	bit 1, a
-	jp nz, Jump_003_4226
+	jp nz, LinkSendStall
 
-	ld a, [$c873]
+	ld a, [wLinkSendByte]
 	cp $ff
 	jr z, jr_003_4311
 
 	ldh a, [rSB]
-	ld [$c86a], a
-	ld a, [$c86a]
-	ld [$c86e], a
-	call Call_12EE
-	call Call_1364
+	ld [wLinkReceived], a
+	ld a, [wLinkReceived]
+	ld [wLinkReceivedLast], a
+	call ReadJoypad
+	call UpdateJoypadPresses
 	ld a, $01
-	ld [$c866], a
-	ld a, [$c873]
-	jp Call_126B
+	ld [wLinkPhase], a
+	ld a, [wLinkSendByte]
+	jp SerialSendMaster
 
 
 jr_003_4311:
-	ld hl, $c871
+	ld hl, wLinkSendLength
 	ld a, [hli]
 	or [hl]
 	jr z, jr_003_436c
 
-	ld a, [$c86f]
+	ld a, [wLinkRecvPtr]
 	ld l, a
 	ld a, [$c870]
 	ld h, a
 	ldh a, [rSB]
 	ld [hl], a
-	call Call_12EE
-	call Call_1364
-	ld a, [$c86f]
+	call ReadJoypad
+	call UpdateJoypadPresses
+	ld a, [wLinkRecvPtr]
 	add $01
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, [$c870]
 	adc $00
 	ld [$c870], a
-	ld a, [$c871]
+	ld a, [wLinkSendLength]
 	sub $01
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	ld a, [$c872]
 	sbc $00
 	ld [$c872], a
-	ld a, [$c874]
+	ld a, [wLinkSendPtr]
 	ld l, a
 	ld a, [$c875]
 	ld h, a
 	push hl
-	ld a, [$c874]
+	ld a, [wLinkSendPtr]
 	add $01
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, [$c875]
 	adc $00
 	ld [$c875], a
 	pop hl
 	ld a, $01
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, [hl]
-	jp Call_126B
+	jp SerialSendMaster
 
 
 jr_003_436c:
 	ld a, $01
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ldh a, [rSB]
-	ld [$c86a], a
-	ld a, [$c86a]
-	ld [$c86e], a
-	call Call_12EE
-	call Call_1364
+	ld [wLinkReceived], a
+	ld a, [wLinkReceived]
+	ld [wLinkReceivedLast], a
+	call ReadJoypad
+	call UpdateJoypadPresses
 	ld a, $f0
-	jp Call_126B
+	jp SerialSendMaster
 
 
-Call_03_4387::
-	ld a, [$c863]
+LinkReceivePhase::
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_003_4407
 
-	ld a, [$c8c7]
+	ld a, [wLinkNoEnd]
 	or a
 	jr nz, jr_003_43a0
 
 	ldh a, [rSB]
-	ld [$c86a], a
+	ld [wLinkReceived], a
 	cp $f3
-	jp z, Jump_003_4279
+	jp z, LinkPartnerStalled
 
 	jr jr_003_43a5
 
 jr_003_43a0:
 	ldh a, [rSB]
-	ld [$c86a], a
+	ld [wLinkReceived], a
 
 jr_003_43a5:
-	ld hl, $c8a2
+	ld hl, wVBlankFlags
 	set 1, [hl]
-	ld a, [$c873]
+	ld a, [wLinkSendByte]
 	cp $ff
 	jr z, jr_003_43bf
 
-	ld a, [$c86a]
-	ld [$c86e], a
-	call Call_1364
+	ld a, [wLinkReceived]
+	ld [wLinkReceivedLast], a
+	call UpdateJoypadPresses
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ret
 
 
 jr_003_43bf:
-	ld hl, $c871
+	ld hl, wLinkSendLength
 	ld a, [hli]
 	or [hl]
 	jr z, jr_003_43f9
 
-	ld a, [$c86f]
+	ld a, [wLinkRecvPtr]
 	ld l, a
 	ld a, [$c870]
 	ld h, a
 	ldh a, [rSB]
 	ld [hl], a
-	call Call_1364
-	ld a, [$c86f]
+	call UpdateJoypadPresses
+	ld a, [wLinkRecvPtr]
 	add $01
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, [$c870]
 	adc $00
 	ld [$c870], a
-	ld a, [$c871]
+	ld a, [wLinkSendLength]
 	sub $01
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	ld a, [$c872]
 	sbc $00
 	ld [$c872], a
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ret
 
 
 jr_003_43f9:
-	ld a, [$c86a]
-	ld [$c86e], a
-	call Call_1364
+	ld a, [wLinkReceived]
+	ld [wLinkReceivedLast], a
+	call UpdateJoypadPresses
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ret
 
 
 jr_003_4407:
-	ld hl, $c8a2
+	ld hl, wVBlankFlags
 	bit 2, [hl]
-	jp nz, Jump_003_42c1
+	jp nz, LinkStallAnswered
 
 	set 1, [hl]
 	xor a
-	ld [$c866], a
+	ld [wLinkPhase], a
 	ld a, $fa
-	call Call_1275
+	call SerialSendSlave
 	ret
 
 
-Call_03_441B::
-	ld a, [$c825]
+LinkFrameDone::
+	ld a, [wTextState]
 	or a
 	jr z, jr_003_4424
 
-	call Call_0618
+	call UpdateText
 
 jr_003_4424:
-	call Call_17EC
-	ld a, [$c8a4]
+	call UpdateFade
+	ld a, [wFrameCounter]
 	add $01
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld a, [$c8a5]
 	adc $00
 	ld [$c8a5], a
 	xor a
-	ld [$c8c8], a
+	ld [wLinkTimeout], a
 	ld [$c8c9], a
 	ret
 
 
-Call_03_443F::
-	ld de, $da33
-	call Call_03_4446
+GetMonsterStats::
+	ld de, wMonStats
+	call CopyMonsterStats
 	ret
 
 
-Call_03_4446::
+CopyMonsterStats::
 	push de
-	ld a, [$da31]
+	ld a, [wMonSpecies]
 	ld c, $2b
-	call Call_1DBE
+	call Multiply
 	ld a, l
 	add $61
 	ld l, a
@@ -633,6 +636,7 @@ jr_003_445a:
 	ret
 
 
+MonsterStats::
 	db $00, $2d, $0d, $02, $00, $00, $43, $5c, $d5, $10, $0a, $0d, $08, $14, $10, $01
 	db $01, $01, $00, $00, $00, $02, $02, $02, $02, $02, $02, $02, $02, $03, $02, $02
 	db $01, $00, $01, $00, $00, $00, $00, $00, $00, $00, $04, $00, $23, $0a, $02, $00
@@ -1228,17 +1232,17 @@ jr_003_445a:
 	db $00, $00, $00, $02, $02, $02, $02, $02, $02, $02, $02, $03, $01, $01, $02, $02
 	db $01, $01, $00, $03, $03, $02, $03, $02, $02, $01, $01, $02, $02, $00, $07
 
-Call_03_6980::
-	ld de, $da62
-	call Call_03_6987
+GetItemData::
+	ld de, wItemData
+	call CopyItemData
 	ret
 
 
-Call_03_6987::
+CopyItemData::
 	push de
-	ld a, [$da5e]
+	ld a, [wItemId]
 	ld c, $0c
-	call Call_1DBE
+	call Multiply
 	ld a, l
 	add $da
 	ld l, a
@@ -1258,75 +1262,75 @@ jr_003_699b:
 	ret
 
 
-Call_03_69A2::
-	ld a, [$da5e]
+CheckItemUsable::
+	ld a, [wItemId]
 	cp $ff
 	ret z
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	rst $00
 
-JumpTable_03_69AC::
-	dw Jump_03_6A04
-	dw Jump_03_6A05
-	dw Jump_03_6A05
-	dw Jump_03_6A2C
-	dw Jump_03_6A2C
-	dw Jump_03_6B29
-	dw Jump_03_6B29
-	dw Jump_03_6B50
-	dw Jump_03_6B66
-	dw Jump_03_6B7C
-	dw Jump_03_6B92
-	dw Jump_03_6BA8
-	dw Jump_03_6BBE
-	dw Jump_03_6BD0
-	dw Jump_03_6BE4
-	dw Jump_03_6BF8
-	dw Jump_03_6C0C
-	dw Jump_03_6C20
-	dw Jump_03_6C34
-	dw Jump_03_6C48
-	dw Jump_03_6C48
-	dw Jump_03_6C48
-	dw Jump_03_6C48
-	dw Jump_03_6C48
-	dw Jump_03_6C4C
-	dw Jump_03_6C4C
-	dw Jump_03_6C4C
-	dw Jump_03_6C4C
-	dw Jump_03_6C4C
-	dw Jump_03_6C4C
-	dw Jump_03_6C4C
-	dw Jump_03_6C4D
-	dw Jump_03_6C63
-	dw Jump_03_6C78
-	dw Jump_03_6C8E
-	dw Jump_03_6CA3
-	dw Jump_03_6CB9
-	dw Jump_03_6CCE
-	dw Jump_03_6CCF
-	dw Jump_03_6DC0
-	dw Jump_03_6DCD
-	dw Jump_03_6DDF
-	dw Jump_03_6DDF
-	dw Jump_03_6DEA
+ItemCheckTable::
+	dw ItemCheckNone
+	dw ItemCheckHealOne
+	dw ItemCheckHealOne
+	dw ItemCheckHealParty
+	dw ItemCheckHealParty
+	dw ItemCheckRestoreMP
+	dw ItemCheckRestoreMP
+	dw ItemCheckStatus2
+	dw ItemCheckStatus3
+	dw ItemCheckStatus4
+	dw ItemCheckStatus0
+	dw ItemCheckStatus1
+	dw ItemCheckRevive
+	dw ItemCheckMaxHP
+	dw ItemCheckMaxMP
+	dw ItemCheckAttack
+	dw ItemCheckDefense
+	dw ItemCheckAgility
+	dw ItemCheckIntelligence
+	dw ItemCheckAlive
+	dw ItemCheckAlive
+	dw ItemCheckAlive
+	dw ItemCheckAlive
+	dw ItemCheckAlive
+	dw ItemCheckAlways
+	dw ItemCheckAlways
+	dw ItemCheckAlways
+	dw ItemCheckAlways
+	dw ItemCheckAlways
+	dw ItemCheckAlways
+	dw ItemCheckAlways
+	dw ItemCheckCB25Max
+	dw ItemCheckCB25Min
+	dw ItemCheckCB26Max
+	dw ItemCheckCB26Min
+	dw ItemCheckCB28Max
+	dw ItemCheckCB28Min
+	dw ItemCheckAlways2
+	dw ItemCheckDirection
+	dw ItemCheckInWorld
+	dw ItemCheckInWorldOnce
+	dw ItemCheckInWorld2
+	dw ItemCheckInWorld2
+	dw ItemCheckEscape
 
-Jump_03_6A04::
+ItemCheckNone::
 	ret
 
 
-Jump_03_6A05::
-	call Call_03_6E11
+ItemCheckHealOne::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1339,28 +1343,28 @@ Jump_03_6A05::
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6A2C::
-	ld a, [$ca8d]
+ItemCheckHealParty::
+	ld a, [wPartyCount]
 	or a
-	jp z, Jump_003_6ab9
+	jp z, ItemCheckFails
 
 	ld a, $00
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	jr nz, jr_003_6a5b
 
 	ld a, $00
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $00
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1373,23 +1377,23 @@ Jump_03_6A2C::
 	jr nz, jr_003_6abf
 
 jr_003_6a5b:
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $01
 	jr z, jr_003_6ab9
 
 	ld a, $01
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	jr nz, jr_003_6a8a
 
 	ld a, $01
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $01
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1402,23 +1406,23 @@ jr_003_6a5b:
 	jr nz, jr_003_6abf
 
 jr_003_6a8a:
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $02
 	jr z, jr_003_6ab9
 
 	ld a, $02
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	jr nz, jr_003_6ab9
 
 	ld a, $02
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $02
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1430,48 +1434,48 @@ jr_003_6a8a:
 	or l
 	jr nz, jr_003_6abf
 
-Jump_003_6ab9:
+ItemCheckFails:
 jr_003_6ab9:
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 jr_003_6abf:
 	ld d, $00
 	ld a, $00
-	call Call_03_6AD7
+	call AddHurtMonsterName
 	ld a, $01
-	call Call_03_6AD7
+	call AddHurtMonsterName
 	ld a, $02
-	call Call_03_6AD7
+	call AddHurtMonsterName
 	ld a, $26
 	add d
-	ld [$da6a], a
+	ld [wItemMessage], a
 	ret
 
 
-Call_03_6AD7::
-	ld [$da60], a
-	ld hl, $ca8d
+AddHurtMonsterName::
+	ld [wItemTarget], a
+	ld hl, wPartyCount
 	cp [hl]
 	ret nc
 
 	push de
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	pop de
 	ret nz
 
 	push de
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	pop de
 	ld a, l
@@ -1487,36 +1491,36 @@ Call_03_6AD7::
 	push de
 	ld a, d
 	swap a
-	ld hl, $c1b0
+	ld hl, wTextArgs
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	push hl
-	ld a, [$da60]
-	ld hl, $cac2
-	call Call_2229
+	ld a, [wItemTarget]
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
-	call Call_0C80
+	call CopyName
 	pop de
 	inc d
 	ret
 
 
-Jump_03_6B29::
-	call Call_03_6E11
+ItemCheckRestoreMP::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb17
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxMP
+	call GetPartyMonsterWord
 	push bc
-	ld a, [$da60]
-	ld hl, $cb15
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1529,280 +1533,280 @@ Jump_03_6B29::
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6B50::
-	call Call_03_6E11
+ItemCheckStatus2::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 2, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6B66::
-	call Call_03_6E11
+ItemCheckStatus3::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 3, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6B7C::
-	call Call_03_6E11
+ItemCheckStatus4::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 4, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6B92::
-	call Call_03_6E11
+ItemCheckStatus0::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 0, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6BA8::
-	call Call_03_6E11
+ItemCheckStatus1::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 1, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6BBE::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+ItemCheckRevive::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6BD0::
-	call Call_03_6E11
+ItemCheckMaxHP::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	ld hl, $03e7
-	call Call_03_7110
+	call CheckStatRoom
 	ret
 
 
-Jump_03_6BE4::
-	call Call_03_6E11
+ItemCheckMaxMP::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb17
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxMP
+	call GetPartyMonsterWord
 	ld hl, $03e7
-	call Call_03_7110
+	call CheckStatRoom
 	ret
 
 
-Jump_03_6BF8::
-	call Call_03_6E11
+ItemCheckAttack::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb19
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonAttack
+	call GetPartyMonsterWord
 	ld hl, $03e7
-	call Call_03_7110
+	call CheckStatRoom
 	ret
 
 
-Jump_03_6C0C::
-	call Call_03_6E11
+ItemCheckDefense::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb1b
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonDefense
+	call GetPartyMonsterWord
 	ld hl, $03e7
-	call Call_03_7110
+	call CheckStatRoom
 	ret
 
 
-Jump_03_6C20::
-	call Call_03_6E11
+ItemCheckAgility::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb1d
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonAgility
+	call GetPartyMonsterWord
 	ld hl, $01ff
-	call Call_03_7110
+	call CheckStatRoom
 	ret
 
 
-Jump_03_6C34::
-	call Call_03_6E11
+ItemCheckIntelligence::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb1f
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonIntelligence
+	call GetPartyMonsterWord
 	ld hl, $00ff
-	call Call_03_7110
+	call CheckStatRoom
 	ret
 
 
-Jump_03_6C48::
-	call Call_03_6E11
+ItemCheckAlive::
+	call CheckTargetDead
 	ret nz
 
-Jump_03_6C4C::
+ItemCheckAlways::
 	ret
 
 
-Jump_03_6C4D::
-	call Call_03_6E11
+ItemCheckCB25Max::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb25
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStat64
+	call GetPartyMonsterByte
 	cp $ff
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6C63::
-	call Call_03_6E11
+ItemCheckCB25Min::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb25
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStat64
+	call GetPartyMonsterByte
 	or a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6C78::
-	call Call_03_6E11
+ItemCheckCB26Max::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb26
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStat65
+	call GetPartyMonsterByte
 	cp $ff
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6C8E::
-	call Call_03_6E11
+ItemCheckCB26Min::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb26
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStat65
+	call GetPartyMonsterByte
 	or a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6CA3::
-	call Call_03_6E11
+ItemCheckCB28Max::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb28
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStat67
+	call GetPartyMonsterByte
 	cp $ff
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6CB9::
-	call Call_03_6E11
+ItemCheckCB28Min::
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb28
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStat67
+	call GetPartyMonsterByte
 	or a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6CCE::
+ItemCheckAlways2::
 	ret
 
 
-Jump_03_6CCF::
-	ldh a, [$ff95]
+ItemCheckDirection::
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	ld a, l
 	and $f0
 	ld l, a
-	ld a, [$c966]
+	ld a, [wGoalY]
 	ld e, a
 	ld a, [$c967]
 	ld d, a
@@ -1827,14 +1831,14 @@ Jump_03_6CCF::
 	ld h, a
 
 jr_003_6cf7:
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
 	ld a, e
 	and $f0
 	ld e, a
-	ld a, [$c964]
+	ld a, [wGoalX]
 	ld c, a
 	ld a, [$c965]
 	ld b, a
@@ -1892,11 +1896,11 @@ jr_003_6d37:
 	jr jr_003_6d64
 
 jr_003_6d44:
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
-	ld a, [$c966]
+	ld a, [wGoalY]
 	ld e, a
 	ld a, [$c967]
 	ld d, a
@@ -1950,11 +1954,11 @@ jr_003_6d7c:
 	jr jr_003_6da9
 
 jr_003_6d89:
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
-	ld a, [$c964]
+	ld a, [wGoalX]
 	ld e, a
 	ld a, [$c965]
 	ld d, a
@@ -1979,19 +1983,19 @@ jr_003_6da9:
 	add $3a
 	ld l, a
 	ld h, $02
-	ld de, $c1b0
-	call Call_097A
-	ld a, [$c969]
+	ld de, wTextArgs
+	call CopySystemText
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6DC0::
-	ld a, [$c969]
+ItemCheckInWorld::
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_003_6dc7
 
@@ -2000,41 +2004,41 @@ Jump_03_6DC0::
 
 jr_003_6dc7:
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6DCD::
-	ld a, [$c93e]
+ItemCheckInWorldOnce::
+	ld a, [wWorldFlags]
 	bit 1, a
 	jr nz, jr_003_6dd9
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
 jr_003_6dd9:
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6DDF::
-	ld a, [$c969]
+ItemCheckInWorld2::
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Jump_03_6DEA::
-	ld a, [$c969]
+ItemCheckEscape::
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $53
 	jr c, jr_003_6e0b
 
@@ -2058,496 +2062,496 @@ Jump_03_6DEA::
 
 jr_003_6e0b:
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Call_03_6E11::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+CheckTargetDead::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	ret z
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	or a
 	ret
 
 
-Call_03_6E24::
-	ld a, [$da5e]
+UseItem::
+	ld a, [wItemId]
 	cp $ff
 	ret z
 
-	call Call_03_6980
-	ld a, [$da5e]
+	call GetItemData
+	ld a, [wItemId]
 	rst $00
 
-JumpTable_03_6E31::
-	dw Jump_03_6E89
-	dw Jump_03_6E8A
-	dw Jump_03_6E8A
-	dw Jump_03_6EA8
-	dw Jump_03_6EDF
-	dw Jump_03_6F11
-	dw Jump_03_6F2F
-	dw Jump_03_6F45
-	dw Jump_03_6F54
-	dw Jump_03_6F63
-	dw Jump_03_6F72
-	dw Jump_03_6F81
-	dw Jump_03_6F90
-	dw Jump_03_6FB5
-	dw Jump_03_6FC5
-	dw Jump_03_6FD5
-	dw Jump_03_6FE5
-	dw Jump_03_6FF5
-	dw Jump_03_7005
-	dw Jump_03_7015
-	dw Jump_03_7015
-	dw Jump_03_7015
-	dw Jump_03_7025
-	dw Jump_03_7040
-	dw Jump_03_7050
-	dw Jump_03_7051
-	dw Jump_03_7052
-	dw Jump_03_7053
-	dw Jump_03_7054
-	dw Jump_03_7055
-	dw Jump_03_7059
-	dw Jump_03_705A
-	dw Jump_03_706A
-	dw Jump_03_707A
-	dw Jump_03_708A
-	dw Jump_03_709A
-	dw Jump_03_70AA
-	dw Jump_03_70BA
-	dw Jump_03_70BB
-	dw Jump_03_70BF
-	dw Jump_03_70C3
-	dw Jump_03_70CC
-	dw Jump_03_70E6
-	dw Jump_03_70F5
+ItemUseTable::
+	dw ItemUseNone
+	dw ItemUseHealOne
+	dw ItemUseHealOne
+	dw ItemUseHealParty
+	dw ItemUseFullHealParty
+	dw ItemUseRestoreMP
+	dw ItemUseFullMP
+	dw ItemUseCureStatus2
+	dw ItemUseCureStatus3
+	dw ItemUseCureStatus4
+	dw ItemUseCureStatus0
+	dw ItemUseCureStatus1
+	dw ItemUseRevive
+	dw ItemUseRaiseMaxHP
+	dw ItemUseRaiseMaxMP
+	dw ItemUseRaiseAttack
+	dw ItemUseRaiseDefense
+	dw ItemUseRaiseAgility
+	dw ItemUseRaiseIntelligence
+	dw ItemUseCall2379
+	dw ItemUseCall2379
+	dw ItemUseCall2379
+	dw ItemUseCall2379Status2
+	dw ItemUseCall2379B
+	dw ItemUseNothing24
+	dw ItemUseNothing25
+	dw ItemUseNothing26
+	dw ItemUseNothing27
+	dw ItemUseNothing28
+	dw ItemUseOnlyUseUp
+	dw ItemUseNothing30
+	dw ItemUseRaiseCB25
+	dw ItemUseLowerCB25
+	dw ItemUseRaiseCB26
+	dw ItemUseLowerCB26
+	dw ItemUseRaiseCB28
+	dw ItemUseLowerCB28
+	dw ItemUseNothing37
+	dw ItemUseDirection
+	dw ItemUseOnlyUseUp39
+	dw ItemUseSetWorldFlag
+	dw ItemUseEscape
+	dw ItemUseRevealFloors
+	dw ItemUseAskSave
 
-Jump_03_6E89::
+ItemUseNone::
 	ret
 
 
-Jump_03_6E8A::
-	call Call_12D0
-	ld a, [$c899]
+ItemUseHealOne::
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
-	call Call_1DFB
+	call Divide8
 	ld b, a
-	ld a, [$da6b]
+	ld a, [wItemPower]
 	add b
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_22A0
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call HealPartyHP
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6EA8::
+ItemUseHealParty::
 	ld a, $00
-	ld [$da60], a
-	call Call_03_6EC4
+	ld [wItemTarget], a
+	call HealTargetRandom
 	ld a, $01
-	ld [$da60], a
-	call Call_03_6EC4
+	ld [wItemTarget], a
+	call HealTargetRandom
 	ld a, $02
-	ld [$da60], a
-	call Call_03_6EC4
-	call Call_03_7134
+	ld [wItemTarget], a
+	call HealTargetRandom
+	call MaybeUseUpItem
 	ret
 
 
-Call_03_6EC4::
-	call Call_12D0
-	ld a, [$c899]
+HealTargetRandom::
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
-	call Call_1DFB
+	call Divide8
 	ld b, a
-	ld a, [$da6b]
+	ld a, [wItemPower]
 	add b
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_22A0
+	ld a, [wItemTarget]
+	call HealPartyHP
 	ret
 
 
-Jump_03_6EDF::
+ItemUseFullHealParty::
 	ld a, $00
-	call Call_03_6EF2
+	call FullHealMonster
 	ld a, $01
-	call Call_03_6EF2
+	call FullHealMonster
 	ld a, $02
-	call Call_03_6EF2
-	call Call_03_7134
+	call FullHealMonster
+	call MaybeUseUpItem
 	ret
 
 
-Call_03_6EF2::
-	ld hl, $ca8d
+FullHealMonster::
+	ld hl, wPartyCount
 	cp [hl]
 	ret nc
 
-	ld [$da60], a
-	call Call_03_6E11
+	ld [wItemTarget], a
+	call CheckTargetDead
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_225D
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 	ret
 
 
-Jump_03_6F11::
-	call Call_12D0
-	ld a, [$c899]
+ItemUseRestoreMP::
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
-	call Call_1DFB
+	call Divide8
 	ld b, a
-	ld a, [$da6b]
+	ld a, [wItemPower]
 	add b
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_22D2
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RestorePartyMP
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F2F::
-	ld a, [$da60]
-	ld hl, $cb17
-	call Call_224F
-	ld a, [$da60]
-	ld hl, $cb15
-	call Call_225D
-	call Call_03_7134
+ItemUseFullMP::
+	ld a, [wItemTarget]
+	ld hl, wMonMaxMP
+	call GetPartyMonsterWord
+	ld a, [wItemTarget]
+	ld hl, wMonMP
+	call SetPartyMonsterWord
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F45::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+ItemUseCureStatus2::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 2, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F54::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+ItemUseCureStatus3::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 3, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F63::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+ItemUseCureStatus4::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 4, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F72::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+ItemUseCureStatus0::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 0, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F81::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+ItemUseCureStatus1::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 1, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6F90::
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+ItemUseRevive::
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	ld [hl], $00
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_225D
-	ld hl, far_Call_01_484E
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call SetPartyMonsterWord
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6FB5::
-	ld a, [$da6b]
+ItemUseRaiseMaxHP::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_23E6
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyMaxHP
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6FC5::
-	ld a, [$da6b]
+ItemUseRaiseMaxMP::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2400
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyMaxMP
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6FD5::
-	ld a, [$da6b]
+ItemUseRaiseAttack::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2304
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyAttack
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6FE5::
-	ld a, [$da6b]
+ItemUseRaiseDefense::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_231E
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyDefense
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_6FF5::
-	ld a, [$da6b]
+ItemUseRaiseAgility::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2338
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyAgility
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_7005::
-	ld a, [$da6b]
+ItemUseRaiseIntelligence::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2352
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyIntelligence
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_7015::
-	ld a, [$da6b]
+ItemUseCall2379::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2379
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call LowerPartyWildness
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_7025::
-	ld a, [$da6b]
+ItemUseCall2379Status2::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2379
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wItemTarget]
+	call LowerPartyWildness
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	set 2, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_7040::
-	ld a, [$da6b]
+ItemUseCall2379B::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2379
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call LowerPartyWildness
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_7050::
+ItemUseNothing24::
 	ret
 
 
-Jump_03_7051::
+ItemUseNothing25::
 	ret
 
 
-Jump_03_7052::
+ItemUseNothing26::
 	ret
 
 
-Jump_03_7053::
+ItemUseNothing27::
 	ret
 
 
-Jump_03_7054::
+ItemUseNothing28::
 	ret
 
 
-Jump_03_7055::
-	call Call_03_7134
+ItemUseOnlyUseUp::
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_7059::
+ItemUseNothing30::
 	ret
 
 
-Jump_03_705A::
-	ld a, [$da6b]
+ItemUseRaiseCB25::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2386
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyStat64
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_706A::
-	ld a, [$da6b]
+ItemUseLowerCB25::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_2392
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call LowerPartyStat64
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_707A::
-	ld a, [$da6b]
+ItemUseRaiseCB26::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_23CE
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyStat65
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_708A::
-	ld a, [$da6b]
+ItemUseLowerCB26::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_23DA
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call LowerPartyStat65
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_709A::
-	ld a, [$da6b]
+ItemUseRaiseCB28::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_239E
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call RaisePartyStat67
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70AA::
-	ld a, [$da6b]
+ItemUseLowerCB28::
+	ld a, [wItemPower]
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_23AA
-	call Call_03_7134
+	ld a, [wItemTarget]
+	call LowerPartyStat67
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70BA::
+ItemUseNothing37::
 	ret
 
 
-Jump_03_70BB::
-	call Call_03_7134
+ItemUseDirection::
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70BF::
-	call Call_03_7134
+ItemUseOnlyUseUp39::
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70C3::
-	ld hl, $c93e
+ItemUseSetWorldFlag::
+	ld hl, wWorldFlags
 	set 1, [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70CC::
-	ld hl, far_Call_01_683E
+ItemUseEscape::
+	ld hl, far_RollEncounterGroup
 	rst $10
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $00
-	ld [$da09], a
-	ld hl, $c90d
+	ld [wBattleKind], a
+	ld hl, wStatusViewVars
 	inc [hl]
-	call Call_03_7134
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70E6::
-	ld hl, $c950
+ItemUseRevealFloors::
+	ld hl, wFloorsSeen
 	ld bc, $0010
 	ld a, $01
-	call Call_12C7
-	call Call_03_7134
+	call FillMemory
+	call MaybeUseUpItem
 	ret
 
 
-Jump_03_70F5::
-	ld a, [$c83c]
+ItemUseAskSave::
+	ld a, [wTextChoice]
 	or a
 	jr nz, jr_003_710f
 
-	call Call_03_7134
+	call MaybeUseUpItem
 	di
-	call Call_2128
+	call SaveGame
 	ei
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld h, $0d
 	ld l, $2f
-	call Call_096D
+	call PrintSystemText
 
 jr_003_710f:
 	ret
 
 
-Call_03_7110::
+CheckStatRoom::
 	ld a, l
 	sub c
 	ld l, a
@@ -2560,7 +2564,7 @@ Call_03_7110::
 
 	ld a, h
 	or a
-	ld a, [$da6b]
+	ld a, [wItemPower]
 	jr nz, jr_003_7127
 
 	cp l
@@ -2571,46 +2575,46 @@ Call_03_7110::
 	ld a, l
 
 jr_003_7127:
-	ld hl, $c1b0
-	call Call_09A4
+	ld hl, wTextArgs
+	call ByteToDecimal
 	ret
 
 
 jr_003_712e:
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Call_03_7134::
-	call Call_12D0
-	ld a, [$c899]
+MaybeUseUpItem::
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
-	call Call_1E0D
-	ld hl, $da65
+	call Divide16
+	ld hl, wItemUseUpChance
 	cp [hl]
 	ret nc
 
 	ld a, $ff
-	ld [$da5e], a
-	ld a, [$da5f]
-	ld hl, $ca51
+	ld [wItemId], a
+	ld a, [wItemBagSlot]
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $ff
-	call Call_03_7160
+	call CompactBag
 	ret
 
 
-Call_03_7160::
-	ld hl, $c0d8
-	ld de, $ca51
+CompactBag::
+	ld hl, wSceneObjects
+	ld de, wBagItems
 	ld b, $14
 
 jr_003_7168:
@@ -2620,12 +2624,12 @@ jr_003_7168:
 	dec b
 	jr nz, jr_003_7168
 
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $ca51
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wBagItems
 	ld b, $14
 
 jr_003_7181:
@@ -2646,15 +2650,15 @@ jr_003_718c:
 	ret
 
 
-Call_03_7190::
-	ld a, [$da5e]
+AddItemToBag::
+	ld a, [wItemId]
 	cp $00
 	ret z
 
 	cp $ff
 	ret z
 
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_003_719e:
@@ -2670,29 +2674,29 @@ jr_003_719e:
 	jr nz, jr_003_719e
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 jr_003_71b1:
-	ld a, [$da5e]
+	ld a, [wItemId]
 	ld [hl], a
 	ret
 
 
-Call_03_71B6::
-	ld a, [$da5e]
+RemoveItemFromBag::
+	ld a, [wItemId]
 	cp $00
 	ret z
 
 	cp $ff
 	ret z
 
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_003_71c4:
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp [hl]
 	jr z, jr_003_71d4
 
@@ -2701,16 +2705,17 @@ jr_003_71c4:
 	jr nz, jr_003_71c4
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 jr_003_71d4:
 	ld [hl], $ff
-	call Call_03_7160
+	call CompactBag
 	ret
 
 
+ItemData::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $08, $00, $64
 	db $00, $04, $00, $03, $04, $1e, $28, $00, $00, $50, $00, $64, $00, $04, $01, $03
 	db $04, $3c, $46, $00, $00, $e8, $03, $14, $02, $05, $00, $05, $04, $2d, $37, $00
@@ -2744,6 +2749,7 @@ jr_003_71d4:
 	db $07, $c8, $00, $64, $01, $01, $07, $1e, $2b, $00, $00, $00, $07, $b8, $0b, $00
 	db $01, $01, $07, $2c, $00, $00, $00, $04, $07, $46, $00, $64, $01, $01, $07, $1e
 	db $2d, $00, $00, $00, $07, $64, $00, $64, $01, $07, $07, $1e, $2e, $00, $00, $04
+UnusedBank03Data::
 	db $af, $ea, $c7, $cd, $cd, $09, $74, $21, $c1, $cd, $06, $05, $2a, $3c, $c2, $c1
 	db $68, $05, $20, $f8, $3e, $40, $ea, $80, $cd, $3e, $12, $ea, $b4, $cc, $c9, $fa
 	db $c0, $cd, $c7, $15, $74, $15, $74, $2e, $74, $3d, $74, $21, $08, $cb, $11, $c1

@@ -8,26 +8,27 @@ BankNumber_04::
 	db $04
 
 FarTable_04::
-	dw Call_04_400F
-	dw Call_04_4016
-	dw Call_04_4081
-	dw Call_04_40A7
+	dw DrawFieldMarker
+	dw DrawFieldMarkerOnScreen
+	dw DrawActorSprite
+	dw DrawActorSpriteOnScreen
 	dw $4167
-	dw Call_04_55EC
+	dw StartScript
 	dw $56fa
 
-Call_04_400F::
+DrawFieldMarker::
 	ld de, $401d
-	call Call_0D91
+	call DrawMetasprite
 	ret
 
 
-Call_04_4016::
+DrawFieldMarkerOnScreen::
 	ld de, $401d
-	call Call_04_40CD
+	call DrawScreenMetasprite
 	ret
 
 
+FieldMarkerSprites::
 	db $23, $40, $2a, $40, $3d, $40, $25, $40, $00, $00, $00, $00, $80, $2c, $40, $00
 	db $00, $00, $10, $00, $08, $01, $10, $08, $00, $02, $10, $08, $08, $03, $10, $80
 	db $45, $40, $4e, $40, $63, $40, $70, $40, $00, $00, $90, $00, $08, $00, $91, $00
@@ -36,76 +37,76 @@ Call_04_4016::
 	db $02, $00, $80, $00, $00, $00, $00, $00, $08, $01, $00, $08, $00, $10, $00, $08
 	db $08, $11, $00, $80
 
-Call_04_4081::
-	ldh a, [$ffc7]
+DrawActorSprite::
+	ldh a, [hSpriteSet]
 	cp $90
 	jr nc, jr_004_409e
 
 	cp $10
 	jr nc, jr_004_4095
 
-	call Call_04_4126
+	call SetActorSpritePalette
 	ld de, $4137
-	call Call_0D91
+	call DrawMetasprite
 	ret
 
 
 jr_004_4095:
 	sub $10
-	ldh [$ffc7], a
-	ld hl, far_Call_10_4005
+	ldh [hSpriteSet], a
+	ld hl, far_DrawFieldSprite_10
 	rst $10
 	ret
 
 
 jr_004_409e:
 	sub $90
-	ldh [$ffc7], a
-	ld hl, far_Call_11_4005
+	ldh [hSpriteSet], a
+	ld hl, far_DrawFieldSprite_11
 	rst $10
 	ret
 
 
-Call_04_40A7::
-	ldh a, [$ffc7]
+DrawActorSpriteOnScreen::
+	ldh a, [hSpriteSet]
 	cp $90
 	jr nc, jr_004_40c4
 
 	cp $10
 	jr nc, jr_004_40bb
 
-	call Call_04_4126
+	call SetActorSpritePalette
 	ld de, $4137
-	call Call_04_40CD
+	call DrawScreenMetasprite
 	ret
 
 
 jr_004_40bb:
 	sub $10
-	ldh [$ffc7], a
-	ld hl, far_Call_10_400F
+	ldh [hSpriteSet], a
+	ld hl, far_DrawFieldSpriteOnScreen_10
 	rst $10
 	ret
 
 
 jr_004_40c4:
 	sub $90
-	ldh [$ffc7], a
-	ld hl, far_Call_11_400F
+	ldh [hSpriteSet], a
+	ld hl, far_DrawFieldSpriteOnScreen_11
 	rst $10
 	ret
 
 
-Call_04_40CD::
+DrawScreenMetasprite::
 	push af
 	push bc
 	push de
 	push hl
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	cp $28
 	jr nc, jr_004_4121
 
-	ldh a, [$ffc7]
+	ldh a, [hSpriteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -113,7 +114,7 @@ Call_04_40CD::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ffc8]
+	ldh a, [hSpriteFrame]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -121,7 +122,7 @@ Call_04_40CD::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	sla a
 	sla a
 	ld l, a
@@ -134,18 +135,18 @@ jr_004_40f4:
 	jr z, jr_004_4121
 
 	ld b, a
-	ldh a, [$ffc5]
+	ldh a, [hSpriteY]
 	add b
 	add $10
 	ld [hli], a
 	ld a, [de]
 	inc de
 	ld b, a
-	ldh a, [$ffc3]
+	ldh a, [hSpriteX]
 	add b
 	add $08
 	ld [hli], a
-	ldh a, [$ffc9]
+	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [de]
 	inc de
@@ -154,12 +155,12 @@ jr_004_40f4:
 	ld a, [de]
 	inc de
 	ld b, a
-	ldh a, [$ffca]
+	ldh a, [hSpriteAttr]
 	xor b
 	ld [hli], a
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
 	cp $28
 	jr c, jr_004_40f4
 
@@ -171,35 +172,37 @@ jr_004_4121:
 	ret
 
 
-Call_04_4126::
-	ldh a, [$ffc7]
+SetActorSpritePalette::
+	ldh a, [hSpriteSet]
 	ld hl, $4157
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ldh a, [$ffca]
+	ldh a, [hSpriteAttr]
 	or [hl]
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ret
 
 
+ActorSpriteSets::
 	db $37, $72, $38, $77, $38, $77, $38, $77, $38, $77, $38, $77, $38, $77, $38, $77
 	db $38, $77, $38, $77, $38, $77, $38, $77, $38, $77, $38, $77, $38, $77, $38, $77
+ActorSpritePalettes::
 	db $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	res 0, a
 	res 2, a
 	or a
 	ret nz
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	jr z, jr_004_417f
 
-	ld a, [$c915]
+	ld a, [wEventStep]
 	cp $0b
 	ret nz
 
@@ -209,60 +212,60 @@ jr_004_417f:
 	bit 2, a
 	jr z, jr_004_4189
 
-	ld a, [$c91e]
+	ld a, [wScrollStep]
 	cp $02
 	ret nz
 
 jr_004_4189:
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 0, a
 	jp z, Jump_004_41c7
 
 	bit 1, a
 	jp nz, Jump_004_41c7
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 4, a
-	call nz, Call_04_43EC
-	ld a, [$d8d7]
+	call nz, UpdateMovers
+	ld a, [wScriptRunning]
 	bit 6, a
-	call nz, Call_04_43EC
-	ld a, [$d8d7]
+	call nz, UpdateMovers
+	ld a, [wScriptRunning]
 	bit 2, a
 	jr nz, jr_004_41c8
 
 	bit 3, a
 	jp nz, Jump_004_41e0
 
-	ld a, [$d8d8]
+	ld a, [wScriptFlags]
 	bit 2, a
 	jp nz, Jump_004_43db
 
-	call Call_04_55F5
+	call NextScriptCommand
 
 Jump_004_41c7:
 	ret
 
 
 jr_004_41c8:
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	and $07
 	jr nz, jr_004_41dd
 
-	ld a, [$d8db]
+	ld a, [wScriptWait]
 	dec a
-	ld [$d8db], a
+	ld [wScriptWait], a
 	jr nz, jr_004_41dd
 
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	res 2, [hl]
 
 jr_004_41dd:
@@ -270,18 +273,18 @@ jr_004_41dd:
 
 
 Jump_004_41e0:
-	ld a, [$d8dc]
+	ld a, [wScriptWalker]
 	or a
 	jp nz, Jump_004_42cd
 
-	ld hl, $ff90
+	ld hl, hPlayerFlags
 	set 0, [hl]
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	and $03
 	cp $01
 	jp z, Jump_004_43d8
 
-	ld a, [$d8dd]
+	ld a, [wScriptWalkX]
 	ld l, a
 	ld a, [$d8de]
 	ld h, a
@@ -292,50 +295,50 @@ Jump_004_41e0:
 	bit 7, h
 	jr nz, jr_004_4231
 
-	ld a, [$d8dd]
+	ld a, [wScriptWalkX]
 	sub $01
-	ld [$d8dd], a
+	ld [wScriptWalkX], a
 	ld a, [$d8de]
 	sbc $00
 	ld [$d8de], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	add $01
-	ldh [$ff92], a
+	ldh [hPlayerX], a
 	ldh a, [$ff93]
 	adc $00
 	ldh [$ff93], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jp nz, Jump_004_42ba
 
 	ld a, $03
-	ldh [$ff8e], a
+	ldh [hPlayerDir], a
 	jp Jump_004_42ba
 
 
 jr_004_4231:
-	ld a, [$d8dd]
+	ld a, [wScriptWalkX]
 	add $01
-	ld [$d8dd], a
+	ld [wScriptWalkX], a
 	ld a, [$d8de]
 	adc $00
 	ld [$d8de], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	sub $01
-	ldh [$ff92], a
+	ldh [hPlayerX], a
 	ldh a, [$ff93]
 	sbc $00
 	ldh [$ff93], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_42ba
 
 	ld a, $01
-	ldh [$ff8e], a
+	ldh [hPlayerDir], a
 	jr jr_004_42ba
 
 jr_004_425a:
-	ld a, [$d8df]
+	ld a, [wScriptWalkY]
 	ld l, a
 	ld a, [$d8e0]
 	ld h, a
@@ -346,56 +349,56 @@ jr_004_425a:
 	bit 7, h
 	jr nz, jr_004_4293
 
-	ld a, [$d8df]
+	ld a, [wScriptWalkY]
 	sub $01
-	ld [$d8df], a
+	ld [wScriptWalkY], a
 	ld a, [$d8e0]
 	sbc $00
 	ld [$d8e0], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	add $01
-	ldh [$ff95], a
+	ldh [hPlayerY], a
 	ldh a, [$ff96]
 	adc $00
 	ldh [$ff96], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_42ba
 
 	ld a, $00
-	ldh [$ff8e], a
+	ldh [hPlayerDir], a
 	jr jr_004_42ba
 
 jr_004_4293:
-	ld a, [$d8df]
+	ld a, [wScriptWalkY]
 	add $01
-	ld [$d8df], a
+	ld [wScriptWalkY], a
 	ld a, [$d8e0]
 	adc $00
 	ld [$d8e0], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	sub $01
-	ldh [$ff95], a
+	ldh [hPlayerY], a
 	ldh a, [$ff96]
 	sbc $00
 	ldh [$ff96], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_42ba
 
 	ld a, $02
-	ldh [$ff8e], a
+	ldh [hPlayerDir], a
 
 Jump_004_42ba:
 jr_004_42ba:
-	call Call_04_454B
+	call SetPlayerPoseFromDir
 	jp Jump_004_43d8
 
 
 jr_004_42c0:
-	ld hl, $ff90
+	ld hl, hPlayerFlags
 	res 0, [hl]
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	res 3, [hl]
 	jp Jump_004_43d8
 
@@ -404,14 +407,14 @@ Jump_004_42cd:
 	dec a
 	swap a
 	add a
-	ld hl, $d7d2
+	ld hl, wActors
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	ld a, l
@@ -422,12 +425,12 @@ Jump_004_42cd:
 	ld h, a
 	set 0, [hl]
 	res 6, [hl]
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	and $03
 	cp $01
 	jp z, Jump_004_43d8
 
-	ld a, [$d8dd]
+	ld a, [wScriptWalkX]
 	ld e, a
 	ld a, [$d8de]
 	ld d, a
@@ -438,14 +441,14 @@ Jump_004_42cd:
 	bit 7, d
 	jr nz, jr_004_4333
 
-	ld a, [$d8dd]
+	ld a, [wScriptWalkX]
 	sub $01
-	ld [$d8dd], a
+	ld [wScriptWalkX], a
 	ld a, [$d8de]
 	sbc $00
 	ld [$d8de], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_4320
 
@@ -470,14 +473,14 @@ jr_004_4320:
 
 
 jr_004_4333:
-	ld a, [$d8dd]
+	ld a, [wScriptWalkX]
 	add $01
-	ld [$d8dd], a
+	ld [wScriptWalkX], a
 	ld a, [$d8de]
 	adc $00
 	ld [$d8de], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_434d
 
@@ -501,7 +504,7 @@ jr_004_434d:
 	jr jr_004_43d8
 
 jr_004_435f:
-	ld a, [$d8df]
+	ld a, [wScriptWalkY]
 	ld e, a
 	ld a, [$d8e0]
 	ld d, a
@@ -512,14 +515,14 @@ jr_004_435f:
 	bit 7, d
 	jr nz, jr_004_439b
 
-	ld a, [$d8df]
+	ld a, [wScriptWalkY]
 	sub $01
-	ld [$d8df], a
+	ld [wScriptWalkY], a
 	ld a, [$d8e0]
 	sbc $00
 	ld [$d8e0], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_4389
 
@@ -543,14 +546,14 @@ jr_004_4389:
 	jr jr_004_43d8
 
 jr_004_439b:
-	ld a, [$d8df]
+	ld a, [wScriptWalkY]
 	add $01
-	ld [$d8df], a
+	ld [wScriptWalkY], a
 	ld a, [$d8e0]
 	adc $00
 	ld [$d8e0], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_43b5
 
@@ -574,14 +577,14 @@ jr_004_43b5:
 	jr jr_004_43d8
 
 jr_004_43c7:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
 	adc $00
 	ld h, a
 	res 0, [hl]
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	res 3, [hl]
 
 Jump_004_43d8:
@@ -590,103 +593,103 @@ jr_004_43d8:
 
 
 Jump_004_43db:
-	ld a, [$d8db]
+	ld a, [wScriptWait]
 	dec a
-	ld [$d8db], a
+	ld [wScriptWait], a
 	jr nz, jr_004_43e9
 
-	ld hl, $d8d8
+	ld hl, wScriptFlags
 	res 2, [hl]
 
 jr_004_43e9:
 	jp Jump_004_41c7
 
 
-Call_04_43EC::
-	ld a, [$d8e9]
+UpdateMovers::
+	ld a, [wMovers]
 	push af
-	call Call_04_443D
+	call UpdatePlayerMover
 	pop af
 	ld hl, $d8f1
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	ld hl, $d8f9
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	ld hl, $d901
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	ld hl, $d909
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	ld hl, $d911
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	ld hl, $d919
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	ld hl, $d921
 	or [hl]
 	push af
-	call Call_04_4584
+	call UpdateActorMover
 	pop af
 	or a
 	ret nz
 
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	res 4, [hl]
 	res 6, [hl]
 	ret
 
 
-Call_04_443D::
-	ld a, [$d8e9]
+UpdatePlayerMover::
+	ld a, [wMovers]
 	or a
 	ret z
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	set 4, a
-	ld [$d8d7], a
-	ld hl, $d8e9
+	ld [wScriptRunning], a
+	ld hl, wMovers
 	ld a, l
 	ldh [$ffd7], a
 	ld a, h
 	ldh [$ffd8], a
 	ld a, [$d8eb]
-	ld hl, $ff95
+	ld hl, hPlayerY
 	cp $01
-	jp z, Jump_004_4742
+	jp z, MoverHopSmall
 
 	cp $03
-	jp z, Jump_004_47be
+	jp z, MoverLeapSpin
 
 	cp $04
-	jp z, Jump_004_4857
+	jp z, MoverHop
 
 	cp $06
-	jp z, Jump_004_48e2
+	jp z, MoverFillTrail
 
 	cp $07
-	jp z, Jump_004_4931
+	jp z, MoverHopLeft
 
 	cp $1a
-	jp z, Jump_004_55a9
+	jp z, MoverSpinHop2
 
-	ld hl, $ff90
+	ld hl, hPlayerFlags
 	set 0, [hl]
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	and $03
 	cp $01
 	ret z
@@ -708,19 +711,19 @@ Call_04_443D::
 	ld a, [$d8ee]
 	sbc $00
 	ld [$d8ee], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	add $01
-	ldh [$ff92], a
+	ldh [hPlayerX], a
 	ldh a, [$ff93]
 	adc $00
 	ldh [$ff93], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
-	jp nz, Call_04_454B
+	jp nz, SetPlayerPoseFromDir
 
 	ld a, $03
-	ldh [$ff8e], a
-	jp Call_04_454B
+	ldh [hPlayerDir], a
+	jp SetPlayerPoseFromDir
 
 
 jr_004_44bf:
@@ -730,19 +733,19 @@ jr_004_44bf:
 	ld a, [$d8ee]
 	adc $00
 	ld [$d8ee], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	sub $01
-	ldh [$ff92], a
+	ldh [hPlayerX], a
 	ldh a, [$ff93]
 	sbc $00
 	ldh [$ff93], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
-	jp nz, Call_04_454B
+	jp nz, SetPlayerPoseFromDir
 
 	ld a, $01
-	ldh [$ff8e], a
-	jp Call_04_454B
+	ldh [hPlayerDir], a
+	jp SetPlayerPoseFromDir
 
 
 jr_004_44ea:
@@ -752,7 +755,7 @@ jr_004_44ea:
 	ld h, a
 	ld a, h
 	or l
-	jp z, Jump_004_457a
+	jp z, PlayerMoverDone
 
 	bit 7, h
 	jr nz, jr_004_4524
@@ -763,19 +766,19 @@ jr_004_44ea:
 	ld a, [$d8f0]
 	sbc $00
 	ld [$d8f0], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	add $01
-	ldh [$ff95], a
+	ldh [hPlayerY], a
 	ldh a, [$ff96]
 	adc $00
 	ldh [$ff96], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
-	jr nz, Call_04_454B
+	jr nz, SetPlayerPoseFromDir
 
 	ld a, $00
-	ldh [$ff8e], a
-	jr Call_04_454B
+	ldh [hPlayerDir], a
+	jr SetPlayerPoseFromDir
 
 jr_004_4524:
 	ld a, [$d8ef]
@@ -784,67 +787,67 @@ jr_004_4524:
 	ld a, [$d8f0]
 	adc $00
 	ld [$d8f0], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	sub $01
-	ldh [$ff95], a
+	ldh [hPlayerY], a
 	ldh a, [$ff96]
 	sbc $00
 	ldh [$ff96], a
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
-	jr nz, Call_04_454B
+	jr nz, SetPlayerPoseFromDir
 
 	ld a, $02
-	ldh [$ff8e], a
+	ldh [hPlayerDir], a
 
-Call_04_454B::
+SetPlayerPoseFromDir::
 	ld a, $00
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $00
-	ldh [$ff8f], a
-	ldh a, [$ff8e]
+	ldh [hPlayerPose], a
+	ldh a, [hPlayerDir]
 	or a
 	ret z
 
 	ld a, $20
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $01
-	ldh [$ff8f], a
-	ldh a, [$ff8e]
+	ldh [hPlayerPose], a
+	ldh a, [hPlayerDir]
 	cp $01
 	ret z
 
 	ld a, $00
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $02
-	ldh [$ff8f], a
-	ldh a, [$ff8e]
+	ldh [hPlayerPose], a
+	ldh a, [hPlayerDir]
 	cp $02
 	ret z
 
 	ld a, $00
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $01
-	ldh [$ff8f], a
+	ldh [hPlayerPose], a
 	ret
 
 
-Jump_004_457a:
-	ld hl, $ff90
+PlayerMoverDone::
+	ld hl, hPlayerFlags
 	res 0, [hl]
 	xor a
-	ld [$d8e9], a
+	ld [wMovers], a
 	ret
 
 
-Call_04_4584::
+UpdateActorMover::
 	ld a, [hl]
 	or a
 	ret z
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	set 4, a
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	ld a, l
 	ldh [$ffd7], a
 	ld a, h
@@ -856,14 +859,14 @@ Call_04_4584::
 	dec a
 	swap a
 	add a
-	ld hl, $d7d2
+	ld hl, wActors
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	ldh a, [$ffd7]
@@ -874,7 +877,7 @@ Call_04_4584::
 	ld b, a
 	ld a, [bc]
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $1a
 	ld l, a
 	ldh a, [$ffd6]
@@ -882,72 +885,72 @@ Call_04_4584::
 	ld h, a
 	pop af
 	cp $01
-	jp z, Jump_004_4742
+	jp z, MoverHopSmall
 
 	cp $02
-	jp z, Jump_004_478a
+	jp z, MoverHopHigh
 
 	cp $04
-	jp z, Jump_004_4857
+	jp z, MoverHop
 
 	cp $05
-	jp z, Jump_004_487f
+	jp z, MoverDoubleHopRight
 
 	cp $08
-	jp z, Jump_004_498c
+	jp z, MoverBlinkIn
 
 	cp $09
-	jp z, Jump_004_49d2
+	jp z, MoverSpinHop
 
 	cp $0a
-	jp z, Jump_004_4a2c
+	jp z, MoverRise
 
 	cp $0b
-	jp z, Jump_004_4a52
+	jp z, MoverDoubleHop
 
 	cp $0c
-	jp z, Jump_004_4aa2
+	jp z, MoverFallLeft
 
 	cp $0d
-	jp z, Jump_004_4b27
+	jp z, MoverBlinkOut
 
 	cp $0e
-	jp z, Jump_004_4b6d
+	jp z, MoverFloatUp
 
 	cp $0f
-	jp z, Jump_004_4b9b
+	jp z, MoverLaunch
 
 	cp $10
-	jp z, Jump_004_4be7
+	jp z, MoverDrop
 
 	cp $11
-	jp z, Jump_004_4c33
+	jp z, MoverFallFast
 
 	cp $12
-	jp z, Jump_004_4c65
+	jp z, MoverHopDrop
 
 	cp $13
-	jp z, Jump_004_4c9f
+	jp z, MoverLeap
 
 	cp $14
-	jp z, Jump_004_4d27
+	jp z, MoverBlinkSpin
 
 	cp $15
-	jp z, Jump_004_4da8
+	jp z, MoverFallArcLeft
 
 	cp $16
-	jp z, Jump_004_507b
+	jp z, MoverFallArcRight
 
 	cp $17
-	jp z, Jump_004_50c6
+	jp z, MoverThrowLeft
 
 	cp $18
-	jp z, Jump_004_54c8
+	jp z, MoverThrowRight
 
 	cp $19
-	jp z, Jump_004_5546
+	jp z, MoverHopLeft2
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -955,7 +958,7 @@ Call_04_4584::
 	ld h, a
 	set 0, [hl]
 	res 6, [hl]
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	and $03
 	cp $01
 	ret z
@@ -992,7 +995,7 @@ Call_04_4584::
 	sbc $00
 	ld [bc], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_467b
 
@@ -1031,7 +1034,7 @@ jr_004_468c:
 	adc $00
 	ld [bc], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_46a9
 
@@ -1088,7 +1091,7 @@ jr_004_46ba:
 	sbc $00
 	ld [bc], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_46ee
 
@@ -1127,7 +1130,7 @@ jr_004_46ff:
 	adc $00
 	ld [bc], a
 	inc hl
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 5, a
 	jr nz, jr_004_471c
 
@@ -1152,7 +1155,7 @@ jr_004_471c:
 
 
 jr_004_472d:
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1167,10 +1170,10 @@ jr_004_472d:
 	ret
 
 
-Jump_004_4742:
+MoverHopSmall::
 	ld bc, $4770
 
-Call_04_4745::
+StepMoverArc::
 	ldh a, [$ffd7]
 	add $01
 	ld e, a
@@ -1201,7 +1204,7 @@ Call_04_4745::
 	ret
 
 
-Jump_004_4767:
+MoverDone:
 jr_004_4767:
 	ldh a, [$ffd7]
 	ld l, a
@@ -1211,36 +1214,39 @@ jr_004_4767:
 	ret
 
 
+ArcHopSmall::
 	db $fd, $ff, $fd, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00, $01, $00
 	db $01, $00, $02, $00, $03, $00, $03, $00, $80, $80
 
-Jump_004_478a:
+MoverHopHigh::
 	ld bc, $4790
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcHopHigh::
 	db $fb, $ff, $fb, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fd, $ff, $fd, $ff
 	db $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00
 	db $01, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00, $80, $80
 
-Jump_004_47be:
+MoverLeapSpin::
 	ld bc, $47d9
-	call Call_04_4745
-	ld a, [$c850]
+	call StepMoverArc
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c8a6]
+	ld a, [wFieldTimer]
 	and $03
 	ret z
 
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	inc a
 	and $03
-	ldh [$ff8e], a
-	jp Call_04_454B
+	ldh [hPlayerDir], a
+	jp SetPlayerPoseFromDir
 
 
+ArcLeapSpin::
 	db $fe, $ff, $fe, $ff, $fe, $ff, $fd, $ff, $fd, $ff, $fc, $ff, $fc, $ff, $fc, $ff
 	db $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff
 	db $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $00, $00, $00, $00
@@ -1250,19 +1256,20 @@ Jump_004_47be:
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $04, $00, $04, $00
 	db $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $80, $80
 
-Jump_004_4857:
+MoverHop::
 	ld bc, $485d
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcHop::
 	db $fc, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $00, $00
 	db $00, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00, $03, $00, $04, $00
 	db $80, $80
 
-Jump_004_487f:
+MoverDoubleHopRight::
 	ld bc, $4892
-	call Call_04_4745
-	ldh a, [$ffd5]
+	call StepMoverArc
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1273,13 +1280,14 @@ Jump_004_487f:
 	ret
 
 
+ArcDoubleHopRight::
 	db $fb, $ff, $fb, $ff, $fb, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fd, $ff, $fd, $ff
 	db $fe, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00, $00, $00, $01, $00, $01, $00
 	db $02, $00, $02, $00, $02, $00, $03, $00, $03, $00, $03, $00, $04, $00, $04, $00
 	db $04, $00, $fa, $ff, $fc, $ff, $fd, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $00, $00
 	db $00, $00, $01, $00, $01, $00, $02, $00, $03, $00, $04, $00, $06, $00, $80, $80
 
-Jump_004_48e2:
+MoverFillTrail::
 	ldh a, [$ffd7]
 	add $01
 	ld e, a
@@ -1301,7 +1309,7 @@ Jump_004_48e2:
 
 
 jr_004_48fc:
-	ld a, [$ca37]
+	ld a, [wTrailPos]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1312,9 +1320,9 @@ jr_004_48fc:
 	ld a, h
 	adc $c9
 	ld h, a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld [hli], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld [hli], a
 	ldh a, [$ff93]
 	swap a
@@ -1322,26 +1330,26 @@ jr_004_48fc:
 	ldh a, [$ff96]
 	or c
 	ld [hli], a
-	ldh a, [$ff8b]
+	ldh a, [hPlayerFrame]
 	ld c, a
-	ldh a, [$ff8d]
+	ldh a, [hPlayerAttr]
 	or c
 	ld [hli], a
-	ld a, [$ca37]
+	ld a, [wTrailPos]
 	inc a
-	ld [$ca37], a
+	ld [wTrailPos], a
 	cp $31
 	ret c
 
 	xor a
-	ld [$ca37], a
+	ld [wTrailPos], a
 	ret
 
 
-Jump_004_4931:
+MoverHopLeft::
 	ld bc, $494c
-	call Call_04_4745
-	ldh a, [$ff92]
+	call StepMoverArc
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
@@ -1352,18 +1360,19 @@ Jump_004_4931:
 	sbc $00
 	ld h, a
 	ld a, l
-	ldh [$ff92], a
+	ldh [hPlayerX], a
 	ld a, h
 	ldh [$ff93], a
 	ret
 
 
+ArcHopLeft::
 	db $fc, $ff, $fc, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $fe, $ff, $fe, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $01, $00, $01, $00, $01, $00, $01, $00, $02, $00
 	db $02, $00, $02, $00, $02, $00, $03, $00, $03, $00, $04, $00, $04, $00, $80, $80
 
-Jump_004_498c:
+MoverBlinkIn::
 	ldh a, [$ffd7]
 	add $01
 	ld e, a
@@ -1381,7 +1390,7 @@ Jump_004_498c:
 	ldh a, [$ffd8]
 	ld h, a
 	ld [hl], $00
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1391,7 +1400,7 @@ Jump_004_498c:
 
 jr_004_49ae:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1420,14 +1429,14 @@ jr_004_49ca:
 	ret
 
 
-Jump_004_49d2:
+MoverSpinHop::
 	ld bc, $4a0a
-	call Call_04_4745
-	ld a, [$c850]
+	call StepMoverArc
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1445,7 +1454,7 @@ Jump_004_49d2:
 	srl a
 	and $03
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
@@ -1453,36 +1462,39 @@ Jump_004_49d2:
 	ld h, a
 	pop af
 	ld [hl], a
-	jp Call_04_454B
+	jp SetPlayerPoseFromDir
 
 
+ArcSpinHop::
 	db $fc, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $00, $00
 	db $00, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00, $03, $00, $04, $00
 	db $80, $80
 
-Jump_004_4a2c:
+MoverRise::
 	ld bc, $4a32
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcRise::
 	db $fb, $ff, $fb, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fd, $ff, $fd, $ff, $fd, $ff
 	db $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00, $80, $80
 
-Jump_004_4a52:
+MoverDoubleHop::
 	ld bc, $4a58
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcDoubleHop::
 	db $fc, $ff, $fc, $ff, $fc, $ff, $fd, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $00, $00, $00, $00, $01, $00, $01, $00, $02, $00
 	db $02, $00, $02, $00, $00, $00, $00, $00, $00, $00, $fb, $ff, $fb, $ff, $fc, $ff
 	db $fc, $ff, $fc, $ff, $fd, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $00, $00, $00, $00, $80, $80
 
-Jump_004_4aa2:
+MoverFallLeft::
 	ld bc, $4ab5
-	call Call_04_4745
-	ldh a, [$ffd5]
+	call StepMoverArc
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1493,6 +1505,7 @@ Jump_004_4aa2:
 	ret
 
 
+ArcFallLeft::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
@@ -1502,7 +1515,7 @@ Jump_004_4aa2:
 	db $02, $00, $02, $00, $02, $00, $02, $00, $02, $00, $03, $00, $02, $00, $03, $00
 	db $80, $80
 
-Jump_004_4b27:
+MoverBlinkOut::
 	ldh a, [$ffd7]
 	add $01
 	ld e, a
@@ -1520,7 +1533,7 @@ Jump_004_4b27:
 	ldh a, [$ffd8]
 	ld h, a
 	ld [hl], $00
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1530,7 +1543,7 @@ Jump_004_4b27:
 
 jr_004_4b49:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1559,63 +1572,68 @@ jr_004_4b65:
 	ret
 
 
-Jump_004_4b6d:
-	ld a, [$c8a6]
+MoverFloatUp::
+	ld a, [wFieldTimer]
 	and $03
 	ret nz
 
 	ld bc, $4b79
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcFloatUp::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $80, $80
 
-Jump_004_4b9b:
+MoverLaunch::
 	ld bc, $4ba1
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcLaunch::
 	db $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff
 	db $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff, $fc, $ff
 	db $fd, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $00, $00, $00, $00, $01, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00
 	db $03, $00, $03, $00, $80, $80
 
-Jump_004_4be7:
+MoverDrop::
 	ld bc, $4bed
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcDrop::
 	db $fd, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $00, $00, $00, $00, $01, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00
 	db $03, $00, $03, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00
 	db $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00
 	db $04, $00, $04, $00, $80, $80
 
-Jump_004_4c33:
+MoverFallFast::
 	ld bc, $4c39
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcFallFast::
 	db $03, $00, $03, $00, $03, $00, $03, $00, $03, $00, $03, $00, $03, $00, $03, $00
 	db $03, $00, $03, $00, $03, $00, $03, $00, $03, $00, $03, $00, $03, $00, $03, $00
 	db $03, $00, $03, $00, $03, $00, $03, $00, $04, $00, $80, $80
 
-Jump_004_4c65:
+MoverHopDrop::
 	ld bc, $4c6b
-	jp Call_04_4745
+	jp StepMoverArc
 
 
+ArcHopDrop::
 	db $fd, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $00, $00, $00, $00, $01, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00
 	db $03, $00, $03, $00, $04, $00, $04, $00, $04, $00, $05, $00, $05, $00, $05, $00
 	db $05, $00, $80, $80
 
-Jump_004_4c9f:
+MoverLeap::
 	ld bc, $4ca5
-	jp Call_04_4745
+	jp StepMoverArc
 
 
 	db $fe, $ff, $fe, $ff, $fe, $ff, $fd, $ff, $fd, $ff, $fc, $ff, $fc, $ff, $fc, $ff
@@ -1628,13 +1646,13 @@ Jump_004_4c9f:
 	db $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00, $04, $00
 	db $80, $80
 
-Jump_004_4d27:
-	call Call_04_4D5C
-	ld a, [$c850]
+MoverBlinkSpin::
+	call BlinkActorSlow
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $05
 	ld l, a
 	ldh a, [$ffd6]
@@ -1652,7 +1670,7 @@ Jump_004_4d27:
 	srl a
 	and $03
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $06
 	ld l, a
 	ldh a, [$ffd6]
@@ -1660,11 +1678,11 @@ Jump_004_4d27:
 	ld h, a
 	pop af
 	ld [hl], a
-	jp Call_04_454B
+	jp SetPlayerPoseFromDir
 
 
-Call_04_4D5C::
-	ld a, [$c8a6]
+BlinkActorSlow::
+	ld a, [wFieldTimer]
 	and $01
 	ret nz
 
@@ -1685,7 +1703,7 @@ Call_04_4D5C::
 	ldh a, [$ffd8]
 	ld h, a
 	ld [hl], $00
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1695,7 +1713,7 @@ Call_04_4D5C::
 
 jr_004_4d84:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1724,7 +1742,7 @@ jr_004_4da0:
 	ret
 
 
-Jump_004_4da8:
+MoverFallArcLeft::
 	ldh a, [$ffd7]
 	add $01
 	ld e, a
@@ -1735,7 +1753,7 @@ Jump_004_4da8:
 	or a
 	jr nz, jr_004_4dc2
 
-	ld a, [$d8e3]
+	ld a, [wJumpHeight]
 	ld c, a
 	ld a, $0a
 	sub c
@@ -1746,7 +1764,7 @@ Jump_004_4da8:
 	ld [de], a
 
 jr_004_4dc2:
-	ld a, [$d8e4]
+	ld a, [wJumpFall]
 	ld bc, $4df3
 	cp $01
 	jr z, jr_004_4ddd
@@ -1762,8 +1780,8 @@ jr_004_4dc2:
 	ld bc, $4fd9
 
 jr_004_4ddd:
-	call Call_04_4745
-	ldh a, [$ffd5]
+	call StepMoverArc
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1822,7 +1840,7 @@ jr_004_4ddd:
 	db $02, $00, $03, $00, $02, $00, $02, $00, $03, $00, $02, $00, $03, $00, $04, $00
 	db $03, $00, $04, $00, $04, $00, $80, $80
 
-Jump_004_507b:
+MoverFallArcRight::
 	ldh a, [$ffd7]
 	add $01
 	ld e, a
@@ -1833,7 +1851,7 @@ Jump_004_507b:
 	or a
 	jr nz, jr_004_5095
 
-	ld a, [$d8e3]
+	ld a, [wJumpHeight]
 	ld c, a
 	ld a, $0a
 	sub c
@@ -1844,7 +1862,7 @@ Jump_004_507b:
 	ld [de], a
 
 jr_004_5095:
-	ld a, [$d8e4]
+	ld a, [wJumpFall]
 	ld bc, $4df3
 	cp $01
 	jr z, jr_004_50b0
@@ -1860,8 +1878,8 @@ jr_004_5095:
 	ld bc, $4fd9
 
 jr_004_50b0:
-	call Call_04_4745
-	ldh a, [$ffd5]
+	call StepMoverArc
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -1878,8 +1896,8 @@ jr_004_50b0:
 	ret
 
 
-Jump_004_50c6:
-	ld a, [$d8e3]
+MoverThrowLeft::
+	ld a, [wJumpHeight]
 	ld bc, $5144
 	cp $01
 	jr z, jr_004_510b
@@ -1938,7 +1956,7 @@ jr_004_510b:
 	ld b, a
 	ld a, [bc]
 	cp $80
-	jp z, Jump_004_4767
+	jp z, MoverDone
 
 	ld d, a
 	ld a, [hl]
@@ -1950,7 +1968,7 @@ jr_004_510b:
 	ld a, [hl]
 	sbc d
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -2025,8 +2043,8 @@ jr_004_510b:
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $80, $80
 
-Jump_004_54c8:
-	ld a, [$d8e3]
+MoverThrowRight::
+	ld a, [wJumpHeight]
 	ld bc, $5144
 	cp $01
 	jr z, jr_004_550d
@@ -2085,7 +2103,7 @@ jr_004_550d:
 	ld b, a
 	ld a, [bc]
 	cp $80
-	jp z, Jump_004_4767
+	jp z, MoverDone
 
 	ld d, a
 	ld a, [hl]
@@ -2097,7 +2115,7 @@ jr_004_550d:
 	ld a, [hl]
 	sbc d
 	ld [hl], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -2114,10 +2132,10 @@ jr_004_550d:
 	ret
 
 
-Jump_004_5546:
+MoverHopLeft2::
 	ld bc, $5559
-	call Call_04_4745
-	ldh a, [$ffd5]
+	call StepMoverArc
+	ldh a, [hNumber]
 	add $18
 	ld l, a
 	ldh a, [$ffd6]
@@ -2134,10 +2152,10 @@ Jump_004_5546:
 	db $ff, $ff, $00, $00, $00, $00, $00, $00, $01, $00, $01, $00, $02, $00, $03, $00
 	db $03, $00, $04, $00, $04, $00, $04, $00, $05, $00, $05, $00, $05, $00, $80, $80
 
-Jump_004_55a9:
+MoverSpinHop2::
 	ld bc, $55ca
-	call Call_04_4745
-	ld a, [$c850]
+	call StepMoverArc
+	ld a, [wFadeState]
 	or a
 	ret nz
 
@@ -2151,271 +2169,271 @@ Jump_004_55a9:
 	srl a
 	srl a
 	and $03
-	ldh [$ff8e], a
-	jp Call_04_454B
+	ldh [hPlayerDir], a
+	jp SetPlayerPoseFromDir
 
 
 	db $fc, $ff, $fd, $ff, $fd, $ff, $fe, $ff, $fe, $ff, $ff, $ff, $ff, $ff, $00, $00
 	db $00, $00, $01, $00, $01, $00, $02, $00, $02, $00, $03, $00, $03, $00, $04, $00
 	db $80, $80
 
-Call_04_55EC::
+StartScript::
 	xor a
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld [$d8d6], a
 	jr jr_004_5605
 
-Call_04_55F5::
-	ld a, [$d8d5]
+NextScriptCommand::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 
-Jump_004_5605:
+RunScriptCommand:
 jr_004_5605:
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, b
 	and c
 	cp $ff
 	jr nz, jr_004_5613
 
 	xor a
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	ret
 
 
 jr_004_5613:
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 0, [hl]
 	ld a, b
 	cp $ff
-	jp nz, Jump_004_56ec
+	jp nz, ScriptQueueMessage
 
 	ld a, c
 	rst $00
 
-JumpTable_04_5620::
-	dw Jump_04_5711
-	dw Jump_04_5740
-	dw Jump_04_576F
-	dw Jump_04_5788
-	dw Jump_04_57A1
-	dw Jump_04_57EB
-	dw Jump_04_5819
-	dw Jump_04_5824
-	dw Jump_04_5842
-	dw Jump_04_5843
-	dw Jump_04_5860
-	dw Jump_04_5898
-	dw Jump_04_58D0
-	dw Jump_04_5968
-	dw Jump_04_59D2
-	dw Jump_04_5A02
-	dw Jump_04_5A6F
-	dw Jump_04_5AC5
-	dw Jump_04_5B1B
-	dw Jump_04_5B49
-	dw Jump_04_5B79
-	dw Jump_04_5B8F
-	dw Jump_04_5BD4
-	dw Jump_04_5BDB
-	dw Jump_04_5C14
-	dw Jump_04_5C6D
-	dw Jump_04_5C86
-	dw Jump_04_5CCF
-	dw Jump_04_5D1A
-	dw Jump_04_5D4B
-	dw Jump_04_5D53
-	dw Jump_04_5D5B
-	dw Jump_04_5E5E
-	dw Jump_04_5E6D
-	dw Jump_04_5E87
-	dw Jump_04_5E8F
-	dw Jump_04_5F13
-	dw Jump_04_5F36
-	dw Jump_04_5F52
-	dw Jump_04_5F5C
-	dw Jump_04_5F67
-	dw Jump_04_5F9A
-	dw Jump_04_5FDB
-	dw Jump_04_6002
-	dw Jump_04_6064
-	dw Jump_04_6093
-	dw Jump_04_61E0
-	dw Jump_04_623A
-	dw Jump_04_6253
-	dw Jump_04_62AB
-	dw Jump_04_62DD
-	dw Jump_04_6332
-	dw Jump_04_634F
-	dw Jump_04_63BB
-	dw Jump_04_63C6
-	dw Jump_04_6401
-	dw Jump_04_643F
-	dw Jump_04_64A7
-	dw Jump_04_64C2
-	dw Jump_04_65AB
-	dw Jump_04_6618
-	dw Jump_04_6620
-	dw Jump_04_6628
-	dw Jump_04_6632
-	dw Jump_04_6646
-	dw Jump_04_669D
-	dw Jump_04_66BD
-	dw Jump_04_6723
-	dw Jump_04_676F
-	dw Jump_04_67B1
-	dw Jump_04_67FD
-	dw Jump_04_6822
-	dw Jump_04_684D
-	dw Jump_04_6866
-	dw Jump_04_687F
-	dw Jump_04_6898
-	dw Jump_04_68A1
-	dw Jump_04_68BA
-	dw Jump_04_68D7
-	dw Jump_04_690B
-	dw Jump_04_6957
-	dw Jump_04_696C
-	dw Jump_04_69A9
-	dw Jump_04_6A61
-	dw Jump_04_6ACE
-	dw Jump_04_6AFA
-	dw Jump_04_6B3A
-	dw Jump_04_6B73
-	dw Jump_04_6BA0
-	dw Jump_04_6BDF
-	dw Jump_04_6D56
-	dw Jump_04_6D84
-	dw Jump_04_6D93
-	dw Jump_04_6F64
-	dw Jump_04_6F89
-	dw Jump_04_6F9B
-	dw Jump_04_6FFB
-	dw Jump_04_7038
-	dw Jump_04_705B
-	dw Jump_04_707F
-	dw Jump_04_70D5
-	dw Jump_04_71D2
+ScriptCommandTable::
+	dw ScriptCmdJumpIfFlagClear
+	dw ScriptCmdJumpIfFlagSet
+	dw ScriptCmdClearFlag
+	dw ScriptCmdSetFlag
+	dw ScriptCmdOpenFieldMenu
+	dw ScriptCmdBattle
+	dw ScriptCmdNextEventStep
+	dw ScriptCmdStartEvent
+	dw ScriptCmdNop
+	dw ScriptCmdWait
+	dw ScriptCmdWalkX
+	dw ScriptCmdWalkY
+	dw ScriptCmdFace
+	dw ScriptCmdSetActorByte
+	dw ScriptCmdJumpIfScreen
+	dw ScriptCmdWarp
+	dw ScriptCmdWalkToX
+	dw ScriptCmdWalkToY
+	dw ScriptCmdWriteByte
+	dw ScriptCmdWriteWord
+	dw ScriptCmdJump
+	dw ScriptCmdJumpIfByte
+	dw ScriptCmdRedrawFollowers
+	dw ScriptCmdSwapTiles
+	dw ScriptCmdGiveMonster
+	dw ScriptCmdWaitMovers
+	dw ScriptCmdMoveX
+	dw ScriptCmdMoveY
+	dw ScriptCmdStartMover
+	dw ScriptCmdKeepFacing
+	dw ScriptCmdTurnWhileMoving
+	dw ScriptCmdSetupArenaBattle
+	dw ScriptCmdStartBattle
+	dw ScriptCmdPlaySound
+	dw ScriptCmdFastMovers
+	dw ScriptCmdJumpIfHasSkillsA
+	dw ScriptCmdMapRoutine1
+	dw ScriptCmdReleaseMonster
+	dw ScriptCmdFadeOut
+	dw ScriptCmdHealParty
+	dw ScriptCmdJumpIfMonstersFull
+	dw ScriptCmdAddMonster
+	dw ScriptCmdGiveItem
+	dw ScriptCmdJumpIfNamedMonster
+	dw ScriptCmdJumpIfBagFull
+	dw ScriptCmdMonsterReaction
+	dw ScriptCmdPickFromTable
+	dw ScriptCmdIncByte
+	dw ScriptCmdJumpIfAttack100
+	dw ScriptCmdJumpIfLibrary100
+	dw ScriptCmdJumpIfSpeciesAF
+	dw ScriptCmdGiveGold
+	dw ScriptCmdJumpIfHasSkillsB
+	dw ScriptCmdHealParty2
+	dw ScriptCmdBossBattle
+	dw ScriptCmdGivePrizeItem
+	dw ScriptCmdJumpIfHasSkillsC
+	dw ScriptCmdPrintMessage
+	dw ScriptCmdLeaderLeaves
+	dw ScriptCmdWarpNoFade
+	dw ScriptCmdSetScriptFlag0
+	dw ScriptCmdSetScriptFlag1
+	dw ScriptCmdEndGameMode
+	dw ScriptCmdCopyLeaderSpecies
+	dw ScriptCmdJumpIfOwnsSpecies
+	dw ScriptCmdPlayMusic
+	dw ScriptCmdSaveReturnMenu
+	dw ScriptCmdReturnWarp
+	dw ScriptCmdReturnMenuText
+	dw ScriptCmdRestoreParty
+	dw ScriptCmdWaitLink4
+	dw ScriptCmdActorFaceUp
+	dw ScriptCmdActorFaceDown
+	dw ScriptCmdActorFaceLeft
+	dw ScriptCmdActorFaceRight
+	dw ScriptCmdRestoreMusic
+	dw ScriptCmdWaitDPad
+	dw ScriptCmdWaitFrames
+	dw ScriptCmdSaveReturnPoint
+	dw ScriptCmdReturnWarp2
+	dw ScriptCmdReturnFace
+	dw ScriptCmdLibraryRank
+	dw ScriptCmdRandomBattle
+	dw ScriptCmdFaceActor1
+	dw ScriptCmdGiveRandomItem
+	dw ScriptCmdLoseRandomItem
+	dw ScriptCmdLoseTenthOfGold
+	dw ScriptCmdGiveRandomSeed
+	dw ScriptCmdSkipFloors
+	dw ScriptCmdBoostTopStat
+	dw ScriptCmdSpecialBattle
+	dw ScriptCmdStartSpecialBattle
+	dw ScriptCmdSetupTournament
+	dw ScriptCmdGivePrize
+	dw ScriptCmdStartShootingStars
+	dw ScriptCmdJumpIfLevelBelowCap
+	dw ScriptCmdPayPerLevel
+	dw ScriptCmdMapRoutine2
+	dw ScriptCmdBlankScreen
+	dw ScriptCmdRedrawScreen
+	dw ScriptCmdJumpIfPartyFit
+	dw ScriptCmdWaitLink2
 
-Jump_004_56ec:
-	ld hl, $d8d7
+ScriptQueueMessage::
+	ld hl, wScriptRunning
 	set 1, [hl]
 	ld a, c
-	ld [$d8d9], a
+	ld [wScriptMessage], a
 	ld a, b
 	ld [$d8da], a
 	ret
 
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	bit 1, a
 	ret z
 
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	res 1, [hl]
-	ld a, [$d8d9]
+	ld a, [wScriptMessage]
 	ld l, a
 	ld a, [$d8da]
 	ld h, a
-	call Call_0AD9
+	call PrintMessage
 	ret
 
 
-Jump_04_5711::
-	ld a, [$d8d5]
+ScriptCmdJumpIfFlagClear::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_26AE
-	jp nz, Call_04_55F5
+	call TestEventFlag
+	jp nz, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_5740::
-	ld a, [$d8d5]
+ScriptCmdJumpIfFlagSet::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_26AE
-	jp z, Call_04_55F5
+	call TestEventFlag
+	jp z, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_576F::
-	ld a, [$d8d5]
+ScriptCmdClearFlag::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	call Call_26A6
-	jp Call_04_55F5
+	call ReadScriptWord
+	call ClearEventFlag
+	jp NextScriptCommand
 
 
-Jump_04_5788::
-	ld a, [$d8d5]
+ScriptCmdSetFlag::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	call Call_26A0
-	jp Call_04_55F5
+	call ReadScriptWord
+	call SetEventFlag
+	jp NextScriptCommand
 
 
-Jump_04_57A1::
-	ld a, [$d8d5]
+ScriptCmdOpenFieldMenu::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c8ef], a
-	ld a, [$d8d5]
+	ld [wScriptMenu], a
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c8f0], a
+	ld [wScriptMenuText], a
 	ld a, b
 	ld [$c8f1], a
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 4, [hl]
 	xor a
-	ld [$c905], a
-	ld a, [$c8ef]
+	ld [wMenuStep], a
+	ld a, [wScriptMenu]
 	cp $09
 	ret z
 
@@ -2423,164 +2441,164 @@ Jump_04_57A1::
 	ret z
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ret
 
 
-Jump_04_57EB::
-	ld a, [$d8d5]
+ScriptCmdBattle::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, b
 	ld [$da04], a
 	xor a
-	ld [$da02], a
-	ld hl, $c8eb
+	ld [wEncCount], a
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $01
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
-Jump_04_5819::
-	ld a, [$c8eb]
+ScriptCmdNextEventStep::
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret z
 
-	ld hl, $c915
+	ld hl, wEventStep
 	inc [hl]
 	ret
 
 
-Jump_04_5824::
-	ld a, [$c8eb]
+ScriptCmdStartEvent::
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
 	ld hl, $ffff
 	ld a, l
-	ld [$c917], a
+	ld [wEventRoutine], a
 	ld a, h
 	ld [$c918], a
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 0, [hl]
 	xor a
-	ld [$c915], a
+	ld [wEventStep], a
 	ld [$c916], a
 	ret
 
 
-Jump_04_5842::
+ScriptCmdNop::
 	ret
 
 
-Jump_04_5843::
-	ld a, [$d8d5]
+ScriptCmdWait::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8db], a
-	ld hl, $d8d7
+	ld [wScriptWait], a
+	ld hl, wScriptRunning
 	set 2, [hl]
 	ret
 
 
-Jump_04_5860::
-	ld a, [$d8d5]
+ScriptCmdWalkX::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8dc], a
-	ld a, [$d8d5]
+	ld [wScriptWalker], a
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8dd], a
+	ld [wScriptWalkX], a
 	ld a, b
 	ld [$d8de], a
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 3, [hl]
 	ret
 
 
-Jump_04_5898::
-	ld a, [$d8d5]
+ScriptCmdWalkY::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8dc], a
-	ld a, [$d8d5]
+	ld [wScriptWalker], a
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8df], a
+	ld [wScriptWalkY], a
 	ld a, b
 	ld [$d8e0], a
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 3, [hl]
 	ret
 
 
-Jump_04_58D0::
-	ld a, [$d8d5]
+ScriptCmdFace::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	or a
 	jr nz, jr_004_5942
 
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 
-Jump_004_58fa:
+SetPlayerFacing:
 	ld a, c
 	or a
 	jr nz, jr_004_590d
 
 	ld a, $00
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $00
-	ldh [$ff8f], a
+	ldh [hPlayerPose], a
 	ld a, $00
-	ldh [$ff8e], a
-	jp Call_04_55F5
+	ldh [hPlayerDir], a
+	jp NextScriptCommand
 
 
 jr_004_590d:
@@ -2588,12 +2606,12 @@ jr_004_590d:
 	jr nz, jr_004_5920
 
 	ld a, $20
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $01
-	ldh [$ff8f], a
+	ldh [hPlayerPose], a
 	ld a, $01
-	ldh [$ff8e], a
-	jp Call_04_55F5
+	ldh [hPlayerDir], a
+	jp NextScriptCommand
 
 
 jr_004_5920:
@@ -2601,22 +2619,22 @@ jr_004_5920:
 	jr nz, jr_004_5933
 
 	ld a, $00
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $02
-	ldh [$ff8f], a
+	ldh [hPlayerPose], a
 	ld a, $02
-	ldh [$ff8e], a
-	jp Call_04_55F5
+	ldh [hPlayerDir], a
+	jp NextScriptCommand
 
 
 jr_004_5933:
 	ld a, $00
-	ldh [$ff8d], a
+	ldh [hPlayerAttr], a
 	ld a, $01
-	ldh [$ff8f], a
+	ldh [hPlayerPose], a
 	ld a, $03
-	ldh [$ff8e], a
-	jp Call_04_55F5
+	ldh [hPlayerDir], a
+	jp NextScriptCommand
 
 
 jr_004_5942:
@@ -2630,37 +2648,37 @@ jr_004_5942:
 	adc h
 	ld h, a
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld [hl], c
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5968::
-	ld a, [$d8d5]
+ScriptCmdSetActorByte::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	or a
 	jr nz, jr_004_5996
 
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
 	jr jr_004_59b9
@@ -2669,119 +2687,119 @@ jr_004_5996:
 	dec a
 	swap a
 	add a
-	ld hl, $d7d2
+	ld hl, wActors
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	add hl, bc
 
 jr_004_59b9:
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld [hl], c
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_59D2::
-	ld a, [$d8d5]
+ScriptCmdJumpIfScreen::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp c
-	jp nz, Call_04_55F5
+	jp nz, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_5A02::
-	ld a, [$d8d5]
+ScriptCmdWarp::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, b
-	ld [$c96e], a
-	ld a, [$d8d5]
+	ld [wWarpOnGateFloor], a
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, b
 	ld [$c970], a
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, b
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	xor a
-	ld [$d8d7], a
-	ld hl, $c8eb
+	ld [wScriptRunning], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	ret
 
 
-Jump_04_5A6F::
-	ld a, [$d8d5]
+ScriptCmdWalkToX::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8dc], a
-	ld hl, $ff92
+	ld [wScriptWalker], a
+	ld hl, hPlayerX
 	or a
 	jr z, jr_004_5a99
 
@@ -2800,13 +2818,13 @@ jr_004_5a99:
 	ld h, [hl]
 	ld l, a
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld a, c
 	sub l
@@ -2815,25 +2833,25 @@ jr_004_5a99:
 	sbc h
 	ld b, a
 	ld a, c
-	ld [$d8dd], a
+	ld [wScriptWalkX], a
 	ld a, b
 	ld [$d8de], a
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 3, [hl]
 	ret
 
 
-Jump_04_5AC5::
-	ld a, [$d8d5]
+ScriptCmdWalkToY::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8dc], a
-	ld hl, $ff95
+	ld [wScriptWalker], a
+	ld hl, hPlayerY
 	or a
 	jr z, jr_004_5aef
 
@@ -2852,13 +2870,13 @@ jr_004_5aef:
 	ld h, [hl]
 	ld l, a
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld a, c
 	sub l
@@ -2867,118 +2885,118 @@ jr_004_5aef:
 	sbc h
 	ld b, a
 	ld a, c
-	ld [$d8df], a
+	ld [wScriptWalkY], a
 	ld a, b
 	ld [$d8e0], a
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 3, [hl]
 	ret
 
 
-Jump_04_5B1B::
-	ld a, [$d8d5]
+ScriptCmdWriteByte::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld [hl], c
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5B49::
-	ld a, [$d8d5]
+ScriptCmdWriteWord::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld [hl], c
 	inc hl
 	ld [hl], b
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5B79::
-	ld a, [$d8d5]
+ScriptCmdJump::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_5B8F::
-	ld a, [$d8d5]
+ScriptCmdJumpIfByte::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, [hl]
 	cp c
-	jp nz, Call_04_55F5
+	jp nz, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_5BD4::
-	call Call_2518
-	call Call_25F1
+ScriptCmdRedrawFollowers::
+	call BuildStatusBar
+	call DrawStatusBar
 	ret
 
 
-Jump_04_5BDB::
-	ld a, [$c968]
+ScriptCmdSwapTiles::
+	ld a, [wMapId]
 	cp $2f
 	jr nz, jr_004_5c04
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp $04
 	jr z, jr_004_5bed
 
@@ -2989,11 +3007,11 @@ jr_004_5bed:
 	ld hl, $9380
 	ld de, $9360
 	ld b, $20
-	call Call_04_5C05
+	call SwapTileBytes
 	ld hl, $9600
 	ld de, $9620
 	ld b, $20
-	call Call_04_5C05
+	call SwapTileBytes
 	ret
 
 
@@ -3001,9 +3019,9 @@ jr_004_5c04:
 	ret
 
 
-Call_04_5C05::
+SwapTileBytes::
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld c, [hl]
 	ld a, [de]
 	ld [hli], a
@@ -3012,24 +3030,24 @@ Call_04_5C05::
 	ei
 	inc de
 	dec b
-	jr nz, Call_04_5C05
+	jr nz, SwapTileBytes
 
 	ret
 
 
-Jump_04_5C14::
-	ld a, [$d8d5]
+ScriptCmdGiveMonster::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, b
 	ld [$da13], a
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3052,53 +3070,53 @@ jr_004_5c36:
 
 jr_004_5c48:
 	ld a, c
-	ld [$da14], a
-	ld hl, far_Call_14_40B4
+	ld [wNewMonSlot], a
+	ld hl, far_CreateMonster
 	rst $10
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $03
 	jr z, jr_004_5c68
 
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$da14]
+	ld a, [wNewMonSlot]
 	ld [hl], a
-	ld hl, $ca8d
+	ld hl, wPartyCount
 	inc [hl]
 
 jr_004_5c68:
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ret
 
 
-Jump_04_5C6D::
-	ld a, [$d8d7]
+ScriptCmdWaitMovers::
+	ld a, [wScriptRunning]
 	bit 4, a
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	sub $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	sbc $00
 	ld [$d8d6], a
 	ret
 
 
-Jump_04_5C86::
-	ld a, [$d8d5]
+ScriptCmdMoveX::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld hl, $d8e9
+	call ReadScriptWord
+	ld hl, wMovers
 	ld a, c
 	add a
 	add a
@@ -3116,31 +3134,31 @@ Jump_04_5C86::
 	ld [hl], c
 	inc hl
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld [hl], c
 	inc hl
 	ld [hl], b
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 4, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5CCF::
-	ld a, [$d8d5]
+ScriptCmdMoveY::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld hl, $d8e9
+	call ReadScriptWord
+	ld hl, wMovers
 	ld a, c
 	add a
 	add a
@@ -3160,31 +3178,31 @@ Jump_04_5CCF::
 	inc hl
 	inc hl
 	push hl
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	pop hl
 	ld [hl], c
 	inc hl
 	ld [hl], b
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 4, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5D1A::
-	ld a, [$d8d5]
+ScriptCmdStartMover::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld hl, $d8e9
+	call ReadScriptWord
+	ld hl, wMovers
 	ld a, c
 	add a
 	add a
@@ -3201,30 +3219,30 @@ Jump_04_5D1A::
 	ld [hl], b
 	inc hl
 	ld [hl], c
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 4, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5D4B::
-	ld hl, $d8d7
+ScriptCmdKeepFacing::
+	ld hl, wScriptRunning
 	set 5, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5D53::
-	ld hl, $d8d7
+ScriptCmdTurnWhileMoving::
+	ld hl, wScriptRunning
 	res 5, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5D5B::
-	ld a, [$d9ce]
+ScriptCmdSetupArenaBattle::
+	ld a, [wArenaClass]
 	ld b, a
 	add a
 	add b
 	ld b, a
-	ld a, [$d9cd]
+	ld a, [wArenaRound]
 	add b
 	ld b, a
 	add a
@@ -3236,7 +3254,7 @@ Jump_04_5D5B::
 	adc h
 	ld h, a
 	ld a, l
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, h
 	ld [$da04], a
 	inc hl
@@ -3250,14 +3268,14 @@ Jump_04_5D5B::
 	ld a, h
 	ld [$da08], a
 	ld a, $02
-	ld [$da02], a
-	ld a, [$d9ce]
+	ld [wEncCount], a
+	ld a, [wArenaClass]
 	cp $09
 	jr nz, jr_004_5db9
 
 	ld hl, $01e1
 	ld a, l
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, h
 	ld [$da04], a
 	ld hl, $01e2
@@ -3272,12 +3290,12 @@ Jump_04_5D5B::
 	ld [$da08], a
 
 jr_004_5db9:
-	ld a, [$d9ce]
+	ld a, [wArenaClass]
 	ld b, a
 	add a
 	add b
 	ld b, a
-	ld a, [$d9cd]
+	ld a, [wArenaRound]
 	add b
 	add a
 	ld hl, $5e22
@@ -3287,14 +3305,14 @@ jr_004_5db9:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$d7ca], a
+	ld [wEncGfx], a
 	ld a, [hl]
 	ld [$d7cb], a
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
-	call Call_04_5E10
+	call GetSpeciesGfx
 	ld [$d7ce], a
 	ld a, $01
 	ld [$d7cf], a
@@ -3302,7 +3320,7 @@ jr_004_5db9:
 	ld l, a
 	ld a, [$da06]
 	ld h, a
-	call Call_04_5E10
+	call GetSpeciesGfx
 	ld [$d7cc], a
 	ld a, $01
 	ld [$d7cd], a
@@ -3310,21 +3328,21 @@ jr_004_5db9:
 	ld l, a
 	ld a, [$da08]
 	ld h, a
-	call Call_04_5E10
+	call GetSpeciesGfx
 	ld [$d7d0], a
 	ld a, $01
 	ld [$d7d1], a
 	ret
 
 
-Call_04_5E10::
+GetSpeciesGfx::
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	ld hl, far_Call_14_4016
+	ld hl, far_LoadMonTemplate2
 	rst $10
-	ld a, [$da18]
+	ld a, [wNewMonNameText]
 	add $10
 	ret
 
@@ -3334,60 +3352,60 @@ Call_04_5E10::
 	db $0a, $00, $0f, $00, $0b, $00, $0a, $00, $0c, $00, $0b, $00, $0a, $00, $13, $00
 	db $0b, $00, $0a, $00, $14, $00, $08, $00, $08, $00, $08, $00
 
-Jump_04_5E5E::
-	ld hl, $c8eb
+ScriptCmdStartBattle::
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $01
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
-Jump_04_5E6D::
-	ld a, [$d8d5]
+ScriptCmdPlaySound::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	call Call_1B2C
-	jp Call_04_55F5
+	call QueueSound
+	jp NextScriptCommand
 
 
-Jump_04_5E87::
-	ld hl, $d8d7
+ScriptCmdFastMovers::
+	ld hl, wScriptRunning
 	set 6, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5E8F::
-	ld a, [$d8d5]
+ScriptCmdJumpIfHasSkillsA::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, c
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp c
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld hl, $caea
+	ld hl, wMonSkills
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	pop bc
 	ld b, $08
 
@@ -3429,28 +3447,28 @@ jr_004_5ec8:
 	dec b
 	jr nz, jr_004_5ec8
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 jr_004_5efb:
 	ld a, c
-	ld [$d8e1], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wScriptResult], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	call Call_04_71EF
-	jp Jump_004_7212
+	ld hl, wTextArg0
+	call CopyName
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_5F13::
-	ld a, [$d8d3]
+ScriptCmdMapRoutine1::
+	ld a, [wScriptMap]
 	cp $06
 	jr nc, jr_004_5f1f
 
-	ld hl, far_Call_0C_402F
+	ld hl, far_DrawScriptTiles_0C
 	rst $10
 	ret
 
@@ -3459,7 +3477,7 @@ jr_004_5f1f:
 	cp $20
 	jr nc, jr_004_5f28
 
-	ld hl, far_Call_0D_402F
+	ld hl, far_DrawScriptTiles_0D
 	rst $10
 	ret
 
@@ -3468,55 +3486,55 @@ jr_004_5f28:
 	cp $40
 	jr nc, jr_004_5f31
 
-	ld hl, far_Call_0E_402F
+	ld hl, far_DrawScriptTiles_0E
 	rst $10
 	ret
 
 
 jr_004_5f31:
-	ld hl, far_Call_0F_402F
+	ld hl, far_DrawScriptTiles_0F
 	rst $10
 	ret
 
 
-Jump_04_5F36::
-	ld a, [$d8e1]
-	ld hl, $cac1
-	call Call_2229
+ScriptCmdReleaseMonster::
+	ld a, [wScriptResult]
+	ld hl, wMonsters
+	call PartyMonsterField
 	ld [hl], $00
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	call Call_2518
-	call Call_25F1
-	jp Call_04_55F5
+	call BuildStatusBar
+	call DrawStatusBar
+	jp NextScriptCommand
 
 
-Jump_04_5F52::
+ScriptCmdFadeOut::
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	ret
 
 
-Jump_04_5F5C::
-	ld hl, far_Call_01_4BC1
+ScriptCmdHealParty::
+	ld hl, far_HealAllMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_5F67::
-	ld a, [$d8d5]
+ScriptCmdJumpIfMonstersFull::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld hl, $cac1
+	ld hl, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3538,25 +3556,25 @@ jr_004_5f7e:
 jr_004_5f8e:
 	ld a, c
 	cp $14
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_5F9A::
-	ld a, [$d8d5]
+ScriptCmdAddMonster::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, b
 	ld [$da13], a
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3579,25 +3597,25 @@ jr_004_5fbc:
 
 jr_004_5fce:
 	ld a, c
-	ld [$da14], a
-	ld hl, far_Call_14_40B4
+	ld [wNewMonSlot], a
+	ld hl, far_CreateMonster
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 
 jr_004_5fda:
 	ret
 
 
-Jump_04_5FDB::
-	ld a, [$d8d5]
+ScriptCmdGiveItem::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld hl, $ca51
+	call ReadScriptWord
+	ld hl, wBagItems
 	ld b, $14
 
 jr_004_5ff3:
@@ -3620,14 +3638,14 @@ jr_004_6000:
 	ret
 
 
-Jump_04_6002::
-	ld a, [$d8d5]
+ScriptCmdJumpIfNamedMonster::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld hl, $cac1
+	ld hl, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3670,8 +3688,8 @@ jr_004_603c:
 	jr nz, jr_004_603c
 
 	pop hl
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
 jr_004_604c:
@@ -3686,19 +3704,19 @@ jr_004_604c:
 	dec b
 	jr nz, jr_004_6019
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 	db $67, $85, $42, $8d, $26, $f0, $f0, $f0
 
-Jump_04_6064::
-	ld a, [$d8d5]
+ScriptCmdJumpIfBagFull::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 	ld c, $00
 
@@ -3717,22 +3735,22 @@ jr_004_607b:
 jr_004_6087:
 	ld a, c
 	cp $14
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_6093::
-	ld a, [$d8d5]
+ScriptCmdMonsterReaction::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -3743,13 +3761,13 @@ Jump_04_6093::
 	ret z
 
 	push af
-	ld hl, $caca
-	call Call_223B
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 	add a
 	ld hl, $60f4
 	add l
@@ -3763,7 +3781,7 @@ Jump_04_6093::
 	pop af
 	push hl
 	ld d, a
-	ld hl, far_Call_01_4C58
+	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	add a
@@ -3776,10 +3794,10 @@ Jump_04_6093::
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 1, [hl]
 	ld a, c
-	ld [$d8d9], a
+	ld [wScriptMessage], a
 	ld a, b
 	ld [$d8da], a
 	ret
@@ -3801,20 +3819,20 @@ Jump_04_6093::
 	db $ac, $00, $b0, $00, $b4, $00, $b8, $00, $bc, $00, $c0, $00, $c4, $00, $c8, $00
 	db $cc, $00, $d0, $00, $d4, $00, $d8, $00, $dc, $00, $e1, $00
 
-Jump_04_61E0::
-	ld a, [$d8d5]
+ScriptCmdPickFromTable::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	add a
 	add a
 	add c
 	ld c, a
-	ld a, [$d9df]
+	ld a, [wScriptChoiceRow]
 	dec a
 	add c
 	ld hl, $620d
@@ -3824,76 +3842,76 @@ Jump_04_61E0::
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$d9e0], a
-	jp Call_04_55F5
+	ld [wScriptChoice], a
+	jp NextScriptCommand
 
 
 	db $01, $01, $00, $02, $02, $02, $01, $02, $01, $02, $01, $01, $02, $00, $01, $01
 	db $01, $00, $02, $01, $00, $02, $00, $00, $00, $01, $02, $00, $00, $01, $00, $01
 	db $01, $01, $01, $02, $01, $02, $01, $00, $01, $01, $00, $01, $00
 
-Jump_04_623A::
-	ld a, [$d8d5]
+ScriptCmdIncByte::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
 	inc [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_6253::
-	ld a, [$d8d5]
+ScriptCmdJumpIfAttack100::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, c
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp c
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld hl, $cb19
+	ld hl, wMonAttack
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	pop bc
 	ld a, [hli]
 	sub $64
 	ld a, [hl]
 	sbc $00
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld [$d8e1], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wScriptResult], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	call Call_04_71EF
-	jp Jump_004_7212
+	ld hl, wTextArg0
+	call CopyName
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_62AB::
-	ld a, [$d8d5]
+ScriptCmdJumpIfLibrary100::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
@@ -3902,9 +3920,9 @@ Jump_04_62AB::
 
 jr_004_62bf:
 	push bc
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld a, b
-	call Call_267E
+	call TestFlag
 	pop bc
 	jr z, jr_004_62cb
 
@@ -3918,94 +3936,94 @@ jr_004_62cb:
 
 	ld a, c
 	cp $64
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_62DD::
-	ld a, [$d8d5]
+ScriptCmdJumpIfSpeciesAF::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, c
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp c
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld hl, $caca
+	ld hl, wMonRecSpecies
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	pop bc
 	ld a, [hl]
 	cp $af
-	jp nz, Call_04_55F5
+	jp nz, NextScriptCommand
 
 	ld a, c
-	ld [$d8e1], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wScriptResult], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	call Call_04_71EF
-	jp Jump_004_7212
+	ld hl, wTextArg0
+	call CopyName
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_6332::
-	ld a, [$d8d5]
+ScriptCmdGiveGold::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
 	ld e, $00
-	call Call_241A
-	jp Call_04_55F5
+	call AddGold
+	jp NextScriptCommand
 
 
-Jump_04_634F::
-	ld a, [$d8d5]
+ScriptCmdJumpIfHasSkillsB::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, c
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp c
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld hl, $caea
+	ld hl, wMonSkills
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	pop bc
 	ld b, $08
 
@@ -4029,32 +4047,32 @@ jr_004_6388:
 	dec b
 	jr nz, jr_004_6388
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 jr_004_63a3:
 	ld a, c
-	ld [$d8e1], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wScriptResult], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	call Call_04_71EF
-	jp Jump_004_7212
+	ld hl, wTextArg0
+	call CopyName
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_63BB::
-	ld hl, far_Call_01_4BC1
+ScriptCmdHealParty2::
+	ld hl, far_HealAllMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_63C6::
-	ld a, [$cab4]
+ScriptCmdBossBattle::
+	ld a, [wScriptBossIndex]
 	add a
 	ld hl, $63ef
 	add l
@@ -4063,40 +4081,40 @@ Jump_04_63C6::
 	adc h
 	ld h, a
 	ld a, [hli]
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, [hl]
 	ld [$da04], a
 	ld a, $00
-	ld [$da02], a
-	ld hl, $c8eb
+	ld [wEncCount], a
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $01
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
 	db $3d, $01, $3e, $01, $3f, $01, $40, $01, $41, $01, $42, $01, $43, $01, $44, $01
 	db $44, $01
 
-Jump_04_6401::
-	ld a, [$d8d5]
+ScriptCmdGivePrizeItem::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld hl, $d9cf
+	ld hl, wArenaWins
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld c, [hl]
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_004_6424:
@@ -4119,36 +4137,36 @@ jr_004_6432:
 jr_004_6433:
 	ld l, c
 	ld h, $08
-	ld de, $c180
-	call Call_097A
-	jp Call_04_55F5
+	ld de, wTextArg0
+	call CopySystemText
+	jp NextScriptCommand
 
 
-Jump_04_643F::
-	ld a, [$d8d5]
+ScriptCmdJumpIfHasSkillsC::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, c
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp c
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld hl, $caea
+	ld hl, wMonSkills
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	pop bc
 	ld b, $08
 
@@ -4169,119 +4187,119 @@ jr_004_6478:
 	dec b
 	jr nz, jr_004_6478
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 jr_004_648f:
 	ld a, c
-	ld [$d8e1], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wScriptResult], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	call Call_04_71EF
-	jp Jump_004_7212
+	ld hl, wTextArg0
+	call CopyName
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_64A7::
-	ld a, [$d8d5]
+ScriptCmdPrintMessage::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld l, c
 	ld h, b
-	call Call_0AD9
-	jp Call_04_55F5
+	call PrintMessage
+	jp NextScriptCommand
 
 
-Jump_04_64C2::
-	ld a, [$ca40]
-	ld [$cac0], a
+ScriptCmdLeaderLeaves::
+	ld a, [wLeaderSlot]
+	ld [wCurPartyMember], a
 	ld hl, far_Call_16_474A
 	rst $10
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 4, [hl]
 	res 0, [hl]
 	xor a
-	ld [$c905], a
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld [wMenuStep], a
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld l, [hl]
 	ld h, $05
-	ld de, $c190
-	call Call_097A
-	ld a, [$cac0]
-	ld hl, $cb23
-	call Call_223B
+	ld de, wTextArg1
+	call CopySystemText
+	ld a, [wCurPartyMember]
+	ld hl, wMonPlus
+	call MonsterField
 	ld a, [hl]
-	ld de, $c190
-	call Call_04_6583
-	ld a, [$cac0]
-	ld hl, $cacc
-	call Call_223B
+	ld de, wTextArg1
+	call AppendNumberText
+	ld a, [wCurPartyMember]
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [hl]
-	ld de, $c190
-	call Call_04_6598
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld de, wTextArg1
+	call AppendSexSign
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
 	add $10
-	ld [$c8f4], a
-	ld [$d7ca], a
+	ld [wChosenMonPic], a
+	ld [wEncGfx], a
 	ld a, $01
 	ld [$d7cb], a
-	ld a, [$cac0]
-	ld hl, $cac2
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonName
+	call MonsterField
 	ld a, l
-	ld [$c8f2], a
+	ld [wChosenMonName], a
 	ld a, h
 	ld [$c8f3], a
-	ld a, [$cac0]
-	ld hl, $cacc
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [hl]
-	ld [$c8f6], a
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld [wChosenMonGender], a
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$c8f5], a
+	ld [wChosenMonSpecies], a
 	ld a, $08
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, $00
-	ld [$c96e], a
+	ld [wWarpOnGateFloor], a
 	ld hl, $0048
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0048
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	ld a, $02
-	ld [$d951], a
+	ld [wStoryStep], a
 	xor a
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	ret
 
 
-Call_04_6583::
+AppendNumberText::
 	or a
 	ret z
 
@@ -4300,11 +4318,11 @@ jr_004_6586:
 	pop af
 	ld l, e
 	ld h, d
-	call Call_09A4
+	call ByteToDecimal
 	ret
 
 
-Call_04_6598::
+AppendSexSign::
 	push af
 
 jr_004_6599:
@@ -4324,102 +4342,102 @@ jr_004_6599:
 	ret
 
 
-Jump_04_65AB::
-	ld a, [$d8d5]
+ScriptCmdWarpNoFade::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, b
-	ld [$c96e], a
-	ld a, [$d8d5]
+	ld [wWarpOnGateFloor], a
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, b
 	ld [$c970], a
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, b
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
-	ld hl, $c8eb
+	ld [wWarpPending], a
+	ld hl, wFieldFlags
 	set 5, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	xor a
-	ld [$d8d7], a
-	ld hl, $c8eb
+	ld [wScriptRunning], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	ret
 
 
-Jump_04_6618::
-	ld hl, $d8d8
+ScriptCmdSetScriptFlag0::
+	ld hl, wScriptFlags
 	set 0, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_6620::
-	ld hl, $d8d8
+ScriptCmdSetScriptFlag1::
+	ld hl, wScriptFlags
 	set 1, [hl]
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_6628::
+ScriptCmdEndGameMode::
 	ld a, $04
-	call Call_1688
-	ld hl, $c88e
+	call StartFade
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_04_6632::
+ScriptCmdCopyLeaderSpecies::
 	ld a, $00
-	ld hl, $caca
-	call Call_2229
+	ld hl, wMonRecSpecies
+	call PartyMonsterField
 	ld l, [hl]
 	ld h, $05
-	ld de, $c180
-	call Call_097A
-	jp Call_04_55F5
+	ld de, wTextArg0
+	call CopySystemText
+	jp NextScriptCommand
 
 
-Jump_04_6646::
-	ld a, [$d8d5]
+ScriptCmdJumpIfOwnsSpecies::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld d, c
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld hl, $cac1
+	ld hl, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -4443,8 +4461,8 @@ jr_004_6671:
 	jr nz, jr_004_668d
 
 	pop hl
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
 jr_004_668d:
@@ -4459,119 +4477,119 @@ jr_004_668d:
 	dec b
 	jr nz, jr_004_6671
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_669D::
-	ld a, [$d8d5]
+ScriptCmdPlayMusic::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$c8b5]
-	ld [$c8b6], a
+	call ReadScriptWord
+	ld a, [wMusic]
+	ld [wSavedMusic], a
 	ld a, c
-	call Call_1AE1
-	jp Call_04_55F5
+	call QueueMusic
+	jp NextScriptCommand
 
 
-Jump_04_66BD::
-	ld a, [$d8d5]
+ScriptCmdSaveReturnMenu::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c8f7], a
+	ld [wScriptMenuArg], a
 	ld a, b
 	ld [$c8f8], a
-	ld a, [$c968]
+	ld a, [wMapId]
 	ld c, a
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	ld b, a
 	ld a, c
-	ld [$c8fb], a
+	ld [wReturnMap], a
 	ld a, b
 	ld [$c8fc], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld c, a
 	ldh a, [$ff93]
 	ld b, a
 	ld a, c
-	ld [$c8fd], a
+	ld [wReturnX], a
 	ld a, b
 	ld [$c8fe], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld c, a
 	ldh a, [$ff96]
 	ld b, a
 	ld a, c
-	ld [$c8ff], a
+	ld [wReturnY], a
 	ld a, b
 	ld [$c900], a
-	ldh a, [$ff8e]
-	ld [$c901], a
-	ld a, [$d8d5]
+	ldh a, [hPlayerDir]
+	ld [wReturnDir], a
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$c902], a
-	jp Call_04_55F5
+	ld [wReturnActor], a
+	jp NextScriptCommand
 
 
-Jump_04_6723::
-	ld a, [$c8fb]
+ScriptCmdReturnWarp::
+	ld a, [wReturnMap]
 	ld c, a
 	ld a, [$c8fc]
 	ld b, a
 	ld a, c
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, b
-	ld [$c96e], a
-	ld a, [$c8fd]
+	ld [wWarpOnGateFloor], a
+	ld a, [wReturnX]
 	ld c, a
 	ld a, [$c8fe]
 	ld b, a
 	ld a, c
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, b
 	ld [$c970], a
-	ld a, [$c8ff]
+	ld a, [wReturnY]
 	ld c, a
 	ld a, [$c900]
 	ld b, a
 	ld a, c
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, b
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	xor a
-	ld [$d8d7], a
-	ld hl, $c8eb
+	ld [wScriptRunning], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	ret
 
 
-Jump_04_676F::
-	ld a, [$c901]
-	ldh [$ff8e], a
-	call Call_04_454B
-	ld a, [$c902]
+ScriptCmdReturnMenuText::
+	ld a, [wReturnDir]
+	ldh [hPlayerDir], a
+	call SetPlayerPoseFromDir
+	ld a, [wReturnActor]
 	dec a
 	swap a
 	add a
@@ -4581,11 +4599,11 @@ Jump_04_676F::
 	ld a, $00
 	adc h
 	ld h, a
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	add $02
 	and $03
 	ld [hl], a
-	ld a, [$c8f0]
+	ld a, [wScriptMenuText]
 	ld c, a
 	ld a, [$c8f1]
 	ld b, a
@@ -4595,59 +4613,59 @@ Jump_04_676F::
 	ld a, b
 	adc $00
 	ld b, a
-	ld hl, $d8d7
+	ld hl, wScriptRunning
 	set 1, [hl]
 	ld a, c
-	ld [$d8d9], a
+	ld [wScriptMessage], a
 	ld a, b
 	ld [$d8da], a
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 0, [hl]
 	ret
 
 
-Jump_04_67B1::
-	ld hl, $cab9
+ScriptCmdRestoreParty::
+	ld hl, wSavedParty
 	ld a, [hli]
-	ld [$ca8d], a
+	ld [wPartyCount], a
 	ld a, [hli]
-	ld [$ca8e], a
+	ld [wParty], a
 	ld a, [hli]
 	ld [$ca8f], a
 	ld a, [hli]
 	ld [$ca90], a
 	ld a, [hli]
-	ld [$ca91], a
+	ld [wPartyGfx], a
 	ld a, [hli]
 	ld [$ca92], a
 	ld a, [hli]
 	ld [$ca93], a
-	ld a, [$ca8e]
-	call Call_04_67F1
+	ld a, [wParty]
+	call PutMonsterInParty
 	ld a, [$ca8f]
-	call Call_04_67F1
+	call PutMonsterInParty
 	ld a, [$ca90]
-	call Call_04_67F1
-	ld hl, far_Call_01_46F6
+	call PutMonsterInParty
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_4BC1
+	ld hl, far_HealAllMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Call_04_67F1::
+PutMonsterInParty::
 	cp $ff
 	ret z
 
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld [hl], $02
 	ret
 
 
-Jump_04_67FD::
+ScriptCmdWaitLink4::
 	ld a, [$ddb4]
 	ld hl, $ddce
 	and [hl]
@@ -4656,31 +4674,31 @@ Jump_04_67FD::
 	ld hl, $de02
 	and [hl]
 	cp $ff
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	sub $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	sbc $00
 	ld [$d8d6], a
 	ret
 
 
-Jump_04_6822::
-	ld a, [$d8d5]
+ScriptCmdActorFaceUp::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	ld c, $02
 
-Jump_004_6838:
+SetActorFacing:
 	or a
-	jp z, Jump_004_58fa
+	jp z, SetPlayerFacing
 
 	dec a
 	swap a
@@ -4692,174 +4710,174 @@ Jump_004_6838:
 	adc h
 	ld h, a
 	ld [hl], c
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_684D::
-	ld a, [$d8d5]
+ScriptCmdActorFaceDown::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	ld c, $00
-	jp Jump_004_6838
+	jp SetActorFacing
 
 
-Jump_04_6866::
-	ld a, [$d8d5]
+ScriptCmdActorFaceLeft::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	ld c, $01
-	jp Jump_004_6838
+	jp SetActorFacing
 
 
-Jump_04_687F::
-	ld a, [$d8d5]
+ScriptCmdActorFaceRight::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
 	ld c, $03
-	jp Jump_004_6838
+	jp SetActorFacing
 
 
-Jump_04_6898::
-	ld a, [$c8b6]
-	call Call_1AE1
-	jp Call_04_55F5
+ScriptCmdRestoreMusic::
+	ld a, [wSavedMusic]
+	call QueueMusic
+	jp NextScriptCommand
 
 
-Jump_04_68A1::
-	ld a, [$c846]
+ScriptCmdWaitDPad::
+	ld a, [wJoyPressed]
 	and $f0
-	jp nz, Call_04_55F5
+	jp nz, NextScriptCommand
 
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	sub $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	sbc $00
 	ld [$d8d6], a
 	ret
 
 
-Jump_04_68BA::
-	ld a, [$d8d5]
+ScriptCmdWaitFrames::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$d8db], a
-	ld hl, $d8d8
+	ld [wScriptWait], a
+	ld hl, wScriptFlags
 	set 2, [hl]
 	ret
 
 
-Jump_04_68D7::
-	ld a, [$c968]
+ScriptCmdSaveReturnPoint::
+	ld a, [wMapId]
 	ld c, a
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	ld b, a
 	ld a, c
-	ld [$c8fb], a
+	ld [wReturnMap], a
 	ld a, b
 	ld [$c8fc], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld c, a
 	ldh a, [$ff93]
 	ld b, a
 	ld a, c
-	ld [$c8fd], a
+	ld [wReturnX], a
 	ld a, b
 	ld [$c8fe], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld c, a
 	ldh a, [$ff96]
 	ld b, a
 	ld a, c
-	ld [$c8ff], a
+	ld [wReturnY], a
 	ld a, b
 	ld [$c900], a
-	ldh a, [$ff8e]
-	ld [$c901], a
-	jp Call_04_55F5
+	ldh a, [hPlayerDir]
+	ld [wReturnDir], a
+	jp NextScriptCommand
 
 
-Jump_04_690B::
-	ld a, [$c8fb]
+ScriptCmdReturnWarp2::
+	ld a, [wReturnMap]
 	ld c, a
 	ld a, [$c8fc]
 	ld b, a
 	ld a, c
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, b
-	ld [$c96e], a
-	ld a, [$c8fd]
+	ld [wWarpOnGateFloor], a
+	ld a, [wReturnX]
 	ld c, a
 	ld a, [$c8fe]
 	ld b, a
 	ld a, c
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, b
 	ld [$c970], a
-	ld a, [$c8ff]
+	ld a, [wReturnY]
 	ld c, a
 	ld a, [$c900]
 	ld b, a
 	ld a, c
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, b
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	xor a
-	ld [$d8d7], a
-	ld hl, $c8eb
+	ld [wScriptRunning], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	ret
 
 
-Jump_04_6957::
-	ld a, [$c901]
-	ldh [$ff8e], a
-	call Call_04_454B
+ScriptCmdReturnFace::
+	ld a, [wReturnDir]
+	ldh [hPlayerDir], a
+	call SetPlayerPoseFromDir
 	ld hl, $d7f8
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	add $02
 	and $03
 	ld [hl], a
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_696C::
+ScriptCmdLibraryRank::
 	ld b, $00
 	ld c, $00
 
 jr_004_6970:
 	push bc
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld a, b
-	call Call_267E
+	call TestFlag
 	pop bc
 	jr z, jr_004_697c
 
@@ -4873,8 +4891,8 @@ jr_004_697c:
 
 	push bc
 	ld a, c
-	ld hl, $c180
-	call Call_09A4
+	ld hl, wTextArg0
+	call ByteToDecimal
 	pop bc
 	ld hl, $699d
 	ld a, c
@@ -4887,25 +4905,25 @@ jr_004_6991:
 	jr nc, jr_004_6991
 
 	ld a, e
-	ld [$d8e1], a
-	jp Call_04_55F5
+	ld [wScriptResult], a
+	jp NextScriptCommand
 
 
 	db $07, $10, $1a, $26, $32, $47, $64, $83, $a1, $c8, $d7, $ff
 
-Jump_04_69A9::
+ScriptCmdRandomBattle::
 	ld bc, $0000
-	ld a, [$ca8e]
-	call Call_04_6A4E
+	ld a, [wParty]
+	call AddPartyMonLevel
 	ld a, [$ca8f]
-	call Call_04_6A4E
+	call AddPartyMonLevel
 	ld a, [$ca90]
-	call Call_04_6A4E
+	call AddPartyMonLevel
 	ld l, c
 	ld h, b
 	inc hl
 	ld a, $14
-	call Call_1E0D
+	call Divide16
 	ld a, l
 	cp $07
 	jr c, jr_004_69cd
@@ -4924,10 +4942,10 @@ jr_004_69cd:
 	ld h, [hl]
 	ld l, a
 	push hl
-	call Call_12D0
+	call Random
 	pop hl
 	push hl
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $0f
 	add l
 	ld l, a
@@ -4935,15 +4953,15 @@ jr_004_69cd:
 	adc h
 	ld h, a
 	ld a, l
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, h
 	ld [$da04], a
 	pop hl
 	push hl
-	call Call_12D0
+	call Random
 	pop hl
 	push hl
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $0f
 	add l
 	ld l, a
@@ -4956,10 +4974,10 @@ jr_004_69cd:
 	ld [$da06], a
 	pop hl
 	push hl
-	call Call_12D0
+	call Random
 	pop hl
 	push hl
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	and $0f
 	add l
 	ld l, a
@@ -4972,26 +4990,26 @@ jr_004_69cd:
 	ld [$da08], a
 	pop hl
 	ld a, $02
-	ld [$da02], a
-	ld hl, $c8eb
+	ld [wEncCount], a
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $02
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
 	db $60, $01, $70, $01, $80, $01, $90, $01, $a0, $01, $b0, $01, $c0, $01, $d0, $01
 	db $d0, $01
 
-Call_04_6A4E::
+AddPartyMonLevel::
 	cp $ff
 	ret z
 
 	push bc
-	ld hl, $cb0c
-	call Call_223B
+	ld hl, wMonLevel
+	call MonsterField
 	pop bc
 	ld a, [hl]
 	add c
@@ -5002,8 +5020,8 @@ Call_04_6A4E::
 	ret
 
 
-Jump_04_6A61::
-	ldh a, [$ff95]
+ScriptCmdFaceActor1::
+	ldh a, [hPlayerY]
 	and $f0
 	ld l, a
 	ldh a, [$ff96]
@@ -5038,7 +5056,7 @@ Jump_04_6A61::
 	jr jr_004_6abc
 
 jr_004_6a8d:
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	and $f0
 	ld l, a
 	ldh a, [$ff93]
@@ -5073,28 +5091,28 @@ jr_004_6a8d:
 	jr jr_004_6abc
 
 jr_004_6ab9:
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 jr_004_6abc:
-	ldh [$ff8e], a
-	call Call_04_454B
+	ldh [hPlayerDir], a
+	call SetPlayerPoseFromDir
 	ld hl, $d7d8
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	add $02
 	and $03
 	ld [hl], a
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_6ACE::
-	ld a, [$c899]
+ScriptCmdGiveRandomItem::
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $25
-	call Call_1DFB
+	call Divide8
 	inc a
 	ld c, a
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_004_6ade:
@@ -5109,20 +5127,20 @@ jr_004_6ade:
 	dec b
 	jr nz, jr_004_6ade
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 jr_004_6aed:
 	ld [hl], c
 	ld l, c
 	ld h, $08
-	ld de, $c180
-	call Call_097A
-	jp Call_04_55F5
+	ld de, wTextArg0
+	call CopySystemText
+	jp NextScriptCommand
 
 
-Jump_04_6AFA::
-	ld hl, $ca51
+ScriptCmdLoseRandomItem::
+	ld hl, wBagItems
 	ld b, $14
 	ld c, $00
 
@@ -5141,15 +5159,15 @@ jr_004_6b01:
 
 jr_004_6b0e:
 	ld a, c
-	ld [$d8e1], a
+	ld [wScriptResult], a
 	or a
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, c
-	call Call_1DFB
-	ld hl, $ca51
+	call Divide8
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
@@ -5159,55 +5177,55 @@ jr_004_6b0e:
 	ld [hl], $ff
 	ld l, c
 	ld h, $08
-	ld de, $c180
-	call Call_097A
-	ld hl, far_Call_03_7160
+	ld de, wTextArg0
+	call CopySystemText
+	ld hl, far_CompactBag
 	rst $10
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_6B3A::
-	ld a, [$ca4b]
+ScriptCmdLoseTenthOfGold::
+	ld a, [wGold]
 	ld l, a
 	ld a, [$ca4c]
 	ld h, a
 	ld a, [$ca4d]
 	ld e, a
 	ld a, $0a
-	call Call_1E1E
+	call Divide24
 	ld a, h
 	or l
 	or e
-	ld [$d8e1], a
+	ld [wScriptResult], a
 	or a
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	ld a, e
 	ldh [$ffd7], a
-	ld hl, $c180
-	call Call_09C7
-	ldh a, [$ffd5]
+	ld hl, wTextArg0
+	call Number24ToDecimal
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
 	ldh a, [$ffd7]
 	ld e, a
-	call Call_2424
-	jp Call_04_55F5
+	call SpendGold
+	jp NextScriptCommand
 
 
-Jump_04_6B73::
-	ld a, [$c899]
+ScriptCmdGiveRandomSeed::
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $05
-	call Call_1DFB
+	call Divide8
 	add $13
 	ld c, a
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_004_6b84:
@@ -5222,209 +5240,209 @@ jr_004_6b84:
 	dec b
 	jr nz, jr_004_6b84
 
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
 jr_004_6b93:
 	ld [hl], c
 	ld l, c
 	ld h, $08
-	ld de, $c180
-	call Call_097A
-	jp Call_04_55F5
+	ld de, wTextArg0
+	call CopySystemText
+	jp NextScriptCommand
 
 
-Jump_04_6BA0::
-	ld a, [$c93a]
+ScriptCmdSkipFloors::
+	ld a, [wGateFloors]
 	dec a
 	dec a
 	ld b, a
-	ld a, [$c939]
+	ld a, [wGateFloor]
 	cp b
 	jr z, jr_004_6bb9
 
 	add $13
-	ld [$c939], a
+	ld [wGateFloor], a
 	cp b
 	jr c, jr_004_6bb9
 
 	ld a, b
 	dec a
-	ld [$c939], a
+	ld [wGateFloor], a
 
 jr_004_6bb9:
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	ld a, $00
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, $80
-	ld [$c96e], a
-	ld hl, $c8eb
+	ld [wWarpOnGateFloor], a
+	ld hl, wFieldFlags
 	set 5, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	xor a
-	ld [$d8d7], a
-	ld hl, $c8eb
+	ld [wScriptRunning], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	ret
 
 
-Jump_04_6BDF::
-	ld a, [$d8d5]
+ScriptCmdBoostTopStat::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$d8e1], a
+	ld [wScriptResult], a
 	cp $ff
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	ld [$cac0], a
-	ld hl, $cb13
-	call Call_223B
+	ld [wCurPartyMember], a
+	ld hl, wMonMaxHP
+	call MonsterField
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	ld hl, $cb17
-	call Call_04_6D40
+	ld hl, wMonMaxMP
+	call CompareStat
 	jr c, jr_004_6c47
 
-	ld hl, $cb19
-	call Call_04_6D40
+	ld hl, wMonAttack
+	call CompareStat
 	jr c, jr_004_6c47
 
-	ld hl, $cb1b
-	call Call_04_6D40
+	ld hl, wMonDefense
+	call CompareStat
 	jr c, jr_004_6c47
 
-	ld hl, $cb1d
-	call Call_04_6D35
+	ld hl, wMonAgility
+	call CompareStat2x
 	jr c, jr_004_6c47
 
-	ld hl, $cb1f
-	call Call_04_6D29
+	ld hl, wMonIntelligence
+	call CompareStat4x
 	jr c, jr_004_6c47
 
 	ld hl, $0014
-	ld a, [$cac0]
-	call Call_23E9
+	ld a, [wCurPartyMember]
+	call RaiseMonsterMaxHP
 	ld a, $00
 	jp Jump_004_6d0a
 
 
 jr_004_6c47:
-	ld a, [$cac0]
-	ld hl, $cb17
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonMaxMP
+	call MonsterField
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	ld hl, $cb19
-	call Call_04_6D40
+	ld hl, wMonAttack
+	call CompareStat
 	jr c, jr_004_6c81
 
-	ld hl, $cb1b
-	call Call_04_6D40
+	ld hl, wMonDefense
+	call CompareStat
 	jr c, jr_004_6c81
 
-	ld hl, $cb1d
-	call Call_04_6D35
+	ld hl, wMonAgility
+	call CompareStat2x
 	jr c, jr_004_6c81
 
-	ld hl, $cb1f
-	call Call_04_6D29
+	ld hl, wMonIntelligence
+	call CompareStat4x
 	jr c, jr_004_6c81
 
 	ld hl, $0014
-	ld a, [$cac0]
-	call Call_2403
+	ld a, [wCurPartyMember]
+	call RaiseMonsterMaxMP
 	ld a, $01
 	jp Jump_004_6d0a
 
 
 jr_004_6c81:
-	ld a, [$cac0]
-	ld hl, $cb19
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonAttack
+	call MonsterField
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	ld hl, $cb1b
-	call Call_04_6D40
+	ld hl, wMonDefense
+	call CompareStat
 	jr c, jr_004_6cb2
 
-	ld hl, $cb1d
-	call Call_04_6D35
+	ld hl, wMonAgility
+	call CompareStat2x
 	jr c, jr_004_6cb2
 
-	ld hl, $cb1f
-	call Call_04_6D29
+	ld hl, wMonIntelligence
+	call CompareStat4x
 	jr c, jr_004_6cb2
 
 	ld hl, $0014
-	ld a, [$cac0]
-	call Call_2307
+	ld a, [wCurPartyMember]
+	call RaiseMonsterAttack
 	ld a, $02
 	jr jr_004_6d0a
 
 jr_004_6cb2:
-	ld a, [$cac0]
-	ld hl, $cb1b
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonDefense
+	call MonsterField
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	ld hl, $cb1d
-	call Call_04_6D35
+	ld hl, wMonAgility
+	call CompareStat2x
 	jr c, jr_004_6cdb
 
-	ld hl, $cb1f
-	call Call_04_6D29
+	ld hl, wMonIntelligence
+	call CompareStat4x
 	jr c, jr_004_6cdb
 
 	ld hl, $0014
-	ld a, [$cac0]
-	call Call_2321
+	ld a, [wCurPartyMember]
+	call RaiseMonsterDefense
 	ld a, $03
 	jr jr_004_6d0a
 
 jr_004_6cdb:
-	ld a, [$cac0]
-	ld hl, $cb1d
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonAgility
+	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	add hl, hl
 	ld e, l
 	ld d, h
-	ld hl, $cb1f
-	call Call_04_6D29
+	ld hl, wMonIntelligence
+	call CompareStat4x
 	jr c, jr_004_6cff
 
 	ld hl, $0014
-	ld a, [$cac0]
-	call Call_233B
+	ld a, [wCurPartyMember]
+	call RaiseMonsterAgility
 	ld a, $04
 	jr jr_004_6d0a
 
 jr_004_6cff:
 	ld hl, $0014
-	ld a, [$cac0]
-	call Call_2355
+	ld a, [wCurPartyMember]
+	call RaiseMonsterIntelligence
 	ld a, $05
 
 Jump_004_6d0a:
@@ -5432,20 +5450,20 @@ jr_004_6d0a:
 	add $35
 	ld l, a
 	ld h, $02
-	ld de, $c190
-	call Call_097A
-	ld a, [$cac0]
-	ld hl, $cac2
-	call Call_223B
+	ld de, wTextArg1
+	call CopySystemText
+	ld a, [wCurPartyMember]
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	jp Call_04_55F5
+	ld hl, wTextArg0
+	call CopyName
+	jp NextScriptCommand
 
 
-Call_04_6D29::
-	call Call_04_6D4A
+CompareStat4x::
+	call GetCurMonWord
 	add hl, hl
 	add hl, hl
 	ld a, l
@@ -5457,8 +5475,8 @@ Call_04_6D29::
 	ret
 
 
-Call_04_6D35::
-	call Call_04_6D4A
+CompareStat2x::
+	call GetCurMonWord
 	add hl, hl
 	ld a, l
 	sub e
@@ -5469,8 +5487,8 @@ Call_04_6D35::
 	ret
 
 
-Call_04_6D40::
-	call Call_04_6D4A
+CompareStat::
+	call GetCurMonWord
 	ld a, l
 	sub e
 	ld l, a
@@ -5480,10 +5498,10 @@ Call_04_6D40::
 	ret
 
 
-Call_04_6D4A::
+GetCurMonWord::
 	push de
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -5491,50 +5509,50 @@ Call_04_6D4A::
 	ret
 
 
-Jump_04_6D56::
-	ld a, [$d8d5]
+ScriptCmdSpecialBattle::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
+	call ReadScriptWord
 	ld a, c
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, b
 	ld [$da04], a
 	xor a
-	ld [$da02], a
-	ld hl, $c8eb
+	ld [wEncCount], a
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $03
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
-Jump_04_6D84::
-	ld hl, $c8eb
+ScriptCmdStartSpecialBattle::
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $03
-	ld [$da09], a
+	ld [wBattleKind], a
 	ret
 
 
-Jump_04_6D93::
-	ld a, [$d9cf]
+ScriptCmdSetupTournament::
+	ld a, [wArenaWins]
 	bit 7, a
 	jr nz, jr_004_6d9e
 
-	ld hl, $d9cf
+	ld hl, wArenaWins
 	inc [hl]
 
 jr_004_6d9e:
-	call Call_04_6EB3
-	ld a, [$da03]
+	call RollTournamentTeam
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
@@ -5558,8 +5576,8 @@ jr_004_6d9e:
 	ld [$d9d5], a
 	ld a, h
 	ld [$d9d6], a
-	call Call_04_6EB3
-	ld a, [$da03]
+	call RollTournamentTeam
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
@@ -5583,11 +5601,11 @@ jr_004_6d9e:
 	ld [$d9dd], a
 	ld a, h
 	ld [$d9de], a
-	call Call_04_6EB3
-	ld hl, $d7ca
-	call Call_04_6E41
+	call RollTournamentTeam
+	ld hl, wEncGfx
+	call SetEncounterGfx
 	ld hl, $6f44
-	ld a, [$d9cf]
+	ld a, [wArenaWins]
 	cp $09
 	jr c, jr_004_6e1a
 
@@ -5595,8 +5613,8 @@ jr_004_6d9e:
 
 jr_004_6e1a:
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	and $0f
 	pop hl
 	add l
@@ -5605,18 +5623,18 @@ jr_004_6e1a:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$d9d0], a
+	ld [wArenaPrize], a
 	xor a
-	ld [$d9cd], a
-	ld a, [$d9d0]
+	ld [wArenaRound], a
+	ld a, [wArenaPrize]
 	ld l, a
 	ld h, $08
-	ld de, $c180
-	call Call_097A
-	jp Call_04_55F5
+	ld de, wTextArg0
+	call CopySystemText
+	jp NextScriptCommand
 
 
-Call_04_6E41::
+SetEncounterGfx::
 	push hl
 	ld a, $ff
 	ld [hli], a
@@ -5632,20 +5650,20 @@ Call_04_6E41::
 	ld [hl], a
 	pop hl
 	push hl
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	call Call_04_6EA9
+	call GetSpeciesGfx2
 	pop hl
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-	ld a, [$da02]
+	ld a, [wEncCount]
 	or a
 	ret z
 
@@ -5655,15 +5673,15 @@ Call_04_6E41::
 	ld a, [$da06]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	call Call_04_6EA9
+	call GetSpeciesGfx2
 	pop hl
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-	ld a, [$da02]
+	ld a, [wEncCount]
 	cp $01
 	ret z
 
@@ -5673,10 +5691,10 @@ Call_04_6E41::
 	ld a, [$da08]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	call Call_04_6EA9
+	call GetSpeciesGfx2
 	pop hl
 	ld [hli], a
 	ld a, $01
@@ -5684,22 +5702,22 @@ Call_04_6E41::
 	ret
 
 
-Call_04_6EA9::
-	ld hl, far_Call_14_4016
+GetSpeciesGfx2::
+	ld hl, far_LoadMonTemplate2
 	rst $10
-	ld a, [$da18]
+	ld a, [wNewMonNameText]
 	add $10
 	ret
 
 
-Call_04_6EB3::
+RollTournamentTeam::
 	ld b, $00
-	ld a, [$ca8e]
-	call Call_04_6F05
+	ld a, [wParty]
+	call MaxLevelInto
 	ld a, [$ca8f]
-	call Call_04_6F05
+	call MaxLevelInto
 	ld a, [$ca90]
-	call Call_04_6F05
+	call MaxLevelInto
 	ld a, b
 	ld hl, $0209
 	cp $04
@@ -5736,12 +5754,12 @@ Call_04_6EB3::
 	ld hl, $b512
 	jr jr_004_6f13
 
-Call_04_6F05::
+MaxLevelInto::
 	cp $ff
 	ret z
 
-	ld hl, $cb0c
-	call Call_223B
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	cp b
 	ret c
@@ -5752,12 +5770,12 @@ Call_04_6F05::
 
 jr_004_6f13:
 	ld a, $02
-	ld [$da02], a
-	call Call_04_6F35
-	ld [$da03], a
-	call Call_04_6F35
+	ld [wEncCount], a
+	call RandomSpeciesInRange
+	ld [wEncSpecies], a
+	call RandomSpeciesInRange
 	ld [$da05], a
-	call Call_04_6F35
+	call RandomSpeciesInRange
 	ld [$da07], a
 	xor a
 	ld [$da04], a
@@ -5766,13 +5784,13 @@ jr_004_6f13:
 	ret
 
 
-Call_04_6F35::
+RandomSpeciesInRange::
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, l
-	call Call_1DFB
+	call Divide8
 	pop hl
 	add h
 	ret
@@ -5781,13 +5799,13 @@ Call_04_6F35::
 	db $03, $04, $06, $0c, $15, $17, $18, $19, $1a, $1b, $1c, $25, $1a, $1b, $1c, $25
 	db $0d, $0e, $0f, $10, $11, $12, $1e, $1f, $20, $21, $22, $23, $20, $21, $22, $23
 
-Jump_04_6F64::
-	ld a, [$d9d0]
+ScriptCmdGivePrize::
+	ld a, [wArenaPrize]
 	ld l, a
 	ld h, $08
-	ld de, $c180
-	call Call_097A
-	ld hl, $ca51
+	ld de, wTextArg0
+	call CopySystemText
+	ld hl, wBagItems
 	ld b, $14
 
 jr_004_6f75:
@@ -5806,86 +5824,86 @@ jr_004_6f75:
 
 
 jr_004_6f82:
-	ld a, [$d9d0]
+	ld a, [wArenaPrize]
 	ld [hl], a
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_6F89::
+ScriptCmdStartShootingStars::
 	ld a, $07
-	ld [$d951], a
+	ld [wStoryStep], a
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
-	jp Call_04_55F5
+	call FillMemory
+	jp NextScriptCommand
 
 
-Jump_04_6F9B::
-	ld a, [$d8d5]
+ScriptCmdJumpIfLevelBelowCap::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_04_71EF
-	ld a, [$d8d5]
+	call ReadScriptWord
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
 	ld a, c
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp c
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	jp c, Call_04_55F5
+	jp c, NextScriptCommand
 
 	ld a, c
-	ld hl, $cb0d
+	ld hl, wMonMaxLevel
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	ld a, [hl]
 	push hl
-	ld hl, $c190
-	call Call_09A4
+	ld hl, wTextArg1
+	call ByteToDecimal
 	pop hl
 	pop bc
 	push hl
 	ld a, c
-	ld [$d8e1], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wScriptResult], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	pop hl
 	ld a, [hld]
 	dec a
 	cp [hl]
-	jp nc, Call_04_55F5
+	jp nc, NextScriptCommand
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
-Jump_04_6FFB::
-	ld a, [$d8d5]
+ScriptCmdPayPerLevel::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld a, [$ca40]
-	ld hl, $cb23
-	call Call_223B
+	ld a, [wLeaderSlot]
+	ld hl, wMonPlus
+	call MonsterField
 	ld a, [hl]
 	inc a
 	ld c, $0a
-	call Call_1DBE
-	ld a, [$ca4b]
+	call Multiply
+	ld a, [wGold]
 	sub l
 	ld a, [$ca4c]
 	sbc h
@@ -5893,22 +5911,22 @@ Jump_04_6FFB::
 	sbc $00
 	jr nc, jr_004_7030
 
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
 jr_004_7030:
 	ld e, $00
-	call Call_2424
-	jp Call_04_55F5
+	call SpendGold
+	jp NextScriptCommand
 
 
-Jump_04_7038::
-	ld a, [$d8d3]
+ScriptCmdMapRoutine2::
+	ld a, [wScriptMap]
 	cp $06
 	jr nc, jr_004_7044
 
-	ld hl, far_Call_0C_4110
+	ld hl, far_DrawScriptAttrs_0C
 	rst $10
 	ret
 
@@ -5917,7 +5935,7 @@ jr_004_7044:
 	cp $20
 	jr nc, jr_004_704d
 
-	ld hl, far_Call_0D_4110
+	ld hl, far_DrawScriptAttrs_0D
 	rst $10
 	ret
 
@@ -5926,24 +5944,24 @@ jr_004_704d:
 	cp $40
 	jr nc, jr_004_7056
 
-	ld hl, far_Call_0E_4110
+	ld hl, far_DrawScriptAttrs_0E
 	rst $10
 	ret
 
 
 jr_004_7056:
-	ld hl, far_Call_0F_4110
+	ld hl, far_DrawScriptAttrs_0F
 	rst $10
 	ret
 
 
-Jump_04_705B::
+ScriptCmdBlankScreen::
 	ld hl, $8da0
 	ld b, $10
 	ld a, $ff
 
 jr_004_7062:
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_004_7062
 
@@ -5952,18 +5970,18 @@ jr_004_7062:
 	ld a, $da
 
 jr_004_706f:
-	call Call_1AB9
-	call Call_1AB9
-	call Call_1AB9
-	call Call_1AB9
+	call WriteVRAMInc
+	call WriteVRAMInc
+	call WriteVRAMInc
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_004_706f
 
 	ret
 
 
-Jump_04_707F::
-	ldh a, [$ffbb]
+ScriptCmdRedrawScreen::
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -5974,7 +5992,7 @@ Jump_04_707F::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -5984,7 +6002,7 @@ Jump_04_707F::
 	ld a, $00
 	adc h
 	ld h, a
-	ld de, $c300
+	ld de, wSavedTilemap
 	ld c, $10
 
 jr_004_70a1:
@@ -5993,7 +6011,7 @@ jr_004_70a1:
 
 jr_004_70a4:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -6026,35 +6044,35 @@ jr_004_70a4:
 	dec c
 	jr nz, jr_004_70a1
 
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ret
 
 
-Jump_04_70D5::
-	ld a, [$d8d5]
+ScriptCmdJumpIfPartyFit::
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	or a
 	jp z, Jump_004_71c9
 
 	ld a, $00
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	or a
 	jp nz, Jump_004_71cf
 
 	ld a, $00
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $00
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -6067,12 +6085,12 @@ Jump_04_70D5::
 	jp nz, Jump_004_71cf
 
 	ld a, $00
-	ld hl, $cb17
-	call Call_224F
+	ld hl, wMonMaxMP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $00
-	ld hl, $cb15
-	call Call_224F
+	ld hl, wMonMP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -6084,23 +6102,23 @@ Jump_04_70D5::
 	or l
 	jp nz, Jump_004_71cf
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $01
 	jp z, Jump_004_71c9
 
 	ld a, $01
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	or a
 	jp nz, Jump_004_71cf
 
 	ld a, $01
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $01
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -6113,12 +6131,12 @@ Jump_04_70D5::
 	jr nz, jr_004_71cf
 
 	ld a, $01
-	ld hl, $cb17
-	call Call_224F
+	ld hl, wMonMaxMP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $01
-	ld hl, $cb15
-	call Call_224F
+	ld hl, wMonMP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -6130,23 +6148,23 @@ Jump_04_70D5::
 	or l
 	jr nz, jr_004_71cf
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $02
 	jr z, jr_004_71c9
 
 	ld a, $02
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	or a
 	jp nz, Jump_004_71cf
 
 	ld a, $02
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $02
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -6159,12 +6177,12 @@ Jump_04_70D5::
 	jr nz, jr_004_71cf
 
 	ld a, $02
-	ld hl, $cb17
-	call Call_224F
+	ld hl, wMonMaxMP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $02
-	ld hl, $cb15
-	call Call_224F
+	ld hl, wMonMP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -6178,37 +6196,37 @@ Jump_04_70D5::
 
 Jump_004_71c9:
 jr_004_71c9:
-	call Call_04_71EF
-	jp Jump_004_7212
+	call ReadScriptWord
+	jp ScriptJumpTo
 
 
 Jump_004_71cf:
 jr_004_71cf:
-	jp Call_04_55F5
+	jp NextScriptCommand
 
 
-Jump_04_71D2::
-	ld a, [$dd80]
+ScriptCmdWaitLink2::
+	ld a, [wSoundChannels]
 	ld hl, $dd9a
 	and [hl]
 	cp $ff
-	jp z, Call_04_55F5
+	jp z, NextScriptCommand
 
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	sub $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	sbc $00
 	ld [$d8d6], a
 	ret
 
 
-Call_04_71EF::
-	ld a, [$d8d3]
+ReadScriptWord::
+	ld a, [wScriptMap]
 	cp $06
 	jr nc, jr_004_71fb
 
-	ld hl, far_Call_0C_4007
+	ld hl, far_GetScriptWord_0C
 	rst $10
 	ret
 
@@ -6217,7 +6235,7 @@ jr_004_71fb:
 	cp $20
 	jr nc, jr_004_7204
 
-	ld hl, far_Call_0D_4007
+	ld hl, far_GetScriptWord_0D
 	rst $10
 	ret
 
@@ -6226,18 +6244,18 @@ jr_004_7204:
 	cp $40
 	jr nc, jr_004_720d
 
-	ld hl, far_Call_0E_4007
+	ld hl, far_GetScriptWord_0E
 	rst $10
 	ret
 
 
 jr_004_720d:
-	ld hl, far_Call_0F_4007
+	ld hl, far_GetScriptWord_0F
 	rst $10
 	ret
 
 
-Jump_004_7212:
+ScriptJumpTo::
 	ld a, c
 	sub l
 	ld c, a
@@ -6252,16 +6270,16 @@ Jump_004_7212:
 	and $80
 	or b
 	ld b, a
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	ld l, a
 	ld a, [$d8d6]
 	ld h, a
 	add hl, bc
 	ld a, l
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, h
 	ld [$d8d6], a
-	jp Jump_004_5605
+	jp RunScriptCommand
 
 
 	db $61, $72, $72, $72, $83, $72, $94, $72, $a5, $72, $b6, $72, $c7, $72, $c7, $72

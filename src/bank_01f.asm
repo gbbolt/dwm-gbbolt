@@ -8,14 +8,14 @@ BankNumber_1F::
 	db $1f
 
 FarTable_1F::
-	dw Call_1F_40F1
-	dw Call_1F_40F8
-	dw Call_1F_40FF
-	dw Data_1F_400D
-	dw Data_1F_408D
-	dw Data_1F_40CD
+	dw StartText_1F
+	dw CopyText_1F
+	dw PrintText_1F
+	dw TextGroup_1F_0
+	dw TextGroup_1F_1
+	dw TextGroup_1F_2
 
-Data_1F_400D::
+TextGroup_1F_0::
 	db $06, $41, $2c, $41, $5d, $41, $93, $41, $c8, $41, $2e, $42, $51, $42, $8c, $42
 	db $eb, $42, $6b, $43, $8b, $43, $79, $45, $c5, $45, $28, $46, $6c, $46, $a0, $46
 	db $d8, $46, $72, $47, $e7, $47, $bc, $48, $dc, $48, $3b, $49, $97, $49, $b6, $49
@@ -25,35 +25,36 @@ Data_1F_400D::
 	db $1b, $56, $6e, $56, $ab, $56, $ea, $56, $fa, $57, $8f, $58, $5a, $59, $32, $5a
 	db $79, $5a, $75, $5b, $8b, $5b, $b0, $5b, $5f, $5c, $e9, $5c, $5c, $5d, $87, $5d
 
-Data_1F_408D::
+TextGroup_1F_1::
 	db $bb, $5d, $ec, $5d, $62, $5e, $93, $5e, $ee, $5f, $ca, $60, $6d, $63, $16, $64
 	db $20, $64, $a0, $64, $bf, $64, $e6, $64, $23, $65, $85, $65, $03, $66, $3b, $66
 	db $c5, $67, $0c, $69, $5f, $6a, $df, $6b, $85, $6c, $97, $6d, $41, $6e, $d6, $6e
 	db $05, $6f, $1f, $6f, $33, $6f, $87, $6f, $9b, $70, $d3, $70, $12, $71, $9b, $71
 
-Data_1F_40CD::
+TextGroup_1F_2::
 	db $b9, $71, $cb, $71, $e1, $71, $37, $72, $80, $72, $2e, $73, $7d, $73, $dc, $73
 	db $f4, $73, $0b, $74, $2b, $74, $72, $74, $81, $74, $af, $74, $4a, $75, $d0, $75
 	db $d7, $77, $f3, $77
 
-Call_1F_40F1::
+StartText_1F::
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_1F_40F8::
+CopyText_1F::
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_1F_40FF::
-	call Call_1F_40F1
-	call Call_0609
+PrintText_1F::
+	call StartText_1F
+	call RunTextToEnd
 	ret
 
 
+Texts_1F::
 	db $eb, $9f, $a3, $3a, $45, $4c, $62, $4a, $3e, $48, $42, $50, $62, $50, $52, $40
 	db $45, $62, $3e, $ef, $ee, $41, $3e, $4f, $4b, $62, $3f, $46, $44, $62, $4e, $52
 	db $3e, $48, $42, $64, $f7, $f0, $eb, $9f, $a3, $2b, $42, $56, $62, $54, $3e, $51

@@ -60,29 +60,29 @@ jr_056_4046:
 	ld a, [de]
 	ld [hl], a
 	ld a, $43
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $63
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Call_56_4064::
-	ld a, [$c842]
+	ld a, [wJoyHeld]
 	and $01
 	cp $01
 	jr nz, jr_056_4084
 
-	ld hl, $c8ad
+	ld hl, wDebugSavedMode
 	ld a, [hli]
-	ld [$c88a], a
+	ld [wGameMode], a
 	ld a, [hli]
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, [hli]
 	ld [$c88c], a
 	ld a, [hl]
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 
 jr_056_4084:
@@ -155,20 +155,20 @@ jr_056_4084:
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
 Call_56_4485::
-	ld hl, $c829
+	ld hl, wTextBoxWidth
 	ld a, [hli]
 	or [hl]
 	ret z
 
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld l, a
 	ld a, [$c828]
 	ld h, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld c, a
 
 jr_056_4497:
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld b, a
 
 jr_056_449b:
@@ -205,7 +205,7 @@ jr_056_44a2:
 
 Call_56_44C7::
 	ld a, d
-	ld [$c83a], a
+	ld [wTextControlCode], a
 	sub $e0
 	rst $00
 
@@ -250,68 +250,68 @@ Jump_56_450E::
 Jump_56_4511::
 	call Call_56_4855
 	ld a, $01
-	ld [$c83c], a
+	ld [wTextChoice], a
 	ld a, $ff
-	ld [$c83a], a
+	ld [wTextControlCode], a
 	ret
 
 
 Jump_56_451F::
-	call Call_0954
+	call NextTextByte
 	ld d, $00
-	call Call_0D78
+	call ReadTextBankByte
 	ld e, a
-	call Call_0954
-	call Call_0D78
+	call NextTextByte
+	call ReadTextBankByte
 	ld c, a
-	ld a, [$c82a]
-	call Call_1DBE
+	ld a, [wTextBoxHeight]
+	call Multiply
 	add hl, de
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	add hl, hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld e, a
 	ld a, [$c828]
 	ld d, a
 	add hl, de
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
 	ld [$c82c], a
 	ld a, l
-	ld [$c82f], a
+	ld [wTextLineStart], a
 	ld a, h
 	ld [$c830], a
 	ret
 
 
 Jump_56_4554::
-	call Call_0954
-	call Call_0D78
-	call Call_1B2C
+	call NextTextByte
+	call ReadTextBankByte
+	call QueueSound
 	ret
 
 
 Jump_56_455E::
-	ld hl, $c826
+	ld hl, wTextFlags
 	set 0, [hl]
 	ld a, $5b
-	ld [$c840], a
+	ld [wTextBeep], a
 	ret
 
 
 Jump_56_4569::
-	ld hl, $c826
+	ld hl, wTextFlags
 	set 0, [hl]
 	ld a, $5a
-	ld [$c840], a
+	ld [wTextBeep], a
 	ret
 
 
 Jump_56_4574::
-	ld hl, $c826
+	ld hl, wTextFlags
 	res 7, [hl]
 	ld a, [$c8ee]
 	cp $07
@@ -324,16 +324,16 @@ Jump_56_4574::
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$c836], a
-	ld hl, $c825
+	ld [wTextPauseTimer], a
+	ld hl, wTextState
 	set 7, [hl]
 	ret
 
 
 jr_056_4593:
-	ld hl, $c826
+	ld hl, wTextFlags
 	res 7, [hl]
-	ld hl, $c825
+	ld hl, wTextState
 	set 2, [hl]
 	set 5, [hl]
 	ret
@@ -342,13 +342,13 @@ jr_056_4593:
 	db $06, $0c, $14, $1a, $20, $28, $30
 
 Jump_56_45A7::
-	ld hl, $c826
+	ld hl, wTextFlags
 	set 7, [hl]
 	ret
 
 
 Jump_56_45AD::
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld e, a
 	ld a, [$c828]
 	ld d, a
@@ -360,11 +360,11 @@ Jump_56_45AD::
 	rr e
 	srl d
 	rr e
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
-	ld a, [$c83e]
+	ld a, [wTextBoxMap]
 	ld l, a
 	ld a, [$c83f]
 	ld h, a
@@ -372,20 +372,20 @@ Jump_56_45AD::
 
 jr_056_45d6:
 	ld a, e
-	call Call_1AAD
-	call Call_0CEE
+	call WriteVRAM
+	call MapNextTile
 	inc e
 	dec b
 	jr nz, jr_056_45d6
 
 	ld hl, $0020
-	call Call_0CFD
-	ld a, [$c829]
+	call TextBoxMapAddress
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
-	call Call_0D34
-	ld a, [$c82a]
+	call ClearMapTiles
+	ld a, [wTextBoxHeight]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -395,7 +395,7 @@ jr_056_45d6:
 	ld c, l
 	ld b, h
 	push de
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld e, a
 	ld a, [$c828]
 	ld d, a
@@ -404,9 +404,9 @@ jr_056_45d6:
 
 jr_056_4609:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec bc
 	dec bc
 	ld a, b
@@ -415,43 +415,43 @@ jr_056_4609:
 
 	pop bc
 	ld hl, $0040
-	call Call_0CFD
+	call TextBoxMapAddress
 
 jr_056_461f:
 	ld a, e
-	call Call_1AAD
-	call Call_0CEE
+	call WriteVRAM
+	call MapNextTile
 	inc e
 	dec b
 	jr nz, jr_056_461f
 
-	ld a, [$c82f]
+	ld a, [wTextLineStart]
 	ld l, a
 	ld a, [$c830]
 	ld h, a
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
 	ld [$c82c], a
-	ld hl, $c825
+	ld hl, wTextState
 	res 1, [hl]
 	ret
 
 
 Jump_56_4640::
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	add hl, hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld e, a
 	ld a, [$c828]
 	ld d, a
 	add hl, de
-	ld a, [$c82f]
+	ld a, [wTextLineStart]
 	ld e, a
 	ld a, [$c830]
 	ld d, a
@@ -466,28 +466,28 @@ Jump_56_4640::
 	jr z, jr_056_4679
 
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
 	ld [$c82c], a
 	ld a, l
-	ld [$c82f], a
+	ld [wTextLineStart], a
 	ld a, h
 	ld [$c830], a
-	call Call_0954
+	call NextTextByte
 	ret
 
 
 jr_056_4679:
-	ld a, [$c83e]
+	ld a, [wTextBoxMap]
 	ld l, a
 	ld a, [$c83f]
 	ld h, a
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
-	call Call_0D34
-	ld a, [$c827]
+	call ClearMapTiles
+	ld a, [wTextTiles]
 	ld e, a
 	ld a, [$c828]
 	ld d, a
@@ -499,39 +499,39 @@ jr_056_4679:
 	rr e
 	srl d
 	rr e
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	ld hl, $0020
-	call Call_0CFD
+	call TextBoxMapAddress
 	ld a, e
 	add b
 	ld e, a
 
 jr_056_46b5:
 	ld a, e
-	call Call_1AAD
-	call Call_0CEE
+	call WriteVRAM
+	call MapNextTile
 	inc e
 	dec b
 	jr nz, jr_056_46b5
 
 	ld hl, $0040
-	call Call_0CFD
-	ld a, [$c829]
+	call TextBoxMapAddress
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
-	call Call_0D34
-	ld a, [$c82a]
+	call ClearMapTiles
+	ld a, [wTextBoxHeight]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	add hl, hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld e, a
 	ld a, [$c828]
 	ld d, a
@@ -541,7 +541,7 @@ jr_056_46b5:
 
 jr_056_46e6:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ei
 	ld [de], a
@@ -551,28 +551,28 @@ jr_056_46e6:
 	or c
 	jr nz, jr_056_46e6
 
-	ld hl, $c825
+	ld hl, wTextState
 	set 7, [hl]
 	ld a, $04
-	ld [$c836], a
+	ld [wTextPauseTimer], a
 	ret
 
 
 Jump_56_46FE::
-	ld a, [$c825]
+	ld a, [wTextState]
 	bit 4, a
 	jp z, Jump_056_4722
 
-	ld a, [$c825]
+	ld a, [wTextState]
 	res 4, a
-	ld [$c825], a
-	call Call_0864
-	ld a, [$c831]
+	ld [wTextState], a
+	call EraseTextPromptArrow
+	ld a, [wTextStart]
 	ld l, a
 	ld a, [$c832]
 	ld h, a
 	ld a, l
-	ld [$c82d], a
+	ld [wTextPtr], a
 	ld a, h
 	ld [$c82e], a
 	ret
@@ -580,74 +580,74 @@ Jump_56_46FE::
 
 Jump_056_4722:
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	xor a
-	ld [$c826], a
+	ld [wTextFlags], a
 	ret
 
 
 Jump_56_472B::
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	add hl, hl
-	ld a, [$c82f]
+	ld a, [wTextLineStart]
 	ld e, a
 	ld a, [$c830]
 	ld d, a
 	add hl, de
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
 	ld [$c82c], a
 	ld a, l
-	ld [$c82f], a
+	ld [wTextLineStart], a
 	ld a, h
 	ld [$c830], a
 	ret
 
 
 Jump_56_474F::
-	call Call_0864
+	call EraseTextPromptArrow
 	call Call_56_4771
 	call Call_56_4485
 
 Jump_56_4758::
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld l, a
 	ld a, [$c828]
 	ld h, a
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
 	ld [$c82c], a
 	ld a, l
-	ld [$c82f], a
+	ld [wTextLineStart], a
 	ld a, h
 	ld [$c830], a
 	ret
 
 
 Call_56_4771::
-	ld hl, $c826
+	ld hl, wTextFlags
 	res 7, [hl]
-	ld hl, $c825
+	ld hl, wTextState
 	res 1, [hl]
 	ret
 
 
 Jump_56_477C::
-	ld hl, $c825
+	ld hl, wTextState
 	set 1, [hl]
 	ret
 
 
 Jump_56_4782::
-	ld hl, $ca42
-	ld de, $c0c8
+	ld hl, wPlayerName
+	ld de, wNameInput
 	ld b, $08
 
 jr_056_478a:
@@ -659,133 +659,133 @@ jr_056_478a:
 
 	ld a, $f0
 	ld [de], a
-	ld hl, $c825
+	ld hl, wTextState
 	set 4, [hl]
-	ld a, [$c82d]
+	ld a, [wTextPtr]
 	ld l, a
 	ld a, [$c82e]
 	ld h, a
 	ld a, l
-	ld [$c831], a
+	ld [wTextStart], a
 	ld a, h
 	ld [$c832], a
-	ld hl, $c0c8
+	ld hl, wNameInput
 	ld a, l
-	ld [$c82d], a
+	ld [wTextPtr], a
 	ld a, h
 	ld [$c82e], a
 	ret
 
 
 Jump_56_47B4::
-	ld hl, $c825
+	ld hl, wTextState
 	set 2, [hl]
-	ld hl, $c826
+	ld hl, wTextFlags
 	res 7, [hl]
 	ret
 
 
 Jump_56_47BF::
-	ld hl, $c825
+	ld hl, wTextState
 	set 3, [hl]
-	call Call_0954
-	call Call_0D78
-	ld [$c833], a
+	call NextTextByte
+	call ReadTextBankByte
+	ld [wTextSpeed], a
 	ret
 
 
 Jump_56_47CE::
-	ld hl, $c825
+	ld hl, wTextState
 	set 4, [hl]
-	ld a, [$c82d]
+	ld a, [wTextPtr]
 	ld l, a
 	ld a, [$c82e]
 	ld h, a
 	ld a, l
-	ld [$c831], a
+	ld [wTextStart], a
 	ld a, h
 	ld [$c832], a
-	ld a, [$c831]
+	ld a, [wTextStart]
 	add $01
-	ld [$c831], a
+	ld [wTextStart], a
 	ld a, [$c832]
 	adc $00
 	ld [$c832], a
-	ld a, [$c88a]
+	ld a, [wGameMode]
 	cp $0b
 	jr nz, jr_056_4806
 
 	ld hl, $0d8a
 	ld a, l
-	ld [$c82d], a
+	ld [wTextPtr], a
 	ld a, h
 	ld [$c82e], a
 	ret
 
 
 jr_056_4806:
-	call Call_0D78
-	ld de, $c180
+	call ReadTextBankByte
+	ld de, wTextArg0
 	add e
 	ld l, a
 	ld a, $00
 	adc d
 	ld h, a
 	ld a, l
-	ld [$c82d], a
+	ld [wTextPtr], a
 	ld a, h
 	ld [$c82e], a
 	ret
 
 
 Jump_56_481B::
-	ld hl, $c825
+	ld hl, wTextState
 	set 5, [hl]
 	ret
 
 
 Jump_56_4821::
-	ld hl, $c825
+	ld hl, wTextState
 	set 6, [hl]
-	call Call_0954
-	call Call_0D78
-	ld [$c835], a
-	ld hl, $c826
+	call NextTextByte
+	call ReadTextBankByte
+	ld [wTextWaitTimer], a
+	ld hl, wTextFlags
 	res 7, [hl]
 	ret
 
 
 Jump_56_4835::
-	ld hl, $c825
+	ld hl, wTextState
 	set 7, [hl]
-	call Call_0954
-	call Call_0D78
-	ld [$c836], a
-	ld hl, $c826
+	call NextTextByte
+	call ReadTextBankByte
+	ld [wTextPauseTimer], a
+	ld hl, wTextFlags
 	res 7, [hl]
 	ret
 
 
 Jump_56_4849::
-	ld hl, $c826
+	ld hl, wTextFlags
 	set 0, [hl]
 	ret
 
 
 Jump_56_484F::
-	ld hl, $c826
+	ld hl, wTextFlags
 	res 0, [hl]
 	ret
 
 
 Call_56_4855::
-	ld hl, $c826
+	ld hl, wTextFlags
 	res 7, [hl]
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	ld hl, $0000
-	call Call_0D11
-	ld de, $c500
+	call ScreenMapAddress
+	ld de, wTilemapBuffer
 	ld c, $12
 
 jr_056_486a:
@@ -794,7 +794,7 @@ jr_056_486a:
 
 jr_056_486d:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hl]
 	ei
 	ld [de], a
@@ -825,21 +825,21 @@ jr_056_486d:
 	jr nz, jr_056_486a
 
 	call Call_56_48A1
-	ld hl, $c825
+	ld hl, wTextState
 	set 2, [hl]
 	xor a
-	ld [$c83c], a
+	ld [wTextChoice], a
 	ret
 
 
 Call_56_48A1::
 	ld de, $560a
 	ld hl, $8e50
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $0100
-	call Call_0D11
+	call ScreenMapAddress
 	ld b, $0e
-	call Call_0CE7
+	call MapAdvanceTiles
 	ld de, $48de
 
 jr_056_48b8:
@@ -868,8 +868,8 @@ jr_056_48b9:
 	jr jr_056_48b8
 
 jr_056_48d4:
-	call Call_1AAD
-	call Call_0CEE
+	call WriteVRAM
+	call MapNextTile
 	jr jr_056_48b9
 
 jr_056_48dc:
@@ -883,45 +883,45 @@ jr_056_48dc:
 
 Call_56_4901::
 	ld de, $664b
-	call Call_05B6
+	call StartText
 	ret
 
 
 Call_56_4908::
 	ld de, $664b
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
 Call_56_490F::
 	call Call_56_4901
-	call Call_0609
+	call RunTextToEnd
 	ret
 
 
 Call_56_4916::
 	ld hl, $9000
 	ld de, $1207
-	call Call_098F
-	ld hl, $c0a0
+	call SetUpTextBox
+	ld hl, wNumberBackup
 	ld bc, $0010
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	ld hl, $9c00
 	ld bc, $0400
 	ld a, $1f
-	call Call_12C7
+	call FillMemory
 	ld hl, $9c00
 	ld bc, $1204
 	ld a, $80
 	call Call_56_4A0A
 	xor a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	xor a
 	ldh [rVBK], a
 	call Call_56_4996
 	ld a, $00
-	call Call_1AE1
+	call QueueMusic
 	ld a, $0a
 	ld [$df08], a
 	xor a
@@ -931,9 +931,9 @@ Call_56_4916::
 	ld a, $8e
 	ld [$df05], a
 	ld a, $64
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld h, $98
 	ld l, $8e
 	ld a, [hli]
@@ -948,31 +948,31 @@ Call_56_4916::
 	ld [$df0b], a
 	ld [$df0c], a
 	ld a, $43
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $63
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Call_56_4996::
-	ld hl, $c817
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld hl, $9100
 	ld a, $00
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld de, $1002
 	call Call_56_49E2
 	ld hl, $9300
-	ld a, [$c88b]
+	ld a, [wGameModeStep]
 	inc a
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld de, $1004
 	call Call_56_49E2
 	call Call_56_4A23
@@ -990,11 +990,11 @@ Call_56_4996::
 
 Call_56_49E2::
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	call Call_56_490F
@@ -1009,7 +1009,7 @@ Call_56_4A0A::
 	ld d, b
 
 jr_056_4a0c:
-	call Call_1AB9
+	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, jr_056_4a0c
@@ -1034,7 +1034,7 @@ Call_56_4A23::
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $1f
-	call Call_12C7
+	call FillMemory
 	ret
 
 

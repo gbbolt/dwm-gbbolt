@@ -8,22 +8,22 @@ BankNumber_13::
 	db $13
 
 FarTable_13::
-	dw Call_13_4009
-	dw Call_13_4050
-	dw Call_13_40AE
-	dw Call_13_7366
+	dw GetExpForNextLevel
+	dw SetExpForLevel
+	dw RollLevelUpGains
+	dw RunBattleWipe
 
-Call_13_4009::
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+GetExpForNextLevel::
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld a, [$da35]
 	ld bc, $0129
-	call Call_1DE6
+	call Multiply24
 	ld a, l
 	add $e6
 	ld l, a
@@ -31,9 +31,9 @@ Call_13_4009::
 	adc $41
 	ld h, a
 	push hl
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	ld b, a
 	add a
@@ -50,7 +50,7 @@ Call_13_4009::
 	adc h
 	ld h, a
 	ld a, [hli]
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, [hli]
 	ldh [$ffd6], a
 	ld a, [hli]
@@ -58,24 +58,24 @@ Call_13_4009::
 	ret
 
 
-Call_13_4050::
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+SetExpForLevel::
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	or a
 	ret z
 
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld a, [$da35]
 	ld bc, $0129
-	call Call_1DE6
+	call Multiply24
 	ld a, l
 	add $e6
 	ld l, a
@@ -83,9 +83,9 @@ Call_13_4050::
 	adc $41
 	ld h, a
 	push hl
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	dec a
 	ld b, a
@@ -103,9 +103,9 @@ Call_13_4050::
 	adc d
 	ld d, a
 	push de
-	ld a, [$cac0]
-	ld hl, $cb0e
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonExp
+	call MonsterField
 	pop de
 	ld a, [de]
 	ld [hli], a
@@ -118,23 +118,23 @@ Call_13_4050::
 	ret
 
 
-Call_13_40AE::
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+RollLevelUpGains::
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	xor a
-	ld [$c8d0], a
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld [wOverLevelLimit], a
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	push hl
-	ld a, [$cac0]
-	ld hl, $cb0d
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonMaxLevel
+	call MonsterField
 	ld a, [hl]
 	dec a
 	pop hl
@@ -142,35 +142,35 @@ Call_13_40AE::
 	jr nc, jr_013_40e1
 
 	ld a, $01
-	ld [$c8d0], a
+	ld [wOverLevelLimit], a
 
 jr_013_40e1:
 	ld a, [$da3c]
-	call Call_13_411E
-	call Call_13_4163
-	ld [$c8ca], a
+	call GetStatGain
+	call AddPlusBonuses
+	ld [wLevelGains], a
 	ld a, [$da3d]
-	call Call_13_411E
+	call GetStatGain
 	ld [$c8cb], a
 	ld a, [$da3e]
-	call Call_13_411E
-	call Call_13_4163
+	call GetStatGain
+	call AddPlusBonuses
 	ld [$c8cc], a
 	ld a, [$da3f]
-	call Call_13_411E
+	call GetStatGain
 	ld [$c8cd], a
 	ld a, [$da40]
-	call Call_13_411E
+	call GetStatGain
 	ld [$c8ce], a
 	ld a, [$da41]
-	call Call_13_411E
+	call GetStatGain
 	ld [$c8cf], a
 	ret
 
 
-Call_13_411E::
+GetStatGain::
 	ld c, $63
-	call Call_1DBE
+	call Multiply
 	ld a, l
 	add $06
 	ld l, a
@@ -178,9 +178,9 @@ Call_13_411E::
 	adc $67
 	ld h, a
 	push hl
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	pop hl
 	add l
@@ -190,7 +190,7 @@ Call_13_411E::
 	ld h, a
 	ld a, [hl]
 	ld [$c8cf], a
-	ld a, [$c8d0]
+	ld a, [wOverLevelLimit]
 	or a
 	jr nz, jr_013_414b
 
@@ -199,29 +199,29 @@ Call_13_411E::
 
 
 jr_013_414b:
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld c, [hl]
 	ld a, [$c8cf]
-	call Call_1DBE
+	call Multiply
 	ld a, $64
-	call Call_1E0D
+	call Divide16
 	ld a, l
 	inc a
 	ret
 
 
-Call_13_4163::
+AddPlusBonuses::
 	ld [$c8cf], a
-	ld [$c8d1], a
-	ld a, [$c8d0]
+	ld [wBaseGain], a
+	ld a, [wOverLevelLimit]
 	or a
 	jr nz, jr_013_41a1
 
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	cp $0e
 	jr c, jr_013_41a1
@@ -229,56 +229,56 @@ Call_13_4163::
 	ld b, $01
 	ld c, $13
 	ld d, $06
-	call Call_13_41A5
+	call RollPlusBonus
 	ld b, $0a
 	ld c, $14
 	ld d, $08
-	call Call_13_41A5
+	call RollPlusBonus
 	ld b, $14
 	ld c, $1e
 	ld d, $06
-	call Call_13_41A5
+	call RollPlusBonus
 	ld b, $32
 	ld c, $64
 	ld d, $05
-	call Call_13_41A5
+	call RollPlusBonus
 
 jr_013_41a1:
 	ld a, [$c8cf]
 	ret
 
 
-Call_13_41A5::
+RollPlusBonus::
 	push de
 	push bc
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	pop bc
 	push bc
 	ld a, c
-	call Call_1E0D
+	call Divide16
 	pop bc
 	add b
 	ld b, a
 	pop de
 	push de
 	push bc
-	ld a, [$cac0]
-	ld hl, $cb23
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonPlus
+	call MonsterField
 	pop bc
 	pop de
 	ld a, [hl]
 	cp b
 	ret c
 
-	ld a, [$c8d1]
+	ld a, [wBaseGain]
 	ld b, a
 	ld a, d
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	or a
 	jr nz, jr_013_41d9
@@ -1091,22 +1091,22 @@ jr_013_41e2:
 	db $0a, $14, $0f, $0f, $0c, $0a, $10, $11, $10, $10, $0d, $11, $14, $0f, $0a, $0b
 	db $0c, $0d, $0e, $14, $13, $12, $14, $11, $0a, $0c, $12, $13, $10, $14, $0e, $0e
 
-Call_13_7366::
-	ld a, [$c905]
+RunBattleWipe::
+	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_13_736A::
-	dw Jump_13_7370
-	dw Jump_13_73EB
-	dw Jump_13_73F5
+BattleWipeSteps::
+	dw BattleWipeStart
+	dw BattleWipeRun
+	dw BattleWipeEnd
 
-Jump_13_7370::
+BattleWipeStart::
 	ld b, $4b
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_013_7381
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $30
 	jr c, jr_013_7381
 
@@ -1114,25 +1114,25 @@ Jump_13_7370::
 
 jr_013_7381:
 	ld a, b
-	call Call_1AE1
+	call QueueMusic
 	xor a
-	ld hl, $c905
+	ld hl, wMenuStep
 	ld bc, $0008
-	call Call_12C7
-	ld hl, $ffb7
-	call Call_13_774F
-	ld hl, $ffbb
-	call Call_13_774F
-	ld hl, $c8da
+	call FillMemory
+	ld hl, hScrollX
+	call RoundToTile_13
+	ld hl, hScrollY
+	call RoundToTile_13
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -1148,80 +1148,80 @@ jr_013_7381:
 	ld a, l
 	ld [$c90b], a
 	ld a, h
-	ld [$c90c], a
+	ld [wCursorBlink], a
 	ld hl, $8e60
 	ld b, $10
 
 jr_013_73cb:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_013_73cb
 
 	ld a, $03
-	ldh [$ffd3], a
-	ld hl, $c905
+	ldh [hSpriteClip], a
+	ld hl, wMenuStep
 	inc [hl]
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
-	call Call_1DFB
-	ld [$c906], a
+	call Divide8
+	ld [wMenuSubStep], a
 	ret
 
 
-Jump_13_73EB::
-	ld a, [$c906]
+BattleWipeRun::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_13_73EF::
-	dw Jump_13_7420
-	dw Jump_13_7486
-	dw Jump_13_75D7
+BattleWipeKinds::
+	dw WipeColumns
+	dw WipeSpiral
+	dw WipeBoxes
 
-Jump_13_73F5::
-	ld hl, $c8eb
+BattleWipeEnd::
+	ld hl, wFieldFlags
 	res 6, [hl]
 	xor a
-	ld [$c905], a
-	ld hl, far_Call_17_4192
+	ld [wMenuStep], a
+	ld hl, far_ClearAttrMap
 	rst $10
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ld a, $02
-	ld [$c88a], a
+	ld [wGameMode], a
 	ld a, $00
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $00
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-Jump_13_7420::
-	ld a, [$c907]
+WipeColumns::
+	ld a, [wItemsHandedIn]
 	rst $00
 
-JumpTable_13_7424::
-	dw Jump_13_7428
-	dw Jump_13_747D
+WipeColumnsSteps::
+	dw WipeColumnsStep
+	dw WipeColumnsWait
 
-Jump_13_7428::
-	ld a, [$c908]
+WipeColumnsStep::
+	ld a, [wHatchSlot]
 	cp $14
 	jr nz, jr_013_7434
 
-	ld hl, $c907
+	ld hl, wItemsHandedIn
 	inc [hl]
 	ret
 
 
 jr_013_7434:
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	ld hl, $0000
 	add l
 	ld l, a
@@ -1233,7 +1233,7 @@ jr_013_7434:
 jr_013_7442:
 	push hl
 	push bc
-	call Call_13_777F
+	call FillWipeCell
 	pop bc
 	pop hl
 	ld a, l
@@ -1245,7 +1245,7 @@ jr_013_7442:
 	dec b
 	jr nz, jr_013_7442
 
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	ld b, a
 	ld a, $13
 	sub b
@@ -1260,7 +1260,7 @@ jr_013_7442:
 jr_013_7466:
 	push hl
 	push bc
-	call Call_13_777F
+	call FillWipeCell
 	pop bc
 	pop hl
 	ld a, l
@@ -1272,35 +1272,35 @@ jr_013_7466:
 	dec b
 	jr nz, jr_013_7466
 
-	ld hl, $c908
+	ld hl, wHatchSlot
 	inc [hl]
 	ret
 
 
-Jump_13_747D::
-	call Call_13_779F
+WipeColumnsWait::
+	call CheckJingleDone
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_13_7486::
+WipeSpiral::
 	ld b, $06
 
 Jump_013_7488:
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	rst $00
 
-JumpTable_13_748C::
-	dw Jump_13_7492
-	dw Jump_13_74EA
-	dw Jump_13_75CE
+WipeSpiralSteps::
+	dw WipeSpiralOut
+	dw WipeSpiralIn
+	dw WipeSpiralWait
 
-Jump_13_7492::
+WipeSpiralOut::
 	push bc
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	cp $11
 	jp c, Jump_013_7537
 
@@ -1354,9 +1354,9 @@ Jump_13_7492::
 
 	jr jr_013_755c
 
-Jump_13_74EA::
+WipeSpiralIn::
 	push bc
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	cp $02
 	jr c, jr_013_755c
 
@@ -1417,17 +1417,17 @@ jr_013_7537:
 
 	ld hl, $0233
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
 
 jr_013_7545:
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
 	push hl
-	call Call_13_777F
+	call FillWipeCell
 	pop hl
 	ld a, l
 	sub $20
@@ -1444,17 +1444,17 @@ jr_013_755c:
 
 	ld hl, $012a
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
 
 jr_013_756a:
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
 	push hl
-	call Call_13_777F
+	call FillWipeCell
 	pop hl
 	ld a, l
 	sub $01
@@ -1466,12 +1466,12 @@ jr_013_756a:
 
 Jump_013_7581:
 jr_013_7581:
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
 	push hl
-	call Call_13_777F
+	call FillWipeCell
 	pop hl
 	ld a, l
 	add $20
@@ -1483,12 +1483,12 @@ jr_013_7581:
 
 Jump_013_7598:
 jr_013_7598:
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
 	push hl
-	call Call_13_777F
+	call FillWipeCell
 	pop hl
 	ld a, l
 	add $01
@@ -1499,19 +1499,19 @@ jr_013_7598:
 
 jr_013_75ad:
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
-	ld hl, $c908
+	ld hl, wHatchSlot
 	inc [hl]
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	cp $b4
 	jr nz, jr_013_75c8
 
-	ld hl, $c907
+	ld hl, wItemsHandedIn
 	inc [hl]
 	xor a
-	ld [$c908], a
+	ld [wHatchSlot], a
 
 jr_013_75c8:
 	pop bc
@@ -1521,38 +1521,38 @@ jr_013_75c8:
 	ret
 
 
-Jump_13_75CE::
-	call Call_13_779F
+WipeSpiralWait::
+	call CheckJingleDone
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_13_75D7::
-	ld a, [$c907]
+WipeBoxes::
+	ld a, [wItemsHandedIn]
 	rst $00
 
-JumpTable_13_75DB::
-	dw Jump_13_75E1
-	dw Jump_13_76B6
-	dw Jump_13_76BB
+WipeBoxesSteps::
+	dw WipeBoxesStep
+	dw WipeBoxesPause
+	dw WipeBoxesWait
 
-Jump_13_75E1::
-	ld a, [$c908]
+WipeBoxesStep::
+	ld a, [wHatchSlot]
 	or a
 	jr nz, jr_013_75f2
 
 	ld hl, $0000
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
 
 jr_013_75f2:
 	ld hl, $772b
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
@@ -1560,23 +1560,23 @@ jr_013_75f2:
 	ld h, a
 	ld b, [hl]
 	ld hl, $773d
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld e, a
 	ld a, [$c90a]
 	ld d, a
-	call Call_13_76C4
+	call CallBoxCornerFunc
 
 jr_013_7617:
 	push hl
 	push bc
-	call Call_13_777F
+	call FillWipeCell
 	pop bc
 	pop hl
 	inc hl
@@ -1584,14 +1584,14 @@ jr_013_7617:
 	jr nz, jr_013_7617
 
 	ld hl, $772b
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld b, [hl]
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
@@ -1599,7 +1599,7 @@ jr_013_7617:
 jr_013_7637:
 	push hl
 	push bc
-	call Call_13_777F
+	call FillWipeCell
 	pop bc
 	pop hl
 	inc hl
@@ -1608,7 +1608,7 @@ jr_013_7637:
 
 	push hl
 	ld hl, $7734
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
@@ -1621,7 +1621,7 @@ jr_013_7637:
 jr_013_7652:
 	push hl
 	push bc
-	call Call_13_777F
+	call FillWipeCell
 	pop bc
 	pop hl
 	ld a, l
@@ -1634,14 +1634,14 @@ jr_013_7652:
 	jr nz, jr_013_7652
 
 	ld hl, $7734
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld b, [hl]
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
@@ -1649,7 +1649,7 @@ jr_013_7652:
 jr_013_7679:
 	push hl
 	push bc
-	call Call_13_777F
+	call FillWipeCell
 	pop bc
 	pop hl
 	ld a, l
@@ -1661,7 +1661,7 @@ jr_013_7679:
 	dec b
 	jr nz, jr_013_7679
 
-	ld a, [$c909]
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
@@ -1672,38 +1672,38 @@ jr_013_7679:
 	adc $00
 	ld h, a
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
-	ld hl, $c908
+	ld hl, wHatchSlot
 	inc [hl]
-	ld hl, $c907
+	ld hl, wItemsHandedIn
 	inc [hl]
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	cp $09
 	ret nz
 
-	ld hl, $c907
+	ld hl, wItemsHandedIn
 	inc [hl]
 	ret
 
 
-Jump_13_76B6::
-	ld hl, $c907
+WipeBoxesPause::
+	ld hl, wItemsHandedIn
 	dec [hl]
 	ret
 
 
-Jump_13_76BB::
-	call Call_13_779F
+WipeBoxesWait::
+	call CheckJingleDone
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Call_13_76C4::
+CallBoxCornerFunc::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -1720,7 +1720,7 @@ Call_13_76C4::
 	db $0a, $08, $06, $04, $02, $c8, $76, $d3, $76, $de, $76, $e9, $76, $f4, $76, $ff
 	db $76, $0a, $77, $15, $77, $20, $77
 
-Call_13_774F::
+RoundToTile_13::
 	ld a, [hl]
 	add $04
 	ld [hli], a
@@ -1733,7 +1733,7 @@ Call_13_774F::
 	ret
 
 
-Call_13_775C::
+NextMapColumn_13::
 	push af
 	ld a, l
 	and $e0
@@ -1749,35 +1749,35 @@ Call_13_775C::
 	ret
 
 
-Call_13_776B::
+AddWipeOrigin::
 	ld a, [$c90b]
 	add l
 	ld l, a
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	adc h
 	and $03
 	ld h, a
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	and $fc
 	or h
 	ld h, a
 	ret
 
 
-Call_13_777F::
-	call Call_13_7788
+FillWipeCell::
+	call WipeCellAddress
 	ld a, $e6
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
-Call_13_7788::
+WipeCellAddress::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_13_776B
+	call AddWipeOrigin
 	ld a, b
 	and $1f
 	jr z, jr_013_779d
@@ -1785,7 +1785,7 @@ Call_13_7788::
 	ld b, a
 
 jr_013_7797:
-	call Call_13_775C
+	call NextMapColumn_13
 	dec b
 	jr nz, jr_013_7797
 
@@ -1794,7 +1794,7 @@ jr_013_779d:
 	ret
 
 
-Call_13_779F::
+CheckJingleDone::
 	ld a, [$ddb4]
 	ld hl, $ddce
 	and [hl]
@@ -1812,7 +1812,7 @@ Call_13_779F::
 
 jr_013_77b6:
 	ld a, $02
-	call Call_1AE1
+	call QueueMusic
 	xor a
 	or a
 	ret

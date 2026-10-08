@@ -8,30 +8,30 @@ BankNumber_41::
 	db $41
 
 FarTable_41::
-	dw Call_41_4A93
-	dw Call_41_4A9A
-	dw Call_41_4AA1
-	dw Data_41_4025
-	dw Data_41_4039
-	dw Data_41_4101
-	dw Data_41_41E3
-	dw Data_41_4323
-	dw Data_41_4339
-	dw Data_41_4539
-	dw Data_41_4739
-	dw Data_41_48E7
-	dw Data_41_493F
-	dw Data_41_4997
-	dw Data_41_49CD
-	dw Data_41_4A17
-	dw Data_41_4A1B
-	dw Data_41_4A7B
+	dw StartText_41
+	dw CopyText_41
+	dw PrintText_41
+	dw SysText_DebugMenus
+	dw SysText_DebugLabels
+	dw SysText_FieldItems
+	dw SysText_ShortNames
+	dw SysText_FamilyIcons
+	dw SysText_MonsterNames
+	dw SysText_SkillNames
+	dw SysText_MonsterInitials
+	dw SysText_ItemNames
+	dw SysText_ItemDescriptions
+	dw SysText_Personalities
+	dw SysText_Battle
+	dw SysText_Watabou
+	dw SysText_ItemUse
+	dw SysText_Spells
 
-Data_41_4025::
+SysText_DebugMenus::
 	db $a8, $4a, $a8, $4a, $a8, $4a, $a8, $4a, $25, $4b, $71, $4b, $83, $4b, $9b, $4b
 	db $c1, $4b, $12, $4c
 
-Data_41_4039::
+SysText_DebugLabels::
 	db $5e, $4c, $65, $4c, $6d, $4c, $6d, $4c, $75, $4c, $7c, $4c, $84, $4c, $8b, $4c
 	db $93, $4c, $98, $4c, $9e, $4c, $a6, $4c, $ae, $4c, $b3, $4c, $bb, $4c, $c3, $4c
 	db $c4, $4c, $cc, $4c, $d4, $4c, $d5, $4c, $dd, $4c, $e5, $4c, $e6, $4c, $ee, $4c
@@ -46,7 +46,7 @@ Data_41_4039::
 	db $ab, $4e, $b3, $4e, $bb, $4e, $c3, $4e, $c9, $4e, $cf, $4e, $d5, $4e, $dc, $4e
 	db $e3, $4e, $ea, $4e, $f2, $4e, $f8, $4e
 
-Data_41_4101::
+SysText_FieldItems::
 	db $f9, $4e, $fc, $4e, $0d, $4f, $20, $4f, $33, $4f, $42, $4f, $58, $4f, $6a, $4f
 	db $82, $4f, $90, $4f, $a9, $4f, $c6, $4f, $d3, $4f, $e0, $4f, $e6, $4f, $ea, $4f
 	db $04, $50, $0e, $50, $39, $50, $47, $50, $58, $50, $6f, $50, $7d, $50, $9b, $50
@@ -63,7 +63,7 @@ Data_41_4101::
 	db $87, $57, $8c, $57, $94, $57, $9f, $57, $ab, $57, $b6, $57, $c0, $57, $cc, $57
 	db $cd, $57
 
-Data_41_41E3::
+SysText_ShortNames::
 	db $01, $58, $06, $58, $0b, $58, $10, $58, $15, $58, $1a, $58, $29, $58, $2e, $58
 	db $32, $58, $36, $58, $3a, $58, $3f, $58, $44, $58, $49, $58, $4e, $58, $52, $58
 	db $57, $58, $5c, $58, $60, $58, $65, $58, $6a, $58, $6f, $58, $73, $58, $78, $58
@@ -85,11 +85,11 @@ Data_41_41E3::
 	db $bb, $5a, $c0, $5a, $c5, $5a, $ca, $5a, $cf, $5a, $d4, $5a, $d9, $5a, $de, $5a
 	db $e3, $5a, $e8, $5a, $ed, $5a, $f2, $5a, $f7, $5a, $fb, $5a, $00, $5b, $05, $5b
 
-Data_41_4323::
+SysText_FamilyIcons::
 	db $0a, $5b, $0c, $5b, $0e, $5b, $10, $5b, $12, $5b, $14, $5b, $16, $5b, $18, $5b
 	db $1a, $5b, $1c, $5b, $1e, $5b
 
-Data_41_4339::
+SysText_MonsterNames::
 	db $1f, $5b, $29, $5b, $33, $5b, $3d, $5b, $47, $5b, $4e, $5b, $58, $5b, $5f, $5b
 	db $68, $5b, $6e, $5b, $75, $5b, $7f, $5b, $89, $5b, $93, $5b, $9b, $5b, $a4, $5b
 	db $ae, $5b, $b5, $5b, $be, $5b, $c8, $5b, $d2, $5b, $dc, $5b, $e6, $5b, $ef, $5b
@@ -123,7 +123,7 @@ Data_41_4339::
 	db $88, $62, $88, $62, $88, $62, $88, $62, $88, $62, $88, $62, $88, $62, $88, $62
 	db $88, $62, $88, $62, $88, $62, $88, $62, $88, $62, $88, $62, $88, $62, $88, $62
 
-Data_41_4539::
+SysText_SkillNames::
 	db $8e, $62, $94, $62, $9e, $62, $a8, $62, $b0, $62, $b9, $62, $c2, $62, $c7, $62
 	db $cc, $62, $d5, $62, $de, $62, $e8, $62, $f2, $62, $fa, $62, $04, $63, $0d, $63
 	db $12, $63, $16, $63, $1f, $63, $24, $63, $2b, $63, $35, $63, $3b, $63, $44, $63
@@ -157,7 +157,7 @@ Data_41_4539::
 	db $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69
 	db $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69, $f1, $69
 
-Data_41_4739::
+SysText_MonsterInitials::
 	db $f2, $69, $f5, $69, $f8, $69, $fb, $69, $fe, $69, $01, $6a, $04, $6a, $07, $6a
 	db $0a, $6a, $0d, $6a, $10, $6a, $13, $6a, $16, $6a, $19, $6a, $1c, $6a, $1f, $6a
 	db $22, $6a, $25, $6a, $28, $6a, $2b, $6a, $2e, $6a, $31, $6a, $34, $6a, $37, $6a
@@ -186,7 +186,7 @@ Data_41_4739::
 	db $4a, $6c, $4d, $6c, $50, $6c, $53, $6c, $56, $6c, $59, $6c, $5c, $6c, $5f, $6c
 	db $62, $6c, $65, $6c, $68, $6c, $6b, $6c, $6e, $6c, $71, $6c, $74, $6c
 
-Data_41_48E7::
+SysText_ItemNames::
 	db $77, $6c, $78, $6c, $7d, $6c, $87, $6c, $91, $6c, $9a, $6c, $a1, $6c, $aa, $6c
 	db $b3, $6c, $bc, $6c, $c4, $6c, $cb, $6c, $d5, $6c, $df, $6c, $e9, $6c, $f3, $6c
 	db $fb, $6c, $03, $6d, $0b, $6d, $13, $6d, $1d, $6d, $26, $6d, $2a, $6d, $32, $6d
@@ -194,7 +194,7 @@ Data_41_48E7::
 	db $87, $6d, $90, $6d, $99, $6d, $a3, $6d, $ab, $6d, $b4, $6d, $be, $6d, $c8, $6d
 	db $d2, $6d, $dc, $6d, $e6, $6d, $ee, $6d
 
-Data_41_493F::
+SysText_ItemDescriptions::
 	db $f7, $6d, $f8, $6d, $15, $6e, $32, $6e, $4f, $6e, $67, $6e, $84, $6e, $97, $6e
 	db $a5, $6e, $b5, $6e, $c6, $6e, $d5, $6e, $e6, $6e, $f6, $6e, $0c, $6f, $22, $6f
 	db $3e, $6f, $5b, $6f, $73, $6f, $8f, $6f, $8f, $6f, $8f, $6f, $8f, $6f, $8f, $6f
@@ -202,23 +202,23 @@ Data_41_493F::
 	db $6e, $70, $6e, $70, $6e, $70, $6e, $70, $6e, $70, $8b, $70, $ad, $70, $cd, $70
 	db $e4, $70, $f4, $70, $16, $71, $38, $71
 
-Data_41_4997::
+SysText_Personalities::
 	db $59, $71, $62, $71, $69, $71, $73, $71, $7d, $71, $82, $71, $8b, $71, $90, $71
 	db $97, $71, $a0, $71, $aa, $71, $b1, $71, $b6, $71, $bf, $71, $c8, $71, $ce, $71
 	db $d7, $71, $dd, $71, $e5, $71, $ec, $71, $f6, $71, $ff, $71, $07, $72, $10, $72
 	db $19, $72, $1d, $72, $24, $72
 
-Data_41_49CD::
+SysText_Battle::
 	db $29, $72, $47, $72, $60, $72, $8b, $72, $a1, $72, $e5, $72, $f7, $72, $06, $73
 	db $1d, $73, $35, $73, $40, $73, $49, $73, $4f, $73, $5e, $73, $5e, $73, $78, $73
 	db $a8, $73, $f8, $73, $5c, $74, $78, $74, $96, $74, $b1, $74, $dc, $74, $f5, $74
 	db $08, $75, $28, $75, $41, $75, $4d, $75, $5c, $75, $68, $75, $88, $75, $f1, $75
 	db $5a, $76, $7b, $76, $8f, $76, $b3, $76, $cd, $76
 
-Data_41_4A17::
+SysText_Watabou::
 	db $01, $77, $01, $77
 
-Data_41_4A1B::
+SysText_ItemUse::
 	db $39, $77, $4e, $77, $6b, $77, $81, $77, $98, $77, $aa, $77, $d1, $77, $e5, $77
 	db $f7, $77, $05, $78, $20, $78, $2e, $78, $51, $78, $5f, $78, $6c, $78, $87, $78
 	db $a2, $78, $ba, $78, $d2, $78, $ea, $78, $02, $79, $18, $79, $43, $79, $94, $79
@@ -226,28 +226,29 @@ Data_41_4A1B::
 	db $99, $7a, $ce, $7a, $fe, $7a, $35, $7b, $68, $7b, $94, $7b, $c6, $7b, $f1, $7b
 	db $03, $7c, $27, $7c, $5d, $7c, $6c, $7c, $92, $7c, $a4, $7c, $c3, $7c, $e3, $7c
 
-Data_41_4A7B::
+SysText_Spells::
 	db $fd, $7c, $0b, $7d, $21, $7d, $35, $7d, $47, $7d, $57, $7d, $6c, $7d, $7a, $7d
 	db $99, $7d, $c7, $7d, $d5, $7d, $e6, $7d
 
-Call_41_4A93::
+StartText_41::
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_41_4A9A::
+CopyText_41::
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_41_4AA1::
-	call Call_41_4A93
-	call Call_0609
+PrintText_41::
+	call StartText_41
+	call RunTextToEnd
 	ret
 
 
+Texts_41::
 	db $96, $62, $27, $28, $25, $38, $2a, $62, $30, $32, $27, $28, $f1, $62, $62, $62
 	db $62, $36, $28, $2f, $28, $26, $37, $62, $62, $62, $97, $f1, $62, $01, $a3, $2a
 	db $32, $37, $32, $62, $33, $35, $32, $2a, $35, $24, $30, $62, $62, $02, $a3, $30

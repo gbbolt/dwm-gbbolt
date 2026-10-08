@@ -8,12 +8,12 @@ BankNumber_44::
 	db $44
 
 FarTable_44::
-	dw Call_44_40CD
-	dw Call_44_40FB
-	dw Call_44_4129
-	dw Data_44_4009
+	dw StartText_44
+	dw CopyText_44
+	dw PrintText_44
+	dw TextGroup_44_0
 
-Data_44_4009::
+TextGroup_44_0::
 	db $57, $41, $ae, $41, $28, $43, $c6, $44, $a4, $45, $ee, $45, $45, $46, $db, $46
 	db $4d, $47, $7b, $47, $f5, $47, $8a, $48, $d8, $48, $ec, $49, $22, $4a, $dd, $4a
 	db $13, $4b, $d6, $4b, $0c, $4c, $98, $4c, $24, $4d, $34, $4e, $10, $4f, $a7, $4f
@@ -28,99 +28,99 @@ Data_44_4009::
 	db $a6, $78, $e4, $78, $a6, $79, $2c, $7b, $7c, $7b, $1e, $7c, $92, $7d, $4a, $7e
 	db $9f, $7e, $05, $7f
 
-Call_44_40CD::
-	ld a, [$c822]
+StartText_44::
+	ld a, [wTextGroup]
 	cp $01
 	jr nz, jr_044_40de
 
 	ld a, $01
-	ld [$c822], a
-	ld hl, far_Call_1B_4111
+	ld [wTextGroup], a
+	ld hl, far_StartText_1B
 	rst $10
 	ret
 
 
 jr_044_40de:
-	ld a, [$c823]
+	ld a, [wTextIndex]
 	cp $62
 	jr c, jr_044_40f4
 
 	sub $62
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $00
-	ld [$c822], a
-	ld hl, far_Call_1B_4111
+	ld [wTextGroup], a
+	ld hl, far_StartText_1B
 	rst $10
 	ret
 
 
 jr_044_40f4:
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_44_40FB::
-	ld a, [$c822]
+CopyText_44::
+	ld a, [wTextGroup]
 	cp $01
 	jr nz, jr_044_410c
 
 	ld a, $01
-	ld [$c822], a
-	ld hl, far_Call_1B_4118
+	ld [wTextGroup], a
+	ld hl, far_CopyText_1B
 	rst $10
 	ret
 
 
 jr_044_410c:
-	ld a, [$c823]
+	ld a, [wTextIndex]
 	cp $62
 	jr c, jr_044_4122
 
 	sub $62
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $00
-	ld [$c822], a
-	ld hl, far_Call_1B_4118
+	ld [wTextGroup], a
+	ld hl, far_CopyText_1B
 	rst $10
 	ret
 
 
 jr_044_4122:
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_44_4129::
-	ld a, [$c822]
+PrintText_44::
+	ld a, [wTextGroup]
 	cp $01
 	jr nz, jr_044_413a
 
 	ld a, $01
-	ld [$c822], a
-	ld hl, far_Call_1B_411F
+	ld [wTextGroup], a
+	ld hl, far_PrintText_1B
 	rst $10
 	ret
 
 
 jr_044_413a:
-	ld a, [$c823]
+	ld a, [wTextIndex]
 	cp $62
 	jr c, jr_044_4150
 
 	sub $62
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $00
-	ld [$c822], a
-	ld hl, far_Call_1B_411F
+	ld [wTextGroup], a
+	ld hl, far_PrintText_1B
 	rst $10
 	ret
 
 
 jr_044_4150:
-	call Call_44_40CD
-	call Call_0609
+	call StartText_44
+	call RunTextToEnd
 	ret
 
 

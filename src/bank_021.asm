@@ -8,12 +8,12 @@ BankNumber_21::
 	db $21
 
 FarTable_21::
-	dw Call_21_40F1
-	dw Call_21_40F8
-	dw Call_21_40FF
-	dw Data_21_4009
+	dw StartText_21
+	dw CopyText_21
+	dw PrintText_21
+	dw TextGroup_21_0
 
-Data_21_4009::
+TextGroup_21_0::
 	db $06, $41, $0f, $42, $48, $42, $e8, $42, $49, $43, $d8, $43, $11, $44, $a2, $44
 	db $cc, $44, $53, $45, $2c, $46, $ff, $46, $d9, $47, $0e, $48, $3b, $48, $9e, $48
 	db $fe, $48, $c1, $49, $4f, $4a, $b3, $4a, $01, $4c, $7c, $4c, $38, $4e, $88, $4e
@@ -30,24 +30,25 @@ Data_21_4009::
 	db $46, $73, $4d, $74, $20, $75, $b6, $75, $d3, $76, $09, $77, $49, $78, $7c, $78
 	db $e1, $78, $14, $79, $4e, $7a, $4d, $7b
 
-Call_21_40F1::
+StartText_21::
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_21_40F8::
+CopyText_21::
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_21_40FF::
-	call Call_21_40F1
-	call Call_0609
+PrintText_21::
+	call StartText_21
+	call RunTextToEnd
 	ret
 
 
+Texts_21::
 	db $ea, $9f, $a3, $2c, $62, $45, $42, $3e, $4f, $41, $62, $3e, $62, $4f, $52, $4a
 	db $4c, $4f, $ef, $ee, $51, $45, $3e, $51, $62, $3e, $62, $51, $42, $4f, $4f, $46
 	db $3f, $49, $42, $fa, $f7, $ef, $ee, $4a, $3e, $50, $51, $42, $4f, $62, $3e, $4d

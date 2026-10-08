@@ -8,20 +8,20 @@ BankNumber_19::
 	db $19
 
 FarTable_19::
-	dw Call_19_4003
+	dw RunGateMap
 
-Call_19_4003::
-	ld a, [$c905]
+RunGateMap::
+	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_19_4007::
-	dw Jump_19_4364
-	dw Jump_19_4011
-	dw Jump_19_4074
-	dw Jump_19_4249
-	dw Jump_19_4443
+GateMapSteps::
+	dw GateMapInit
+	dw GateMapDrawRooms
+	dw GateMapShow
+	dw GateMapRestore
+	dw GateMapClose
 
-Jump_19_4011::
+GateMapDrawRooms::
 	ld b, $10
 	ld c, $00
 
@@ -38,12 +38,12 @@ jr_019_4015:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ld a, $f0
 	jr z, jr_019_4047
 
-	ld de, $c950
+	ld de, wFloorsSeen
 	ld a, c
 	add e
 	ld e, a
@@ -65,13 +65,13 @@ jr_019_4015:
 	ld a, [de]
 
 jr_019_4047:
-	call Call_19_4492
+	call DrawGateRoom
 	pop bc
 	inc c
 	dec b
 	jr nz, jr_019_4015
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
@@ -79,12 +79,12 @@ jr_019_4047:
 	db $00, $00, $05, $00, $0a, $00, $0f, $00, $80, $00, $85, $00, $8a, $00, $8f, $00
 	db $00, $01, $05, $01, $0a, $01, $0f, $01, $80, $01, $85, $01, $8a, $01, $8f, $01
 
-Jump_19_4074::
-	ld a, [$c969]
+GateMapShow::
+	ld a, [wOnGateFloor]
 	or a
 	jp z, Jump_019_413e
 
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld b, $14
 
 jr_019_4080:
@@ -98,9 +98,9 @@ jr_019_4080:
 	jr jr_019_40e8
 
 jr_019_408a:
-	call Call_19_4269
+	call GetGoalArrowTile
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $88
 	ld [hli], a
 	ld a, $00
@@ -117,7 +117,7 @@ jr_019_408a:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld a, [$c966]
+	ld a, [wGoalY]
 	ld l, a
 	ld a, [$c967]
 	ld h, a
@@ -125,7 +125,7 @@ jr_019_408a:
 	rr l
 	srl h
 	rr l
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld b, a
 	ld a, l
 	sub b
@@ -133,7 +133,7 @@ jr_019_408a:
 	cp $20
 	jr nc, jr_019_40e4
 
-	ld a, [$c964]
+	ld a, [wGoalX]
 	ld l, a
 	ld a, [$c965]
 	ld h, a
@@ -141,7 +141,7 @@ jr_019_408a:
 	rr l
 	srl h
 	rr l
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	ld b, a
 	ld a, l
 	sub b
@@ -152,14 +152,14 @@ jr_019_408a:
 	jr nc, jr_019_40e4
 
 	ld a, $68
-	ldh [$ffc5], a
+	ldh [hSpriteY], a
 
 jr_019_40e4:
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 
 jr_019_40e8:
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $4b
 	ld [hli], a
 	ld a, $00
@@ -176,10 +176,10 @@ jr_019_40e8:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 	ld a, [$c960]
-	ld hl, $c950
+	ld hl, wFloorsSeen
 	add l
 	ld l, a
 	ld a, $00
@@ -189,7 +189,7 @@ jr_019_40e8:
 	or a
 	jr z, jr_019_413e
 
-	ld a, [$c964]
+	ld a, [wGoalX]
 	ld e, a
 	ld a, [$c965]
 	ld d, a
@@ -199,7 +199,7 @@ jr_019_40e8:
 	ld a, d
 	sbc $00
 	ld d, a
-	ld a, [$c966]
+	ld a, [wGoalY]
 	ld c, a
 	ld a, [$c967]
 	ld b, a
@@ -209,13 +209,13 @@ jr_019_40e8:
 	ld a, b
 	sbc $00
 	ld b, a
-	call Call_19_4221
-	ld hl, far_Call_04_400F
+	call SetMarkerPosition
+	ld hl, far_DrawFieldMarker
 	rst $10
 
 Jump_019_413e:
 jr_019_413e:
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $08
 	ld [hli], a
 	ld a, $00
@@ -232,22 +232,22 @@ jr_019_413e:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
-	ld hl, $c0a0
-	ld a, [$c939]
+	ld hl, wNumberBackup
+	ld a, [wGateFloor]
 	ld c, a
 	ld b, $00
 	inc bc
-	call Call_20AD
-	ld a, [$c0a0]
+	call PrintNumber2Zeros
+	ld a, [wNumberBackup]
 	cp $f0
 	jr z, jr_019_4193
 
 	and $0f
 	add a
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $28
 	ld [hli], a
 	ld a, $00
@@ -264,7 +264,7 @@ jr_019_413e:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 
 jr_019_4193:
@@ -272,7 +272,7 @@ jr_019_4193:
 	and $0f
 	add a
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $30
 	ld [hli], a
 	ld a, $00
@@ -289,22 +289,22 @@ jr_019_4193:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
-	ld hl, $c0a0
-	ld a, [$c93a]
+	ld hl, wNumberBackup
+	ld a, [wGateFloors]
 	ld c, a
 	ld b, $00
 	dec bc
-	call Call_20AD
-	ld a, [$c0a0]
+	call PrintNumber2Zeros
+	ld a, [wNumberBackup]
 	cp $f0
 	jr z, jr_019_41ee
 
 	and $0f
 	add a
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $40
 	ld [hli], a
 	ld a, $00
@@ -321,7 +321,7 @@ jr_019_4193:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
 
 jr_019_41ee:
@@ -329,7 +329,7 @@ jr_019_41ee:
 	and $0f
 	add a
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $48
 	ld [hli], a
 	ld a, $00
@@ -346,13 +346,13 @@ jr_019_41ee:
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld hl, far_Call_04_4016
+	ld hl, far_DrawFieldMarkerOnScreen
 	rst $10
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $f7
 	jr z, jr_019_4220
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	jr jr_019_4220
 
@@ -360,7 +360,7 @@ jr_019_4220:
 	ret
 
 
-Call_19_4221::
+SetMarkerPosition::
 	srl d
 	rr e
 	srl d
@@ -369,7 +369,7 @@ Call_19_4221::
 	rr c
 	srl b
 	rr c
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, e
 	ld [hli], a
 	ld a, d
@@ -389,14 +389,14 @@ Call_19_4221::
 	ret
 
 
-Jump_19_4249::
-	call Call_19_4426
+GateMapRestore::
+	call ClearBGMap_19
 	ldh a, [$ffbf]
 	ld l, a
 	ldh a, [$ffc0]
 	ld h, a
 	ld a, l
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, h
 	ldh [$ffb8], a
 	ldh a, [$ffc1]
@@ -404,23 +404,23 @@ Jump_19_4249::
 	ldh a, [$ffc2]
 	ld h, a
 	ld a, l
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, h
 	ldh [$ffbc], a
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Call_19_4269::
-	ldh a, [$ff95]
+GetGoalArrowTile::
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	ld a, l
 	and $f0
 	ld l, a
-	ld a, [$c966]
+	ld a, [wGoalY]
 	ld e, a
 	ld a, [$c967]
 	ld d, a
@@ -445,14 +445,14 @@ Call_19_4269::
 	ld h, a
 
 jr_019_4291:
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
 	ld a, e
 	and $f0
 	ld e, a
-	ld a, [$c964]
+	ld a, [wGoalX]
 	ld c, a
 	ld a, [$c965]
 	ld b, a
@@ -510,11 +510,11 @@ jr_019_42d1:
 	jr jr_019_42fe
 
 jr_019_42de:
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
-	ld a, [$c966]
+	ld a, [wGoalY]
 	ld e, a
 	ld a, [$c967]
 	ld d, a
@@ -568,11 +568,11 @@ jr_019_4316:
 	jr jr_019_4343
 
 jr_019_4323:
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
-	ld a, [$c964]
+	ld a, [wGoalX]
 	ld e, a
 	ld a, [$c965]
 	ld d, a
@@ -606,7 +606,7 @@ jr_019_4343:
 
 	db $b4, $b6, $b0, $b8, $ba, $b2, $bc, $be
 
-Call_19_4357::
+RoundToTile_19::
 	ld a, [hl]
 	add $04
 	ld [hli], a
@@ -619,27 +619,27 @@ Call_19_4357::
 	ret
 
 
-Jump_19_4364::
+GateMapInit::
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ldh [$ffb8], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ldh [$ffbc], a
-	ld hl, $ffb7
-	call Call_19_4357
-	ld hl, $ffbb
-	call Call_19_4357
-	ld hl, $c8da
+	ld hl, hScrollX
+	call RoundToTile_19
+	ld hl, hScrollY
+	call RoundToTile_19
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -653,25 +653,25 @@ Jump_19_4364::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
 	ld de, $281c
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld de, $281f
 	ld hl, $8900
-	call Call_1577
+	call DecompressVRAM
 	ld de, $281d
 	ld hl, $8a90
-	call Call_1577
+	call DecompressVRAM
 	ld de, $281e
 	ld hl, $8ac0
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e23
 	ld hl, $8b00
-	call Call_1577
-	ldh a, [$ff92]
+	call DecompressVRAM
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
@@ -692,10 +692,10 @@ Jump_19_4364::
 	sbc $00
 	ld h, a
 	ld a, l
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, h
 	ldh [$ffb8], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
@@ -716,50 +716,50 @@ Jump_19_4364::
 	sbc $00
 	ld h, a
 	ld a, l
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, h
 	ldh [$ffbc], a
-	call Call_19_4426
-	ld hl, far_Call_17_4192
+	call ClearBGMap_19
+	ld hl, far_ClearAttrMap
 	rst $10
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Call_19_4426::
+ClearBGMap_19::
 	ld hl, $9800
 	ld b, $00
 
 jr_019_442b:
 	ld a, $e0
-	call Call_1AB9
+	call WriteVRAMInc
 	ld a, $e0
-	call Call_1AB9
+	call WriteVRAMInc
 	ld a, $e0
-	call Call_1AB9
+	call WriteVRAMInc
 	ld a, $e0
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_019_442b
 
 	ret
 
 
-Jump_19_4443::
+GateMapClose::
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld hl, far_Call_0B_40CE
 	rst $10
-	call Call_25F1
-	ld hl, $c8eb
+	call DrawStatusBar
+	ld hl, wFieldFlags
 	res 3, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Call_19_4458::
+NextMapColumn_19::
 	push af
 	ld a, l
 	and $e0
@@ -775,8 +775,8 @@ Call_19_4458::
 	ret
 
 
-Call_19_4467::
-	ld a, [$c909]
+AddMapOrigin_19::
+	ld a, [wWindowBgMap]
 	add l
 	ld l, a
 	ld a, [$c90a]
@@ -790,13 +790,13 @@ Call_19_4467::
 	ret
 
 
-Call_19_447B::
+MapCellAddress_19::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_19_4467
+	call AddMapOrigin_19
 	ld a, b
 	and $1f
 	jr z, jr_019_4490
@@ -804,7 +804,7 @@ Call_19_447B::
 	ld b, a
 
 jr_019_448a:
-	call Call_19_4458
+	call NextMapColumn_19
 	dec b
 	jr nz, jr_019_448a
 
@@ -813,7 +813,7 @@ jr_019_4490:
 	ret
 
 
-Call_19_4492::
+DrawGateRoom::
 	push hl
 	push af
 	swap a
@@ -836,27 +836,27 @@ jr_019_44a8:
 	pop af
 	and $0f
 	ld c, $14
-	call Call_1DBE
+	call Multiply
 	add hl, de
 	ld e, l
 	ld d, h
 	pop hl
-	call Call_19_447B
+	call MapCellAddress_19
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
-	call Call_19_44CB
-	call Call_19_44CB
-	call Call_19_44CB
+	call DrawGateRoomRow
+	call DrawGateRoomRow
+	call DrawGateRoomRow
 
-Call_19_44CB::
-	call Call_19_44F5
-	call Call_19_44F5
-	call Call_19_44F5
-	call Call_19_44F5
-	call Call_19_44F5
-	ldh a, [$ffd5]
+DrawGateRoomRow::
+	call PutGateRoomTile
+	call PutGateRoomTile
+	call PutGateRoomTile
+	call PutGateRoomTile
+	call PutGateRoomTile
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -871,18 +871,18 @@ Call_19_44CB::
 	or $98
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	ret
 
 
-Call_19_44F5::
+PutGateRoomTile::
 	ld a, [de]
 	or $80
 	inc de
-	call Call_1AAD
-	call Call_19_4458
+	call WriteVRAM
+	call NextMapColumn_19
 	ret
 
 

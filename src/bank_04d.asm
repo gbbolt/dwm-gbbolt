@@ -8,13 +8,13 @@ BankNumber_4D::
 	db $4d
 
 FarTable_4D::
-	dw Call_4D_43B9
-	dw Call_4D_43C0
-	dw Call_4D_43C7
-	dw Data_4D_400B
-	dw Data_4D_420B
+	dw StartText_4D
+	dw CopyText_4D
+	dw PrintText_4D
+	dw TextGroup_4D_0
+	dw TextGroup_4D_1
 
-Data_4D_400B::
+TextGroup_4D_0::
 	db $ce, $43, $e1, $43, $f4, $43, $07, $44, $1a, $44, $2d, $44, $40, $44, $53, $44
 	db $66, $44, $79, $44, $8c, $44, $9f, $44, $b2, $44, $c5, $44, $d8, $44, $eb, $44
 	db $fe, $44, $11, $45, $24, $45, $37, $45, $4a, $45, $5d, $45, $70, $45, $83, $45
@@ -48,7 +48,7 @@ Data_4D_400B::
 	db $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53
 	db $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53, $c4, $53
 
-Data_4D_420B::
+TextGroup_4D_1::
 	db $d3, $53, $f7, $53, $1d, $54, $44, $54, $6f, $54, $94, $54, $c8, $54, $ee, $54
 	db $20, $55, $49, $55, $73, $55, $9e, $55, $ba, $55, $e6, $55, $10, $56, $47, $56
 	db $7a, $56, $a9, $56, $cf, $56, $fa, $56, $24, $57, $4a, $57, $7a, $57, $a9, $57
@@ -77,21 +77,21 @@ Data_4D_420B::
 	db $a1, $74, $cf, $74, $f6, $74, $23, $75, $51, $75, $76, $75, $8d, $75, $bc, $75
 	db $ea, $75, $19, $76, $3f, $76, $64, $76, $96, $76, $c5, $76, $f6, $76
 
-Call_4D_43B9::
+StartText_4D::
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_4D_43C0::
+CopyText_4D::
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_4D_43C7::
-	call Call_4D_43B9
-	call Call_0609
+PrintText_4D::
+	call StartText_4D
+	call RunTextToEnd
 	ret
 
 

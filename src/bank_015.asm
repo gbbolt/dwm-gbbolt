@@ -16,30 +16,30 @@ FarTable_15::
 Call_15_4009::
 	ld hl, sp+$00
 	ld a, l
-	ld [$da7b], a
+	ld [wFieldStackPtr], a
 	ld a, h
 	ld [$da7c], a
 	xor a
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c827
+	ld hl, wTextTiles
 	ld bc, $0012
-	call Call_12C7
+	call FillMemory
 	ld hl, $99c1
 	ld a, l
-	ld [$c83e], a
+	ld [wTextBoxMap], a
 	ld a, h
 	ld [$c83f], a
 	xor a
 	ld hl, $c8d2
 	ld bc, $0008
-	call Call_12C7
-	call Call_1264
+	call FillMemory
+	call DisableSTATInterrupts
 	xor a
-	ld [$c8c7], a
-	ld a, [$c88b]
+	ld [wLinkNoEnd], a
+	ld a, [wGameModeStep]
 	rst $00
 
 JumpTable_15_4047::
@@ -49,94 +49,94 @@ JumpTable_15_4047::
 	dw Jump_15_4218
 
 Jump_15_404F::
-	ld hl, $c817
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld hl, far_Call_5F_441C
 	rst $10
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ld a, $00
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
-	ld [$c86c], a
+	ld [wLinkPhase], a
+	ld [wLinkActive], a
 	ld [$c86d], a
 	xor a
-	ld [$c863], a
-	ld [$c864], a
+	ld [wLinkFlags], a
+	ld [wSerialLock], a
 	ld a, $03
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Jump_15_40A0::
 	ld a, $02
-	call Call_1C89
-	call Call_1013
-	ld hl, $c817
+	call LoadSGBBorder
+	call SGBPacketDelay
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
-	ld hl, far_Call_17_4102
+	ld hl, far_SetSharedBGColors
 	rst $10
-	ld hl, far_Call_17_4192
+	ld hl, far_ClearAttrMap
 	rst $10
 	ld a, $fc
-	call Call_1688
-	ld hl, $ff8a
+	call StartFade
+	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
-	call Call_12C7
-	ld hl, $c8ea
+	call FillMemory
+	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
-	call Call_12C7
+	call FillMemory
 	ld a, $04
 	ld [$c8ee], a
 	call Call_15_60DF
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
 	ld de, $2e20
 	ld hl, $8a00
-	call Call_14CF
+	call Decompress
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld hl, $8b00
 	ld de, $1202
-	call Call_098F
-	ld hl, $c8da
+	call SetUpTextBox
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	xor a
 	ld hl, $c8d2
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	ld hl, $9800
 	ld a, l
 	ld [$c8d6], a
@@ -144,142 +144,142 @@ Jump_15_40A0::
 	ld [$c8d7], a
 	call Call_15_5E8B
 	ld a, $24
-	call Call_1AE1
+	call QueueMusic
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ld a, $00
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
 	xor a
-	ld [$c864], a
-	ld [$c86c], a
+	ld [wSerialLock], a
+	ld [wLinkActive], a
 	ld [$c86d], a
 	xor a
-	ld [$c863], a
-	ld [$c864], a
+	ld [wLinkFlags], a
+	ld [wSerialLock], a
 	ld a, $03
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $09
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Jump_15_4172::
-	ld hl, $c817
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld a, $04
 	ld [$c8ee], a
 	call Call_15_60DF
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
 	ld de, $2e20
 	ld hl, $8a00
-	call Call_14CF
+	call Decompress
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld hl, $8b00
 	ld de, $1202
-	call Call_098F
-	ld hl, $c8da
+	call SetUpTextBox
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	xor a
 	ld hl, $c8d2
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	ld hl, $9800
 	ld a, l
 	ld [$c8d6], a
 	ld a, h
 	ld [$c8d7], a
 	call Call_15_5E8B
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0017
 	ld a, $ff
-	call Call_12C7
+	call FillMemory
 	ld a, $24
-	call Call_1AE1
+	call QueueMusic
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	ld a, $03
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $09
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Jump_15_4218::
-	ld hl, $c817
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld a, $04
 	ld [$c8ee], a
 	call Call_15_60DF
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
 	ld de, $2e20
 	ld hl, $8a00
-	call Call_14CF
+	call Decompress
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld hl, $8b00
 	ld de, $1202
-	call Call_098F
-	ld hl, $c8da
+	call SetUpTextBox
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	xor a
 	ld hl, $c8d2
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	ld hl, $9800
 	ld a, l
 	ld [$c8d6], a
@@ -287,31 +287,31 @@ Jump_15_4218::
 	ld [$c8d7], a
 	call Call_15_5E8B
 	ld a, $24
-	call Call_1AE1
+	call QueueMusic
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	ld a, $03
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $09
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
-	ld a, [$c88b]
+	ld a, [wGameModeStep]
 	rst $00
 
 JumpTable_15_42B7::
@@ -323,7 +323,7 @@ JumpTable_15_42B7::
 
 Jump_15_42C0::
 	ld a, $f4
-	call Call_1275
+	call SerialSendSlave
 	ld hl, $5f03
 	rst $10
 	ret
@@ -340,15 +340,15 @@ Jump_15_42CA::
 	ld b, a
 	xor a
 	ld [$c86d], a
-	ld a, [$c88e]
+	ld a, [wGameModeChange]
 	or a
 	jr nz, jr_015_42ef
 
 	ld a, b
-	call Call_126B
+	call SerialSendMaster
 
 jr_015_42e6:
-	ld a, [$c864]
+	ld a, [wSerialLock]
 	and $03
 	cp $03
 	jr nz, jr_015_42e6
@@ -372,11 +372,11 @@ JumpTable_15_42F5::
 
 Jump_15_4301::
 	ld a, $f4
-	call Call_1275
+	call SerialSendSlave
 	call Call_15_5E7C
 	ld de, $6454
-	ld hl, $a002
-	call Call_20EE
+	ld hl, sSaveValid
+	call ReadSRAMByte
 	or a
 	jr z, jr_015_4318
 
@@ -386,8 +386,8 @@ jr_015_4318:
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $43b2
-	ld hl, $a002
-	call Call_20EE
+	ld hl, sSaveValid
+	call ReadSRAMByte
 	or a
 	jr z, jr_015_432d
 
@@ -395,9 +395,9 @@ jr_015_4318:
 
 jr_015_432d:
 	xor a
-	ld [$c8df], a
-	ld a, [$c8da]
-	ld [$c8e0], a
+	ld [wLinkRefused], a
+	ld a, [wLinkChoice]
+	ld [wLinkPartnerChoice], a
 	call Call_15_60A2
 	call Call_15_5DC0
 	ld hl, $c8d2
@@ -406,16 +406,16 @@ jr_015_432d:
 
 
 Jump_15_4342::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ld a, $f4
-	call nz, Call_1275
+	call nz, SerialSendSlave
 	ret nz
 
 	ld de, $43b2
 	ld b, $01
-	ld hl, $a002
-	call Call_20EE
+	ld hl, sSaveValid
+	call ReadSRAMByte
 	or a
 	jr z, jr_015_435f
 
@@ -423,22 +423,22 @@ Jump_15_4342::
 	ld b, $04
 
 jr_015_435f:
-	ld hl, $c8da
-	ld a, [$c8e0]
-	ld [$c8da], a
+	ld hl, wLinkChoice
+	ld a, [wLinkPartnerChoice]
+	ld [wLinkChoice], a
 	call Call_15_5F85
-	ld a, [$c8da]
-	ld [$c8e0], a
+	ld a, [wLinkChoice]
+	ld [wLinkPartnerChoice], a
 	ld de, $43b6
-	ld hl, $a002
-	call Call_20EE
+	ld hl, sSaveValid
+	call ReadSRAMByte
 	or a
 	jr z, jr_015_4380
 
 	ld de, $43c1
 
 jr_015_4380:
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add e
 	ld e, a
@@ -446,12 +446,12 @@ jr_015_4380:
 	adc d
 	ld d, a
 	ld a, [de]
-	call Call_1275
-	ld a, [$c846]
+	call SerialSendSlave
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_43b1
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	cp $02
 	jr z, jr_015_43a9
@@ -460,7 +460,7 @@ jr_015_4380:
 	jr z, jr_015_43a9
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 
 jr_015_43a9:
 	ld hl, $c8d2
@@ -476,11 +476,11 @@ Jump_015_43b1:
 	db $f4, $f2, $f3
 
 Jump_15_43C5::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	ld b, a
-	ld hl, $a002
-	call Call_20EE
+	ld hl, sSaveValid
+	call ReadSRAMByte
 	or a
 	jr nz, jr_015_43d5
 
@@ -498,31 +498,31 @@ JumpTable_15_43D7::
 
 Jump_15_43DF::
 	ld a, $f4
-	call Call_1275
+	call SerialSendSlave
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ld a, $01
-	ld [$c88a], a
+	ld [wGameMode], a
 	ld a, $00
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $00
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 Jump_15_4402::
 	ld a, $f4
-	call Call_1275
-	ld a, [$c81c]
+	call SerialSendSlave
+	ld a, [wOnSGB]
 	cp $01
 	jr nz, jr_015_4422
 
 	ld hl, $0270
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
 	call Call_15_5D8F
 	call Call_15_5DC0
@@ -533,7 +533,7 @@ Jump_15_4402::
 
 jr_015_4422:
 	ld hl, $021b
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
 	call Call_15_5D8F
 	call Call_15_5DC0
@@ -544,8 +544,8 @@ jr_015_4422:
 
 Jump_15_4436::
 	ld a, $f4
-	call Call_1275
-	ld a, [$c825]
+	call SerialSendSlave
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -556,7 +556,7 @@ Jump_15_4436::
 
 Jump_15_4445::
 	ld a, $f4
-	call Call_1275
+	call SerialSendSlave
 	ld a, [$c8d3]
 	rst $00
 
@@ -566,9 +566,9 @@ JumpTable_15_444E::
 
 Jump_15_4452::
 	di
-	call Call_21B2
+	call LoadGame
 	ei
-	ld hl, far_Call_17_401D
+	ld hl, far_LoadMapPalettes
 	rst $10
 	jr jr_015_44d7
 
@@ -587,75 +587,75 @@ jr_015_44d7:
 	jr z, jr_015_44e3
 
 	ld a, $80
-	ld [$c8ea], a
+	ld [wGameStarted], a
 
 jr_015_44e3:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 4, a
 	jr nz, jr_015_44ee
 
 	xor a
-	ld [$c8eb], a
+	ld [wFieldFlags], a
 
 jr_015_44ee:
 	xor a
 	ld [$d9e7], a
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	ld de, $ca42
+	ld de, wPlayerName
 	ld hl, $9000
 	call Call_15_5E2E
 	call Call_15_45AE
 	ld de, $673b
 	call Call_15_5D8F
-	ld a, [$cab8]
+	ld a, [wPlayHours]
 	ld c, a
 	ld b, $00
 	ld hl, HeaderComplementCheck
 	call Call_15_5D33
-	call Call_20AD
-	ld a, [$cab7]
+	call PrintNumber2Zeros
+	ld a, [wPlayMinutes]
 	ld c, a
 	ld b, $00
 	ld hl, $0150
 	call Call_15_5D33
-	call Call_20AD
-	ld a, [$ca8d]
+	call PrintNumber2Zeros
+	ld a, [wPartyCount]
 	or a
 	jr z, jr_015_4578
 
-	ld hl, $cb0c
+	ld hl, wMonLevel
 	ld a, $00
-	call Call_224A
+	call GetPartyMonsterByte
 	ld c, a
 	ld b, $00
 	ld hl, $01a4
 	call Call_15_5D33
-	call Call_2082
-	ld a, [$ca8d]
+	call PrintNumber2
+	ld a, [wPartyCount]
 	cp $01
 	jr z, jr_015_457e
 
-	ld hl, $cb0c
+	ld hl, wMonLevel
 	ld a, $01
-	call Call_224A
+	call GetPartyMonsterByte
 	ld c, a
 	ld b, $00
 	ld hl, $01aa
 	call Call_15_5D33
-	call Call_2082
-	ld a, [$ca8d]
+	call PrintNumber2
+	ld a, [wPartyCount]
 	cp $02
 	jr z, jr_015_4584
 
-	ld hl, $cb0c
+	ld hl, wMonLevel
 	ld a, $02
-	call Call_224A
+	call GetPartyMonsterByte
 	ld c, a
 	ld b, $00
 	ld hl, $01b0
 	call Call_15_5D33
-	call Call_2082
+	call PrintNumber2
 	jr jr_015_458a
 
 jr_015_4578:
@@ -701,25 +701,25 @@ Call_15_4592::
 
 
 Call_15_45AE::
-	ld hl, $cac2
+	ld hl, wMonName
 	ld a, $00
-	call Call_2229
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9040
 	ld a, $01
 	call Call_15_45E5
-	ld hl, $cac2
+	ld hl, wMonName
 	ld a, $01
-	call Call_2229
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9080
 	ld a, $02
 	call Call_15_45E5
-	ld hl, $cac2
+	ld hl, wMonName
 	ld a, $02
-	call Call_2229
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $90c0
@@ -730,7 +730,7 @@ Call_15_45AE::
 
 Call_15_45E5::
 	ld b, a
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp b
 	jp nc, Call_15_5E2E
 
@@ -738,9 +738,9 @@ Call_15_45E5::
 
 jr_015_45ef:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_015_45ef
 
@@ -748,18 +748,18 @@ jr_015_45ef:
 
 
 Jump_15_45FC::
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_015_460e
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld hl, $c8d2
 	inc [hl]
 	jr jr_015_461d
 
 jr_015_460e:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_461d
 
@@ -774,7 +774,7 @@ jr_015_461d:
 
 Jump_15_461E::
 	ld a, $f4
-	call Call_1275
+	call SerialSendSlave
 	ld a, [$c8d3]
 	rst $00
 
@@ -784,32 +784,32 @@ JumpTable_15_4627::
 	dw Jump_15_462D
 
 Jump_15_462D::
-	ld hl, $ff8a
+	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
-	call Call_12C7
-	ld hl, $c8ea
+	call FillMemory
+	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
-	call Call_12C7
+	call FillMemory
 	ld a, $04
 	ld [$c8ee], a
 	xor a
-	ld [$c8ea], a
+	ld [wGameStarted], a
 	ld hl, $c8d2
 	inc [hl]
 	xor a
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	ld a, $2f
-	ld [$c968], a
-	ld [$c96a], a
+	ld [wMapId], a
+	ld [wPrevMapId], a
 	ld a, $00
-	ld [$c969], a
-	ld [$c96b], a
+	ld [wOnGateFloor], a
+	ld [wPrevOnGateFloor], a
 	ld a, $00
-	ld [$ca8d], a
+	ld [wPartyCount], a
 	ld a, $ff
-	ld [$ca8e], a
+	ld [wParty], a
 	ld a, $ff
 	ld [$ca8f], a
 	ld a, $ff
@@ -818,12 +818,12 @@ Jump_15_462D::
 
 
 Jump_15_4677::
-	ld a, [$c8df]
+	ld a, [wLinkRefused]
 	cp $ff
 	jr z, jr_015_4689
 
 	ld a, $00
-	ld [$c841], a
+	ld [wJoy2Active], a
 	ld a, $f0
 	ld [$c86d], a
 	ret
@@ -831,7 +831,7 @@ Jump_15_4677::
 
 jr_015_4689:
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
 	ld [$c86d], a
 	ld a, $04
@@ -840,12 +840,12 @@ jr_015_4689:
 
 
 Jump_15_4698::
-	ld a, [$c8df]
+	ld a, [wLinkRefused]
 	cp $ff
 	jr z, jr_015_46aa
 
 	ld a, $00
-	ld [$c841], a
+	ld [wJoy2Active], a
 	ld a, $f1
 	ld [$c86d], a
 	ret
@@ -853,7 +853,7 @@ Jump_15_4698::
 
 jr_015_46aa:
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
 	ld [$c86d], a
 	ld a, $04
@@ -862,7 +862,7 @@ jr_015_46aa:
 
 
 Jump_15_46B9::
-	call Call_047E
+	call LinkFrameUpdate
 	ld a, [$c8d2]
 	cp $06
 	jr z, jr_015_46cc
@@ -879,7 +879,7 @@ Jump_15_46B9::
 jr_015_46cc:
 	call Call_15_53B2
 	call Call_15_53EE
-	ld hl, far_Call_17_41C0
+	ld hl, far_LoadFieldObjPalettes
 	rst $10
 	ret
 
@@ -936,7 +936,7 @@ Jump_15_4725::
 
 
 Call_15_4730::
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $00
 	ld c, $00
 
@@ -989,12 +989,12 @@ jr_015_475b:
 
 
 Call_15_476F::
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -1045,7 +1045,7 @@ jr_015_47a9:
 
 
 Jump_15_47B7::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1058,7 +1058,7 @@ Jump_15_47B7::
 	call Call_15_4AFB
 	call Call_15_5DC0
 	ld hl, $0225
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
@@ -1079,16 +1079,16 @@ Call_15_47DD::
 	ld b, $04
 	ld a, [$c8d8]
 	ld c, a
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	call Call_15_6080
 	ret
 
 
 Call_15_480B::
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
@@ -1107,8 +1107,8 @@ Call_15_4825::
 	jr z, jr_015_4846
 
 	ld a, [de]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
@@ -1131,9 +1131,9 @@ jr_015_4846:
 
 jr_015_4848:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_015_4848
 
@@ -1150,14 +1150,14 @@ jr_015_4848:
 
 
 Call_15_4860::
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -1168,69 +1168,69 @@ Call_15_4860::
 	ret z
 
 	push af
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9000
 	call Call_15_5E2E
 	pop af
-	ld hl, $cacc
-	call Call_223B
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [hl]
 	ld hl, $9200
 	and $01
 	add $a7
-	ld [$c180], a
+	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
 Call_15_48E5::
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -1241,8 +1241,8 @@ Call_15_48E5::
 	ret z
 
 	push af
-	ld hl, $cb0c
-	call Call_223B
+	ld hl, wMonLevel
+	call MonsterField
 	ld c, [hl]
 	ld b, $00
 	ld hl, $0161
@@ -1256,8 +1256,8 @@ Call_15_48E5::
 	call Call_15_6135
 	pop af
 	push af
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	pop af
 	ld b, a
 	ld a, [hl]
@@ -1286,11 +1286,11 @@ jr_015_493a:
 
 
 Jump_15_4944::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1298,7 +1298,7 @@ Jump_15_4944::
 	ret z
 
 	ld de, $4a03
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld a, [$c8d8]
 	ld c, a
 	ld b, $04
@@ -1309,7 +1309,7 @@ Jump_15_4944::
 	push af
 	call Call_15_5EFC
 	pop af
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	cp [hl]
 	jr z, jr_015_4976
 
@@ -1319,7 +1319,7 @@ Jump_15_4944::
 
 jr_015_4976:
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	cp [hl]
 	jr z, jr_015_4989
 
@@ -1329,7 +1329,7 @@ jr_015_4976:
 	call Call_15_5DC0
 
 jr_015_4989:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_49d4
 
@@ -1366,37 +1366,37 @@ jr_015_49b8:
 
 jr_015_49c2:
 	ld hl, $022d
-	call Call_096D
+	call PrintSystemText
 	ld a, $24
 	ld [$c8d2], a
 	ld a, $fd
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jr jr_015_4a02
 
 jr_015_49d4:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4a02
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8dc], a
-	ld a, [$c8db]
+	ld [wConfirmChoice], a
+	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld hl, $c8d2
 	inc [hl]
 
@@ -1414,7 +1414,7 @@ Jump_15_4A0F::
 
 
 Jump_15_4A14::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1432,7 +1432,7 @@ Call_15_4A27::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $4af5
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	call Call_15_60A2
 	ret
 
@@ -1442,10 +1442,10 @@ Jump_15_4A3D::
 	ret z
 
 	ld de, $4af5
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_4a71
 
@@ -1464,19 +1464,19 @@ Jump_15_4A3D::
 
 
 jr_015_4a71:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4af4
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_015_4a93
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_4af4
@@ -1487,7 +1487,7 @@ jr_015_4a93:
 	cp $ff
 	jr nz, jr_015_4aa2
 
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld [$c0ec], a
 	jr jr_015_4ad3
 
@@ -1496,12 +1496,12 @@ jr_015_4aa2:
 	cp $ff
 	jr nz, jr_015_4ab1
 
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld [$c0ed], a
 	jr jr_015_4ad3
 
 jr_015_4ab1:
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld [$c0ee], a
 	call Call_15_4AFB
 	ld hl, $c8d2
@@ -1556,12 +1556,12 @@ Call_15_4AFB::
 
 Jump_15_4B0B::
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8eb], a
-	ld hl, far_Call_07_6456
+	ld [wFieldFlags], a
+	ld hl, far_ShowMonsterStatus
 	rst $10
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	or a
 	ret z
 
@@ -1573,13 +1573,13 @@ Jump_15_4B0B::
 Jump_15_4B21::
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $0225
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_15_5E7C
 	call Call_15_4860
 	call Call_15_480B
@@ -1597,19 +1597,19 @@ Jump_15_4B57::
 	call Call_15_5D8F
 	call Call_15_5DC0
 	ld hl, $0227
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_4B6B::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	call Call_15_4B80
 	call Call_15_5DC0
 	ld hl, $c8d2
@@ -1622,7 +1622,7 @@ Call_15_4B80::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $4be3
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	call Call_15_60A2
 	ret
 
@@ -1632,10 +1632,10 @@ Jump_15_4B93::
 	ret z
 
 	ld de, $4be3
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	ld b, $02
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_4bb0
 
@@ -1646,13 +1646,13 @@ jr_015_4ba9:
 
 
 jr_015_4bb0:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4be2
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dd]
+	call QueueSound
+	ld a, [wConfirmChoice2]
 	cp $81
 	jr z, jr_015_4ba9
 
@@ -1664,8 +1664,8 @@ jr_015_4bb0:
 	ld a, $01
 	ld [$c8d2], a
 	xor a
-	ld [$c8da], a
-	ld [$c8db], a
+	ld [wLinkChoice], a
+	ld [wMenuChoice2], a
 	jp Jump_015_4be2
 
 
@@ -1680,19 +1680,19 @@ Jump_15_4BE9::
 	call Call_15_5D8F
 	call Call_15_5DC0
 	ld hl, $0228
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_4BFD::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	call Call_15_4C12
 	call Call_15_5DC0
 	ld hl, $c8d2
@@ -1705,7 +1705,7 @@ Call_15_4C12::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $4c8e
-	ld a, [$c8de]
+	ld a, [wMenuChoice3]
 	call Call_15_60A2
 	ret
 
@@ -1715,10 +1715,10 @@ Jump_15_4C25::
 	ret z
 
 	ld de, $4c8e
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld b, $02
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_4c5c
 
@@ -1727,24 +1727,24 @@ jr_015_4c3b:
 	call Call_15_5D8F
 	call Call_15_5DC0
 	ld hl, $0229
-	call Call_096D
+	call PrintSystemText
 	ld a, $14
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld a, $00
-	ld [$d665], a
+	ld [wBreedParent1], a
 	ld a, $16
 	ld [$c8d2], a
 	jp Jump_015_4c8d
 
 
 jr_015_4c5c:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4be2
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8de]
+	call QueueSound
+	ld a, [wMenuChoice3]
 	cp $81
 	jr z, jr_015_4c3b
 
@@ -1754,8 +1754,8 @@ jr_015_4c5c:
 	call Call_15_480B
 	call Call_15_47DD
 	xor a
-	ld [$c8da], a
-	ld [$c8db], a
+	ld [wLinkChoice], a
+	ld [wMenuChoice2], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_4c8d
@@ -1780,18 +1780,18 @@ Jump_15_4C94::
 	call Call_15_5D8F
 	call Call_15_5DC0
 	ld hl, $0229
-	call Call_096D
+	call PrintSystemText
 	ld a, $14
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld a, $00
-	ld [$d665], a
+	ld [wBreedParent1], a
 	ld a, $16
 	ld [$c8d2], a
 	ret
 
 
 Call_15_4CC2::
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -1830,12 +1830,12 @@ jr_015_4cdb:
 
 
 Call_15_4CEC::
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -1874,7 +1874,7 @@ jr_015_4d14:
 
 
 Jump_15_4D22::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1886,7 +1886,7 @@ Jump_15_4D22::
 	call Call_15_4D45
 	call Call_15_5DC0
 	ld hl, $022a
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
@@ -1907,16 +1907,16 @@ Call_15_4D45::
 	ld b, $04
 	ld a, [$c8d8]
 	ld c, a
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	call Call_15_6080
 	ret
 
 
 Call_15_4D73::
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
@@ -1935,8 +1935,8 @@ Call_15_4D8D::
 	jr z, jr_015_4dae
 
 	ld a, [de]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
@@ -1959,9 +1959,9 @@ jr_015_4dae:
 
 jr_015_4db0:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_015_4db0
 
@@ -1978,11 +1978,11 @@ jr_015_4db0:
 
 
 Jump_15_4DC8::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1990,7 +1990,7 @@ Jump_15_4DC8::
 	ret z
 
 	ld de, $4e4d
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld a, [$c8d8]
 	ld c, a
 	ld b, $04
@@ -2001,7 +2001,7 @@ Jump_15_4DC8::
 	push af
 	call Call_15_5EFC
 	pop af
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	cp [hl]
 	jr z, jr_015_4dfa
 
@@ -2011,7 +2011,7 @@ Jump_15_4DC8::
 
 jr_015_4dfa:
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	cp [hl]
 	jr z, jr_015_4e0d
 
@@ -2021,7 +2021,7 @@ jr_015_4dfa:
 	call Call_15_5DC0
 
 jr_015_4e0d:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_4e1b
 
@@ -2030,30 +2030,30 @@ jr_015_4e0d:
 	jr jr_015_4e4c
 
 jr_015_4e1b:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4e4c
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8dc], a
-	ld [$c8dd], a
-	ld a, [$c8db]
+	ld [wConfirmChoice], a
+	ld [wConfirmChoice2], a
+	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld hl, $c8d2
 	inc [hl]
 
@@ -2071,7 +2071,7 @@ Jump_15_4E59::
 
 
 Jump_15_4E5E::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -2089,7 +2089,7 @@ Call_15_4E71::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $4f0e
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	call Call_15_60A2
 	ret
 
@@ -2099,10 +2099,10 @@ Jump_15_4E87::
 	ret z
 
 	ld de, $4f0e
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_4ebb
 
@@ -2121,19 +2121,19 @@ Jump_15_4E87::
 
 
 jr_015_4ebb:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_4f0d
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_015_4edd
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_4f0d
@@ -2146,21 +2146,21 @@ jr_015_4edd:
 	inc [hl]
 	ld hl, $c8d2
 	inc [hl]
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld b, a
 	call Call_15_4F14
 	jr nz, jr_015_4f00
 
-	ld a, [$cac0]
-	ld hl, $cac1
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	cp $02
 	jr nz, jr_015_4f0d
 
 jr_015_4f00:
 	ld hl, $025c
-	call Call_096D
+	call PrintSystemText
 	ld a, $23
 	ld [$c8d2], a
 	jr jr_015_4f0d
@@ -2173,38 +2173,38 @@ jr_015_4f0d:
 	db $2e, $00, $6e, $00, $ff, $ff
 
 Call_15_4F14::
-	ld hl, $a1c7
-	call Call_20EE
+	ld hl, sPartyCount
+	call ReadSRAMByte
 	or a
 	jr nz, jr_015_4f55
 
 	ld hl, $a1f3
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_015_4f55
 
 	ld hl, $a1f4
-	call Call_20EE
+	call ReadSRAMByte
 	cp b
 	jr z, jr_015_4f57
 
 	ld hl, $a1f3
-	call Call_20EE
+	call ReadSRAMByte
 	cp $01
 	jr z, jr_015_4f55
 
 	ld hl, $a1f5
-	call Call_20EE
+	call ReadSRAMByte
 	cp b
 	jr z, jr_015_4f57
 
 	ld hl, $a1f3
-	call Call_20EE
+	call ReadSRAMByte
 	cp $02
 	jr z, jr_015_4f55
 
 	ld hl, $a1f6
-	call Call_20EE
+	call ReadSRAMByte
 	cp b
 	jr z, jr_015_4f57
 
@@ -2221,12 +2221,12 @@ jr_015_4f57:
 
 Jump_15_4F5B::
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8eb], a
-	ld hl, far_Call_07_6456
+	ld [wFieldFlags], a
+	ld hl, far_ShowMonsterStatus
 	rst $10
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	or a
 	ret z
 
@@ -2238,13 +2238,13 @@ Jump_15_4F5B::
 Jump_15_4F71::
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $022a
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_15_5E7C
 	call Call_15_4860
 	call Call_15_4D73
@@ -2259,11 +2259,11 @@ Jump_15_4F71::
 
 Jump_15_4FA7::
 	ld hl, $021f
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $01
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ret
 
 
@@ -2271,66 +2271,66 @@ Jump_15_4FB7::
 	call Call_15_5391
 	ret z
 
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $95
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld [$c8ba], a
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $d6fa
+	ld hl, wBreedParent2
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ret
 
 
 Jump_15_4FF8::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
 	xor a
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ld a, $00
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld hl, $c8d2
 	inc [hl]
 	xor a
-	ld [$c825], a
+	ld [wTextState], a
 	ret
 
 
 Jump_15_5010::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $022b
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_5020::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -2338,7 +2338,7 @@ Jump_15_5020::
 	call Call_15_5037
 	call Call_15_5DC0
 	xor a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ld hl, $c8d2
 	inc [hl]
 	ret
@@ -2350,65 +2350,65 @@ Call_15_5037::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $50db
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	call Call_15_60A2
 	ret
 
 
 Jump_15_504D::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	jr nz, jr_015_5067
 
 	ld hl, $022e
-	call Call_096D
+	call PrintSystemText
 	ld a, $1e
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_50da
 
 
 jr_015_5067:
 	ld de, $50db
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	ld b, $03
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_508c
 
 jr_015_5079:
 	ld hl, $022d
-	call Call_096D
+	call PrintSystemText
 	ld a, $1e
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_50da
 
 
 jr_015_508c:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_50da
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dd]
+	call QueueSound
+	ld a, [wConfirmChoice2]
 	cp $80
 	jr z, jr_015_50c6
 
 	cp $82
 	jr z, jr_015_5079
 
-	ld a, [$d6fa]
+	ld a, [wBreedParent2]
 	or a
 	jr z, jr_015_50b8
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_50da
@@ -2416,7 +2416,7 @@ jr_015_508c:
 
 jr_015_50b8:
 	ld hl, $022f
-	call Call_096D
+	call PrintSystemText
 	ld a, $19
 	ld [$c8d2], a
 	jp Jump_015_50da
@@ -2442,14 +2442,14 @@ Jump_015_50da:
 
 Jump_15_50E3::
 	ld a, $15
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8eb], a
-	ld hl, far_Call_07_6456
+	ld [wFieldFlags], a
+	ld hl, far_ShowMonsterStatus
 	rst $10
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	or a
 	ret z
 
@@ -2461,13 +2461,13 @@ Jump_15_50E3::
 Jump_15_50FE::
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $022b
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_15_5E7C
 	call Call_15_4860
 	call Call_15_4D73
@@ -2481,41 +2481,41 @@ Jump_15_50FE::
 
 
 Jump_15_5134::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	ret nz
 
 	ld a, $64
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_5168::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
 	xor a
-	ld [$c8c7], a
-	ld hl, $c88a
+	ld [wLinkNoEnd], a
+	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $01
@@ -2523,58 +2523,58 @@ Jump_15_5168::
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $00
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
 	xor a
-	ld [$c863], a
-	ld [$c864], a
-	ld [$c86c], a
+	ld [wLinkFlags], a
+	ld [wSerialLock], a
+	ld [wLinkActive], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
 	ld [$c86d], a
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ret
 
 
 Jump_15_51AA::
 	ld hl, $021f
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $01
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ret
 
 
 Jump_15_51BA::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	jr nz, jr_015_51d4
 
 	ld hl, $022e
-	call Call_096D
+	call PrintSystemText
 	ld a, $1e
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_5286
 
 
 jr_015_51d4:
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
 	ld a, [$c0ec]
-	ld de, $c300
+	ld de, wSavedTilemap
 	call Call_15_5287
 	ld a, [$c0ed]
 	ld de, $c395
@@ -2582,8 +2582,8 @@ jr_015_51d4:
 	ld a, [$c0ee]
 	ld de, $c42a
 	call Call_15_5287
-	ld hl, $c300
-	ld de, $cac1
+	ld hl, wSavedTilemap
+	ld de, wMonsters
 	ld b, $95
 
 jr_015_51fd:
@@ -2627,8 +2627,8 @@ jr_015_51fd:
 	ld [$c8c3], a
 
 jr_015_5243:
-	ld hl, $ca42
-	ld de, $cacd
+	ld hl, wPlayerName
+	ld de, wMonMaster
 	ld b, $08
 
 jr_015_524b:
@@ -2640,27 +2640,27 @@ jr_015_524b:
 
 	ld hl, $01bf
 	ld a, l
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	ld a, h
 	ld [$c872], a
-	ld hl, $cac1
+	ld hl, wMonsters
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
 	ld hl, $cd15
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ld hl, $c8d2
 	inc [hl]
 	ld hl, $022c
-	call Call_096D
+	call PrintSystemText
 
 Jump_015_5286:
 	ret
@@ -2678,8 +2678,8 @@ Call_15_5287::
 
 jr_015_5290:
 	push de
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	pop de
 	ld b, $95
 
@@ -2694,18 +2694,18 @@ jr_015_529a:
 
 
 Jump_15_52A1::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
 	xor a
-	ld [$c8c7], a
-	ld hl, far_Call_01_683E
+	ld [wLinkNoEnd], a
+	ld hl, far_RollEncounterGroup
 	rst $10
-	ld hl, $cac1
-	ld de, $cac1
+	ld hl, wMonsters
+	ld de, wMonsters
 	ld b, $95
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_015_52c1
 
@@ -2734,16 +2734,16 @@ jr_015_52c1:
 	jr nz, jr_015_52c1
 
 	ld a, $ff
-	ld [$ca8e], a
+	ld [wParty], a
 	ld [$ca8f], a
 	ld [$ca90], a
 	ld b, $00
-	ld a, [$cac1]
+	ld a, [wMonsters]
 	or a
 	jr z, jr_015_5307
 
 	ld a, $00
-	ld [$ca8e], a
+	ld [wParty], a
 	inc b
 	ld a, [$cb56]
 	or a
@@ -2762,7 +2762,7 @@ jr_015_52c1:
 
 jr_015_5307:
 	ld a, b
-	ld [$ca8d], a
+	ld [wPartyCount], a
 	ld a, [$c8ba]
 	cp $14
 	jr nz, jr_015_5317
@@ -2771,7 +2771,7 @@ jr_015_5307:
 	ld [$c8ba], a
 
 jr_015_5317:
-	ld hl, $c88a
+	ld hl, wGameMode
 	ld a, $02
 	ld [hli], a
 	ld a, $00
@@ -2779,21 +2779,21 @@ jr_015_5317:
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $01
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	ret
 
 
 Jump_15_533C::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -2803,69 +2803,69 @@ Jump_15_533C::
 	call Call_15_4D45
 	call Call_15_5DC0
 	ld hl, $022a
-	call Call_096D
+	call PrintSystemText
 	ld a, $10
 	ld [$c8d2], a
 	ret
 
 
 Jump_15_535C::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
 	ld a, $64
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $1f
 	ld [$c8d2], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ret
 
 
 Call_15_5391::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
 	ld hl, $022e
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
 	call Call_15_5D8F
 	call Call_15_5DC0
 	ld a, $24
 	ld [$c8d2], a
 	ld a, $fd
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
 	ret
 
 
 Call_15_53B2::
-	ld a, [$c90e]
+	ld a, [wFieldMenuStep]
 	cp $05
 	ret nz
 
-	ld hl, $caca
-	ld a, [$cac0]
-	call Call_223B
+	ld hl, wMonRecSpecies
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -2878,7 +2878,7 @@ Call_15_53B2::
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_015_53e1
 
@@ -2891,25 +2891,25 @@ jr_015_53e1:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
 Call_15_53EE::
-	ld a, [$c90e]
+	ld a, [wFieldMenuStep]
 	cp $09
 	ret nz
 
-	ld hl, $cad6
-	ld a, [$cac0]
-	call Call_223B
+	ld hl, wMonParent1
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	cp $ff
 	ret z
 
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -2922,7 +2922,7 @@ Call_15_53EE::
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_015_5420
 
@@ -2935,14 +2935,14 @@ jr_015_5420:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-	ld hl, $cad7
-	ld a, [$cac0]
-	call Call_223B
+	ld hl, wMonParent2
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -2955,7 +2955,7 @@ jr_015_5420:
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_015_5455
 
@@ -2968,13 +2968,13 @@ jr_015_5455:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
 Jump_15_5462::
-	call Call_047E
+	call LinkFrameUpdate
 	ld a, [$c8d2]
 	cp $06
 	jr z, jr_015_5471
@@ -2988,7 +2988,7 @@ Jump_15_5462::
 jr_015_5471:
 	call Call_15_5C60
 	call Call_15_5C9C
-	ld hl, far_Call_17_41C0
+	ld hl, far_LoadFieldObjPalettes
 	rst $10
 	ret
 
@@ -3034,7 +3034,7 @@ Jump_15_54B4::
 
 
 Call_15_54BF::
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3073,12 +3073,12 @@ jr_015_54d8:
 
 
 Call_15_54E9::
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3117,7 +3117,7 @@ jr_015_5511:
 
 
 Jump_15_551F::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -3129,7 +3129,7 @@ Jump_15_551F::
 	call Call_15_5542
 	call Call_15_5DC0
 	ld hl, $021c
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
@@ -3148,16 +3148,16 @@ Call_15_5542::
 	ld b, $04
 	ld a, [$c8d8]
 	ld c, a
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	call Call_15_6080
 	ret
 
 
 Call_15_556A::
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
@@ -3176,8 +3176,8 @@ Call_15_5584::
 	jr z, jr_015_55a5
 
 	ld a, [de]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
@@ -3200,9 +3200,9 @@ jr_015_55a5:
 
 jr_015_55a7:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_015_55a7
 
@@ -3219,11 +3219,11 @@ jr_015_55a7:
 
 
 Jump_15_55BF::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -3231,7 +3231,7 @@ Jump_15_55BF::
 	ret z
 
 	ld de, $564d
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld a, [$c8d8]
 	ld c, a
 	ld b, $04
@@ -3242,7 +3242,7 @@ Jump_15_55BF::
 	push af
 	call Call_15_5EFC
 	pop af
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	cp [hl]
 	jr z, jr_015_55f1
 
@@ -3252,7 +3252,7 @@ Jump_15_55BF::
 
 jr_015_55f1:
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	cp [hl]
 	jr z, jr_015_5604
 
@@ -3262,42 +3262,42 @@ jr_015_55f1:
 	call Call_15_5DC0
 
 jr_015_5604:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jp z, Jump_015_561e
 
 	ld hl, $0221
-	call Call_096D
+	call PrintSystemText
 	ld a, $19
 	ld [$c8d2], a
 	ld a, $fd
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jr jr_015_564c
 
 Jump_015_561e:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_564c
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8dc], a
-	ld a, [$c8db]
+	ld [wConfirmChoice], a
+	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld hl, $c8d2
 	inc [hl]
 
@@ -3315,7 +3315,7 @@ Jump_15_5659::
 
 
 Jump_15_565E::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -3333,7 +3333,7 @@ Call_15_5671::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $5729
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	call Call_15_60A2
 	ret
 
@@ -3343,10 +3343,10 @@ Jump_15_5687::
 	ret z
 
 	ld de, $5729
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_56bb
 
@@ -3365,54 +3365,54 @@ Jump_15_5687::
 
 
 jr_015_56bb:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_5728
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_015_56dd
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_5728
 
 
 jr_015_56dd:
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld b, a
 	call Call_15_4F14
 	jr nz, jr_015_56f4
 
-	ld a, [$cac0]
-	ld hl, $cac1
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	cp $02
 	jr nz, jr_015_5701
 
 jr_015_56f4:
 	ld hl, $025d
-	call Call_096D
+	call PrintSystemText
 	ld a, $10
 	ld [$c8d2], a
 	jr jr_015_5728
 
 jr_015_5701:
-	ld a, [$cac0]
-	ld hl, $cb0c
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	cp $0a
 	jr nc, jr_015_571c
 
 	ld hl, $0230
-	call Call_096D
+	call PrintSystemText
 	ld a, $10
 	ld [$c8d2], a
 	jr jr_015_5728
@@ -3434,12 +3434,12 @@ jr_015_5728:
 
 Jump_15_572F::
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8eb], a
-	ld hl, far_Call_07_6456
+	ld [wFieldFlags], a
+	ld hl, far_ShowMonsterStatus
 	rst $10
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	or a
 	ret z
 
@@ -3451,13 +3451,13 @@ Jump_15_572F::
 Jump_15_5745::
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $021c
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_15_5E7C
 	call Call_15_4860
 	call Call_15_556A
@@ -3470,11 +3470,11 @@ Jump_15_5745::
 
 Jump_15_5775::
 	ld hl, $021f
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $01
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ret
 
 
@@ -3482,45 +3482,45 @@ Jump_15_5785::
 	call Call_15_5C3F
 	ret z
 
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $95
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld a, [$cac0]
-	ld hl, $cac1
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonsters
+	call MonsterField
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $d6fa
+	ld hl, wBreedParent2
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ret
 
 
 Jump_15_57C3::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
 	xor a
-	ld [$c8c7], a
-	ld a, [$cac0]
-	ld hl, $cacc
-	call Call_223B
+	ld [wLinkNoEnd], a
+	ld a, [wCurPartyMember]
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [$d705]
 	and $01
 	ld b, a
@@ -3530,22 +3530,22 @@ Jump_15_57C3::
 	jr nz, jr_015_57ef
 
 	ld hl, $021e
-	call Call_096D
+	call PrintSystemText
 	ld a, $10
 	ld [$c8d2], a
 	jr jr_015_582e
 
 jr_015_57ef:
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	ld d, a
-	ld hl, far_Call_01_4C58
+	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	ld c, $1b
-	call Call_1DBE
+	call Multiply
 	push hl
 	ld d, $15
-	ld hl, far_Call_01_4C58
+	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
 	pop hl
@@ -3565,14 +3565,14 @@ jr_015_57ef:
 	jr nz, jr_015_5825
 
 	ld hl, $025e
-	call Call_096D
+	call PrintSystemText
 	ld a, $10
 	ld [$c8d2], a
 	jr jr_015_582e
 
 jr_015_5825:
 	ld a, $00
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld hl, $c8d2
 	inc [hl]
 
@@ -3582,14 +3582,14 @@ jr_015_582e:
 
 Jump_15_582F::
 	ld hl, $0220
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_583A::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -3607,52 +3607,52 @@ Call_15_584D::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $58e1
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	call Call_15_60A2
 	ret
 
 
 Jump_15_5863::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	jr nz, jr_015_587d
 
 	ld hl, $0222
-	call Call_096D
+	call PrintSystemText
 	ld a, $11
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
 jr_015_587d:
 	ld de, $58e1
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	ld b, $03
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_58a2
 
 jr_015_588f:
 	ld hl, $0221
-	call Call_096D
+	call PrintSystemText
 	ld a, $11
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
 jr_015_58a2:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_58e0
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dd]
+	call QueueSound
+	ld a, [wConfirmChoice2]
 	cp $80
 	jr z, jr_015_58c8
 
@@ -3660,8 +3660,8 @@ jr_015_58a2:
 	jr z, jr_015_588f
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_58e0
@@ -3689,14 +3689,14 @@ Jump_015_58e0:
 
 Jump_15_58E9::
 	ld a, $15
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8eb], a
-	ld hl, far_Call_07_6456
+	ld [wFieldFlags], a
+	ld hl, far_ShowMonsterStatus
 	rst $10
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	or a
 	ret z
 
@@ -3708,13 +3708,13 @@ Jump_15_58E9::
 Jump_15_5904::
 	ld de, $2e1e
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1f
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $0220
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_15_5E7C
 	call Call_15_4860
 	call Call_15_556A
@@ -3726,15 +3726,15 @@ Jump_15_5904::
 
 
 Jump_15_5934::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $00
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld hl, $021c
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_15_5E7C
 	call Call_15_4860
 	call Call_15_556A
@@ -3746,41 +3746,41 @@ Jump_15_5934::
 
 
 Jump_15_595C::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	ret nz
 
 	ld a, $64
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_5990::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
 	xor a
-	ld [$c8c7], a
-	ld hl, $c88a
+	ld [wLinkNoEnd], a
+	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $01
@@ -3788,44 +3788,44 @@ Jump_15_5990::
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $00
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
 	xor a
-	ld [$c863], a
-	ld [$c864], a
-	ld [$c86c], a
+	ld [wLinkFlags], a
+	ld [wSerialLock], a
+	ld [wLinkActive], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
 	ld [$c86d], a
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ret
 
 
 Jump_15_59D2::
 	ld hl, $0223
-	call Call_096D
+	call PrintSystemText
 	xor a
-	ld [$c8de], a
+	ld [wMenuChoice3], a
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_15_59E1::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	call Call_15_5E7C
 	call Call_15_59F9
 	call Call_15_5DC0
@@ -3840,31 +3840,31 @@ Call_15_59F9::
 	call Call_15_5D8F
 	call Call_15_5FE3
 	ld de, $5a75
-	ld a, [$c8de]
+	ld a, [wMenuChoice3]
 	call Call_15_60A2
 	ret
 
 
 Jump_15_5A0F::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	jr nz, jr_015_5a29
 
 	ld hl, $0222
-	call Call_096D
+	call PrintSystemText
 	ld a, $11
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
 jr_015_5a29:
 	ld de, $5a75
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld b, $02
 	call Call_15_5F85
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_015_5a52
 
@@ -3873,26 +3873,26 @@ jr_015_5a3b:
 	call Call_15_584D
 	call Call_15_5DC0
 	ld hl, $0220
-	call Call_096D
+	call PrintSystemText
 	ld a, $0c
 	ld [$c8d2], a
 	jp Jump_015_5a74
 
 
 jr_015_5a52:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_015_5a74
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8de]
+	call QueueSound
+	ld a, [wMenuChoice3]
 	cp $81
 	jr z, jr_015_5a3b
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_015_5a74
@@ -3906,66 +3906,66 @@ Jump_015_5a74:
 
 Jump_15_5A7B::
 	ld hl, $021f
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $01
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ret
 
 
 Jump_15_5A8B::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fe
 	jr nz, jr_015_5aa5
 
 	ld hl, $0222
-	call Call_096D
+	call PrintSystemText
 	ld a, $11
 	ld [$c8d2], a
 	ld a, $fe
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	jp Jump_015_58e0
 
 
 jr_015_5aa5:
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
 	ld a, $64
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ld hl, $c8d2
 	inc [hl]
 	ld hl, $0224
-	call Call_096D
+	call PrintSystemText
 	ret
 
 
 Jump_15_5ADF::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $f0
 	ret nz
 
 	xor a
-	ld [$c8c7], a
-	ld hl, $c88a
+	ld [wLinkNoEnd], a
+	ld hl, wGameMode
 	ld a, $01
 	ld [hli], a
 	ld a, $01
@@ -3973,41 +3973,41 @@ Jump_15_5ADF::
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $00
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
 	xor a
-	ld [$c863], a
-	ld [$c864], a
+	ld [wLinkFlags], a
+	ld [wSerialLock], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
 	ld [$c86d], a
 	ld a, $04
-	call Call_1688
-	ld a, [$c8db]
+	call StartFade
+	ld a, [wMenuChoice2]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
-	ld hl, $cac1
-	call Call_223B
-	ld de, $d665
+	ld [wCurPartyMember], a
+	ld hl, wMonsters
+	call MonsterField
+	ld de, wBreedParent1
 	ld b, $95
 
 jr_015_5b41:
@@ -4017,34 +4017,34 @@ jr_015_5b41:
 	dec b
 	jr nz, jr_015_5b41
 
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
 	add $10
-	ld [$d7ca], a
+	ld [wEncGfx], a
 	ld a, $01
 	ld [$d7cb], a
-	ld a, [$cac0]
-	ld hl, $cac1
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonsters
+	call MonsterField
 	ld [hl], $00
 	ld a, $15
-	ld hl, $caca
-	call Call_223B
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
 	add $10
 	ld [$d7cc], a
 	ld a, $01
 	ld [$d7cd], a
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
 	ld hl, far_Call_16_4015
 	rst $10
 	xor a
-	ld [$c86c], a
+	ld [wLinkActive], a
 	di
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld de, $a1ce
 	ld b, $20
 	ld a, $0a
@@ -4059,47 +4059,47 @@ jr_015_5b93:
 
 	ld a, $00
 	ld [$0100], a
-	call Call_2197
+	call SaveMonsters
 	ei
 	ld a, $14
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	ld a, $15
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld hl, wTextArg1
+	call CopyName
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld l, [hl]
 	ld h, $05
-	ld de, $c1a0
-	call Call_097A
+	ld de, wTextArg2
+	call CopySystemText
 	ld a, $04
 	ld [$c8ee], a
 	xor a
-	ld [$c8ea], a
+	ld [wGameStarted], a
 	xor a
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	xor a
-	ld [$c8eb], a
+	ld [wFieldFlags], a
 	ld a, $08
-	ld [$c968], a
-	ld [$c96a], a
+	ld [wMapId], a
+	ld [wPrevMapId], a
 	ld a, $00
-	ld [$c969], a
-	ld [$c96b], a
+	ld [wOnGateFloor], a
+	ld [wPrevOnGateFloor], a
 	ld a, $00
-	ld [$ca8d], a
+	ld [wPartyCount], a
 	ld a, $ff
-	ld [$ca8e], a
+	ld [wParty], a
 	ld a, $ff
 	ld [$ca8f], a
 	ld a, $ff
@@ -4108,62 +4108,62 @@ jr_015_5b93:
 
 
 Jump_15_5C0A::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
 	ld a, $64
-	ld [$c871], a
+	ld [wLinkSendLength], a
 	xor a
 	ld [$c872], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c874], a
+	ld [wLinkSendPtr], a
 	ld a, h
 	ld [$c875], a
-	ld hl, $c300
+	ld hl, wSavedTilemap
 	ld a, l
-	ld [$c86f], a
+	ld [wLinkRecvPtr], a
 	ld a, h
 	ld [$c870], a
 	ld a, $ff
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	ld a, $12
 	ld [$c8d2], a
 	ld a, $01
-	ld [$c8c7], a
+	ld [wLinkNoEnd], a
 	ret
 
 
 Call_15_5C3F::
-	ld a, [$c86e]
+	ld a, [wLinkReceivedLast]
 	cp $fd
 	ret nz
 
 	ld hl, $0222
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
 	call Call_15_5D8F
 	call Call_15_5DC0
 	ld a, $19
 	ld [$c8d2], a
 	ld a, $fd
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
 	ret
 
 
 Call_15_5C60::
-	ld a, [$c90e]
+	ld a, [wFieldMenuStep]
 	cp $05
 	ret nz
 
-	ld hl, $caca
-	ld a, [$cac0]
-	call Call_223B
+	ld hl, wMonRecSpecies
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -4176,7 +4176,7 @@ Call_15_5C60::
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_015_5c8f
 
@@ -4189,25 +4189,25 @@ jr_015_5c8f:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
 Call_15_5C9C::
-	ld a, [$c90e]
+	ld a, [wFieldMenuStep]
 	cp $09
 	ret nz
 
-	ld hl, $cad6
-	ld a, [$cac0]
-	call Call_223B
+	ld hl, wMonParent1
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	cp $ff
 	ret z
 
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -4220,7 +4220,7 @@ Call_15_5C9C::
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_015_5cce
 
@@ -4233,14 +4233,14 @@ jr_015_5cce:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-	ld hl, $cad7
-	ld a, [$cac0]
-	call Call_223B
+	ld hl, wMonParent2
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -4253,7 +4253,7 @@ jr_015_5cce:
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_015_5d03
 
@@ -4266,7 +4266,7 @@ jr_015_5d03:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
@@ -4349,7 +4349,7 @@ Call_15_5D8F::
 	inc de
 	call Call_15_5D33
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 
@@ -4362,7 +4362,7 @@ jr_015_5d9e:
 	cp $d8
 	jr nz, jr_015_5dbd
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -4373,7 +4373,7 @@ jr_015_5d9e:
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	jr jr_015_5d9e
@@ -4387,7 +4387,7 @@ Call_15_5DC0::
 	ld l, a
 	ld a, [$c8d7]
 	ld h, a
-	ld de, $c500
+	ld de, wTilemapBuffer
 	ld c, $12
 
 jr_015_5dcd:
@@ -4396,7 +4396,7 @@ jr_015_5dcd:
 
 jr_015_5dd0:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -4433,49 +4433,49 @@ jr_015_5dd0:
 
 Call_15_5E2E::
 	push hl
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	pop hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
 Call_15_5E7C::
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	ld bc, $0240
 
 jr_015_5e82:
@@ -4495,7 +4495,7 @@ Call_15_5E8B::
 
 jr_015_5e91:
 	ld a, $e0
-	call Call_1AB9
+	call WriteVRAMInc
 	dec bc
 	ld a, b
 	or c
@@ -4513,14 +4513,14 @@ jr_015_5e91:
 
 Call_15_5EFC::
 	ld a, c
-	ld [$c8e1], a
+	ld [wListLastRows], a
 	inc de
 	inc de
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	jp nz, Jump_015_5f63
 
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 5, a
 	jr z, jr_015_5f29
 
@@ -4533,7 +4533,7 @@ Call_15_5EFC::
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -4548,7 +4548,7 @@ Call_15_5EFC::
 	jr jr_015_5f47
 
 jr_015_5f29:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, jr_015_5f63
 
@@ -4561,7 +4561,7 @@ jr_015_5f29:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -4579,13 +4579,13 @@ jr_015_5f47:
 	cp c
 	jr nz, jr_015_5fab
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
-	call Call_1DFB
+	call Divide8
 	pop bc
 	pop de
 	or a
@@ -4612,8 +4612,8 @@ jr_015_5f63:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
-	ld [$c8e1], a
+	call Divide8
+	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
@@ -4623,7 +4623,7 @@ jr_015_5f63:
 	cp c
 	jr nz, Call_15_5F85
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
@@ -4633,7 +4633,7 @@ Call_15_5F85::
 	cp $01
 	jr z, jr_015_5fb3
 
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_015_5f9c
 
@@ -4647,7 +4647,7 @@ Call_15_5F85::
 	jr jr_015_5faa
 
 jr_015_5f9c:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_015_5fb3
 
@@ -4670,7 +4670,7 @@ jr_015_5fab:
 	pop hl
 
 jr_015_5fb3:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_015_5fbc
 
@@ -4723,7 +4723,7 @@ jr_015_6000:
 	ret z
 
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
@@ -4749,9 +4749,9 @@ jr_015_6000:
 	ld a, $e8
 
 jr_015_6030:
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -4787,7 +4787,7 @@ Call_15_6047::
 
 	dec hl
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
@@ -4798,9 +4798,9 @@ Call_15_6047::
 	ld a, c
 	and $7f
 	add $f1
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -4864,7 +4864,7 @@ Call_15_60A2::
 	ld a, [de]
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
@@ -4885,7 +4885,7 @@ Call_15_60A2::
 
 jr_015_60cd:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -4903,16 +4903,16 @@ jr_015_60cd:
 Call_15_60DF::
 	ld a, $0a
 	ld [$0100], a
-	ld a, [$a002]
+	ld a, [sSaveValid]
 	or a
 	jr z, jr_015_610a
 
-	ld hl, $a002
+	ld hl, sSaveValid
 	ld bc, $1ffe
-	call Call_210E
+	call SRAMChecksum
 	ld a, $0a
 	ld [$0100], a
-	ld a, [$a000]
+	ld a, [sChecksum]
 	ld l, a
 	ld a, [$a001]
 	ld h, a
@@ -4927,18 +4927,18 @@ Call_15_60DF::
 	jr z, jr_015_6127
 
 jr_015_610a:
-	ld hl, $a002
+	ld hl, sSaveValid
 	ld bc, $1ffe
 	push hl
 	push bc
 	call Call_15_612D
 	pop bc
 	pop hl
-	call Call_210E
+	call SRAMChecksum
 	ld a, $0a
 	ld [$0100], a
 	ld a, e
-	ld [$a000], a
+	ld [sChecksum], a
 	ld a, d
 	ld [$a001], a
 
@@ -5005,7 +5005,7 @@ jr_015_6154:
 
 Call_15_6166::
 	add $f0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 

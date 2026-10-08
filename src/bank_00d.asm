@@ -8,12 +8,12 @@ BankNumber_0D::
 	db $0d
 
 FarTable_0D::
-	dw Call_0D_4007
-	dw Call_0D_402F
-	dw Call_0D_4110
+	dw GetScriptWord_0D
+	dw DrawScriptTiles_0D
+	dw DrawScriptAttrs_0D
 
-Call_0D_4007::
-	ld a, [$d8d3]
+GetScriptWord_0D::
+	ld a, [wScriptMap]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -22,7 +22,7 @@ Call_0D_4007::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ld a, [$d8d4]
+	ld a, [wScriptId]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -30,7 +30,7 @@ Call_0D_4007::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	ld l, a
 	ld a, [$d8d6]
 	ld h, a
@@ -43,21 +43,21 @@ Call_0D_4007::
 	ret
 
 
-Call_0D_402F::
-	ld hl, $ffb7
+DrawScriptTiles_0D::
+	ld hl, hScrollX
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-	ld hl, $ffbb
+	ld hl, hScrollY
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -71,21 +71,21 @@ Call_0D_402F::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$d8e7], a
+	ld [wScriptBlockPtr], a
 	ld a, h
 	ld [$d8e8], a
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_0D_4007
+	call GetScriptWord_0D
 	push bc
-	call Call_0D_40E7
+	call CopyBlockToTileBuffer_0D
 	pop bc
 
-Call_0D_4075::
+WriteBlockToBGMap_0D::
 	ld a, [bc]
 	ld l, a
 	inc bc
@@ -97,7 +97,7 @@ Call_0D_4075::
 	ld a, l
 	and $e0
 	ld l, a
-	ld a, [$d8e7]
+	ld a, [wScriptBlockPtr]
 	add l
 	ld l, a
 	ld a, [$d8e8]
@@ -115,13 +115,13 @@ Call_0D_4075::
 	ld b, a
 
 jr_00d_409a:
-	call Call_0D_40DA
+	call NextMapColumn_0D
 	dec b
 	jr nz, jr_00d_409a
 
 jr_00d_40a0:
 	ld a, l
-	ld [$d8e7], a
+	ld [wScriptBlockPtr], a
 	ld a, h
 	ld [$d8e8], a
 	pop bc
@@ -135,7 +135,7 @@ jr_00d_40a9:
 	cp $d8
 	jr nz, jr_00d_40d2
 
-	ld a, [$d8e7]
+	ld a, [wScriptBlockPtr]
 	ld l, a
 	ld a, [$d8e8]
 	ld h, a
@@ -150,17 +150,17 @@ jr_00d_40a9:
 	or $98
 	ld h, a
 	ld a, l
-	ld [$d8e7], a
+	ld [wScriptBlockPtr], a
 	ld a, h
 	ld [$d8e8], a
 	jr jr_00d_40a9
 
 jr_00d_40d2:
-	call Call_1AAD
-	call Call_0D_40DA
+	call WriteVRAM
+	call NextMapColumn_0D
 	jr jr_00d_40a9
 
-Call_0D_40DA::
+NextMapColumn_0D::
 	ld a, l
 	and $e0
 	push af
@@ -174,7 +174,7 @@ Call_0D_40DA::
 	ret
 
 
-Call_0D_40E7::
+CopyBlockToTileBuffer_0D::
 	ld a, [bc]
 	ld l, a
 	inc bc
@@ -218,21 +218,21 @@ jr_00d_410e:
 	ret
 
 
-Call_0D_4110::
-	ld hl, $ffb7
+DrawScriptAttrs_0D::
+	ld hl, hScrollX
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-	ld hl, $ffbb
+	ld hl, hScrollY
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -246,38 +246,38 @@ Call_0D_4110::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$d8e7], a
+	ld [wScriptBlockPtr], a
 	ld a, h
 	ld [$d8e8], a
-	ld a, [$d8d5]
+	ld a, [wScriptPos]
 	add $01
-	ld [$d8d5], a
+	ld [wScriptPos], a
 	ld a, [$d8d6]
 	adc $00
 	ld [$d8d6], a
-	call Call_0D_4007
+	call GetScriptWord_0D
 	push bc
-	call Call_0D_4171
+	call CopyBlockToAttrBuffer_0D
 	pop bc
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
-	call Call_0D_4075
+	call WriteBlockToBGMap_0D
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
 	ret
 
 
-Call_0D_4171::
+CopyBlockToAttrBuffer_0D::
 	ld a, [bc]
 	ld l, a
 	inc bc
@@ -307,7 +307,7 @@ jr_00d_4178:
 	jr jr_00d_4177
 
 jr_00d_418d:
-	call Call_0D_4195
+	call SetAttrNibble_0D
 	inc hl
 	jr jr_00d_4178
 
@@ -316,7 +316,7 @@ jr_00d_4193:
 	ret
 
 
-Call_0D_4195::
+SetAttrNibble_0D::
 	push hl
 	srl h
 	rr l
@@ -350,6 +350,7 @@ jr_00d_41b6:
 	ret
 
 
+MapScripts_0D::
 	db $3e, $7c, $3e, $7c, $3e, $7c, $3e, $7c, $3e, $7c, $3e, $7c, $fa, $41, $22, $4d
 	db $da, $56, $12, $5d, $e8, $61, $04, $62, $08, $62, $70, $62, $54, $64, $58, $64
 	db $b6, $64, $34, $66, $38, $66, $30, $68, $98, $68, $9c, $68, $a0, $68, $60, $69

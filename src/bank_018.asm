@@ -16,53 +16,53 @@ FarTable_18::
 
 Call_18_400B::
 	xor a
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c827
+	ld hl, wTextTiles
 	ld bc, $0012
-	call Call_12C7
+	call FillMemory
 	xor a
 	ld hl, $c8d2
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	ld hl, $9800
 	ld a, l
 	ld [$c8d6], a
 	ld a, h
 	ld [$c8d7], a
-	ld hl, $c817
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
-	ld hl, far_Call_17_41C0
+	ld hl, far_LoadFieldObjPalettes
 	rst $10
-	ld hl, far_Call_17_4102
+	ld hl, far_SetSharedBGColors
 	rst $10
-	ld hl, far_Call_17_4192
+	ld hl, far_ClearAttrMap
 	rst $10
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $e0
-	call Call_12C7
+	call FillMemory
 	ld de, $3f03
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld de, $2f00
 	ld hl, $8000
-	call Call_14CF
+	call Decompress
 	ld a, [$c8c3]
-	ld [$ca8d], a
+	ld [wPartyCount], a
 	ld a, [$c8c4]
-	ld [$ca8e], a
+	ld [wParty], a
 	ld a, [$c8c5]
 	ld [$ca8f], a
 	ld a, [$c8c6]
@@ -71,8 +71,8 @@ Call_18_400B::
 	cp $ff
 	jr z, jr_018_40d0
 
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	or a
 	jr z, jr_018_40d0
@@ -80,16 +80,16 @@ Call_18_400B::
 	ld de, $313f
 	push de
 	call Call_18_42D1
-	ld hl, $cb24
-	call Call_223B
+	ld hl, wMonEgg
+	call MonsterField
 	pop de
 	ld a, [hl]
 	or a
 	jr nz, jr_018_40ca
 
 	call Call_18_42D1
-	ld hl, $caca
-	call Call_223B
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld l, [hl]
 	ld h, $00
 	add hl, hl
@@ -105,44 +105,44 @@ Call_18_400B::
 
 jr_018_40ca:
 	ld hl, $8200
-	call Call_14CF
+	call Decompress
 
 jr_018_40d0:
 	ld hl, $8b00
 	ld de, $1202
-	call Call_098F
+	call SetUpTextBox
 	ld hl, far_Call_56_4485
 	rst $10
 	ld hl, $99c1
 	ld a, l
-	ld [$c83e], a
+	ld [wTextBoxMap], a
 	ld a, h
 	ld [$c83f], a
-	ld hl, $cac1
-	ld de, $a1fb
+	ld hl, wMonsters
+	ld de, sMonsters
 	ld bc, $0ba4
 	call Call_18_4604
 	call Call_18_5340
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
-	call Call_1264
+	ldh [hScrollX], a
+	call DisableSTATInterrupts
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	xor a
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $03
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 	db $01, $2f, $02, $2f, $03, $2f, $04, $2f, $05, $2f, $06, $2f, $07, $2f, $08, $2f
@@ -228,9 +228,9 @@ JumpTable_18_42E5::
 
 Jump_18_4325::
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $4a
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $96c0
 	ld de, $1001
 	call Call_18_503B
@@ -246,7 +246,7 @@ Jump_18_4325::
 
 
 Jump_18_434F::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	jr nz, jr_018_4368
 
@@ -258,7 +258,7 @@ Jump_18_434F::
 	ld hl, $0247
 
 jr_018_4361:
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 
@@ -267,23 +267,23 @@ jr_018_4368:
 
 
 Jump_18_4369::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	jr nz, jr_018_4378
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $0c
-	ld [$c8da], a
+	ld [wLinkChoice], a
 
 jr_018_4378:
 	ret
 
 
 Jump_18_4379::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret nz
 
 	ld a, $00
@@ -293,14 +293,14 @@ Jump_18_4379::
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $0c
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret
 
 
 Jump_18_4395::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret nz
 
 	ld a, $01
@@ -310,14 +310,14 @@ Jump_18_4395::
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $0c
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret
 
 
 Jump_18_43B1::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret nz
 
 	ld a, $02
@@ -327,14 +327,14 @@ Jump_18_43B1::
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $0c
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret
 
 
 Jump_18_43CD::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret nz
 
 	ld a, $03
@@ -344,15 +344,15 @@ Jump_18_43CD::
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $20
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ld a, $00
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	call Call_18_42D1
 	cp $ff
 	jr z, jr_018_43ff
 
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	or a
 	jr z, jr_018_43ff
@@ -367,13 +367,13 @@ jr_018_43ff:
 
 
 Jump_18_4405::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ret nz
 
 	ld hl, $98c0
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add l
 	ld l, a
 	ld a, $00
@@ -381,7 +381,7 @@ Jump_18_4405::
 	ld h, a
 	call Call_18_4455
 	ld hl, $98d3
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	ld b, a
 	ld a, l
 	sub b
@@ -391,23 +391,23 @@ Jump_18_4405::
 	ld h, a
 	call Call_18_4455
 	ld a, $04
-	ld [$c8da], a
-	ld a, [$c8db]
+	ld [wLinkChoice], a
+	ld a, [wMenuChoice2]
 	inc a
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	cp $0a
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $b0
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ld a, $c0
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	ld a, $f8
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 	ld a, $1e
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ret
 
 
@@ -416,7 +416,7 @@ Call_18_4455::
 
 jr_018_4457:
 	ld a, $e0
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	add $20
 	ld l, a
@@ -430,101 +430,101 @@ jr_018_4457:
 
 
 Jump_18_4468::
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	dec a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	jr nz, jr_018_449a
 
 	ld a, $01
-	ld [$c8dd], a
-	ld a, [$c8da]
+	ld [wConfirmChoice2], a
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	call Call_18_4DFC
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	dec a
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	call Call_18_4E2C
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	cp $60
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $1e
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ret
 
 
 Jump_018_449a:
 jr_018_449a:
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	call Call_18_4DFC
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	call Call_18_4E2C
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	call Call_18_4E00
 	ret
 
 
 Jump_18_44AD::
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	dec a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	jr nz, jr_018_449a
 
 	ld a, $01
-	ld [$c8dd], a
-	ld a, [$c8da]
+	ld [wConfirmChoice2], a
+	ld a, [wLinkChoice]
 	call Call_18_4DFC
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	call Call_18_4E00
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	dec a
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	call Call_18_4E2C
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	cp $50
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $1e
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ret
 
 
 Jump_18_44E1::
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	dec a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	jr nz, jr_018_449a
 
 	ld a, $01
-	ld [$c8dd], a
-	ld a, [$c8da]
+	ld [wConfirmChoice2], a
+	ld a, [wLinkChoice]
 	call Call_18_4DFC
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	call Call_18_4E2C
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	inc a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 	call Call_18_4E00
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	cp $40
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld a, $3c
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ret
 
 
 Jump_18_4515::
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	dec a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	jr z, jr_018_4525
 
 	cp $1e
@@ -535,33 +535,33 @@ Jump_18_4515::
 
 jr_018_4525:
 	ld a, $01
-	ld [$c8dd], a
-	ld a, [$c8da]
+	ld [wConfirmChoice2], a
+	ld a, [wLinkChoice]
 	call Call_18_4DFC
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	dec a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 	call Call_18_4DFC
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	dec a
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	call Call_18_4E2C
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	cp $fe
 	ret nz
 
 	ld hl, $c8d2
 	inc [hl]
 	ld de, $c8bb
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	call Call_18_42D1
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	ld hl, $0248
 	ld a, [$db55]
 	or a
@@ -570,22 +570,22 @@ jr_018_4525:
 	ld hl, $0249
 
 jr_018_4574:
-	call Call_096D
+	call PrintSystemText
 	ret
 
 
 jr_018_4578:
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	call Call_18_4DFC
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	call Call_18_4E2C
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	call Call_18_4DFC
 	ret
 
 
 Jump_18_458B::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -593,7 +593,7 @@ Jump_18_458B::
 	or a
 	jr nz, jr_018_45fe
 
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $00
 
 jr_018_459b:
@@ -613,7 +613,7 @@ jr_018_459b:
 	jr nz, jr_018_459b
 
 	ld hl, $024b
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
@@ -621,7 +621,7 @@ jr_018_459b:
 
 jr_018_45b8:
 	ld hl, $d5d0
-	ld de, $d6fa
+	ld de, wBreedParent2
 	ld b, $95
 
 jr_018_45c0:
@@ -632,26 +632,26 @@ jr_018_45c0:
 	jr nz, jr_018_45c0
 
 	di
-	ld hl, $ca8d
-	ld de, $a1c7
+	ld hl, wPartyCount
+	ld de, sPartyCount
 	ld bc, $0007
 	call Call_18_4604
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld de, $a1ce
 	ld bc, $0020
 	call Call_18_4604
 	ei
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld a, [$d703]
-	call Call_2670
-	ld hl, far_Call_01_46F6
+	call SetFlag
+	ld hl, far_CompactMonsters
 	rst $10
 	di
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld de, $a1ce
 	ld bc, $0020
 	call Call_18_4617
-	call Call_2197
+	call SaveMonsters
 	ei
 
 jr_018_45fe:
@@ -697,7 +697,7 @@ jr_018_461c:
 
 
 Jump_18_462A::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -717,17 +717,17 @@ Call_18_463D::
 	call Call_18_4FD5
 	call Call_18_5244
 	ld de, $4690
-	ld a, [$c8de]
+	ld a, [wMenuChoice3]
 	call Call_18_5303
 	ret
 
 
 Jump_18_4659::
 	ld de, $4690
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld b, $02
 	call Call_18_51EB
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4672
 
@@ -738,18 +738,18 @@ jr_018_466b:
 
 
 jr_018_4672:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_018_468f
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8de]
+	call QueueSound
+	ld a, [wMenuChoice3]
 	cp $81
 	jr z, jr_018_466b
 
 	xor a
-	ld [$c8e0], a
+	ld [wLinkPartnerChoice], a
 	ld a, $1b
 	ld [$c8d2], a
 
@@ -761,14 +761,14 @@ Jump_018_468f:
 
 Jump_18_4696::
 	ld hl, $024c
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_18_46A1::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -783,7 +783,7 @@ Jump_18_46AC::
 	jr nz, jr_018_46be
 
 	ld hl, $0252
-	call Call_096D
+	call PrintSystemText
 	ld a, $1e
 	ld [$c8d2], a
 	ret
@@ -792,21 +792,21 @@ Jump_18_46AC::
 jr_018_46be:
 	call Call_18_471E
 	ld hl, $024d
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_46ce
 
 	ld hl, $0253
 
 jr_018_46ce:
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Call_18_46D6::
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $00
 	ld c, $00
 
@@ -834,7 +834,7 @@ jr_018_46dd:
 	ld a, d
 	adc $00
 	ld d, a
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	ld l, a
 	ld a, [de]
@@ -866,12 +866,12 @@ jr_018_470a:
 
 
 Call_18_471E::
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $00
 	ld c, $00
 
@@ -900,7 +900,7 @@ jr_018_4733:
 	adc $00
 	ld d, a
 	push hl
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	ld l, a
 	ld a, [de]
@@ -933,38 +933,38 @@ jr_018_4763:
 
 
 Call_18_4774::
-	ld hl, $a1c7
-	call Call_20EE
+	ld hl, sPartyCount
+	call ReadSRAMByte
 	or a
 	jr nz, jr_018_47b5
 
 	ld hl, $a1f3
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_018_47b5
 
 	ld hl, $a1f4
-	call Call_20EE
+	call ReadSRAMByte
 	cp b
 	jr z, jr_018_47b7
 
 	ld hl, $a1f3
-	call Call_20EE
+	call ReadSRAMByte
 	cp $01
 	jr z, jr_018_47b5
 
 	ld hl, $a1f5
-	call Call_20EE
+	call ReadSRAMByte
 	cp b
 	jr z, jr_018_47b7
 
 	ld hl, $a1f3
-	call Call_20EE
+	call ReadSRAMByte
 	cp $02
 	jr z, jr_018_47b5
 
 	ld hl, $a1f6
-	call Call_20EE
+	call ReadSRAMByte
 	cp b
 	jr z, jr_018_47b7
 
@@ -980,7 +980,7 @@ jr_018_47b7:
 
 
 Jump_18_47BB::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -997,7 +997,7 @@ Jump_18_47BB::
 Call_18_47D4::
 	call Call_18_4D38
 	ld de, $5577
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr nz, jr_018_47ed
 
@@ -1010,7 +1010,7 @@ jr_018_47ed:
 	call Call_18_4FD5
 	call Call_18_5244
 	ld de, $4aec
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4800
 
@@ -1020,22 +1020,22 @@ jr_018_4800:
 	ld b, $04
 	ld a, [$c8d8]
 	ld c, a
-	ld hl, $c8e2
+	ld hl, wListCursor
 	call Call_18_52E1
 	ret
 
 
 Call_18_480D::
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr nz, jr_018_4869
 
@@ -1052,8 +1052,8 @@ Call_18_482E::
 	jr z, jr_018_484f
 
 	ld a, [de]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
@@ -1076,9 +1076,9 @@ jr_018_484f:
 
 jr_018_4851:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_018_4851
 
@@ -1111,12 +1111,12 @@ Call_18_487C::
 	cp $ff
 	jr z, jr_018_48a6
 
-	ld hl, $caca
-	call Call_223B
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0901
 	pop hl
 	push hl
@@ -1138,9 +1138,9 @@ jr_018_48a6:
 
 jr_018_48a8:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_018_48a8
 
@@ -1157,10 +1157,10 @@ jr_018_48a8:
 
 
 Call_18_48C0::
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
@@ -1178,8 +1178,8 @@ Call_18_48DA::
 	cp $ff
 	jr z, jr_018_4956
 
-	ld hl, $cb24
-	call Call_223B
+	ld hl, wMonEgg
+	call MonsterField
 	ld a, [hl]
 	cp $02
 	ld a, $98
@@ -1196,46 +1196,46 @@ Call_18_48DA::
 	add $a7
 
 jr_018_48fb:
-	ld [$c180], a
+	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
 	pop hl
 	push hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	pop hl
 	ld a, l
 	add $10
@@ -1253,9 +1253,9 @@ jr_018_4956:
 
 jr_018_4958:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_018_4958
 
@@ -1272,18 +1272,18 @@ jr_018_4958:
 
 
 Call_18_4970::
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	ret nz
 
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -1291,73 +1291,73 @@ Call_18_4970::
 	ld h, a
 	ld a, [hl]
 	push af
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9100
 	call Call_18_5074
 	pop af
-	ld hl, $cacc
-	call Call_223B
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [hl]
 	ld hl, $9140
 	and $01
 	add $a7
-	ld [$c180], a
+	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
 Call_18_49F8::
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	ret nz
 
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -1365,8 +1365,8 @@ Call_18_49F8::
 	ld h, a
 	ld a, [hl]
 	push af
-	ld hl, $cb0c
-	call Call_223B
+	ld hl, wMonLevel
+	call MonsterField
 	ld c, [hl]
 	ld b, $00
 	ld hl, $0161
@@ -1380,8 +1380,8 @@ Call_18_49F8::
 	call Call_18_5434
 	pop af
 	push af
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	pop af
 	ld b, a
 	ld a, [hl]
@@ -1410,19 +1410,19 @@ jr_018_4a50:
 
 
 Jump_18_4A5A::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $4aec
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4a6c
 
 	ld de, $4af8
 
 jr_018_4a6c:
-	ld hl, $c8e2
+	ld hl, wListCursor
 	ld a, [$c8d8]
 	ld c, a
 	ld b, $04
@@ -1433,7 +1433,7 @@ jr_018_4a6c:
 	push af
 	call Call_18_5162
 	pop af
-	ld hl, $c8e2
+	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_018_4a8d
 
@@ -1443,7 +1443,7 @@ jr_018_4a6c:
 
 jr_018_4a8d:
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_018_4aa0
 
@@ -1453,12 +1453,12 @@ jr_018_4a8d:
 	call Call_18_5006
 
 jr_018_4aa0:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4abd
 
 	ld hl, $0251
-	call Call_096D
+	call PrintSystemText
 	call Call_18_5142
 	call Call_18_4D38
 	call Call_18_5006
@@ -1467,29 +1467,29 @@ jr_018_4aa0:
 	jr jr_018_4aeb
 
 jr_018_4abd:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_018_4aeb
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8df], a
-	ld a, [$c8e3]
+	ld [wLinkRefused], a
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld hl, $c8d2
 	inc [hl]
 
@@ -1508,7 +1508,7 @@ Jump_18_4B04::
 
 
 Jump_18_4B09::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1523,7 +1523,7 @@ Jump_18_4B09::
 Call_18_4B1C::
 	call Call_18_47D4
 	ld de, $54f9
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4b2c
 
@@ -1533,31 +1533,31 @@ jr_018_4b2c:
 	call Call_18_4FD5
 	call Call_18_5244
 	ld de, $4bb8
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4b3f
 
 	ld de, $4bbe
 
 jr_018_4b3f:
-	ld a, [$c8df]
+	ld a, [wLinkRefused]
 	call Call_18_5303
 	ret
 
 
 Jump_18_4B46::
 	ld de, $4bb8
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4b53
 
 	ld de, $4bbe
 
 jr_018_4b53:
-	ld hl, $c8df
+	ld hl, wLinkRefused
 	ld b, $02
 	call Call_18_51EB
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4b80
 
@@ -1576,19 +1576,19 @@ jr_018_4b53:
 
 
 jr_018_4b80:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_018_4bb7
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8df]
+	call QueueSound
+	ld a, [wLinkRefused]
 	cp $81
 	jr z, jr_018_4ba2
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld hl, $c8d2
 	inc [hl]
 	jp Jump_018_4bb7
@@ -1601,8 +1601,8 @@ jr_018_4ba2:
 	inc [hl]
 	ld hl, $c8d2
 	inc [hl]
-	ld hl, $a1c7
-	call Call_20EE
+	ld hl, sPartyCount
+	call ReadSRAMByte
 	or a
 	jr z, jr_018_4bb7
 
@@ -1617,12 +1617,12 @@ jr_018_4bb7:
 
 Jump_18_4BE3::
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8eb], a
-	ld hl, far_Call_07_6456
+	ld [wFieldFlags], a
+	ld hl, far_ShowMonsterStatus
 	rst $10
-	ld a, [$c906]
+	ld a, [wMenuSubStep]
 	or a
 	ret z
 
@@ -1634,30 +1634,30 @@ Jump_18_4BE3::
 Jump_18_4BF9::
 	ld de, $3f03
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2f00
 	ld hl, $8000
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $4a
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $96c0
 	ld de, $1001
 	call Call_18_503B
 	ld hl, $024d
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4c34
 
 	ld hl, $0253
 
 jr_018_4c34:
-	call Call_096D
-	call Call_0609
+	call PrintSystemText
+	call RunTextToEnd
 	call Call_18_5142
 	call Call_18_4970
 	call Call_18_480D
@@ -1667,57 +1667,57 @@ jr_018_4c34:
 
 
 Jump_18_4C49::
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr nz, jr_018_4c76
 
 	push hl
 	ld a, [hl]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	pop hl
 
 jr_018_4c76:
 	push hl
 	di
-	ld hl, $ca8d
-	ld de, $a1c7
+	ld hl, wPartyCount
+	ld de, sPartyCount
 	ld bc, $0007
 	call Call_18_4604
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld de, $a1ce
 	ld bc, $0020
 	call Call_18_4604
 	ei
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld a, [$d703]
-	call Call_2670
+	call SetFlag
 	pop hl
 	ld a, [hl]
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld [hl], $00
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
 	ld hl, $d5d0
-	ld de, $d6fa
+	ld de, wBreedParent2
 	ld b, $95
 
 jr_018_4cb0:
@@ -1727,21 +1727,21 @@ jr_018_4cb0:
 	dec b
 	jr nz, jr_018_4cb0
 
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
 	di
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld de, $a1ce
 	ld bc, $0020
 	call Call_18_4617
-	call Call_2197
+	call SaveMonsters
 	ei
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr nz, jr_018_4cd8
 
 	ld hl, $0254
-	call Call_096D
+	call PrintSystemText
 
 jr_018_4cd8:
 	ld hl, $c8d2
@@ -1750,11 +1750,11 @@ jr_018_4cd8:
 
 
 Jump_18_4CDD::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $c88a
+	ld hl, wGameMode
 	ld a, $00
 	ld [hli], a
 	ld a, $01
@@ -1762,37 +1762,37 @@ Jump_18_4CDD::
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $00
-	ld [$c865], a
+	ld [wLinkMode], a
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
 	xor a
-	ld [$c863], a
-	ld [$c864], a
-	ld [$c86c], a
+	ld [wLinkFlags], a
+	ld [wSerialLock], a
+	ld [wLinkActive], a
 	xor a
-	ld [$c86e], a
+	ld [wLinkReceivedLast], a
 	xor a
-	ld [$c873], a
+	ld [wLinkSendByte], a
 	xor a
 	ld [$c86d], a
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ret
 
 
 Jump_18_4D1A::
 	ld hl, $0251
-	call Call_096D
+	call PrintSystemText
 	ld hl, $c8d2
 	inc [hl]
 	ret
 
 
 Jump_18_4D25::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1810,22 +1810,22 @@ Call_18_4D38::
 	call Call_18_4FD5
 	call Call_18_5244
 	ld de, $4d90
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	call Call_18_5303
 	ret
 
 
 Jump_18_4D4E::
 	ld de, $4d90
-	ld hl, $c8e0
+	ld hl, wLinkPartnerChoice
 	ld b, $02
 	call Call_18_51EB
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_018_4d76
 
 	ld hl, $024f
-	call Call_096D
+	call PrintSystemText
 	call Call_18_5142
 	call Call_18_463D
 	call Call_18_5006
@@ -1834,17 +1834,17 @@ Jump_18_4D4E::
 	jr jr_018_4d8f
 
 jr_018_4d76:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_018_4d8f
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld a, $11
 	ld [$c8d2], a
 	xor a
-	ld [$c8e2], a
-	ld [$c8e3], a
+	ld [wListCursor], a
+	ld [wListPage], a
 
 Jump_018_4d8f:
 jr_018_4d8f:
@@ -1854,12 +1854,12 @@ jr_018_4d8f:
 	db $2f, $00, $6f, $00, $ff, $ff
 
 Jump_18_4D96::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0251
-	call Call_096D
+	call PrintSystemText
 	call Call_18_5142
 	call Call_18_4D38
 	call Call_18_5006
@@ -1869,7 +1869,7 @@ Jump_18_4D96::
 
 
 Jump_18_4DB0::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -1879,14 +1879,14 @@ Jump_18_4DB0::
 	call Call_18_47D4
 	call Call_18_5006
 	ld hl, $024d
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	and $01
 	jr z, jr_018_4dd1
 
 	ld hl, $0253
 
 jr_018_4dd1:
-	call Call_096D
+	call PrintSystemText
 	ld a, $13
 	ld [$c8d2], a
 	ret
@@ -1897,8 +1897,8 @@ Call_18_4DDA::
 	cp $ff
 	ret z
 
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	or a
 	ret z
@@ -1913,7 +1913,7 @@ Call_18_4DDA::
 	cp $18
 	ret z
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	call Call_18_4DFC
 	ret
 
@@ -1929,7 +1929,7 @@ jr_018_4e02:
 	cp $e0
 	ret nc
 
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
@@ -1940,7 +1940,7 @@ jr_018_4e02:
 	ld a, $00
 	ld [hli], a
 	ld b, $02
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_018_4e20
 
@@ -1953,7 +1953,7 @@ jr_018_4e20:
 	ld [hli], a
 	ld a, c
 	ld [hl], a
-	ld hl, far_Call_04_4081
+	ld hl, far_DrawActorSprite
 	rst $10
 	ret
 
@@ -1968,7 +1968,7 @@ jr_018_4e32:
 	cp $e0
 	ret nc
 
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
@@ -1980,8 +1980,8 @@ jr_018_4e32:
 	push de
 	push hl
 	call Call_18_42D1
-	ld hl, $cb24
-	call Call_223B
+	ld hl, wMonEgg
+	call MonsterField
 	ld a, [hl]
 	pop hl
 	pop de
@@ -1993,8 +1993,8 @@ jr_018_4e32:
 	push de
 	push hl
 	call Call_18_42D1
-	ld hl, $caca
-	call Call_223B
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
 	pop hl
 	pop de
@@ -2002,7 +2002,7 @@ jr_018_4e32:
 	add $10
 	ld [hli], a
 	ld b, $02
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_018_4e73
 
@@ -2015,7 +2015,7 @@ jr_018_4e73:
 	ld [hli], a
 	ld a, c
 	ld [hl], a
-	ld hl, far_Call_04_4081
+	ld hl, far_DrawActorSprite
 	rst $10
 	ret
 
@@ -2105,7 +2105,7 @@ Call_18_4ED1::
 	adc $98
 	ld h, a
 	pop af
-	call Call_1AAD
+	call WriteVRAM
 	pop hl
 	ret
 
@@ -2253,7 +2253,7 @@ Call_18_4FD5::
 	inc de
 	call Call_18_4F79
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 
@@ -2266,7 +2266,7 @@ jr_018_4fe4:
 	cp $d8
 	jr nz, jr_018_5003
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -2277,7 +2277,7 @@ jr_018_4fe4:
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	jr jr_018_4fe4
@@ -2291,7 +2291,7 @@ Call_18_5006::
 	ld l, a
 	ld a, [$c8d7]
 	ld h, a
-	ld de, $c500
+	ld de, wTilemapBuffer
 	ld c, $12
 
 jr_018_5013:
@@ -2300,7 +2300,7 @@ jr_018_5013:
 
 jr_018_5016:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -2331,79 +2331,79 @@ jr_018_5016:
 
 
 Call_18_503B::
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextBoxHeight], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
 Call_18_5074::
 	push hl
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	pop hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
@@ -2417,7 +2417,7 @@ Call_18_5074::
 	db $7a, $ce, $00, $57, $7d, $c6, $0c, $6f, $7c, $ce, $00, $67, $0d, $20, $e5, $c9
 
 Call_18_5142::
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	ld bc, $0240
 
 jr_018_5148:
@@ -2436,14 +2436,14 @@ jr_018_5148:
 
 Call_18_5162::
 	ld a, c
-	ld [$c8e1], a
+	ld [wListLastRows], a
 	inc de
 	inc de
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	jp nz, Jump_018_51c9
 
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 5, a
 	jr z, jr_018_518f
 
@@ -2456,7 +2456,7 @@ Call_18_5162::
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -2471,7 +2471,7 @@ Call_18_5162::
 	jr jr_018_51ad
 
 jr_018_518f:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, jr_018_51c9
 
@@ -2484,7 +2484,7 @@ jr_018_518f:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -2502,13 +2502,13 @@ jr_018_51ad:
 	cp c
 	jr nz, jr_018_520c
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
-	call Call_1DFB
+	call Divide8
 	pop bc
 	pop de
 	or a
@@ -2535,8 +2535,8 @@ jr_018_51c9:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
-	ld [$c8e1], a
+	call Divide8
+	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
@@ -2546,13 +2546,13 @@ jr_018_51c9:
 	cp c
 	jr nz, Call_18_51EB
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
 Call_18_51EB::
 	res 7, [hl]
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_018_51fd
 
@@ -2566,7 +2566,7 @@ Call_18_51EB::
 	jr jr_018_520b
 
 jr_018_51fd:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_018_5214
 
@@ -2589,7 +2589,7 @@ jr_018_520c:
 	pop hl
 
 jr_018_5214:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_018_521d
 
@@ -2642,7 +2642,7 @@ jr_018_5261:
 	ret z
 
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
@@ -2668,9 +2668,9 @@ jr_018_5261:
 	ld a, $e8
 
 jr_018_5291:
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -2706,7 +2706,7 @@ Call_18_52A8::
 
 	dec hl
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
@@ -2717,9 +2717,9 @@ Call_18_52A8::
 	ld a, c
 	and $7f
 	add $f1
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -2783,7 +2783,7 @@ Call_18_5303::
 	ld a, [de]
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
@@ -2804,7 +2804,7 @@ Call_18_5303::
 
 jr_018_532e:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -2820,31 +2820,31 @@ jr_018_532e:
 
 
 Call_18_5340::
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	or a
 	ret z
 
 	ld a, $00
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $9000
 	call Call_18_5378
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $01
 	ret z
 
 	ld a, $01
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $9240
 	call Call_18_5378
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $02
 	ret z
 
 	ld a, $02
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $9480
 
 Call_18_5378::
@@ -2865,12 +2865,12 @@ Call_18_5378::
 	inc hl
 	ld d, [hl]
 	pop hl
-	call Call_14CF
+	call Decompress
 	ret
 
 
 Call_18_5390::
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $03
 	jr z, jr_018_53cb
 
@@ -2954,16 +2954,16 @@ Call_18_5410::
 	ld [$c821], a
 	pop af
 	push af
-	ld hl, $caca
-	call Call_2229
+	ld hl, wMonRecSpecies
+	call PartyMonsterField
 	ld a, [hl]
-	ld [$c81e], a
+	ld [wPaletteSet], a
 	pop af
 	add $04
 	ld [$c81f], a
-	ld hl, far_Call_17_41D0
+	ld hl, far_LoadMonPicPalette
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
 	ret
 
@@ -3014,7 +3014,7 @@ jr_018_5453:
 
 Call_18_5465::
 	add $f0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
@@ -3070,19 +3070,19 @@ Call_18_546B::
 
 Call_18_567F::
 	ld de, $561d
-	call Call_05B6
+	call StartText
 	ret
 
 
 Call_18_5686::
 	ld de, $561d
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
 Call_18_568D::
 	call Call_18_567F
-	call Call_0609
+	call RunTextToEnd
 	ret
 
 

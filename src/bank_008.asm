@@ -8,10 +8,10 @@ BankNumber_08::
 	db $08
 
 FarTable_08::
-	dw Call_08_4015
-	dw Call_08_41E3
-	dw Call_08_422C
-	dw Data_08_447E
+	dw SendSGBPacket
+	dw SGBSetFieldPalettes
+	dw SGBLoadPalettes
+	dw SGBPaletteColors
 	dw Data_08_449E
 	dw Data_08_44A5
 	dw Data_08_54A5
@@ -19,16 +19,16 @@ FarTable_08::
 	dw Data_08_68DD
 	dw Data_08_78DD
 
-Call_08_4015::
-	ld a, [$c81c]
+SendSGBPacket::
+	ld a, [wOnSGB]
 	or a
 	ret z
 
-	ld a, [$c774]
+	ld a, [wSGBPacketID]
 	cp $ff
 	jr nz, jr_008_4026
 
-	ld hl, $c777
+	ld hl, wSGBPacket
 	jr jr_008_4033
 
 jr_008_4026:
@@ -90,9 +90,10 @@ jr_008_404f:
 	dec b
 	ret z
 
-	call Call_1013
+	call SGBPacketDelay
 	jr jr_008_403a
 
+SGBPacketTable::
 	db $13, $41, $23, $41, $93, $40, $a3, $40, $b3, $40, $c3, $40, $d3, $40, $e3, $40
 	db $f3, $40, $03, $41, $33, $41, $43, $41, $53, $41, $63, $41, $73, $41, $83, $41
 	db $93, $41, $a3, $41, $b3, $41, $c3, $41, $d3, $41, $79, $5d, $08, $00, $0b, $8c
@@ -118,15 +119,15 @@ jr_008_404f:
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $b9, $02, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 
-Call_08_41E3::
-	ld a, [$c81c]
+SGBSetFieldPalettes::
+	ld a, [wOnSGB]
 	or a
 	ret z
 
-	call Call_11BC
+	call ClearSGBPacket
 	ld a, $51
-	ld [$c777], a
-	ld a, [$c817]
+	ld [wSGBPacket], a
+	ld a, [wSGBPalSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -135,9 +136,9 @@ Call_08_41E3::
 	ld de, $427e
 	add hl, de
 	ld de, $c778
-	ld bc, $c85b
+	ld bc, wSGBPalIds
 	ld a, $08
-	ld [$c0a0], a
+	ld [wNumberBackup], a
 
 jr_008_4208:
 	ld a, [hli]
@@ -145,56 +146,56 @@ jr_008_4208:
 	ld [bc], a
 	inc de
 	inc bc
-	ld a, [$c0a0]
+	ld a, [wNumberBackup]
 	dec a
-	ld [$c0a0], a
+	ld [wNumberBackup], a
 	jr nz, jr_008_4208
 
-	ld a, [$c818]
+	ld a, [wSGBAttrSet]
 	or $80
 	ld [de], a
-	call Call_08_422C
+	call SGBLoadPalettes
 	ld a, $ff
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
 	ret
 
 
-Call_08_422C::
-	ld a, [$c81c]
+SGBLoadPalettes::
+	ld a, [wOnSGB]
 	or a
 	ret z
 
-	ld a, [$c85b]
+	ld a, [wSGBPalIds]
 	ld l, a
 	ld a, [$c85c]
 	ld h, a
-	ld de, $c7d7
-	call Call_08_426A
+	ld de, wSGBPalettes
+	call CopySGBPalette
 	ld de, $c7df
 	ld a, [$c85d]
 	ld l, a
 	ld a, [$c85e]
 	ld h, a
-	call Call_08_426A
+	call CopySGBPalette
 	ld de, $c7e7
 	ld a, [$c85f]
 	ld l, a
 	ld a, [$c860]
 	ld h, a
-	call Call_08_426A
+	call CopySGBPalette
 	ld de, $c7ef
 	ld a, [$c861]
 	ld l, a
 	ld a, [$c862]
 	ld h, a
-	call Call_08_426A
+	call CopySGBPalette
 	ret
 
 
-Call_08_426A::
+CopySGBPalette::
 	add hl, hl
 	add hl, hl
 	add hl, hl
@@ -249,7 +250,7 @@ jr_008_4277:
 	db $f0, $00, $f1, $00, $f2, $00, $f3, $00, $f4, $00, $f5, $00, $f6, $00, $f7, $00
 	db $f8, $00, $f9, $00, $fa, $00, $fb, $00, $fc, $00, $fd, $00, $fe, $00, $ff, $00
 
-Data_08_447E::
+SGBPaletteColors::
 	db $de, $6f, $1f, $33, $3c, $12, $00, $00, $de, $6f, $1f, $33, $3c, $12, $00, $00
 	db $de, $6f, $1f, $33, $3c, $12, $00, $00, $de, $6f, $1f, $33, $3c, $12, $00, $00
 

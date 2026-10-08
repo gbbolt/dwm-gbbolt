@@ -31,7 +31,7 @@ Call_55_401F::
 
 
 Call_55_4026::
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	and $03
 	cp $03
 	ret nz
@@ -60,10 +60,10 @@ Call_55_4043::
 
 
 Call_55_404A::
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	and $02
 	ld b, a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	and $04
 	srl a
 	xor b
@@ -75,7 +75,7 @@ Call_55_404A::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	ld c, a
 	ld b, $00
 	add hl, bc
@@ -83,7 +83,7 @@ Call_55_404A::
 	cp $ff
 	ret z
 
-	call Call_1B2C
+	call QueueSound
 	ret
 
 
@@ -205,16 +205,16 @@ Call_55_4774::
 	ld hl, $97c0
 	ld de, $0601
 	ld a, $01
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ld hl, $8800
 	ld de, $0c01
 	ld a, $09
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -223,9 +223,9 @@ Call_55_479B::
 	ld hl, $8850
 	ld de, $1801
 	ld a, $03
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -234,9 +234,9 @@ Call_55_47AF::
 	ld hl, $8800
 	ld de, $0501
 	ld a, $04
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -245,9 +245,9 @@ Call_55_47C3::
 	ld hl, $8800
 	ld de, $0501
 	ld a, $05
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -256,9 +256,9 @@ Call_55_47D7::
 	ld hl, $8850
 	ld de, $0601
 	ld a, $06
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -267,9 +267,9 @@ Call_55_47EB::
 	ld hl, $8800
 	ld de, $0b01
 	ld a, $02
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -278,9 +278,9 @@ Call_55_47FF::
 	ld hl, $8860
 	ld de, $0201
 	ld a, $07
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_55_4823
 	ret
 
@@ -289,40 +289,40 @@ Call_55_4813::
 	ld hl, $8820
 	ld de, $0701
 	ld a, $0a
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $03
-	ld [$c822], a
+	ld [wTextGroup], a
 
 Call_55_4823::
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	call Call_55_4863
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
@@ -331,40 +331,40 @@ Call_55_4823::
 Call_55_4863::
 	ld de, $48a9
 	call Call_55_486D
-	call Call_0609
+	call RunTextToEnd
 	ret
 
 
 Call_55_486D::
 	push de
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld l, a
 	ld a, [$c828]
 	ld h, a
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
 	ld [$c82c], a
 	ld a, l
-	ld [$c82f], a
+	ld [wTextLineStart], a
 	ld a, h
 	ld [$c830], a
 	pop de
 	call Call_55_4924
 	ld a, e
-	ld [$c82d], a
+	ld [wTextPtr], a
 	ld a, d
 	ld [$c82e], a
 	ld a, e
-	ld [$c831], a
+	ld [wTextStart], a
 	ld a, d
 	ld [$c832], a
 	ld a, $01
-	ld [$c825], a
+	ld [wTextState], a
 	ld a, $00
-	ld [$c826], a
+	ld [wTextFlags], a
 	xor a
-	ld [$c839], a
+	ld [wTextDelay], a
 	ret
 
 
@@ -379,8 +379,8 @@ Call_55_486D::
 
 Call_55_4924::
 	ld a, [BankNumber_55]
-	ld [$c824], a
-	ld a, [$c823]
+	ld [wTextBank], a
+	ld a, [wTextIndex]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -394,30 +394,30 @@ Call_55_4924::
 Call_55_4936::
 	ld hl, $9000
 	ld de, $1007
-	call Call_098F
-	ld hl, far_Call_17_4102
+	call SetUpTextBox
+	ld hl, far_SetSharedBGColors
 	rst $10
-	ld hl, far_Call_17_4192
+	ld hl, far_ClearAttrMap
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
-	ld hl, $c0a0
+	ld hl, wNumberBackup
 	ld bc, $0010
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	call Call_55_496C
 	ld a, $00
-	call Call_1AE1
+	call QueueMusic
 	ld a, $03
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Call_55_496C::
-	ld a, [$c88b]
+	ld a, [wGameModeStep]
 	rst $00
 
 JumpTable_55_4970::
@@ -429,15 +429,15 @@ JumpTable_55_4970::
 	dw Jump_55_4ACB
 
 Jump_55_497C::
-	ld hl, $c817
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld hl, $8800
 	ld a, $03
-	ld [$c823], a
+	ld [wTextIndex], a
 	call Call_55_4B22
 	ld hl, $98a3
 	ld bc, $1002
@@ -447,22 +447,22 @@ Jump_55_497C::
 
 Jump_55_499E::
 	xor a
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $05
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	ld hl, $9120
 	ld de, $1006
 	ld a, $07
-	ld [$c823], a
+	ld [wTextIndex], a
 	call Call_55_4B1A
 	ld hl, $8800
 	ld a, $08
-	ld [$c823], a
+	ld [wTextIndex], a
 	call Call_55_4B22
-	ld hl, $c0a0
-	ld a, [$c8ad]
+	ld hl, wNumberBackup
+	ld a, [wDebugSavedMode]
 	ld [hli], a
 	ld a, [$c8ae]
 	ld [hli], a
@@ -478,18 +478,18 @@ Jump_55_499E::
 
 Jump_55_49E2::
 	xor a
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $05
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	ld de, $2f11
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	ld hl, $9887
 	ld a, $80
 	ld b, $06
@@ -514,13 +514,13 @@ Jump_55_49E2::
 	ld b, $09
 	call Call_55_4A47
 	xor a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	call Call_55_4D44
 	ret
 
 
 Call_55_4A47::
-	call Call_1AB9
+	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, Call_55_4A47
@@ -530,24 +530,24 @@ Call_55_4A47::
 
 Jump_55_4A4F::
 	xor a
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $05
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	ld hl, $9120
 	ld de, $0a0a
 	ld a, $04
-	ld [$c823], a
+	ld [wTextIndex], a
 	call Call_55_4B1A
-	ld hl, $c0a0
-	ld a, [$c969]
+	ld hl, wNumberBackup
+	ld a, [wOnGateFloor]
 	ld [hli], a
-	ld a, [$c968]
+	ld a, [wMapId]
 	ld [hli], a
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	ld [hli], a
-	ld a, [$ca8e]
+	ld a, [wParty]
 	ld [hli], a
 	ld a, [$ca8f]
 	ld [hli], a
@@ -555,10 +555,10 @@ Jump_55_4A4F::
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-	ld a, [$c8ab]
+	ld a, [wDebugSetup]
 	ld [hl], a
 	ld a, $1c
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $9885
 	ld bc, $0a0a
 	ld a, $12
@@ -568,18 +568,18 @@ Jump_55_4A4F::
 
 Jump_55_4A9E::
 	xor a
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $05
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	ld hl, $9120
 	ld de, $1006
 	ld a, $06
-	ld [$c823], a
+	ld [wTextIndex], a
 	call Call_55_4B1A
 	xor a
-	ld [$c0a0], a
+	ld [wNumberBackup], a
 	ld [$c0a1], a
 	ld hl, $9884
 	ld bc, $1006
@@ -589,20 +589,20 @@ Jump_55_4A9E::
 
 Jump_55_4ACB::
 	xor a
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $05
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	ld hl, $9120
 	ld de, $0a0a
 	ld a, $09
-	ld [$c823], a
+	ld [wTextIndex], a
 	call Call_55_4B1A
-	ld hl, $c0a0
-	ld a, [$da02]
+	ld hl, wNumberBackup
+	ld a, [wEncCount]
 	ld [hli], a
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld [hli], a
 	ld a, [$da04]
 	ld [hli], a
@@ -617,7 +617,7 @@ Jump_55_4ACB::
 	ld a, $00
 	ld [hli], a
 	ld a, $24
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $9885
 	ld bc, $0a0a
 	ld a, $12
@@ -627,18 +627,18 @@ Jump_55_4ACB::
 
 Call_55_4B1A::
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 
 Call_55_4B22::
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	xor a
-	ld [$c822], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextGroup], a
+	ld hl, far_PrintText_41
 	rst $10
 	ret
 
@@ -704,7 +704,7 @@ Data_55_4B4A::
 	db $c8, $3c, $ea, $da, $c8, $3e, $59, $cd, $2c, $1b
 
 Call_55_4D44::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -718,9 +718,9 @@ Call_55_4D44::
 	inc hl
 	ld d, [hl]
 	ld hl, $8800
-	call Call_1577
-	ld a, [$c8da]
-	ld [$c81e], a
+	call DecompressVRAM
+	ld a, [wLinkChoice]
+	ld [wPaletteSet], a
 	ld a, $04
 	ld [$c81f], a
 	ld hl, $0087
@@ -728,27 +728,27 @@ Call_55_4D44::
 	ld [$c820], a
 	ld a, h
 	ld [$c821], a
-	ld hl, far_Call_17_41D0
+	ld hl, far_LoadMonPicPalette
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
-	ld a, [$c8da]
-	ld [$c823], a
+	ld a, [wLinkChoice]
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $0901
 	ld a, l
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, h
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld hl, $8a40
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld hl, far_Call_56_4485
 	rst $10
-	ld hl, far_Call_41_4AA1
+	ld hl, far_PrintText_41
 	rst $10
 	ret
 
@@ -775,8 +775,8 @@ Call_55_4D44::
 
 Jump_055_4ed3:
 	push af
-	ld a, [$c8da]
-	ld hl, $c0a0
+	ld a, [wLinkChoice]
+	ld hl, wNumberBackup
 	add l
 	ld l, a
 	ld a, $00
@@ -797,18 +797,18 @@ jr_055_4ee6:
 	ld [hl], b
 
 jr_055_4eed:
-	ld a, [$c0a0]
-	ld [$c823], a
+	ld a, [wNumberBackup]
+	ld [wTextIndex], a
 	ld a, $01
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $0701
 	ld a, l
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, h
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld hl, $8800
 	call Call_55_4F8F
-	ld a, [$c0a0]
+	ld a, [wNumberBackup]
 	cp $00
 	jr z, jr_055_4f14
 
@@ -820,28 +820,28 @@ jr_055_4f14:
 	add $04
 
 jr_055_4f19:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $01
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $0701
 	ld a, l
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, h
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld hl, $8870
 	call Call_55_4F8F
 	ld a, $04
-	ld [$c822], a
-	ld a, [$c0a3]
-	ld [$c823], a
+	ld [wTextGroup], a
+	ld a, [wLineUpOrder]
+	ld [wTextIndex], a
 	ld hl, $88e0
 	call Call_55_4F8F
 	ld a, [$c0a4]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8950
 	call Call_55_4F8F
 	ld a, [$c0a5]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $89c0
 	call Call_55_4F8F
 	ld hl, $98d0
@@ -865,7 +865,7 @@ jr_055_4f19:
 
 
 Call_55_4F87::
-	call Call_1AB9
+	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, Call_55_4F87
@@ -875,12 +875,12 @@ Call_55_4F87::
 
 Call_55_4F8F::
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld hl, far_Call_56_4485
 	rst $10
-	ld hl, far_Call_41_4AA1
+	ld hl, far_PrintText_41
 	rst $10
 	ret
 
@@ -930,8 +930,8 @@ Call_55_4F8F::
 
 Jump_055_5232:
 	push af
-	ld a, [$c8da]
-	ld hl, $c0a0
+	ld a, [wLinkChoice]
+	ld hl, wNumberBackup
 	add l
 	ld l, a
 	ld a, $00
@@ -953,10 +953,10 @@ jr_055_5245:
 
 jr_055_524c:
 	ld a, [$c0a1]
-	ld [$da03], a
+	ld [wEncSpecies], a
 	ld a, [$c0a2]
 	ld [$da04], a
-	ld a, [$c0a3]
+	ld a, [wLineUpOrder]
 	ld [$da05], a
 	ld a, [$c0a4]
 	ld [$da06], a
@@ -964,25 +964,25 @@ jr_055_524c:
 	ld [$da07], a
 	ld a, [$c0a6]
 	ld [$da08], a
-	ld a, [$da03]
+	ld a, [wEncSpecies]
 	ld l, a
 	ld a, [$da04]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	ld hl, far_Call_14_400F
+	ld hl, far_LoadMonTemplate
 	rst $10
 	ld hl, $0901
 	ld a, l
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, h
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $05
-	ld [$c822], a
-	ld a, [$da18]
-	ld [$c823], a
+	ld [wTextGroup], a
+	ld a, [wNewMonNameText]
+	ld [wTextIndex], a
 	ld hl, $8800
 	call Call_55_5304
 	ld a, [$da05]
@@ -990,13 +990,13 @@ jr_055_524c:
 	ld a, [$da06]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	ld hl, far_Call_14_400F
+	ld hl, far_LoadMonTemplate
 	rst $10
-	ld a, [$da18]
-	ld [$c823], a
+	ld a, [wNewMonNameText]
+	ld [wTextIndex], a
 	ld hl, $8890
 	call Call_55_5304
 	ld a, [$da07]
@@ -1004,13 +1004,13 @@ jr_055_524c:
 	ld a, [$da08]
 	ld h, a
 	ld a, l
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
-	ld hl, far_Call_14_400F
+	ld hl, far_LoadMonTemplate
 	rst $10
-	ld a, [$da18]
-	ld [$c823], a
+	ld a, [wNewMonNameText]
+	ld [wTextIndex], a
 	ld hl, $8920
 	call Call_55_5304
 	ld hl, $98ef
@@ -1028,7 +1028,7 @@ jr_055_524c:
 
 
 Call_55_52FC::
-	call Call_1AB9
+	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, Call_55_52FC
@@ -1038,12 +1038,12 @@ Call_55_52FC::
 
 Call_55_5304::
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld hl, far_Call_56_4485
 	rst $10
-	ld hl, far_Call_41_4AA1
+	ld hl, far_PrintText_41
 	rst $10
 	ret
 

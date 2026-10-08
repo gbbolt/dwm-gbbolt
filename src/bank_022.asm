@@ -8,12 +8,12 @@ BankNumber_22::
 	db $22
 
 FarTable_22::
-	dw Call_22_4189
-	dw Call_22_4190
-	dw Call_22_4197
-	dw Data_22_4009
+	dw StartText_22
+	dw CopyText_22
+	dw PrintText_22
+	dw TextGroup_22_0
 
-Data_22_4009::
+TextGroup_22_0::
 	db $9e, $41, $b7, $41, $e5, $41, $09, $42, $1f, $42, $40, $42, $59, $42, $7d, $42
 	db $9c, $42, $b6, $42, $d6, $42, $f2, $42, $0f, $43, $5c, $43, $5c, $43, $82, $43
 	db $9e, $43, $d5, $43, $03, $44, $1b, $44, $37, $44, $6b, $44, $a4, $44, $e7, $44
@@ -39,24 +39,25 @@ Data_22_4009::
 	db $cf, $64, $fa, $64, $3c, $65, $8b, $65, $c5, $65, $2c, $66, $6d, $66, $d2, $66
 	db $05, $67, $3b, $67, $70, $67, $b5, $67, $23, $68, $47, $68, $80, $68, $98, $68
 
-Call_22_4189::
+StartText_22::
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_22_4190::
+CopyText_22::
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_22_4197::
-	call Call_22_4189
-	call Call_0609
+PrintText_22::
+	call StartText_22
+	call RunTextToEnd
 	ret
 
 
+Texts_22::
 	db $ea, $9f, $a3, $32, $2e, $63, $ef, $ee, $3a, $3e, $46, $51, $62, $4c, $53, $42
 	db $4f, $4b, $46, $44, $45, $51, $5f, $f7, $f0, $ea, $9f, $a3, $37, $45, $42, $4b
 	db $62, $2c, $66, $49, $62, $50, $42, $4b, $41, $ef, $ee, $51, $45, $42, $62, $42

@@ -8,20 +8,20 @@ BankNumber_4C::
 	db $4c
 
 FarTable_4C::
-	dw Call_4C_42D1
-	dw Call_4C_42E3
-	dw Call_4C_42EA
-	dw Call_4C_42F1
-	dw Data_4C_4019
-	dw Data_4C_4215
-	dw Data_4C_423B
-	dw Data_4C_4249
-	dw Data_4C_425B
-	dw Data_4C_4263
-	dw Data_4C_4299
-	dw Call_4C_42CF
+	dw StartText_4C
+	dw CopyText_4C
+	dw PrintText_4C
+	dw PrintBattleMessage
+	dw TextGroup_4C_0
+	dw TextGroup_4C_1
+	dw TextGroup_4C_2
+	dw TextGroup_4C_3
+	dw TextGroup_4C_4
+	dw TextGroup_4C_5
+	dw TextGroup_4C_6
+	dw TextGroup_4C_7
 
-Data_4C_4019::
+TextGroup_4C_0::
 	db $05, $43, $1f, $43, $40, $43, $66, $43, $87, $43, $ab, $43, $cf, $43, $f1, $43
 	db $15, $44, $38, $44, $52, $44, $82, $44, $af, $44, $d1, $44, $f0, $44, $17, $45
 	db $28, $45, $39, $45, $55, $45, $6a, $45, $7d, $45, $97, $45, $a9, $45, $be, $45
@@ -55,68 +55,68 @@ Data_4C_4019::
 	db $9e, $5d, $b6, $5d, $d4, $5d, $f4, $5d, $2c, $5e, $4d, $5e, $6a, $5e, $8d, $5e
 	db $b2, $5e, $d7, $5e, $fd, $5e, $12, $5f, $41, $5f, $6c, $5f
 
-Data_4C_4215::
+TextGroup_4C_1::
 	db $6d, $5f, $86, $5f, $a7, $5f, $ca, $5f, $02, $60, $32, $60, $69, $60, $9e, $60
 	db $f2, $60, $27, $61, $45, $61, $70, $61, $9a, $61, $c8, $61, $fb, $61, $43, $62
 	db $70, $62, $ac, $62, $e3, $62
 
-Data_4C_423B::
+TextGroup_4C_2::
 	db $1f, $63, $45, $63, $45, $63, $75, $63, $a3, $63, $b5, $63, $c9, $63
 
-Data_4C_4249::
+TextGroup_4C_3::
 	db $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63, $e5, $63
 	db $e5, $63
 
-Data_4C_425B::
+TextGroup_4C_4::
 	db $e5, $63, $01, $64, $29, $64, $47, $64
 
-Data_4C_4263::
+TextGroup_4C_5::
 	db $64, $64, $78, $64, $90, $64, $ac, $64, $bc, $64, $c8, $64, $d5, $64, $e8, $64
 	db $03, $65, $1b, $65, $34, $65, $42, $65, $4d, $65, $5a, $65, $65, $65, $79, $65
 	db $89, $65, $95, $65, $9e, $65, $b1, $65, $b1, $65, $ba, $65, $c7, $65, $db, $65
 	db $e6, $65, $fa, $65, $05, $66
 
-Data_4C_4299::
+TextGroup_4C_6::
 	db $06, $66, $14, $66, $2d, $66, $3f, $66, $52, $66, $54, $66, $75, $66, $9f, $66
 	db $ba, $66, $cc, $66, $ce, $66, $e4, $66, $08, $67, $30, $67, $71, $67, $7c, $67
 	db $bb, $67, $bd, $67, $cc, $67, $0d, $68, $5c, $68, $a7, $68, $b9, $68, $c9, $68
 	db $e8, $68, $fa, $68, $10, $69
 
-Call_4C_42CF::
+TextGroup_4C_7::
 	ld b, h
 	ld l, c
 
-Call_4C_42D1::
-	ld a, [$c823]
+StartText_4C::
+	ld a, [wTextIndex]
 	cp $ff
 	ret z
 
 	ld de, $4009
-	call Call_05B6
+	call StartText
 	ld a, $ff
-	ld [$c823], a
+	ld [wTextIndex], a
 	ret
 
 
-Call_4C_42E3::
+CopyText_4C::
 	ld de, $4009
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_4C_42EA::
-	call Call_4C_42D1
-	call Call_0609
+PrintText_4C::
+	call StartText_4C
+	call RunTextToEnd
 	ret
 
 
-Call_4C_42F1::
+PrintBattleMessage::
 	ld a, [$dd6d]
 	add $d7
-	ld [$c823], a
+	ld [wTextIndex], a
 	xor a
-	ld [$c822], a
-	call Call_4C_42D1
+	ld [wTextGroup], a
+	call StartText_4C
 	xor a
 	ld [$dd6d], a
 	ret

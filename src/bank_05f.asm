@@ -21,18 +21,18 @@ FarTable_5F::
 	dw Call_5F_6251
 
 Call_5F_4017::
-	call Call_1264
-	ld hl, $c817
+	call DisableSTATInterrupts
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $e0
-	call Call_12C7
-	ld a, [$c88b]
+	call FillMemory
+	ld a, [wGameModeStep]
 	rst $00
 
 JumpTable_5F_4035::
@@ -45,44 +45,44 @@ Jump_5F_4039::
 	call Call_5F_40EB
 	ld hl, $8b00
 	ld de, $1202
-	call Call_098F
+	call SetUpTextBox
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld de, $66b3
 	ld hl, $9800
-	ld bc, Call_1412
+	ld bc, Clear4Bytes
 	call Call_5F_424A
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	call Call_5F_439D
 	call Call_5F_43BA
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld a, $21
-	call Call_1AE1
+	call QueueMusic
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ld a, $11
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Jump_5F_4095::
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	ld hl, $8800
 	ld bc, $0800
 	call Call_5F_40EB
@@ -92,27 +92,27 @@ Jump_5F_4095::
 	call Call_5F_424A
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld hl, $8b00
 	ld de, $1202
-	call Call_098F
+	call SetUpTextBox
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld a, $31
-	call Call_1AE1
+	call QueueMusic
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ld a, $01
-	ld [$c8a1], a
+	ld [wLCDC], a
 	ld a, $01
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Call_5F_40EB::
@@ -129,11 +129,11 @@ Call_5F_40EB::
 
 
 Call_5F_40F7::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c88b]
+	ld a, [wGameModeStep]
 	rst $00
 
 JumpTable_5F_4100::
@@ -141,7 +141,7 @@ JumpTable_5F_4100::
 	dw Jump_5F_4112
 
 Jump_5F_4104::
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	rst $00
 
 JumpTable_5F_4108::
@@ -152,7 +152,7 @@ JumpTable_5F_4108::
 	dw Jump_5F_4178
 
 Jump_5F_4112::
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	rst $00
 
 JumpTable_5F_4116::
@@ -177,12 +177,12 @@ Jump_5F_4120::
 	ret c
 
 	ld [hl], $00
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
-	ld hl, $c88f
+	ld hl, wMapLoadState
 	inc [hl]
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ret
 
 
@@ -194,35 +194,35 @@ Jump_5F_4140::
 	call z, Call_5F_440F
 	call Call_5F_439D
 	call Call_5F_43BA
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
 Jump_5F_4155::
-	ld hl, far_Call_08_422C
+	ld hl, far_SGBLoadPalettes
 	rst $10
 	ld a, $fc
-	call Call_1688
-	ld hl, $c0d8
+	call StartFade
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
 Jump_5F_4163::
 	xor a
-	ld [$c88f], a
+	ld [wMapLoadState], a
 	ld a, [$c0d9]
 	cp $1a
 	jr z, jr_05f_4173
 
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ret
 
 
 jr_05f_4173:
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
@@ -244,111 +244,111 @@ Jump_5F_4178::
 	ld [hl], $00
 	ld hl, $002f
 	ld a, l
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, h
-	ld [$c96e], a
+	ld [wWarpOnGateFloor], a
 	ld hl, $0038
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $00c8
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	xor a
-	ldh [$ff90], a
+	ldh [hPlayerFlags], a
 	xor a
-	ld [$d8d7], a
-	ld hl, $c8eb
+	ld [wScriptRunning], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	ld a, $01
-	ld [$c88a], a
+	ld [wGameMode], a
 	ld a, $00
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $00
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ret
 
 
 Jump_5F_41DA::
 	ld a, $07
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, Jump_5F_4C02
 	rst $10
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
 Jump_5F_41ED::
 	xor a
-	ld [$c88f], a
-	ld hl, $c0d8
+	ld [wMapLoadState], a
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
 Jump_5F_41F6::
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $0f
 	ret z
 
 	ld hl, $0256
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
 	ld hl, $9800
 	call Call_5F_4298
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
 Jump_5F_4210::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$c83c]
+	ld a, [wTextChoice]
 	or a
 	ld hl, $0258
 	jr nz, jr_05f_423c
 
 	xor a
-	ldh [$ff90], a
+	ldh [hPlayerFlags], a
 	xor a
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	ld a, $01
-	ld [$c8ea], a
-	ld hl, $c8eb
+	ld [wGameStarted], a
+	ld hl, wFieldFlags
 	res 0, [hl]
 	di
-	call Call_2128
+	call SaveGame
 	ei
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld hl, $0257
 
 jr_05f_423c:
-	call Call_096D
-	ld hl, $c0d8
+	call PrintSystemText
+	ld hl, wSceneObjects
 	inc [hl]
 	ret
 
 
 Jump_5F_4244::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -361,7 +361,7 @@ Call_5F_424A::
 
 jr_05f_424c:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	inc hl
 	inc de
 	dec b
@@ -390,7 +390,7 @@ Call_5F_4263::
 	ld b, a
 	add hl, bc
 	ld a, l
-	ld [$c0fe], a
+	ld [wSceneObjectPtr], a
 	ld a, h
 	ld [$c0ff], a
 
@@ -407,7 +407,7 @@ jr_05f_4272:
 	jr jr_05f_4272
 
 jr_05f_427e:
-	ld a, [$c0fe]
+	ld a, [wSceneObjectPtr]
 	ld l, a
 	ld a, [$c0ff]
 	ld h, a
@@ -418,7 +418,7 @@ jr_05f_427e:
 	adc $00
 	ld h, a
 	ld a, l
-	ld [$c0fe], a
+	ld [wSceneObjectPtr], a
 	ld a, h
 	ld [$c0ff], a
 	jr jr_05f_4272
@@ -432,7 +432,7 @@ Call_5F_4298::
 	ld b, a
 	add hl, bc
 	ld a, l
-	ld [$c0fe], a
+	ld [wSceneObjectPtr], a
 	ld a, h
 	ld [$c0ff], a
 
@@ -445,11 +445,11 @@ jr_05f_42a7:
 	cp $d9
 	ret z
 
-	call Call_1AB9
+	call WriteVRAMInc
 	jr jr_05f_42a7
 
 jr_05f_42b5:
-	ld a, [$c0fe]
+	ld a, [wSceneObjectPtr]
 	ld l, a
 	ld a, [$c0ff]
 	ld h, a
@@ -460,7 +460,7 @@ jr_05f_42b5:
 	adc $00
 	ld h, a
 	ld a, l
-	ld [$c0fe], a
+	ld [wSceneObjectPtr], a
 	ld a, h
 	ld [$c0ff], a
 	jr jr_05f_42a7
@@ -472,87 +472,87 @@ jr_05f_42b5:
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
 
 Call_5F_431F::
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld hl, $8000
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $1402
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld hl, Jump_5F_4C02
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
 	ld [$c828], a
 	ld a, d
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ret
 
 
 Call_5F_435E::
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld hl, $8260
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0b0c
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld hl, Jump_5F_4C02
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
 	ld [$c828], a
 	ld a, d
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ret
 
 
 Call_5F_439D::
 	ld a, [$c0d9]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_5F_431F
 	ld a, [$c0d9]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $06
-	ld [$c822], a
+	ld [wTextGroup], a
 	call Call_5F_435E
 	ret
 
@@ -570,7 +570,7 @@ Call_5F_43BA::
 	ret z
 
 	ld [$c0de], a
-	ld [$c81e], a
+	ld [wPaletteSet], a
 	ld a, $04
 	ld [$c81f], a
 	ld hl, $016d
@@ -585,7 +585,7 @@ Call_5F_43BA::
 	ld [$c0dd], a
 	ld hl, far_Call_51_5569
 	rst $10
-	ld hl, far_Call_17_41D0
+	ld hl, far_LoadMonPicPalette
 	rst $10
 	ret
 
@@ -596,7 +596,7 @@ Call_5F_43BA::
 Call_5F_440F::
 	ld de, $681b
 	ld hl, $9800
-	ld bc, Call_140B
+	ld bc, ClearScroll
 	call Call_5F_424A
 	ret
 
@@ -626,33 +626,33 @@ JumpTable_5F_4432::
 
 Jump_5F_4439::
 	ld a, $02
-	call Call_1C89
-	call Call_1013
+	call LoadSGBBorder
+	call SGBPacketDelay
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	ld de, $560e
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $669d
 	ld hl, $9800
 	call Call_5F_4263
 	ld a, $00
-	ld [$c81e], a
-	ld hl, far_Call_17_4712
+	ld [wPaletteSet], a
+	ld hl, far_LoadPaletteSet
 	rst $10
 	ld de, $3f00
 	ld a, $01
 	ldh [rVBK], a
 	ld hl, $9800
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
-	call nz, Call_14CF
+	call nz, Decompress
 	ld a, $00
 	ldh [rVBK], a
 	ret
@@ -660,33 +660,33 @@ Jump_5F_4439::
 
 Jump_5F_4486::
 	ld a, $02
-	call Call_1C89
-	call Call_1013
+	call LoadSGBBorder
+	call SGBPacketDelay
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	ld de, $560c
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $666e
 	ld hl, $9800
 	call Call_5F_4263
 	ld a, $00
-	ld [$c81e], a
-	ld hl, far_Call_17_4712
+	ld [wPaletteSet], a
+	ld hl, far_LoadPaletteSet
 	rst $10
 	ld de, $3f00
 	ld a, $01
 	ldh [rVBK], a
 	ld hl, $9800
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
-	call nz, Call_14CF
+	call nz, Decompress
 	ld a, $00
 	ldh [rVBK], a
 	ret
@@ -694,33 +694,33 @@ Jump_5F_4486::
 
 Jump_5F_44D3::
 	ld a, $02
-	call Call_1C89
-	call Call_1013
+	call LoadSGBBorder
+	call SGBPacketDelay
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	ld de, $5b1f
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $6457
 	ld hl, $9800
 	call Call_5F_4263
 	ld a, $00
-	ld [$c81e], a
-	ld hl, far_Call_17_4712
+	ld [wPaletteSet], a
+	ld hl, far_LoadPaletteSet
 	rst $10
 	ld de, $3f00
 	ld a, $01
 	ldh [rVBK], a
 	ld hl, $9800
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
-	call nz, Call_14CF
+	call nz, Decompress
 	ld a, $00
 	ldh [rVBK], a
 	ret
@@ -730,23 +730,23 @@ Jump_5F_4520::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	call Call_12C7
+	call FillMemory
 	ld a, $ff
 	ld hl, $9000
 	ld bc, $0010
-	call Call_12C7
+	call FillMemory
 	ld de, $5b18
 	ld hl, $8000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $5b19
 	ld hl, $8040
-	call Call_1577
+	call DecompressVRAM
 	ld a, $00
-	ld [$c81e], a
-	ld hl, far_Call_17_4712
+	ld [wPaletteSet], a
+	ld hl, far_LoadPaletteSet
 	rst $10
 	ld a, $00
-	ld [$c81e], a
+	ld [wPaletteSet], a
 	ld hl, $170c
 	rst $10
 	ld a, $01
@@ -754,10 +754,10 @@ Jump_5F_4520::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	ld a, $00
-	call nz, Call_12C7
+	call nz, FillMemory
 	ld a, $00
 	ldh [rVBK], a
 	ret
@@ -767,31 +767,31 @@ Jump_5F_4572::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	ld de, $5b20
 	ld hl, $9000
-	call Call_14CF
+	call Decompress
 	ld de, $5b21
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
 	ld de, $64f1
 	ld hl, $9800
 	call Call_5F_4263
 	ld a, $01
-	ld [$c81e], a
-	ld hl, far_Call_17_4712
+	ld [wPaletteSet], a
+	ld hl, far_LoadPaletteSet
 	rst $10
 	ld de, $3f02
 	ld a, $01
 	ldh [rVBK], a
 	ld hl, $9800
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
-	call nz, Call_14CF
+	call nz, Decompress
 	ld a, $00
 	ldh [rVBK], a
 	ret
@@ -801,30 +801,30 @@ Jump_5F_45C0::
 	xor a
 	ld hl, $9800
 	ld bc, $0400
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	ld bc, $0028
-	call Call_12C7
+	call FillMemory
 	ld de, $5b20
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ld de, $5b21
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld de, $6583
 	ld hl, $9800
 	call Call_5F_4263
 	ld a, $06
-	call Call_1AE1
+	call QueueMusic
 	ld a, $01
-	ld [$c81e], a
-	ld hl, far_Call_17_4712
+	ld [wPaletteSet], a
+	ld hl, far_LoadPaletteSet
 	rst $10
 	ld a, $01
 	ldh [rVBK], a
 	ld hl, $9800
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	jr nz, jr_05f_460c
 
@@ -844,8 +844,8 @@ jr_05f_4614:
 
 
 	ld a, $f4
-	call Call_1275
-	ld a, [$c846]
+	call SerialSendSlave
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr nz, jr_05f_463f
 
@@ -877,28 +877,28 @@ jr_05f_463f:
 
 Jump_05f_464a:
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ld a, $00
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $06
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 jr_05f_4663:
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ld a, $01
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $00
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
@@ -917,14 +917,14 @@ Jump_05f_4685:
 	jp nz, Jump_05f_464a
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ld a, $00
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $00
 	ld [$c88c], a
 	ld a, $02
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
@@ -940,67 +940,67 @@ JumpTable_5F_46AA::
 	db $c9
 
 Jump_5F_46B1::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	cp $3c
 	ret nz
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88d
 	inc [hl]
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 Jump_5F_46D2::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	cp $b4
 	ret nz
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88d
 	inc [hl]
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 Jump_5F_46F3::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	cp $b4
 	ret nz
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88c
 	inc [hl]
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ld hl, $c0dc
 	call Call_5F_49CC
@@ -1008,35 +1008,35 @@ Jump_5F_46F3::
 
 
 Jump_5F_471A::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	or a
 	jr nz, jr_05f_472a
 
 	ld a, $5d
-	call Call_1B2C
+	call QueueSound
 
 jr_05f_472a:
 	ld a, $01
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld a, [$c0dc]
 	or a
 	jr nz, jr_05f_4777
 
 	ld a, $00
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $00
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0dc
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld hl, $c0dd
@@ -1068,16 +1068,16 @@ jr_05f_4777:
 	ret nz
 
 	ld a, $01
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $04
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0e2
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld a, [$c0e2]
@@ -1089,7 +1089,7 @@ jr_05f_4777:
 	ret z
 
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88c
 	inc [hl]
 	ld hl, $c0dc
@@ -1098,31 +1098,31 @@ jr_05f_4777:
 
 
 Jump_5F_47B0::
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	or a
 	jr nz, jr_05f_47bb
 
 	ld a, $5d
-	call Call_1B2C
+	call QueueSound
 
 jr_05f_47bb:
 	ld a, $01
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld a, [$c0dc]
 	or a
 	jr nz, jr_05f_4808
 
 	ld a, $00
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $00
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0dc
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld hl, $c0dd
@@ -1154,16 +1154,16 @@ jr_05f_4808:
 	ret nz
 
 	ld a, $01
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $04
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0e2
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld a, [$c0e2]
@@ -1175,7 +1175,7 @@ jr_05f_4808:
 	ret z
 
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88c
 	inc [hl]
 	ld hl, $c0dc
@@ -1184,31 +1184,31 @@ jr_05f_4808:
 
 
 Jump_5F_4841::
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	or a
 	jr nz, jr_05f_484c
 
 	ld a, $5d
-	call Call_1B2C
+	call QueueSound
 
 jr_05f_484c:
 	ld a, $01
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld a, [$c0dc]
 	or a
 	jr nz, jr_05f_4899
 
 	ld a, $00
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $00
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0dc
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld hl, $c0dd
@@ -1240,16 +1240,16 @@ jr_05f_4899:
 	ret nz
 
 	ld a, $01
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $04
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0e2
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld a, [$c0e2]
@@ -1261,34 +1261,34 @@ jr_05f_4899:
 	ret z
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88c
 	inc [hl]
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 Jump_5F_48D5::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	inc [hl]
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	cp $78
 	ret nz
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88c
 	inc [hl]
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	xor a
 	ld [$c0e8], a
@@ -1302,35 +1302,35 @@ Jump_5F_48D5::
 
 
 Jump_5F_4908::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c0d8]
+	ld a, [wSceneObjects]
 	or a
 	jr nz, jr_05f_4918
 
 	ld a, $5d
-	call Call_1B2C
+	call QueueSound
 
 jr_05f_4918:
 	ld a, $01
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld a, [$c0dc]
 	or a
 	jr nz, jr_05f_495a
 
 	ld a, $00
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $00
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0dc
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld hl, $c0dd
@@ -1354,16 +1354,16 @@ jr_05f_495a:
 	jr nz, jr_05f_4997
 
 	ld a, $00
-	ldh [$ffc7], a
+	ldh [hSpriteSet], a
 	ld a, $00
-	ldh [$ffc9], a
+	ldh [hSpriteTileBase], a
 	ld a, $00
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ld hl, $c0e2
 	ld a, l
-	ld [$c0fc], a
+	ld [wSceneStep], a
 	ld a, h
-	ld [$c0fd], a
+	ld [wSceneTimer], a
 	ld hl, $0204
 	rst $10
 	ld hl, $c0e3
@@ -1391,12 +1391,12 @@ jr_05f_4997:
 	ret z
 
 	ld a, $04
-	call Call_1688
+	call StartFade
 	xor a
-	ld [$c0d8], a
+	ld [wSceneObjects], a
 	ld hl, $c88c
 	inc [hl]
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
@@ -1414,7 +1414,7 @@ Jump_5F_49B3::
 
 	ld a, $06
 	di
-	call Call_1AE1
+	call QueueMusic
 	ret
 
 
@@ -1531,7 +1531,7 @@ Call_5F_4A3B::
 
 
 Call_5F_4A60::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $12
 	jp c, Jump_05f_4ae8
 
@@ -1651,16 +1651,16 @@ jr_05f_4ae8:
 	xor a
 	ld hl, $da82
 	ld bc, $0006
-	call Call_12C7
+	call FillMemory
 	ld b, $03
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_05f_4afd
 
 	ld b, $02
 
 jr_05f_4afd:
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	cp $04
 	ld a, b
 	jr c, jr_05f_4b07
@@ -1676,7 +1676,7 @@ jr_05f_4b0b:
 	xor a
 	ld hl, $da82
 	ld bc, $0006
-	call Call_12C7
+	call FillMemory
 	ld a, $04
 	ld [$da83], a
 	ret
@@ -1700,7 +1700,7 @@ Call_5F_4B1B::
 	jr nz, jr_05f_4b40
 
 	ld a, $6c
-	call Call_1B2C
+	call QueueSound
 	ld a, $ff
 	ld [$db54], a
 	ret
@@ -1735,14 +1735,14 @@ Jump_5F_4B60::
 
 
 Jump_5F_4B6A::
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	ld b, a
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	and $03
 	cp $03
 	jr z, Jump_5F_4BF4
 
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	bit 1, b
 	jr nz, jr_05f_4b84
 
@@ -1760,8 +1760,8 @@ jr_05f_4b88:
 	cp $0a
 	jr z, jr_05f_4b97
 
-	ld a, [$db89]
-	call Call_2FA5
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
 	jr c, Jump_5F_4BF4
 
 jr_05f_4b97:
@@ -1805,7 +1805,7 @@ Jump_5F_4BCB::
 	add hl, de
 	ld e, l
 	ld d, h
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	and $03
 	ld hl, $5109
 	call Call_5F_50F4
@@ -1827,7 +1827,7 @@ Jump_5F_4BF4::
 
 
 Jump_5F_4C02::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $81
 	jr z, Jump_5F_4C3A
 
@@ -1842,9 +1842,9 @@ JumpTable_5F_4C0D::
 
 Jump_5F_4C15::
 	ld a, $02
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -1854,9 +1854,9 @@ Jump_5F_4C15::
 
 Jump_5F_4C2F::
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -1866,9 +1866,9 @@ Jump_5F_4C3A::
 	ld a, $01
 	ld [$da82], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
 	ld [$da84], a
 	ret
@@ -1888,7 +1888,7 @@ JumpTable_5F_4C4E::
 	dw Jump_5F_4C7C
 
 Jump_5F_4C5C::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
@@ -1900,7 +1900,7 @@ Jump_5F_4C5C::
 
 
 Call_5F_4C6C::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
@@ -1960,7 +1960,7 @@ Jump_5F_4CAB::
 
 
 Jump_5F_4CBE::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
@@ -1999,7 +1999,7 @@ JumpTable_5F_4CDC::
 	dw Jump_5F_4D0A
 
 Jump_5F_4CF6::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld a, [hl]
 	xor $ff
 	ld [hli], a
@@ -2065,7 +2065,7 @@ Jump_5F_4D3C::
 
 
 Jump_5F_4D4F::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
@@ -2110,13 +2110,13 @@ Jump_5F_4D86::
 	ld hl, $da87
 	inc [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	xor a
-	ld [$c908], a
+	ld [wHatchSlot], a
 	ret
 
 
@@ -2167,7 +2167,7 @@ Jump_5F_4DCB::
 
 
 Jump_5F_4DDE::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
@@ -2217,7 +2217,7 @@ Call_5F_4E1F::
 
 jr_05f_4e24:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ld [de], a
 	ei
@@ -2238,11 +2238,11 @@ jr_05f_4e24:
 	jr Call_5F_4E1F
 
 Call_5F_4E3C::
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_05f_4e4e
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_05f_4e4e
 
@@ -2250,7 +2250,7 @@ Call_5F_4E3C::
 	jr jr_05f_4e51
 
 jr_05f_4e4e:
-	ld a, [$db75]
+	ld a, [wEnemyCount]
 
 jr_05f_4e51:
 	cp $01
@@ -2259,7 +2259,7 @@ jr_05f_4e51:
 	cp $02
 	jr z, jr_05f_4e6c
 
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	and $03
 	cp $01
 	jr z, jr_05f_4e7d
@@ -2274,7 +2274,7 @@ jr_05f_4e68:
 	jr jr_05f_4e7f
 
 jr_05f_4e6c:
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	and $03
 	cp $01
 	jr z, jr_05f_4e79
@@ -2294,14 +2294,14 @@ jr_05f_4e7f:
 
 
 Call_5F_4E80::
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_05f_4ea3
 
 	call Call_5F_52D6
 	jr nz, jr_05f_4e97
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, jr_05f_4ea3
 
@@ -2309,7 +2309,7 @@ Call_5F_4E80::
 	jr jr_05f_4ea6
 
 jr_05f_4e97:
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_05f_4ea3
 
@@ -2317,7 +2317,7 @@ jr_05f_4e97:
 	jr jr_05f_4ea6
 
 jr_05f_4ea3:
-	ld a, [$db75]
+	ld a, [wEnemyCount]
 
 jr_05f_4ea6:
 	cp $01
@@ -2326,7 +2326,7 @@ jr_05f_4ea6:
 	cp $02
 	jr z, jr_05f_4ec1
 
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	and $03
 	cp $01
 	jr z, jr_05f_4ed2
@@ -2341,7 +2341,7 @@ jr_05f_4ebd:
 	jr jr_05f_4ed4
 
 jr_05f_4ec1:
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	and $03
 	cp $01
 	jr z, jr_05f_4ece
@@ -2399,9 +2399,9 @@ JumpTable_5F_4EDE::
 
 Jump_5F_4F14::
 	ld a, $04
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da85
 	inc [hl]
 	ret
@@ -2409,9 +2409,9 @@ Jump_5F_4F14::
 
 Jump_5F_4F21::
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $03
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da85
 	inc [hl]
 	ret
@@ -2419,9 +2419,9 @@ Jump_5F_4F21::
 
 Jump_5F_4F2E::
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da85
 	inc [hl]
 	ret
@@ -2431,9 +2431,9 @@ Jump_5F_4F39::
 	ld a, $01
 	ld [$da84], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
 	ld [$da85], a
 	ret
@@ -2473,7 +2473,7 @@ JumpTable_5F_4F4D::
 	dw Jump_5F_4F8F
 
 Jump_5F_4F83::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
@@ -2483,7 +2483,7 @@ Jump_5F_4F83::
 
 
 Jump_5F_4F8F::
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
@@ -2493,7 +2493,7 @@ Jump_5F_4F8F::
 
 
 Call_5F_4F9B::
-	ld a, [$c905]
+	ld a, [wMenuStep]
 	rst $00
 
 JumpTable_5F_4F9F::
@@ -2503,23 +2503,23 @@ JumpTable_5F_4F9F::
 	dw Jump_5F_504F
 
 Jump_5F_4FA7::
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
-	ld hl, $c100
+	ld hl, wLineScroll
 	ld b, $80
 
 jr_05f_4fb0:
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	ld [hli], a
 	dec b
 	jr nz, jr_05f_4fb0
 
 	ld a, $01
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	ld a, $02
 	ldh [rLYC], a
 	ld a, $02
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ret
 
 
@@ -2528,25 +2528,25 @@ Jump_5F_4FC5::
 	and $07
 	jr nz, Call_5F_4FE8
 
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	swap a
 	and $0f
 	inc a
 	ld b, a
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	add b
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	cp $1c
 	jr c, Call_5F_4FE8
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c908], a
+	ld [wHatchSlot], a
 
 Call_5F_4FE8::
-	ld a, [$c907]
-	ldh [$ffd5], a
+	ld a, [wItemsHandedIn]
+	ldh [hNumber], a
 	ld a, [$da87]
 	rra
 	rra
@@ -2566,18 +2566,18 @@ jr_05f_4ffe:
 	add hl, de
 	push bc
 	ld c, [hl]
-	ldh a, [$ffd5]
-	call Call_1DBE
+	ldh a, [hNumber]
+	call Multiply
 	pop bc
 	bit 3, e
 	jr z, jr_05f_5018
 
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	sub h
 	jr jr_05f_501b
 
 jr_05f_5018:
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	add h
 
 jr_05f_501b:
@@ -2599,13 +2599,13 @@ Jump_5F_5035::
 	and $0f
 	jr nz, jr_05f_504b
 
-	ld a, [$c908]
+	ld a, [wHatchSlot]
 	inc a
-	ld [$c908], a
+	ld [wHatchSlot], a
 	cp $04
 	jr nz, jr_05f_504b
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 
 jr_05f_504b:
@@ -2615,19 +2615,19 @@ jr_05f_504b:
 
 Jump_5F_504F::
 	ld a, $00
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ld a, $01
 	ld [$da82], a
 	xor a
 	ld [$da87], a
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	xor a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	xor a
-	ld [$c908], a
+	ld [wHatchSlot], a
 	ret
 
 
@@ -2638,7 +2638,7 @@ Call_5F_506E::
 	inc [hl]
 	ld b, $03
 	ld c, $00
-	ld hl, $c89b
+	ld hl, wBGP
 
 jr_05f_507d:
 	ld a, [hl]
@@ -2698,7 +2698,7 @@ Call_5F_50B5::
 	inc [hl]
 	ld b, $03
 	ld c, $00
-	ld hl, $c89b
+	ld hl, wBGP
 
 jr_05f_50c4:
 	ld a, [hl]
@@ -2808,8 +2808,8 @@ JumpTable_5F_51A5::
 
 Jump_5F_51DD::
 	xor a
-	ldh [$ffb7], a
-	ldh [$ffbb], a
+	ldh [hScrollX], a
+	ldh [hScrollY], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2817,7 +2817,7 @@ Jump_5F_51DD::
 
 Jump_5F_51E7::
 	ld a, $fe
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2825,7 +2825,7 @@ Jump_5F_51E7::
 
 Jump_5F_51F0::
 	ld a, $02
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2833,7 +2833,7 @@ Jump_5F_51F0::
 
 Jump_5F_51F9::
 	ld a, $fc
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2841,7 +2841,7 @@ Jump_5F_51F9::
 
 Jump_5F_5202::
 	ld a, $04
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2849,7 +2849,7 @@ Jump_5F_5202::
 
 Jump_5F_520B::
 	ld a, $f8
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2857,7 +2857,7 @@ Jump_5F_520B::
 
 Jump_5F_5214::
 	ld a, $08
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2865,9 +2865,9 @@ Jump_5F_5214::
 
 Jump_5F_521D::
 	ld a, $f8
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, $02
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2875,9 +2875,9 @@ Jump_5F_521D::
 
 Jump_5F_522A::
 	ld a, $08
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, $02
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld hl, $da84
 	inc [hl]
 	ret
@@ -2885,8 +2885,8 @@ Jump_5F_522A::
 
 Jump_5F_5237::
 	xor a
-	ldh [$ffb7], a
-	ldh [$ffbb], a
+	ldh [hScrollX], a
+	ldh [hScrollY], a
 	ld a, $01
 	ld [$da82], a
 	xor a
@@ -2895,9 +2895,9 @@ Jump_5F_5237::
 
 
 Jump_5F_5246::
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	ld b, a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $07
 	jr nc, Jump_5F_52C8
 
@@ -2917,8 +2917,8 @@ jr_05f_525f:
 	jr nc, Jump_5F_52C8
 
 jr_05f_5263:
-	ld a, [$db88]
-	call Call_2FA5
+	ld a, [wSkillUser]
+	call CheckBattlerPresent
 	jr c, Jump_5F_52C8
 
 	ld a, [$da84]
@@ -2961,7 +2961,7 @@ Jump_5F_529F::
 	add hl, de
 	ld e, l
 	ld d, h
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	and $03
 	ld hl, $5109
 	call Call_5F_50F4
@@ -2983,7 +2983,7 @@ Jump_5F_52C8::
 
 
 Call_5F_52D6::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $3b
 	jr z, jr_05f_52e4
 
@@ -3004,7 +3004,7 @@ jr_05f_52e4:
 
 
 Call_5F_52F0::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $15
 	jp c, Jump_05f_53a4
 
@@ -3108,7 +3108,7 @@ Call_5F_52F0::
 
 Jump_05f_5382:
 jr_05f_5382:
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $80
 	jp z, Jump_05f_53e9
 
@@ -3185,22 +3185,22 @@ jr_05f_53e3:
 
 Jump_05f_53e9:
 jr_05f_53e9:
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $10
 	jr z, jr_05f_5409
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_05f_5400
 
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $04
 	jr c, jr_05f_540d
 
 	jr jr_05f_5412
 
 jr_05f_5400:
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $04
 	jr c, jr_05f_5412
 
@@ -3216,7 +3216,7 @@ jr_05f_540d:
 
 jr_05f_5412:
 	ld hl, $59c3
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_05f_5433
 
@@ -3235,7 +3235,7 @@ jr_05f_5412:
 	ld hl, $5aa9
 
 jr_05f_5433:
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	add l
 	ld l, a
 	ld a, $00
@@ -3252,7 +3252,7 @@ Call_5F_5441::
 	ld hl, $58bd
 	add hl, bc
 	add hl, bc
-	call RST_08
+	call JumpToPointer
 	ret
 
 
@@ -3289,7 +3289,7 @@ Call_5F_5441::
 	db $83, $da, $c9
 
 Call_5F_5630::
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $10
 	jr z, jr_05f_5649
 
@@ -3303,7 +3303,7 @@ jr_05f_563e:
 	jr nc, jr_05f_564e
 
 	ld a, $ff
-	ld [$da81], a
+	ld [wSkillAnim], a
 	ret
 
 
@@ -3312,7 +3312,7 @@ jr_05f_5649:
 	jr c, jr_05f_5690
 
 jr_05f_564e:
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	ld de, $56ed
 	add e
 	ld e, a
@@ -3320,12 +3320,12 @@ jr_05f_564e:
 	adc d
 	ld d, a
 	ld a, [de]
-	ld [$da81], a
+	ld [wSkillAnim], a
 	ret
 
 
 jr_05f_565f:
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $1a
 	jr z, jr_05f_567f
 
@@ -3348,7 +3348,7 @@ jr_05f_565f:
 	jr c, jr_05f_5690
 
 jr_05f_567f:
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	ld de, $57d5
 	add e
 	ld e, a
@@ -3356,13 +3356,13 @@ jr_05f_567f:
 	adc d
 	ld d, a
 	ld a, [de]
-	ld [$da81], a
+	ld [wSkillAnim], a
 	ret
 
 
 jr_05f_5690:
 	ld a, $ff
-	ld [$da81], a
+	ld [wSkillAnim], a
 	ret
 
 
@@ -3448,34 +3448,34 @@ jr_05f_5690:
 	db $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d, $0d
 
 Call_5F_5B8F::
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_05f_5b9c
 
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $04
 	ret
 
 
 jr_05f_5b9c:
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	cp $04
 	ccf
 	ret
 
 
 Call_5F_5BA3::
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_05f_5bb0
 
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	cp $04
 	ret
 
 
 jr_05f_5bb0:
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	cp $04
 	ccf
 	ret
@@ -3483,44 +3483,44 @@ jr_05f_5bb0:
 
 Call_5F_5BB7::
 	xor a
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld bc, $0008
-	call Call_12C7
+	call FillMemory
 	xor a
-	ld hl, $c827
+	ld hl, wTextTiles
 	ld bc, $0012
-	call Call_12C7
-	call Call_1264
-	ld hl, $c817
+	call FillMemory
+	call DisableSTATInterrupts
+	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
-	ld hl, far_Call_08_41E3
+	ld hl, far_SGBSetFieldPalettes
 	rst $10
 	ld a, $e0
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	ld bc, $0240
-	call Call_12C7
+	call FillMemory
 	xor a
 	ld hl, $da82
 	ld bc, $0006
-	call Call_12C7
+	call FillMemory
 	ld de, $ff00
 	ld hl, $9000
 	ld bc, $0120
 	call Call_5F_5ECC
 	ld de, $6093
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	call Call_5F_4263
 	ld de, $60fe
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	call Call_5F_4263
 	ld de, $6169
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	call Call_5F_4263
 	ld de, $2e00
 	ld hl, $8d00
-	call Call_14CF
+	call Decompress
 	ld hl, $6195
 	ld de, $8b90
 	call Call_5F_5F58
@@ -3532,7 +3532,7 @@ Call_5F_5BB7::
 	call Call_5F_5FBC
 	call Call_5F_5FDB
 	ld a, $fc
-	call Call_1688
+	call StartFade
 	ld hl, $9800
 	ld a, l
 	ld [$d9f8], a
@@ -3547,25 +3547,25 @@ Call_5F_5BB7::
 	ld a, $01
 	ld [$da82], a
 	ld a, $03
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	ld a, $07
-	ldh [$ffb5], a
+	ldh [hWX], a
 	ld a, $ff
-	ldh [$ffb6], a
+	ldh [hWY], a
 	ld a, $00
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, $00
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	xor a
-	ld [$c8a4], a
+	ld [wFrameCounter], a
 	ld [$c8a5], a
 	xor a
-	ld [$c892], a
+	ld [wLCDEffect], a
 	ld a, $03
-	ld [$c8a1], a
-	call Call_125D
+	ld [wLCDC], a
+	call EnableLYCInterrupt
 	ld a, $03
-	jp Jump_000_11cb
+	jp EnableLCDAndInterrupts
 
 
 Call_5F_5C8D::
@@ -3578,7 +3578,7 @@ Call_5F_5C8D::
 	jp z, Jump_05f_5ec1
 
 jr_05f_5c9b:
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
@@ -3586,7 +3586,7 @@ jr_05f_5c9b:
 	or a
 	jp nz, Jump_05f_5ea3
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	rst $00
 
 JumpTable_5F_5CAB::
@@ -3596,7 +3596,7 @@ JumpTable_5F_5CAB::
 	dw Jump_5F_5D0A
 
 Jump_5F_5CB3::
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp nz, Jump_05f_5dd7
 
@@ -3619,7 +3619,7 @@ Jump_5F_5CB3::
 
 
 Jump_5F_5CD3::
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jp nz, Jump_05f_5e3e
 
@@ -3639,7 +3639,7 @@ Jump_5F_5CD3::
 
 
 Jump_5F_5CEF::
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jp nz, Jump_05f_5e3e
 
@@ -3663,7 +3663,7 @@ Jump_5F_5D0A::
 	or a
 	jr z, jr_05f_5d30
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp nz, Jump_05f_5e87
 
@@ -3691,15 +3691,15 @@ jr_05f_5d30:
 
 
 jr_05f_5d36:
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	inc a
-	ld [$c8db], a
-	ld a, [$c8db]
+	ld [wMenuChoice2], a
+	ld a, [wMenuChoice2]
 	cp $2d
 	jr c, jr_05f_5d48
 
 	xor a
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 
 jr_05f_5d48:
 	call Call_5F_5F86
@@ -3707,41 +3707,41 @@ jr_05f_5d48:
 
 
 jr_05f_5d4c:
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	dec a
-	ld [$c8db], a
-	ld a, [$c8db]
+	ld [wMenuChoice2], a
+	ld a, [wMenuChoice2]
 	cp $2d
 	jr c, jr_05f_5d48
 
 	ld a, $2c
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	jr jr_05f_5d48
 
 Jump_05f_5d61:
 jr_05f_5d61:
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	inc a
-	ld [$c8da], a
-	ld a, [$c8da]
+	ld [wLinkChoice], a
+	ld a, [wLinkChoice]
 	cp $04
 	jr c, jr_05f_5d88
 
 	xor a
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	jr jr_05f_5d88
 
 Jump_05f_5d75:
 jr_05f_5d75:
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	dec a
-	ld [$c8da], a
-	ld a, [$c8da]
+	ld [wLinkChoice], a
+	ld a, [wLinkChoice]
 	cp $04
 	jr c, jr_05f_5d88
 
 	ld a, $03
-	ld [$c8da], a
+	ld [wLinkChoice], a
 
 jr_05f_5d88:
 	rst $00
@@ -3753,11 +3753,11 @@ JumpTable_5F_5D89::
 	dw Jump_5F_5F1F
 
 Jump_05f_5d91:
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	xor $01
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 	call Call_5F_5FA5
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	rst $00
 
 JumpTable_5F_5DA0::
@@ -3765,19 +3765,19 @@ JumpTable_5F_5DA0::
 	dw Call_5F_607A
 
 Jump_05f_5da4:
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	inc a
-	ld [$c8dd], a
-	ld a, [$c8dd]
+	ld [wConfirmChoice2], a
+	ld a, [wConfirmChoice2]
 	cp $d8
 	jr c, jr_05f_5db6
 
 	xor a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 
 jr_05f_5db6:
 	call Call_5F_5FBC
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	or a
 	ret z
 
@@ -3786,19 +3786,19 @@ jr_05f_5db6:
 
 
 Jump_05f_5dc2:
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	dec a
-	ld [$c8dd], a
-	ld a, [$c8dd]
+	ld [wConfirmChoice2], a
+	ld a, [wConfirmChoice2]
 	cp $d8
 	jr c, jr_05f_5db6
 
 	ld a, $d7
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	jr jr_05f_5db6
 
 Jump_05f_5dd7:
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	ld hl, $61ee
 	ld c, a
 	ld b, $00
@@ -3808,17 +3808,17 @@ Jump_05f_5dd7:
 	ld d, [hl]
 	ld e, a
 	ld hl, $8000
-	call Call_1577
-	ld a, [$c8db]
-	ld [$c81e], a
-	ld hl, far_Call_17_4751
+	call DecompressVRAM
+	ld a, [wMenuChoice2]
+	ld [wPaletteSet], a
+	ld hl, far_LoadObjPaletteB
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	ld [$daa4], a
-	ld a, [$c8db]
-	ld [$da81], a
+	ld a, [wMenuChoice2]
+	ld [wSkillAnim], a
 	ld a, [$daa4]
 	ld [$dd64], a
 	ld a, $60
@@ -3827,10 +3827,10 @@ Jump_05f_5dd7:
 	ld [$dd62], a
 	ld hl, $dd62
 	ld a, l
-	ld [$d7b4], a
+	ld [wPlayerAnimPtr], a
 	ld a, h
 	ld [$d7b5], a
-	ld hl, far_Call_02_400D
+	ld hl, far_StepAnimation
 	rst $10
 	call Call_5F_6014
 
@@ -3848,30 +3848,30 @@ Call_5F_5E27::
 
 Jump_05f_5e3e:
 	ld a, $04
-	call Call_1688
+	call StartFade
 	ld a, $07
-	ld [$c88a], a
+	ld [wGameMode], a
 	ld a, $00
-	ld [$c88b], a
+	ld [wGameModeStep], a
 	ld a, $00
 	ld [$c88c], a
 	ld a, $00
 	ld [$c88d], a
-	ld hl, $c88e
+	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
 Jump_05f_5e5c:
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	inc a
-	ld [$c8e1], a
-	ld a, [$c8e1]
+	ld [wListLastRows], a
+	ld a, [wListLastRows]
 	cp $0d
 	jr c, jr_05f_5e6e
 
 	xor a
-	ld [$c8e1], a
+	ld [wListLastRows], a
 
 jr_05f_5e6e:
 	call Call_5F_5FDB
@@ -3879,27 +3879,27 @@ jr_05f_5e6e:
 
 
 Jump_05f_5e72:
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	dec a
-	ld [$c8e1], a
-	ld a, [$c8e1]
+	ld [wListLastRows], a
+	ld a, [wListLastRows]
 	cp $0d
 	jr c, jr_05f_5e6e
 
 	ld a, $0c
-	ld [$c8e1], a
+	ld [wListLastRows], a
 	jr jr_05f_5e6e
 
 Jump_05f_5e87:
 	ld a, $04
-	ld [$db89], a
+	ld [wSkillTarget], a
 	ld a, $01
-	ld [$db75], a
+	ld [wEnemyCount], a
 	xor a
 	ld hl, $da82
 	ld bc, $0006
-	call Call_12C7
-	ld a, [$c8e1]
+	call FillMemory
+	ld a, [wListLastRows]
 	ld [$da83], a
 	jr Call_5F_5E27
 
@@ -3909,14 +3909,14 @@ Jump_05f_5ea3:
 	jr z, jr_05f_5eb5
 
 	call Call_5F_5FFA
-	ld hl, far_Call_02_400D
+	ld hl, far_StepAnimation
 	rst $10
 	ld a, [$dd62]
 	or a
 	ret nz
 
 jr_05f_5eb5:
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	rst $00
 
 JumpTable_5F_5EB9::
@@ -3936,12 +3936,12 @@ Jump_05f_5ec1:
 
 Call_5F_5ECC::
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, d
 	ld [hli], a
 	ei
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, e
 	ld [hli], a
 	ei
@@ -4003,7 +4003,7 @@ Call_5F_5F33::
 
 Call_5F_5F36::
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $e0
 	ld [hl], a
 	ei
@@ -4018,7 +4018,7 @@ Call_5F_5F36::
 
 Call_5F_5F47::
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $e8
 	ld [hl], a
 	ei
@@ -4038,11 +4038,11 @@ Call_5F_5F58::
 
 	push hl
 	push de
-	ld hl, $c180
+	ld hl, wTextArg0
 	push de
-	call Call_0D40
+	call CopyGlyph
 	pop de
-	ld hl, $c180
+	ld hl, wTextArg0
 	call Call_5F_5F78
 	pop de
 	pop hl
@@ -4059,7 +4059,7 @@ Call_5F_5F78::
 
 jr_05f_5f7a:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ld [de], a
 	ei
@@ -4071,25 +4071,25 @@ jr_05f_5f7a:
 
 
 Call_5F_5F86::
-	ld hl, $c8de
-	ld a, [$c8db]
+	ld hl, wMenuChoice3
+	ld a, [wMenuChoice2]
 	and $f0
 	call Call_5F_6248
 	ld [hli], a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $0f
 	ld [hli], a
 	ld a, $ff
 	ld [hl], a
 	ld de, $8b40
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	call Call_5F_5F58
 	ret
 
 
 Call_5F_5FA5::
 	ld hl, $61b5
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	add a
 	add l
 	ld l, a
@@ -4105,81 +4105,81 @@ Call_5F_5FA5::
 
 
 Call_5F_5FBC::
-	ld hl, $c8de
-	ld a, [$c8dd]
+	ld hl, wMenuChoice3
+	ld a, [wConfirmChoice2]
 	and $f0
 	call Call_5F_6248
 	ld [hli], a
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	and $0f
 	ld [hli], a
 	ld a, $ff
 	ld [hl], a
 	ld de, $8b20
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	call Call_5F_5F58
 	ret
 
 
 Call_5F_5FDB::
-	ld hl, $c8de
-	ld a, [$c8e1]
+	ld hl, wMenuChoice3
+	ld a, [wListLastRows]
 	and $f0
 	call Call_5F_6248
 	ld [hli], a
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	and $0f
 	ld [hli], a
 	ld a, $ff
 	ld [hl], a
 	ld de, $8a90
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	call Call_5F_5F58
 	ret
 
 
 Call_5F_5FFA::
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	cp $0e
 	jr c, jr_05f_600a
 
 	cp $21
 	jr c, jr_05f_600f
 
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
 jr_05f_600a:
-	ld hl, far_Call_5C_4005
+	ld hl, far_DrawSkillAnimSprite_5C
 	rst $10
 	ret
 
 
 jr_05f_600f:
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
 Call_5F_6014::
-	ld hl, $c89b
+	ld hl, wBGP
 	inc hl
 	ld a, $d0
 	ld [hli], a
 	ld a, $e0
 	ld [hl], a
 	ld hl, $61c1
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$c89c], a
-	ld a, [$c8db]
+	ld [wOBP0], a
+	ld a, [wMenuChoice2]
 	cp $03
 	jr z, jr_05f_6049
 
@@ -4202,26 +4202,26 @@ jr_05f_6049:
 	ld [$db54], a
 
 jr_05f_6053:
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	cp $0e
 	jr c, jr_05f_6063
 
 	cp $21
 	jr c, jr_05f_6068
 
-	ld hl, far_Call_5E_40CB
+	ld hl, far_StartSkillAnimSprite_5E
 	rst $10
 	ret
 
 
 jr_05f_6063:
-	ld hl, far_Call_5C_408D
+	ld hl, far_StartSkillAnimSprite_5C
 	rst $10
 	ret
 
 
 jr_05f_6068:
-	ld hl, far_Call_5D_40B3
+	ld hl, far_StartSkillAnimSprite_5D
 	rst $10
 	ret
 
@@ -4235,7 +4235,7 @@ Jump_5F_606D::
 
 
 Call_5F_607A::
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -4249,7 +4249,7 @@ Call_5F_607A::
 	inc hl
 	ld d, [hl]
 	ld hl, $9000
-	call Call_1577
+	call DecompressVRAM
 	ret
 
 
@@ -4291,7 +4291,7 @@ Call_5F_6248::
 
 
 Call_5F_6251::
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	bit 7, a
 	ret nz
 
@@ -4299,7 +4299,7 @@ Call_5F_6251::
 	or a
 	jr nz, jr_05f_62d7
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 2, a
 	ret z
 
@@ -4309,9 +4309,9 @@ Call_5F_6251::
 	ld de, $8860
 	call Call_5F_5F58
 	ld de, $63b0
-	ld hl, $c500
+	ld hl, wTilemapBuffer
 	call Call_5F_4263
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	and $02
 	rlca
 	ld [$db4c], a
@@ -4367,7 +4367,7 @@ jr_05f_62d2:
 
 
 jr_05f_62d7:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 2, a
 	ret z
 
@@ -4426,19 +4426,19 @@ Call_5F_633D::
 	xor a
 	ld hl, $db4f
 	ld bc, $0003
-	call Call_12C7
+	call FillMemory
 	ret
 
 
 Call_5F_6348::
 	ld b, [hl]
 	ld a, $64
-	call Call_1DFB
+	call Divide8
 	ld hl, $db4f
 	ld [hl], b
 	ld b, a
 	ld a, $0a
-	call Call_1DFB
+	call Divide8
 	ld hl, $db50
 	ld [hl], b
 	ld [$db51], a
@@ -4457,7 +4457,7 @@ Call_5F_6360::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld de, $c500
+	ld de, wTilemapBuffer
 	add hl, de
 	ld c, $00
 	ld a, [$db4f]

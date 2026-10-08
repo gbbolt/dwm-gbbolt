@@ -8,12 +8,12 @@ BankNumber_46::
 	db $46
 
 FarTable_46::
-	dw Call_46_4129
-	dw Call_46_4146
-	dw Call_46_4163
-	dw Data_46_4009
+	dw StartText_46
+	dw CopyText_46
+	dw PrintText_46
+	dw TextGroup_46_0
 
-Data_46_4009::
+TextGroup_46_0::
 	db $80, $41, $bb, $41, $f5, $41, $31, $42, $92, $42, $d5, $42, $08, $43, $59, $43
 	db $a5, $43, $d9, $43, $2a, $44, $a4, $44, $d1, $44, $6e, $45, $bd, $45, $71, $46
 	db $60, $47, $d2, $47, $35, $48, $59, $48, $7f, $48, $37, $49, $88, $49, $9d, $49
@@ -33,63 +33,63 @@ Data_46_4009::
 	db $8f, $75, $f9, $75, $59, $76, $08, $77, $40, $78, $ab, $78, $ff, $78, $84, $79
 	db $fa, $79, $1b, $7b, $b4, $7b, $c4, $7b, $70, $7c, $e5, $7c, $26, $7d, $5e, $7d
 
-Call_46_4129::
-	ld a, [$c823]
+StartText_46::
+	ld a, [wTextIndex]
 	cp $90
 	jr c, jr_046_413f
 
 	sub $90
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $02
-	ld [$c822], a
-	ld hl, far_Call_1B_4111
+	ld [wTextGroup], a
+	ld hl, far_StartText_1B
 	rst $10
 	ret
 
 
 jr_046_413f:
 	ld de, $4007
-	call Call_05B6
+	call StartText
 	ret
 
 
-Call_46_4146::
-	ld a, [$c823]
+CopyText_46::
+	ld a, [wTextIndex]
 	cp $90
 	jr c, jr_046_415c
 
 	sub $90
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $02
-	ld [$c822], a
-	ld hl, far_Call_1B_4118
+	ld [wTextGroup], a
+	ld hl, far_CopyText_1B
 	rst $10
 	ret
 
 
 jr_046_415c:
 	ld de, $4007
-	call Call_05F6
+	call CopyTextString
 	ret
 
 
-Call_46_4163::
-	ld a, [$c823]
+PrintText_46::
+	ld a, [wTextIndex]
 	cp $90
 	jr c, jr_046_4179
 
 	sub $90
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $02
-	ld [$c822], a
-	ld hl, far_Call_1B_411F
+	ld [wTextGroup], a
+	ld hl, far_PrintText_1B
 	rst $10
 	ret
 
 
 jr_046_4179:
-	call Call_46_4129
-	call Call_0609
+	call StartText_46
+	call RunTextToEnd
 	ret
 
 

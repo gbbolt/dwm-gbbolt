@@ -20,27 +20,27 @@ FarTable_0B::
 	dw Call_0B_4488
 
 Call_0B_4015::
-	ld a, [$c96c]
+	ld a, [wWarpPending]
 	or a
 	jr z, jr_00b_4027
 
-	ld a, [$c96d]
-	ld [$c968], a
-	ld a, [$c96e]
-	ld [$c969], a
+	ld a, [wWarpMap]
+	ld [wMapId], a
+	ld a, [wWarpOnGateFloor]
+	ld [wOnGateFloor], a
 
 jr_00b_4027:
 	ld hl, far_Call_16_5B4E
 	rst $10
 	ld de, $26dd
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_00b_4037
 
 	ld de, $2a5d
 
 jr_00b_4037:
-	ld a, [$c968]
+	ld a, [wMapId]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -53,16 +53,16 @@ jr_00b_4037:
 	inc hl
 	push hl
 	ld hl, $9000
-	call Call_1577
-	ld a, [$c968]
+	call DecompressVRAM
+	ld a, [wMapId]
 	ld a, $08
 	jr nz, jr_00b_4076
 
 	ld de, $291d
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	xor a
-	ld [$c8a6], a
+	ld [wFieldTimer], a
 	ld [$c8a7], a
 	jr jr_00b_4076
 
@@ -72,11 +72,11 @@ jr_00b_4037:
 jr_00b_4076:
 	pop hl
 	ld a, [hli]
-	ldh [$ff9d], a
+	ldh [hMapWidth], a
 	ld a, [hli]
 	ldh [$ff9e], a
 	ld a, [hli]
-	ldh [$ff9f], a
+	ldh [hMapHeight], a
 	ld a, [hl]
 	ldh [$ffa0], a
 	ld hl, far_Call_16_5FE4
@@ -86,14 +86,14 @@ jr_00b_4076:
 
 Call_0B_4088::
 	ld de, $26dd
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_00b_4094
 
 	ld de, $2a5d
 
 jr_00b_4094:
-	ld a, [$c968]
+	ld a, [wMapId]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -106,99 +106,99 @@ jr_00b_4094:
 	inc hl
 	push hl
 	ld hl, $9000
-	call Call_1577
-	ld a, [$c968]
+	call DecompressVRAM
+	ld a, [wMapId]
 	ld a, $08
 	jr nz, jr_00b_40c0
 
 	ld de, $291d
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	xor a
-	ld [$c8a6], a
+	ld [wFieldTimer], a
 	ld [$c8a7], a
 
 jr_00b_40c0:
 	pop hl
 	ld a, [hli]
-	ldh [$ff9d], a
+	ldh [hMapWidth], a
 	ld a, [hli]
 	ldh [$ff9e], a
 	ld a, [hli]
-	ldh [$ff9f], a
+	ldh [hMapHeight], a
 	ld a, [hl]
 	ldh [$ffa0], a
 	ret
 
 
 Call_0B_40CE::
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld l, a
 	ldh a, [$ff96]
 	ld h, a
 	ld a, $80
-	call Call_1E0D
+	call Divide16
 	ld a, l
 	add a
 	add a
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld a, $80
 	ld c, l
 	ld b, h
-	call Call_1DE6
+	call Multiply24
 	ld a, l
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, h
 	ldh [$ffbc], a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld l, a
 	ldh a, [$ff93]
 	ld h, a
 	ld a, $a0
-	call Call_1E0D
-	ld a, [$c925]
+	call Divide16
+	ld a, [wMapScreen]
 	add l
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld a, $a0
 	ld c, l
 	ld b, h
-	call Call_1DE6
+	call Multiply24
 	ld a, l
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, h
 	ldh [$ffb8], a
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 1, a
 	jr nz, jr_00b_4134
 
 	bit 3, a
 	jr nz, jr_00b_4134
 
-	ld hl, far_Call_17_401D
+	ld hl, far_LoadMapPalettes
 	rst $10
-	ld a, [$c8ea]
+	ld a, [wGameStarted]
 	bit 7, a
 	jr nz, jr_00b_4134
 
 	call Call_0B_4239
-	ld hl, $c300
-	call Call_14CF
-	ld de, $c300
+	ld hl, wSavedTilemap
+	call Decompress
+	ld de, wSavedTilemap
 	call Call_0B_4309
-	ld hl, far_Call_17_409E
+	ld hl, far_LoadMapAttrBuffer
 	rst $10
 
 jr_00b_4134:
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	jr z, jr_00b_41b3
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -209,7 +209,7 @@ jr_00b_4134:
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -219,7 +219,7 @@ jr_00b_4134:
 	ld a, $00
 	adc h
 	ld h, a
-	ld de, $c200
+	ld de, wScreenMap
 	ld c, $10
 
 jr_00b_4165:
@@ -230,7 +230,7 @@ jr_00b_4168:
 	ld a, [de]
 	swap a
 	and $0f
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -243,7 +243,7 @@ jr_00b_4168:
 	ld l, a
 	ld a, [de]
 	and $0f
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -277,13 +277,13 @@ jr_00b_4168:
 	jr nz, jr_00b_4165
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
 
 jr_00b_41b3:
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -294,7 +294,7 @@ jr_00b_41b3:
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -304,7 +304,7 @@ jr_00b_41b3:
 	ld a, $00
 	adc h
 	ld h, a
-	ld de, $c300
+	ld de, wSavedTilemap
 	ld c, $10
 
 jr_00b_41d5:
@@ -313,7 +313,7 @@ jr_00b_41d5:
 
 jr_00b_41d8:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -346,8 +346,8 @@ jr_00b_41d8:
 	dec c
 	jr nz, jr_00b_41d5
 
-	ld a, [$c925]
-	ld hl, $c950
+	ld a, [wMapScreen]
+	ld hl, wFloorsSeen
 	add l
 	ld l, a
 	ld a, $00
@@ -357,17 +357,17 @@ jr_00b_41d8:
 	ret
 
 
-	ld hl, far_Call_17_401D
+	ld hl, far_LoadMapPalettes
 	rst $10
 	call Call_0B_4239
-	ld hl, $c500
-	call Call_14CF
-	ld de, $c500
+	ld hl, wTilemapBuffer
+	call Decompress
+	ld de, wTilemapBuffer
 	call Call_0B_4309
-	ld hl, far_Call_17_409E
+	ld hl, far_LoadMapAttrBuffer
 	rst $10
-	ld a, [$c925]
-	ld hl, $c950
+	ld a, [wMapScreen]
+	ld hl, wFloorsSeen
 	add l
 	ld l, a
 	ld a, $00
@@ -378,7 +378,7 @@ jr_00b_41d8:
 
 
 Call_0B_4239::
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_00b_4244
 
@@ -389,7 +389,7 @@ Call_0B_4239::
 
 jr_00b_4244:
 	ld hl, $4b43
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -399,7 +399,7 @@ jr_00b_4244:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
@@ -430,12 +430,12 @@ jr_00b_4244:
 
 
 Call_0B_4274::
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_00b_42ac
 
 	ld hl, $4b43
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -445,7 +445,7 @@ Call_0B_4274::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
@@ -508,12 +508,12 @@ jr_00b_42b7:
 	db $ff
 
 Call_0B_4309::
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret z
 
 	ld hl, $c960
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
@@ -541,9 +541,9 @@ Call_0B_4309::
 
 	ld a, $00
 	ldh [$ffd6], a
-	ld hl, $d7d2
+	ld hl, wActors
 	call Call_0B_433F
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ret
 
 
@@ -606,7 +606,7 @@ jr_00b_436d:
 	jr z, jr_00b_438d
 
 	ld b, a
-	ldh a, [$ff8e]
+	ldh a, [hPlayerDir]
 	cp b
 	jr nz, jr_00b_4397
 
@@ -636,17 +636,17 @@ jr_00b_43a1:
 
 
 	ld a, $ff
-	ldh [$ffd5], a
-	ldh a, [$ff90]
+	ldh [hNumber], a
+	ldh a, [hPlayerFlags]
 	bit 6, a
 	ret nz
 
-	ld a, [$d8d7]
+	ld a, [wScriptRunning]
 	or a
 	ret nz
 
 	call Call_0B_43B8
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ret
 
 
@@ -711,7 +711,7 @@ Call_0B_43E5::
 	ld a, h
 	adc $00
 	ld h, a
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	sub [hl]
 	inc hl
 	ld c, a
@@ -745,7 +745,7 @@ jr_00b_440f:
 	jr nc, jr_00b_444c
 
 jr_00b_4422:
-	ldh a, [$ffdd]
+	ldh a, [hFindY]
 	sub [hl]
 	inc hl
 	ld c, a
@@ -800,7 +800,7 @@ Call_0B_4452::
 	push de
 	inc hl
 	inc hl
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	swap a
 	and $0f
 	ld b, a
@@ -810,12 +810,12 @@ Call_0B_4452::
 	or b
 	ld b, a
 	ld a, $0a
-	call Call_1DFB
+	call Divide8
 	cp [hl]
 	jr nz, jr_00b_444c
 
 	inc hl
-	ldh a, [$ffdd]
+	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
@@ -825,39 +825,39 @@ Call_0B_4452::
 	or b
 	ld b, a
 	ld a, $08
-	call Call_1DFB
+	call Divide8
 	cp [hl]
 	jr nz, jr_00b_444c
 
 	jr jr_00b_4447
 
 Call_0B_4488::
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
 	ret nz
 
-	ld a, [$c88e]
+	ld a, [wGameModeChange]
 	or a
 	ret nz
 
-	ld a, [$c88f]
+	ld a, [wMapLoadState]
 	or a
 	ret nz
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	ret nz
 
-	ldh a, [$ff90]
+	ldh a, [hPlayerFlags]
 	bit 0, a
 	ret nz
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
 	ld hl, $4b43
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -867,7 +867,7 @@ Call_0B_4488::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
@@ -899,7 +899,7 @@ Call_0B_4488::
 	ld h, [hl]
 	ld l, a
 	ld bc, $2de7
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add c
 	ld c, a
@@ -936,13 +936,13 @@ jr_00b_44ec:
 	jr jr_00b_4513
 
 jr_00b_4504:
-	ldh a, [$ff97]
+	ldh a, [hPlayerTileX]
 	sub e
 	cp [hl]
 	jr nz, jr_00b_4513
 
 	inc hl
-	ldh a, [$ff98]
+	ldh a, [hPlayerTileY]
 	sub d
 	cp [hl]
 	dec hl
@@ -957,20 +957,20 @@ jr_00b_4513:
 	ld h, a
 	jr jr_00b_44ec
 
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 0, a
 	jp nz, Jump_00b_4674
 
-	ldh a, [$ff90]
+	ldh a, [hPlayerFlags]
 	bit 0, a
 	jp nz, Jump_00b_4674
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jp nz, Jump_00b_46a7
 
 	ld hl, $4b43
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -980,7 +980,7 @@ jr_00b_4513:
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
@@ -1012,7 +1012,7 @@ jr_00b_4513:
 	ld h, [hl]
 	ld l, a
 	ld bc, $2de7
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add c
 	ld c, a
@@ -1037,7 +1037,7 @@ jr_00b_4578:
 	cp $09
 	jr z, jr_00b_459e
 
-	ldh a, [$ff97]
+	ldh a, [hPlayerTileX]
 	sub e
 	cp [hl]
 	jr nz, jr_00b_459e
@@ -1052,7 +1052,7 @@ jr_00b_4578:
 	jr z, jr_00b_459e
 
 	inc hl
-	ldh a, [$ff98]
+	ldh a, [hPlayerTileY]
 	sub d
 	cp [hl]
 	dec hl
@@ -1072,9 +1072,9 @@ jr_00b_45a8:
 	inc hl
 	inc hl
 	ld a, [hli]
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, [hli]
-	ld [$c96e], a
+	ld [wWarpOnGateFloor], a
 	ld de, $2de7
 	ld a, [hli]
 	push af
@@ -1103,7 +1103,7 @@ jr_00b_45a8:
 	adc $00
 	ld b, a
 	ld a, c
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, b
 	ld [$c970], a
 	ld a, [de]
@@ -1136,78 +1136,78 @@ jr_00b_45a8:
 
 jr_00b_4601:
 	ld a, c
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, b
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
-	ld a, [$c96e]
+	ld [wWarpPending], a
+	ld a, [wWarpOnGateFloor]
 	or a
 	jr nz, jr_00b_466b
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_00b_4627
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $10
 	jr nz, jr_00b_4627
 
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	cp $68
 	jr z, jr_00b_462c
 
 jr_00b_4627:
-	call Call_2652
+	call IsInGateWorld
 	jr z, jr_00b_465b
 
 jr_00b_462c:
-	ld a, [$c968]
+	ld a, [wMapId]
 	ld l, a
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	ld h, a
 	push hl
-	ld a, [$c96d]
+	ld a, [wWarpMap]
 	ld l, a
-	ld a, [$c96e]
+	ld a, [wWarpOnGateFloor]
 	ld h, a
 	ld a, l
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, h
-	ld [$c969], a
-	call Call_2652
+	ld [wOnGateFloor], a
+	call IsInGateWorld
 	pop hl
 	push af
 	ld a, l
-	ld [$c968], a
+	ld [wMapId], a
 	ld a, h
-	ld [$c969], a
+	ld [wOnGateFloor], a
 	pop af
 	jr nz, jr_00b_465b
 
-	ld hl, far_Call_01_4BC1
+	ld hl, far_HealAllMonsters
 	rst $10
 	jr jr_00b_466b
 
 jr_00b_465b:
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	ld a, $51
-	call Call_1B2C
+	call QueueSound
 	jr jr_00b_4674
 
 jr_00b_466b:
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 5, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 
 Jump_00b_4674:
 jr_00b_4674:
-	ld a, [$c968]
-	ld a, [$c968]
+	ld a, [wMapId]
+	ld a, [wMapId]
 	cp $53
 	jr z, jr_00b_46d5
 
@@ -1246,27 +1246,27 @@ jr_00b_4674:
 
 Jump_00b_46a7:
 	ld hl, $c960
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	cp [hl]
 	jr nz, jr_00b_46d5
 
-	ldh a, [$ffaa]
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0f
 	jr nz, jr_00b_46d5
 
 	ld a, $01
-	ld [$c96c], a
+	ld [wWarpPending], a
 	ld a, $00
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, $80
-	ld [$c96e], a
+	ld [wWarpOnGateFloor], a
 	call Call_0B_46DA
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 5, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 
 jr_00b_46d5:
 	ld hl, far_Call_16_6F05
@@ -1275,12 +1275,12 @@ jr_00b_46d5:
 
 
 Call_0B_46DA::
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret z
 
 	ld hl, $c940
-	ld de, $c950
+	ld de, wFloorsSeen
 	ld b, $10
 	ld c, $00
 
@@ -1314,18 +1314,18 @@ jr_00b_46f4:
 
 jr_00b_4703:
 	ld a, $05
-	ld [$c92d], a
+	ld [wFloorEvent], a
 	ret
 
 
 jr_00b_4709:
 	ld a, $06
-	ld [$c92d], a
+	ld [wFloorEvent], a
 	ret
 
 
 Call_0B_470F::
-	ld a, [$c8ea]
+	ld a, [wGameStarted]
 	bit 7, a
 	jr z, jr_00b_471b
 
@@ -1335,15 +1335,15 @@ Call_0B_470F::
 
 
 jr_00b_471b:
-	ld hl, $d7d2
+	ld hl, wActors
 	ld bc, $0101
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	call Call_0B_482B
 	ld a, $ff
-	ld [$d7d2], a
+	ld [wActors], a
 	call Call_0B_4274
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, Call_0B_477E
 
@@ -1351,17 +1351,17 @@ jr_00b_471b:
 	cp $ff
 	jr z, Call_0B_477E
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c926]
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld a, b
 	ld [$c926], a
 	call Call_0B_477E
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld b, a
 	ld a, [$c926]
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld a, b
 	ld [$c926], a
 	ld a, [$c927]
@@ -1384,12 +1384,12 @@ jr_00b_471b:
 
 
 Call_0B_477E::
-	ld de, $d7d2
+	ld de, wActors
 
 Jump_00b_4781:
 jr_00b_4781:
 	ld a, e
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, d
 	ldh [$ffd6], a
 	ld a, [hli]
@@ -1411,7 +1411,7 @@ jr_00b_4781:
 jr_00b_479a:
 	ldh [$ffd7], a
 	ld bc, $2de7
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add c
 	ld c, a
@@ -1443,7 +1443,7 @@ jr_00b_479a:
 	and $03
 	ld [de], a
 	push hl
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld e, a
 	ldh a, [$ffd6]
 	ld d, a
@@ -1453,7 +1453,7 @@ jr_00b_479a:
 	ld a, d
 	adc $00
 	ld d, a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -1464,7 +1464,7 @@ jr_00b_479a:
 	call Call_0B_4839
 	pop hl
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld e, a
 	ldh a, [$ffd6]
 	ld d, a
@@ -1476,7 +1476,7 @@ jr_00b_479a:
 	ld d, a
 	pop af
 	ld [de], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld e, a
 	ldh a, [$ffd6]
 	ld d, a
@@ -1559,7 +1559,7 @@ Call_0B_4839::
 
 	and $03
 	add a
-	ld hl, $d7ca
+	ld hl, wEncGfx
 	add l
 	ld l, a
 	ld a, $00
@@ -1659,7 +1659,7 @@ jr_00b_48ba:
 jr_00b_48bf:
 	sub $e1
 	push af
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -1686,7 +1686,7 @@ jr_00b_48bf:
 
 jr_00b_48e1:
 	pop af
-	ld hl, $ca91
+	ld hl, wPartyGfx
 	add l
 	ld l, a
 	ld a, $00
@@ -1741,7 +1741,7 @@ jr_00b_4917:
 	ld a, c
 	add $80
 	ld h, a
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_00b_492a
 
@@ -1751,7 +1751,7 @@ jr_00b_4917:
 	jr jr_00b_493f
 
 jr_00b_492a:
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $08
 	jr z, jr_00b_493f
 
@@ -1770,15 +1770,15 @@ jr_00b_493b:
 
 jr_00b_493f:
 	ld l, $00
-	call Call_1577
+	call DecompressVRAM
 	pop bc
 
 Jump_00b_4945:
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_00b_4964
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $08
 	jr z, jr_00b_495e
 

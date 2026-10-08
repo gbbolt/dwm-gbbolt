@@ -4,8 +4,16 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $000", ROM0[$0]
 
-RST_00::
+;@ def JumpTable(index: a)
+;@ path: system/vectors
+;@ Jump-table dispatch, used as `rst $00`: the `rst` is followed by a table of
+;@ 16-bit addresses, and execution continues at entry `index` of that table
+;@ (it falls into JumpToPointer).
+;@ test: skip rewrites the return address on the stack
+JumpTable::
+;> table = pop_return_address()          # the table starts right after `rst $00`
 	pop hl
+;> return JumpToPointer(table + 2 * index)
 	add a
 	add l
 	ld l, a
@@ -13,7 +21,14 @@ RST_00::
 	adc h
 	ld h, a
 
-RST_08::
+;@ def JumpToPointer(ptr: hl)
+;@ path: system/vectors
+;@ `rst $08`: jumps to the address stored at `ptr`. FarCall calls it to enter a
+;@ routine through a bank's table of entry points. The four bytes after it are an
+;@ unused copy that returns the address instead of jumping.
+;@ test: skip jumps to a computed address
+JumpToPointer::
+;> return call(mem16[ptr])
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
@@ -22,22 +37,37 @@ RST_08::
 
 	db $2a, $66, $6f, $c9
 
-Call_0010::
+;@ def FarCall(target: hl)
+;@ path: system/bank
+;@ `rst $10`: calls a routine in another ROM bank. `target` is a far-call number:
+;@ the high byte is the bank, the low byte the entry in that bank's table of
+;@ entry points at $4001. The current bank (each bank keeps its own number in its
+;@ first byte, $4000) is switched back afterwards. Bits 5-6 of the bank number
+;@ also go to the cartridge RAM bank register ($4100), so every bank switch
+;@ selects a RAM bank too.
+;@ test: skip calls a routine from another bank's table
+FarCall::
+;> saved = mem[0x4000]                   # number of the bank switched in now
 	ld a, [$4000]
 	push af
+;> set_rom_bank(hi(target))
 	ld a, h
 	ld [$2100], a
+;> mem[0x4100] = (hi(target) >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;> call(mem16[0x4001 + 2 * lo(target)])
 	add hl, hl
 	ld h, $00
 	ld bc, $4001
 	add hl, bc
-	call RST_08
+	call JumpToPointer
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -47,26 +77,48 @@ Call_0010::
 
 	db $ff, $1e, $01, $1a, $3c, $12, $c9, $ff, $ff
 
+;@ def VBlankInterrupt()
+;@ path: system/vectors
+;@ Interrupt vector $40: disables further interrupts and runs the VBlank handler.
+;@ test: skip interrupt vector
 VBlankInterrupt::
+;> disable_interrupts()
 	di
-	jp Jump_000_036e
+;> return VBlankHandler()
+	jp VBlankHandler
 
 
 	db $01, $1a, $18, $b8
 
+;@ def LCDCInterrupt()
+;@ path: system/vectors
+;@ Interrupt vector $48 (LCD STAT).
+;@ test: skip interrupt vector
 LCDCInterrupt::
-	jp Jump_000_2eea
+;> return LCDInterruptHandler()
+	jp LCDInterruptHandler
 
 
 	db $fa, $90, $cd, $18, $b0
 
+;@ def TimerOverflowInterrupt()
+;@ path: system/vectors
+;@ Interrupt vector $50: the timer interrupt is not used, it just returns.
+;@ test: skip interrupt vector
 TimerOverflowInterrupt::
+;> return
 	reti
 
 
 	db $fa, $02, $c0, $b7, $c9, $ff, $ff
 
+;@ def SerialTransferCompleteInterrupt()
+;@ path: system/vectors
+;@ Interrupt vector $58 (link cable byte done). The bytes after it are leftovers
+;@ of an older VBlank handler that nothing reaches.
+;@ test: skip interrupt vector
 SerialTransferCompleteInterrupt::
+;> return Jump_000_2edd()
 	jp Jump_000_2edd
 
 
@@ -74,22 +126,42 @@ SerialTransferCompleteInterrupt::
 	db $cb, $8e, $21, $c2, $dd, $34, $fa, $84, $c9, $b7, $20, $34, $3c, $ea, $84, $c9
 	db $cd, $90, $ff, $cd, $f7
 
-Call_0080::
+;@ def CopyOAMDMARoutine()
+;@ path: gfx/oam
+;@ Copies the 10-byte OAM DMA routine to HRAM $FF80, where it can run while the
+;@ DMA blocks the rest of the address space.
+;@ test: skip writes the HRAM routine the VBlank handler runs
+CopyOAMDMARoutine::
+;> for i in range(10):
 	ld c, $80
 	ld b, $0a
-	ld hl, $008e
+	ld hl, OAMDMARoutine
 
-jr_000_0087:
+.copy
+;>     mem[0xFF80 + i] = mem[OAMDMARoutine + i]
 	ld a, [hli]
 	ldh [c], a
 	inc c
 	dec b
-	jr nz, jr_000_0087
+	jr nz, .copy
 
 	ret
 
 
-	db $3e, $c0, $e0, $46, $3e, $28, $3d, $20, $fd, $c9, $13, $cd, $90, $12, $cd, $00
+;@ path: gfx/oam
+;@ The OAM DMA routine, run from HRAM $FF80 (CopyOAMDMARoutine puts it there):
+;@ `ld a, $C0` / `ldh [rDMA], a` / `ld a, $28` / `.wait dec a` / `jr nz, .wait` / `ret` -
+;@ copies the shadow OAM at $C000 (wShadowOAM) to OAM and waits the 160 cycles
+;@ the transfer takes.
+OAMDMARoutine::
+	db $3e, $c0, $e0, $46, $3e, $28, $3d, $20, $fd, $c9
+
+;@ path: unused/leftovers
+;@ Leftover bytes of an older interrupt handler (pieces of a VBlank handler that
+;@ pushes registers, runs the DMA, and copies scroll and palette registers).
+;@ Nothing jumps here.
+UnusedOldInterruptCode::
+	db $13, $cd, $90, $12, $cd, $00
 	db $40, $cd, $ba, $17, $af, $ea, $84, $c9, $e1, $d1, $c1, $f1, $d9, $cd, $c2, $00
 	db $af, $e0, $0f, $fa, $99, $c9, $e0, $ff, $fb, $cd, $ed, $04, $e1, $d1, $c1, $f1
 	db $cd, $a7, $04, $d9, $21, $91, $c9, $2a, $e0, $42, $2a, $e0, $43, $2a, $e0, $4a
@@ -98,413 +170,763 @@ jr_000_0087:
 	db $14, $12, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff
 
+;@ def Boot()
+;@ path: system/boot
+;@ Cartridge entry point at $0100 (the boot ROM jumps here with the console type in a).
+;@ test: skip entry point
 Boot::
+;> return Start()
 	nop
-	jp Jump_000_0150
+	jp Start
 
 
+;@ path: system/header
+;@ Cartridge header: the Nintendo logo the boot ROM checks.
+;@ asset: tiles bpp=1 length=$30
 HeaderLogo::
 	db $ce, $ed, $66, $66, $cc, $0d, $00, $0b, $03, $73, $00, $83, $00, $0c, $00, $0d
 	db $00, $08, $11, $1f, $88, $89, $00, $0e, $dc, $cc, $6e, $e6, $dd, $dd, $d9, $99
 	db $bb, $bb, $67, $63, $6e, $0e, $ec, $cc, $dd, $dc, $99, $9f, $bb, $b9, $33, $3e
 
+;@ path: system/header
+;@ Cartridge header: game title "DRAGON WMON".
 HeaderTitle::
 	db "DRAGON WMON"
 
+;@ path: system/header
+;@ Cartridge header: game code "AWQE" (the E is the region: North America).
 HeaderManufacturerCode::
 	db "AWQE"
 
+;@ path: system/header
+;@ Cartridge header: $80 = uses Game Boy Color features but also runs on a Game Boy.
 HeaderCGBFlag::
 	db $80
 
+;@ path: system/header
+;@ Cartridge header: new licensee code "4F".
 HeaderNewLicenseeCode::
 	db $34, $46
 
+;@ path: system/header
+;@ Cartridge header: $03 = Super Game Boy functions supported.
 HeaderSGBFlag::
 	db $03
 
+;@ path: system/header
+;@ Cartridge header: $1B = MBC5 with RAM and battery.
 HeaderCartridgeType::
 	db $1b
 
+;@ path: system/header
+;@ Cartridge header: $06 = 2 MiB ROM (128 banks).
 HeaderROMSize::
 	db $06
 
+;@ path: system/header
+;@ Cartridge header: $02 = 8 KiB cartridge RAM.
 HeaderRAMSize::
 	db $02
 
+;@ path: system/header
+;@ Cartridge header: $01 = sold outside Japan.
 HeaderDestinationCode::
 	db $01
 
+;@ path: system/header
+;@ Cartridge header: $33 = the licensee is given by the new licensee code.
 HeaderOldLicenseeCode::
 	db $33
 
+;@ path: system/header
+;@ Cartridge header: ROM version 0.
 HeaderMaskROMVersion::
 	db $00
 
+;@ path: system/header
+;@ Cartridge header: checksum of the header bytes $0134-$014C.
 HeaderComplementCheck::
 	db $49
 
+;@ path: system/header
+;@ Cartridge header: checksum of the whole ROM (big endian).
 HeaderGlobalChecksum::
 	db $52, $71
 
-Jump_000_0150:
+;@ def Start(console: a)
+;@ path: system/boot
+;@ First code after the header: the boot ROM leaves $11 in a on a Game Boy
+;@ Color. Remembers that in wOnCGB, then continues into SoftReset.
+;@ test: skip falls through into SoftReset
+Start::
+;> on_cgb = 1 if console == 0x11 else 0
 	cp $11
 	ld a, $00
-	jr nz, jr_000_0157
+	jr nz, .store
 
 	inc a
 
-jr_000_0157:
-	ld [$c81d], a
+.store
+;> wOnCGB = on_cgb                       # and on into SoftReset
+	ld [wOnCGB], a
 
-Jump_000_015a:
+;@ def SoftReset()
+;@ path: system/boot
+;@ Starts (or restarts, after A+B+Select+Start or a lost link) the game: clears
+;@ RAM and VRAM, sets up the cartridge, looks for a Super Game Boy and sends it
+;@ its setup packets, border tiles and border picture. Then the main loop: start
+;@ the current game mode, and while it runs (its per-frame work happens in the
+;@ VBlank handler) keep stirring the random numbers until the mode asks to be
+;@ replaced; then start the new one.
+;@ test: skip never returns
+SoftReset::
+;> reset_stack(0xDFFF)
 	ld sp, $dfff
-	call Call_11DE
-	call Call_1288
-	call Call_0080
+;> DisableInterruptsAndLCD()
+	call DisableInterruptsAndLCD
+;> ClearRAM()
+	call ClearRAM
+;> CopyOAMDMARoutine()
+	call CopyOAMDMARoutine
+;> FillMemory(0x8000, 0x1C00, 0)          # all tiles and both maps of VRAM bank 0
 	ld hl, $8000
 	ld bc, $1c00
 	xor a
-	call Call_12C7
-	ld hl, $c88a
+	call FillMemory
+;> fill(wGameMode, 0, 4)                  # mode, step and two mode variables
+	ld hl, wGameMode
 	xor a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
+;> mem[0xC8EE] = 4
 	ld a, $04
 	ld [$c8ee], a
+;> wGameMode = 0
 	ld a, $00
-	ld [$c88a], a
+	ld [wGameMode], a
+;> mem[0x6100] = 1                        # cartridge registers: RAM bank 0 ...
 	ld a, $01
 	ld [$6100], a
+;> mem[0x4100] = 0
 	ld a, $00
 	ld [$4100], a
+;> mem[0x6100] = 0
 	ld a, $00
 	ld [$6100], a
+;> mem[0x4100] = 0
 	ld a, $00
 	ld [$4100], a
+;> mem[0x0100] = 0x0A                     # ... cartridge RAM enabled ...
 	ld a, $0a
 	ld [$0100], a
+;> set_rom_bank(1)                        # ... ROM bank 1
 	ld a, $01
 	ld [$2100], a
+;> mem[0x4100] = 0
 	ld a, $00
 	ld [$4100], a
+;> wOnSGB = 1                             # so that DetectSGB's packets are sent
 	ld a, $01
-	ld [$c81c], a
+	ld [wOnSGB], a
+;> wQueuedMusic = 0xFF
 	ld a, $ff
-	ld [$c8b7], a
-	ld [$c8b8], a
-	call Call_3331
+	ld [wQueuedMusic], a
+;> wQueuedSound = 0xFF
+	ld [wQueuedSound], a
+;> InitSound()                            # silence the sound
+	call InitSound
+;> wLinkNoEnd = 0
 	xor a
-	ld [$c8c7], a
-	ld a, [$c81d]
+	ld [wLinkNoEnd], a
+;> if wOnCGB:
+	ld a, [wOnCGB]
 	or a
-	jr z, jr_000_01c6
+	jr z, .detectSGB
 
+;>     rVBK = 0
 	xor a
 	ldh [rVBK], a
+;>     rSVBK = 0
 	ldh [rSVBK], a
+;>     rRP = 0
 	ldh [rRP], a
 
-jr_000_01c6:
-	call Call_1024
-	jr c, jr_000_01d2
+.detectSGB
+;> if not DetectSGB():                    # carry = a Super Game Boy answered
+	call DetectSGB
+	jr c, .sgb
 
+;>     wOnSGB = 0
 	xor a
-	ld [$c81c], a
-	jp Jump_000_028b
+	ld [wOnSGB], a
+	jp .startMode
 
-
-jr_000_01d2:
+;> else:
+.sgb
+;>     SGBDelay(12)
 	ld bc, $000c
-	call Call_10CF
+	call SGBDelay
+;>@pk1     for packet in [0x14, 2, 3, 4, 5, 6, 7, 8, 9]:   # setup packets from the packet table
 	ld a, $14
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+;>         wSGBPacketID = packet
+	ld [wSGBPacketID], a
+;>         SendSGBPacket()                # packet wSGBPacketID
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+;>         SGBPacketDelay()
+	call SGBPacketDelay
+;=@pk1
 	ld a, $02
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $03
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $04
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $05
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $06
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $07
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $08
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk1
 	ld a, $09
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;>     SGBTransfer(0x0C, 0x08, 0x03, 0x800)   # border tiles: packet $0C, bank $08 entry 3, $800 bytes
 	ld a, $0c
 	ld de, $0803
 	ld bc, $0800
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+;>     SGBPacketDelay()
+	call SGBPacketDelay
+;>     SGBTransferCompressed(0x0D, 0x08, 0x04)  # border map and palettes: packet $0D, bank $08 entry 4
 	ld a, $0d
 	ld de, $0804
-	call Call_10E5
-	call Call_1013
+	call SGBTransferCompressed
+;>     SGBPacketDelay()
+	call SGBPacketDelay
+;>@pk2     for packet in [0x12, 0x0A, 0x13]:
 	ld a, $12
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+;>         wSGBPacketID = packet
+	ld [wSGBPacketID], a
+;>         SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+;>         SGBPacketDelay()
+	call SGBPacketDelay
+;=@pk2
 	ld a, $0a
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;=@pk2
 	ld a, $13
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+	call SGBPacketDelay
+;>     wOnSGB = 1
 	ld a, $01
-	ld [$c81c], a
+	ld [wOnSGB], a
+;>     mem[0xC81B] = 0xFF
 	ld a, $ff
 	ld [$c81b], a
 
-Jump_000_028b:
-	call Call_12A5
-	call Call_1417
-	call Call_13EF
-	call Call_140B
-	call Call_1660
+.startMode
+;>@mode for _ in forever():                # each pass starts wGameMode anew
+;>     ClearBGMaps()
+	call ClearBGMaps
+;>     ClearShadowOAM()
+	call ClearShadowOAM
+;>     InitPalettes()
+	call InitPalettes
+;>     ClearScroll()
+	call ClearScroll
+;>     InitFade()
+	call InitFade
+;>     wLinkReceived = 0
 	xor a
-	ld [$c86a], a
-	ld [$c825], a
-	ld [$c829], a
-	ld [$c82a], a
-	ld [$c8c8], a
-	ld [$c8c9], a
-	ld [$df0e], a
-	call Call_030F
+	ld [wLinkReceived], a
+;>     wTextState = 0
+	ld [wTextState], a
+;>     wTextBoxWidth = 0
+	ld [wTextBoxWidth], a
+;>     wTextBoxHeight = 0
+	ld [wTextBoxHeight], a
+;>     wLinkTimeout = 0
+	ld [wLinkTimeout], a
+	ld [wLinkTimeout + 1], a
+;>     mem[0xDF0E] = 0
+	ld [wNameCleared], a
+;>     InitGameMode()
+	call InitGameMode
+;>     wGameModeChange = 0
 	xor a
-	ld [$c88e], a
-	ld [$c88f], a
-	ld [$c8a3], a
-	ld [$c740], a
-	ld [$c741], a
-	ld [$c8a2], a
-	ld [$c8a4], a
-	ld [$c8a5], a
-	ldh [$ffd3], a
-	ld [$c8b9], a
-	ld [$da78], a
-	ld hl, $c8b1
+	ld [wGameModeChange], a
+;>     wMapLoadState = 0
+	ld [wMapLoadState], a
+;>     wMapUpdateOn = 0
+	ld [wMapUpdateOn], a
+;>     wMapUpdateDest = 0
+	ld [wMapUpdateDest], a
+	ld [wMapUpdateDest + 1], a
+;>     wVBlankFlags = 0
+	ld [wVBlankFlags], a
+;>     wFrameCounter = 0
+	ld [wFrameCounter], a
+	ld [wFrameCounter + 1], a
+;>     hSpriteClip = 0
+	ldh [hSpriteClip], a
+;>     wSoundBusy = 0
+	ld [wSoundBusy], a
+;>     wDecompressBusy = 0
+	ld [wDecompressBusy], a
+;>     fill(wShakeY, 0, 4)                # no screen shake
+	ld hl, wShakeY
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
 
-jr_000_02db:
-	ld a, [$c86c]
+.wait
+;>@w     while True:                      # the mode runs from the VBlank handler meanwhile
+;>         if not wLinkActive:            # linked games must keep their random numbers in step
+	ld a, [wLinkActive]
 	or a
-	call z, Call_12D0
-	ld a, [$c88e]
+;>             Random()
+	call z, Random
+;>         if not wGameModeChange:
+;>             continue
+	ld a, [wGameModeChange]
 	or a
-	jr z, jr_000_02db
+	jr z, .wait
 
-	ld a, [$c850]
+;>         if wFadeState == 0 or wFadeState & 0x80:   # wait while a fade-out runs
+;>             break
+	ld a, [wFadeState]
 	or a
-	jr z, jr_000_02f2
+	jr z, .change
 
 	bit 7, a
-	jr z, jr_000_02db
+;=@w
+	jr z, .wait
 
-jr_000_02f2:
+.change
+;>     disable_interrupts()
 	di
-	ld a, [$c86c]
+;>     if wLinkActive:
+	ld a, [wLinkActive]
 	or a
-	call nz, Call_3331
-	call Call_11DE
-	call Call_1013
+;>         InitSound()                    # silence the sound
+	call nz, InitSound
+;>     DisableInterruptsAndLCD()
+	call DisableInterruptsAndLCD
+;>     SGBPacketDelay()
+	call SGBPacketDelay
+;>     wSGBPacketID = 0
 	ld a, $00
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+;>     SendSGBPacket()                    # SGB packet 0
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
-	jp Jump_000_028b
+;>     SGBPacketDelay()
+	call SGBPacketDelay
+;=@mode
+	jp .startMode
 
 
-Call_030F::
-	ld a, [$c88a]
+;@ def InitGameMode()
+;@ path: system/modes
+;@ Runs the start-up routine of the current game mode (wGameMode).
+;@ test: skip calls routines in other banks
+InitGameMode::
+;> GameModeInitTable[wGameMode]()
+	ld a, [wGameMode]
 	rst $00
 
-JumpTable_0313::
-	dw Jump_032D
-	dw Jump_0332
-	dw Jump_0337
-	dw Jump_033C
-	dw Jump_0341
-	dw Jump_0346
-	dw $034b
-	dw $0350
-	dw $0355
-	dw $035a
-	dw $035f
-	dw $0364
-	dw $0369
+;@ path: system/modes
+;@ Start-up routine of each game mode, indexed by wGameMode (13 modes, $00-$0C).
+;@ GameModeUpdateTable has the matching per-frame routines. Modes $07 and $0C
+;@ are debug menus (opened by a button combination in the VBlank handler, which
+;@ is switched off).
+GameModeInitTable::
+	dw InitGameMode00
+	dw InitGameMode01
+	dw InitGameMode02
+	dw InitGameMode03
+	dw InitGameMode04
+	dw InitGameMode05
+	dw InitGameMode06
+	dw InitGameMode07
+	dw InitGameMode08
+	dw InitGameMode09
+	dw InitGameMode0A
+	dw InitGameMode0B
+	dw InitGameMode0C
 
-Jump_032D::
+;@ def InitGameMode00()
+;@ path: system/modes
+;@ Starts game mode $00 (bank $15).
+;@ test: skip calls a routine in another bank
+InitGameMode00::
+;> Call_15_4009()
 	ld hl, far_Call_15_4009
 	rst $10
 	ret
 
 
-Jump_0332::
-	ld hl, far_Call_01_401D
+;@ def InitGameMode01()
+;@ path: system/modes
+;@ Starts game mode $01, the field (bank $01).
+;@ test: skip calls a routine in another bank
+InitGameMode01::
+;> FieldInit()
+	ld hl, far_FieldInit
 	rst $10
 	ret
 
 
-Jump_0337::
+;@ def InitGameMode02()
+;@ path: system/modes
+;@ Starts game mode $02 (bank $50).
+;@ test: skip calls a routine in another bank
+InitGameMode02::
+;> Call_50_5DC9()
 	ld hl, far_Call_50_5DC9
 	rst $10
 	ret
 
 
-Jump_033C::
-	ld hl, far_Call_02_4E9F
+;@ def InitGameMode03()
+;@ path: system/modes
+;@ Starts game mode $03 (bank $02).
+;@ test: skip calls a routine in another bank
+InitGameMode03::
+;> InitCutscene()
+	ld hl, far_InitCutscene
 	rst $10
 	ret
 
 
-Jump_0341::
+;@ def InitGameMode04()
+;@ path: system/modes
+;@ Starts game mode $04 (bank $5F).
+;@ test: skip calls a routine in another bank
+InitGameMode04::
+;> Call_5F_4017()
 	ld hl, far_Call_5F_4017
 	rst $10
 	ret
 
 
-Jump_0346::
+;@ def InitGameMode05()
+;@ path: system/modes
+;@ Starts game mode $05 (bank $5F).
+;@ test: skip calls a routine in another bank
+InitGameMode05::
+;> Call_5F_5BB7()
 	ld hl, far_Call_5F_5BB7
 	rst $10
 	ret
 
 
-	db $21, $00, $18, $d7, $c9, $21, $0d, $55, $d7, $c9, $21, $00, $59, $d7, $c9, $21
-	db $02, $59, $d7, $c9, $21, $04, $59, $d7, $c9, $21, $03, $56, $d7, $c9, $21, $07
-	db $56, $d7, $c9
+;@ def InitGameMode06()
+;@ path: system/modes
+;@ Starts game mode $06: entry 0 of bank $18.
+;@ test: skip calls a routine in another bank
+InitGameMode06::
+;> far_call(0x18, 0x00)
+	ld hl, $1800
+	rst $10
+	ret
 
-Jump_000_036e:
+;@ def InitGameMode07()
+;@ path: system/modes
+;@ Starts game mode $07, a debug menu: entry $0D of bank $55.
+;@ test: skip calls a routine in another bank
+InitGameMode07::
+;> far_call(0x55, 0x0D)
+	ld hl, $550d
+	rst $10
+	ret
+
+;@ def InitGameMode08()
+;@ path: system/modes
+;@ Starts game mode $08: entry 0 of bank $59.
+;@ test: skip calls a routine in another bank
+InitGameMode08::
+;> far_call(0x59, 0x00)
+	ld hl, $5900
+	rst $10
+	ret
+
+;@ def InitGameMode09()
+;@ path: system/modes
+;@ Starts game mode $09: entry 2 of bank $59.
+;@ test: skip calls a routine in another bank
+InitGameMode09::
+;> far_call(0x59, 0x02)
+	ld hl, $5902
+	rst $10
+	ret
+
+;@ def InitGameMode0A()
+;@ path: system/modes
+;@ Starts game mode $0A: entry 4 of bank $59.
+;@ test: skip calls a routine in another bank
+InitGameMode0A::
+;> far_call(0x59, 0x04)
+	ld hl, $5904
+	rst $10
+	ret
+
+;@ def InitGameMode0B()
+;@ path: system/modes
+;@ Starts game mode $0B: entry 3 of bank $56.
+;@ test: skip calls a routine in another bank
+InitGameMode0B::
+;> far_call(0x56, 0x03)
+	ld hl, $5603
+	rst $10
+	ret
+
+;@ def InitGameMode0C()
+;@ path: system/modes
+;@ Starts game mode $0C, a debug menu: entry 7 of bank $56.
+;@ test: skip calls a routine in another bank
+InitGameMode0C::
+;> far_call(0x56, 0x07)
+	ld hl, $5607
+	rst $10
+	ret
+
+;@ def VBlankHandler()
+;@ path: system/vblank
+;@ The VBlank interrupt, and the heart of the game: besides the screen updates
+;@ (sprites by DMA, the queued map row, palettes, scroll, screen shake, LCDC) it
+;@ reads the pad, runs the sound engine and then, with interrupts enabled again,
+;@ the current game mode's per-frame routine, the text printer and the palette
+;@ fade. If that work is still running when the next VBlank comes, the new
+;@ interrupt only writes LCDC and updates the sound. Holding A+B+Select+Start
+;@ restarts the game (not while linked).
+;@ test: skip interrupt handler (ends in reti)
+VBlankHandler::
+;> # (all registers are saved and restored)
 	push af
 	push bc
 	push de
 	push hl
-	ld hl, $c8a2
+;>@busy if wVBlankFlags & 1:              # the previous frame's work is still running
+	ld hl, wVBlankFlags
 	bit 0, [hl]
-	jp nz, Jump_000_045c
+	jp nz, .busy
 
+;>@b1     ApplyLCDC()
+;>@b2     if not wSoundBusy:
+;>@b3         UpdateSound()                 # sound engine update
+;>@b4     enable_interrupts()
+;> else:
+;>     wVBlankFlags |= 1
 	set 0, [hl]
-	call $ff80
-	call Call_05AD
-	call Call_124C
-	call Call_122F
-	call Call_056E
-	call Call_1240
-	ld a, [$c86c]
+;>     hOAMDMA()                          # copy wShadowOAM to OAM
+	call hOAMDMA
+;>     VBlankMapUpdate()
+	call VBlankMapUpdate
+;>     ApplyPalettes()
+	call ApplyPalettes
+;>     ApplyScroll()
+	call ApplyScroll
+;>     UpdateScreenShake()
+	call UpdateScreenShake
+;>     ApplyLCDC()
+	call ApplyLCDC
+;>     if wLinkActive:                    # linked: the sound runs before the game logic
+	ld a, [wLinkActive]
 	or a
-	jr z, jr_000_039b
+	jr z, .soundDone
 
-	ld a, [$c8b9]
+;>         if not wSoundBusy:
+;>             UpdateSound()
+	ld a, [wSoundBusy]
 	or a
-	call z, Call_3473
+	call z, UpdateSound
 
-jr_000_039b:
+.soundDone
+;>     enable_interrupts()
 	ei
-	ld a, [$c86c]
+;>     if not wLinkActive:                # (linked games read the pad in LinkFrameUpdate)
+	ld a, [wLinkActive]
 	or a
-	jr nz, jr_000_03b3
+	jr nz, .logic
 
-	call Call_12EE
-	call Call_1364
-	ld hl, $c8b9
+;>         ReadJoypad()
+	call ReadJoypad
+;>         UpdateJoypadPresses()
+	call UpdateJoypadPresses
+;>         wSoundBusy += 1
+	ld hl, wSoundBusy
 	inc [hl]
-	call Call_3473
+;>         UpdateSound()                    # sound engine update
+	call UpdateSound
+;>         wSoundBusy = 0
 	xor a
-	ld [$c8b9], a
+	ld [wSoundBusy], a
 
-jr_000_03b3:
-	call Call_1BB1
-	call Call_046B
-	ld a, [$c86c]
+.logic
+;>     PlayQueuedSounds()
+	call PlayQueuedSounds
+;>     UpdateGameModeFrame()
+	call UpdateGameModeFrame
+;>     if not wLinkActive:
+	ld a, [wLinkActive]
 	or a
-	jr nz, jr_000_03d9
+	jr nz, .checkReset
 
-	ld a, [$c825]
+;>         if wTextState:
+;>             UpdateText()
+	ld a, [wTextState]
 	or a
-	call nz, Call_0618
-	call Call_17EC
-	ld a, [$c8a4]
+	call nz, UpdateText
+;>         UpdateFade()
+	call UpdateFade
+;>         wFrameCounter += 1
+	ld a, [wFrameCounter]
 	add $01
-	ld [$c8a4], a
-	ld a, [$c8a5]
+	ld [wFrameCounter], a
+	ld a, [wFrameCounter + 1]
 	adc $00
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 
-jr_000_03d9:
-	ld a, [$c842]
+.checkReset
+;>     if wJoyHeld & 0x0F == 0x0F:        # A+B+Select+Start
+	ld a, [wJoyHeld]
 	and $0f
 	cp $0f
-	jr nz, jr_000_03e9
+	jr nz, .debug
 
-	ld a, [$c86c]
+;>         if not wLinkActive:
+;>             return SoftReset()
+	ld a, [wLinkActive]
 	or a
-	jp z, Jump_000_015a
+	jp z, SoftReset
 
-jr_000_03e9:
-	ld a, [$c86c]
+.debug
+;>     if not wLinkActive:
+	ld a, [wLinkActive]
 	or a
-	jr nz, jr_000_044d
+	jr nz, .done
 
-	ld a, [$c842]
+;>         if wJoyHeld & 3 == 3 and False:   # A+B held: debug menus, switched off (the jump always skips them)
+	ld a, [wJoyHeld]
 	and $03
 	cp $03
-	jr jr_000_044d
+	jr .done
 
-	db $fa, $46, $c8, $cb, $57, $28, $20, $21, $ad, $c8, $fa, $8a, $c8, $22, $fa, $8b
-	db $c8, $22, $fa, $8c, $c8, $22, $fa, $8d, $c8, $77, $3e, $07, $ea, $8a, $c8, $af
-	db $ea, $8b, $c8, $21, $8e, $c8, $34, $fa, $42, $c8, $cb, $5f, $28, $27, $fa, $46
-	db $c8, $cb, $57, $28, $20, $21, $ad, $c8, $fa, $8a, $c8, $22, $fa, $8b, $c8, $22
-	db $fa, $8c, $c8, $22, $fa, $8d, $c8, $77, $3e, $0c, $ea, $8a, $c8, $af, $ea, $8b
-	db $c8, $21, $8e, $c8, $34
+;>             if wJoyPressed & 0x04:     # Select: debug menu $07
+	ld a, [wJoyPressed]
+	bit 2, a
+	jr z, .debug2
 
-jr_000_044d:
-	ld hl, $c8a2
+;>                 wDebugSavedMode[0] = wGameMode
+	ld hl, wDebugSavedMode
+	ld a, [wGameMode]
+	ld [hli], a
+;>                 wDebugSavedMode[1] = wGameModeStep
+	ld a, [wGameModeStep]
+	ld [hli], a
+;>                 wDebugSavedMode[2] = mem[0xC88C]
+	ld a, [$c88c]
+	ld [hli], a
+;>                 wDebugSavedMode[3] = mem[0xC88D]
+	ld a, [$c88d]
+	ld [hl], a
+;>                 wGameMode = 0x07
+	ld a, $07
+	ld [wGameMode], a
+;>                 wGameModeStep = 0
+	xor a
+	ld [wGameModeStep], a
+;>                 wGameModeChange += 1
+	ld hl, wGameModeChange
+	inc [hl]
+
+.debug2
+;>             if wJoyHeld & 0x08 and wJoyPressed & 0x04:   # Start held, Select: debug menu $0C
+	ld a, [wJoyHeld]
+	bit 3, a
+	jr z, .done
+
+	ld a, [wJoyPressed]
+	bit 2, a
+	jr z, .done
+
+;>                 wDebugSavedMode[0] = wGameMode
+	ld hl, wDebugSavedMode
+	ld a, [wGameMode]
+	ld [hli], a
+;>                 wDebugSavedMode[1] = wGameModeStep
+	ld a, [wGameModeStep]
+	ld [hli], a
+;>                 wDebugSavedMode[2] = mem[0xC88C]
+	ld a, [$c88c]
+	ld [hli], a
+;>                 wDebugSavedMode[3] = mem[0xC88D]
+	ld a, [$c88d]
+	ld [hl], a
+;>                 wGameMode = 0x0C
+	ld a, $0c
+	ld [wGameMode], a
+;>                 wGameModeStep = 0
+	xor a
+	ld [wGameModeStep], a
+;>                 wGameModeChange += 1
+	ld hl, wGameModeChange
+	inc [hl]
+
+.done
+;>     wVBlankFlags &= ~1
+	ld hl, wVBlankFlags
 	res 0, [hl]
 
-jr_000_0452:
+.exit
+;> wVBlankEndLY = rLY
 	ldh a, [rLY]
-	ld [$c886], a
+	ld [wVBlankEndLY], a
+;> return                                 # registers restored, reti
 	pop hl
 	pop de
 	pop bc
@@ -512,662 +934,992 @@ jr_000_0452:
 	reti
 
 
-Jump_000_045c:
-	call Call_1240
-	ld a, [$c8b9]
+.busy
+;=@b1
+	call ApplyLCDC
+;=@b2
+	ld a, [wSoundBusy]
 	or a
-	jr nz, jr_000_0468
+	jr nz, .busyDone
 
-	call Call_3473
+;=@b3
+	call UpdateSound
 
-jr_000_0468:
+.busyDone
+;=@b4
 	ei
-	jr jr_000_0452
+	jr .exit
 
-Call_046B::
+;@ def UpdateGameModeFrame()
+;@ path: system/modes
+;@ Per-frame game work done by the VBlank handler: starts a new sprite list, runs
+;@ the current game mode, then hides the sprite slots it did not use (not while
+;@ the screen fades out, so the last picture stays).
+;@ test: skip calls game mode routines in other banks
+UpdateGameModeFrame::
+;> hOAMCount = 0
 	xor a
-	ldh [$ffcb], a
-	call Call_04FB
-	ld a, [$c850]
+	ldh [hOAMCount], a
+;> UpdateGameMode()
+	call UpdateGameMode
+;> if wFadeState and not wFadeState & 0x80:   # fading out
+;>     return
+	ld a, [wFadeState]
 	or a
-	jr z, jr_000_047a
+	jr z, .hide
 
 	bit 7, a
 	ret z
 
-jr_000_047a:
-	call Call_1424
+.hide
+;> HideUnusedSprites()
+	call HideUnusedSprites
 	ret
 
 
-Call_047E::
-	ld a, [$c86c]
+;@ def LinkFrameUpdate()
+;@ path: link/frame
+;@ Called every frame by the game modes while two Game Boys are linked. Counts
+;@ the frames since the partner last answered (after 256 the game restarts),
+;@ keeps the own pad state for the partner, reads the pad, and starts the next
+;@ transfer as master: the single byte in wLinkSendByte, else the next byte of
+;@ the send buffer, else $F0 (nothing to say).
+;@ test: skip starts a serial transfer
+LinkFrameUpdate::
+;> if not wLinkActive:
+;>     return
+	ld a, [wLinkActive]
 	or a
 	ret z
 
-	ld a, [$c8c8]
+;> wLinkTimeout += 1
+	ld a, [wLinkTimeout]
 	add $01
-	ld [$c8c8], a
-	ld a, [$c8c9]
+	ld [wLinkTimeout], a
+	ld a, [wLinkTimeout + 1]
 	adc $00
-	ld [$c8c9], a
-	ld a, [$c8c9]
+	ld [wLinkTimeout + 1], a
+;> if wLinkTimeout >= 0x100:              # the partner is gone
+;>     return SoftReset()
+	ld a, [wLinkTimeout + 1]
 	or a
-	jp nz, Jump_000_015a
+	jp nz, SoftReset
 
-	ld a, [$c863]
+;> if wLinkFlags & 0x02:
+;>     return
+	ld a, [wLinkFlags]
 	bit 1, a
 	ret nz
 
-	ld a, [$c8a2]
+;> if wVBlankFlags & 0x02:
+;>     return
+	ld a, [wVBlankFlags]
 	bit 1, a
 	ret nz
 
-	ld a, [$c842]
-	ld [$c84e], a
-	ld a, [$c843]
-	ld [$c84f], a
-	call Call_12EE
-	ld a, [$c873]
+;> wLinkJoyHeld = wJoyHeld
+	ld a, [wJoyHeld]
+	ld [wLinkJoyHeld], a
+;> wLinkJoyHeldLast = wJoyHeldLast
+	ld a, [wJoyHeldLast]
+	ld [wLinkJoyHeldLast], a
+;> ReadJoypad()
+	call ReadJoypad
+;> if wLinkSendByte != 0xFF:
+	ld a, [wLinkSendByte]
 	cp $ff
-	jr z, jr_000_04c7
+	jr z, .buffer
 
+;>     wLinkPhase = 0
 	ld a, $00
-	ld [$c866], a
-	ld a, [$c873]
-	jp Call_126B
+	ld [wLinkPhase], a
+;>     return SerialSendMaster(wLinkSendByte)
+	ld a, [wLinkSendByte]
+	jp SerialSendMaster
 
 
-jr_000_04c7:
-	ld hl, $c871
+.buffer
+;> if wLinkSendLength:
+	ld hl, wLinkSendLength
 	ld a, [hli]
 	or [hl]
-	jr z, jr_000_04f1
+	jr z, .nothing
 
-	ld a, [$c874]
+;>     ptr = wLinkSendPtr
+	ld a, [wLinkSendPtr]
 	ld l, a
-	ld a, [$c875]
+	ld a, [wLinkSendPtr + 1]
 	ld h, a
 	push hl
-	ld a, [$c874]
+;>     wLinkSendPtr += 1
+	ld a, [wLinkSendPtr]
 	add $01
-	ld [$c874], a
-	ld a, [$c875]
+	ld [wLinkSendPtr], a
+	ld a, [wLinkSendPtr + 1]
 	adc $00
-	ld [$c875], a
+	ld [wLinkSendPtr + 1], a
+;>     wLinkPhase = 0
 	pop hl
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
+;>     return SerialSendMaster(mem[ptr])
 	ld a, [hl]
-	jp Call_126B
+	jp SerialSendMaster
 
 
-jr_000_04f1:
+.nothing
+;> wLinkPhase = 0
 	ld a, $00
-	ld [$c866], a
+	ld [wLinkPhase], a
+;> return SerialSendMaster(0xF0)
 	ld a, $f0
-	jp Call_126B
+	jp SerialSendMaster
 
 
-Call_04FB::
-	ld a, [$c88e]
+;@ def UpdateGameMode()
+;@ path: system/modes
+;@ Runs the per-frame routine of the current game mode, unless a mode change is
+;@ pending or (without a link) the screen is fading out.
+;@ test: skip calls routines in other banks
+UpdateGameMode::
+;> if wGameModeChange:
+;>     return
+	ld a, [wGameModeChange]
 	or a
 	ret nz
 
-	ld a, [$c86c]
+;> if not wLinkActive and wFadeState and not wFadeState & 0x80:
+	ld a, [wLinkActive]
 	or a
-	jr nz, jr_000_050f
+	jr nz, .run
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	or a
-	jr z, jr_000_050f
+	jr z, .run
 
+;>     return
 	bit 7, a
 	ret z
 
-jr_000_050f:
-	ld a, [$c88a]
+.run
+;> GameModeUpdateTable[wGameMode]()
+	ld a, [wGameMode]
 	rst $00
 
-JumpTable_0513::
-	dw Jump_052D
-	dw Jump_0532
-	dw Jump_0537
-	dw Jump_053C
-	dw Jump_0541
-	dw Jump_0546
-	dw Jump_054B
-	dw $0550
-	dw $0555
-	dw $055a
-	dw $055f
-	dw $0564
-	dw $0569
+;@ path: system/modes
+;@ Per-frame routine of each game mode, indexed by wGameMode (see GameModeInitTable).
+GameModeUpdateTable::
+	dw UpdateGameMode00
+	dw UpdateGameMode01
+	dw UpdateGameMode02
+	dw UpdateGameMode03
+	dw UpdateGameMode04
+	dw UpdateGameMode05
+	dw UpdateGameMode06
+	dw UpdateGameMode07
+	dw UpdateGameMode08
+	dw UpdateGameMode09
+	dw UpdateGameMode0A
+	dw UpdateGameMode0B
+	dw UpdateGameMode0C
 
-Jump_052D::
+;@ def UpdateGameMode00()
+;@ path: system/modes
+;@ Per-frame routine of game mode $00: entry 1 of bank $15.
+;@ test: skip calls a routine in another bank
+UpdateGameMode00::
+;> far_call(0x15, 0x01)
 	ld hl, $1501
 	rst $10
 	ret
 
 
-Jump_0532::
+;@ def UpdateGameMode01()
+;@ path: system/modes
+;@ Per-frame routine of game mode $01, the field: entry 1 of bank $01.
+;@ test: skip calls a routine in another bank
+UpdateGameMode01::
+;> far_call(0x01, 0x01)
 	ld hl, $0101
 	rst $10
 	ret
 
 
-Jump_0537::
+;@ def UpdateGameMode02()
+;@ path: system/modes
+;@ Per-frame routine of game mode $02 (bank $50).
+;@ test: skip calls a routine in another bank
+UpdateGameMode02::
+;> Call_50_5E21()
 	ld hl, far_Call_50_5E21
 	rst $10
 	ret
 
 
-Jump_053C::
-	ld hl, far_Call_02_512C
+;@ def UpdateGameMode03()
+;@ path: system/modes
+;@ Per-frame routine of game mode $03 (bank $02).
+;@ test: skip calls a routine in another bank
+UpdateGameMode03::
+;> RunCutscene()
+	ld hl, far_RunCutscene
 	rst $10
 	ret
 
 
-Jump_0541::
+;@ def UpdateGameMode04()
+;@ path: system/modes
+;@ Per-frame routine of game mode $04 (bank $5F).
+;@ test: skip calls a routine in another bank
+UpdateGameMode04::
+;> Call_5F_40F7()
 	ld hl, far_Call_5F_40F7
 	rst $10
 	ret
 
 
-Jump_0546::
+;@ def UpdateGameMode05()
+;@ path: system/modes
+;@ Per-frame routine of game mode $05 (bank $5F).
+;@ test: skip calls a routine in another bank
+UpdateGameMode05::
+;> Call_5F_5C8D()
 	ld hl, far_Call_5F_5C8D
 	rst $10
 	ret
 
 
-Jump_054B::
+;@ def UpdateGameMode06()
+;@ path: system/modes
+;@ Per-frame routine of game mode $06 (bank $18).
+;@ test: skip calls a routine in another bank
+UpdateGameMode06::
+;> Call_18_42DE()
 	ld hl, far_Call_18_42DE
 	rst $10
 	ret
 
 
-	db $21, $0e, $55, $d7, $c9, $21, $01, $59, $d7, $c9, $21, $03, $59, $d7, $c9, $21
-	db $05, $59, $d7, $c9, $21, $04, $56, $d7, $c9, $21, $08, $56, $d7, $c9
+;@ def UpdateGameMode07()
+;@ path: system/modes
+;@ Per-frame routine of game mode $07, a debug menu: entry $0E of bank $55.
+;@ test: skip calls a routine in another bank
+UpdateGameMode07::
+;> far_call(0x55, 0x0E)
+	ld hl, $550e
+	rst $10
+	ret
 
-Call_056E::
-	ld a, [$c8b1]
+;@ def UpdateGameMode08()
+;@ path: system/modes
+;@ Per-frame routine of game mode $08: entry 1 of bank $59.
+;@ test: skip calls a routine in another bank
+UpdateGameMode08::
+;> far_call(0x59, 0x01)
+	ld hl, $5901
+	rst $10
+	ret
+
+;@ def UpdateGameMode09()
+;@ path: system/modes
+;@ Per-frame routine of game mode $09: entry 3 of bank $59.
+;@ test: skip calls a routine in another bank
+UpdateGameMode09::
+;> far_call(0x59, 0x03)
+	ld hl, $5903
+	rst $10
+	ret
+
+;@ def UpdateGameMode0A()
+;@ path: system/modes
+;@ Per-frame routine of game mode $0A: entry 5 of bank $59.
+;@ test: skip calls a routine in another bank
+UpdateGameMode0A::
+;> far_call(0x59, 0x05)
+	ld hl, $5905
+	rst $10
+	ret
+
+;@ def UpdateGameMode0B()
+;@ path: system/modes
+;@ Per-frame routine of game mode $0B: entry 4 of bank $56.
+;@ test: skip calls a routine in another bank
+UpdateGameMode0B::
+;> far_call(0x56, 0x04)
+	ld hl, $5604
+	rst $10
+	ret
+
+;@ def UpdateGameMode0C()
+;@ path: system/modes
+;@ Per-frame routine of game mode $0C, a debug menu: entry 8 of bank $56.
+;@ test: skip calls a routine in another bank
+UpdateGameMode0C::
+;> far_call(0x56, 0x08)
+	ld hl, $5608
+	rst $10
+	ret
+
+;@ def UpdateScreenShake()
+;@ path: gfx/scroll
+;@ Shakes the screen while wShakeY / wShakeX count down: each frame the scroll
+;@ register is moved by -4..+3 pixels following a triangle wave of the timer.
+;@ (ApplyScroll has just written the real position, so the shake never sticks.)
+UpdateScreenShake::
+;> if wShakeY:
+	ld a, [wShakeY]
 	or a
-	jr z, jr_000_058d
+	jr z, .x
 
+;>     wShakeY -= 1
 	dec a
-	ld [$c8b1], a
+	ld [wShakeY], a
+;>     t = wShakeY * 2
 	ldh a, [rSCY]
 	ld b, a
-	ld a, [$c8b1]
+	ld a, [wShakeY]
 	add a
 	ld c, a
+;>     wave = t & 7 if t & 8 else (t & 7) ^ 7
 	and $07
 	bit 3, c
-	jr nz, jr_000_0588
+	jr nz, .y
 
 	xor $07
 
-jr_000_0588:
+.y
+;>     rSCY = u8(rSCY + wave - 4)
 	sub $04
 	add b
 	ldh [rSCY], a
 
-jr_000_058d:
-	ld a, [$c8b2]
+.x
+;> if wShakeX:
+	ld a, [wShakeX]
 	or a
-	jr z, jr_000_05ac
+	jr z, .done
 
+;>     wShakeX -= 1
 	dec a
-	ld [$c8b2], a
+	ld [wShakeX], a
+;>     t = wShakeX * 2
 	ldh a, [rSCX]
 	ld b, a
-	ld a, [$c8b2]
+	ld a, [wShakeX]
 	add a
 	ld c, a
+;>     wave = t & 7 if t & 8 else (t & 7) ^ 7
 	and $07
 	bit 3, c
-	jr nz, jr_000_05a7
+	jr nz, .xx
 
 	xor $07
 
-jr_000_05a7:
+.xx
+;>     rSCX = u8(rSCX + wave - 4)
 	sub $04
 	add b
 	ldh [rSCX], a
 
-jr_000_05ac:
+.done
 	ret
 
 
-Call_05AD::
-	ld a, [$c8a3]
+;@ def VBlankMapUpdate()
+;@ path: gfx/tilemap
+;@ Copies the queued background row or column (CopyMapUpdate) when one is on.
+VBlankMapUpdate::
+;> if not wMapUpdateOn:
+;>     return
+	ld a, [wMapUpdateOn]
 	or a
 	ret z
 
-	call Call_143C
+;> CopyMapUpdate()
+	call CopyMapUpdate
 	ret
 
 
-Call_05B6::
+;@ def StartText(table: de)
+;@ path: text/printer
+;@ Starts printing text number wTextGroup/wTextIndex from the two-level pointer
+;@ table `table` (in the current bank) into the text box set up by SetUpTextBox:
+;@ clears the box's letter tiles, puts the cursor at their start and switches
+;@ the text printer on. The text banks call it from their entry points.
+;@ test: skip calls a routine in another bank
+StartText::
+;> Call_56_4485()                         # clear the text box tiles
 	push de
 	ld hl, far_Call_56_4485
 	rst $10
-	ld a, [$c827]
+;> tiles = wTextTiles
+	ld a, [wTextTiles]
 	ld l, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld h, a
+;> wTextCursor = tiles
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
-	ld [$c82c], a
+	ld [wTextCursor + 1], a
+;> wTextLineStart = tiles
 	ld a, l
-	ld [$c82f], a
+	ld [wTextLineStart], a
 	ld a, h
-	ld [$c830], a
+	ld [wTextLineStart + 1], a
+;> text = LookUpTextPointer(table)
 	pop de
-	call Call_092F
+	call LookUpTextPointer
+;> wTextPtr = text
 	ld a, e
-	ld [$c82d], a
+	ld [wTextPtr], a
 	ld a, d
-	ld [$c82e], a
+	ld [wTextPtr + 1], a
+;> wTextStart = text
 	ld a, e
-	ld [$c831], a
+	ld [wTextStart], a
 	ld a, d
-	ld [$c832], a
+	ld [wTextStart + 1], a
+;> wTextState = 1                         # printing
 	ld a, $01
-	ld [$c825], a
+	ld [wTextState], a
+;> wTextFlags = 0
 	ld a, $00
-	ld [$c826], a
+	ld [wTextFlags], a
+;> wTextDelay = 0
 	xor a
-	ld [$c839], a
+	ld [wTextDelay], a
 	ret
 
 
-Call_05F6::
-	call Call_092F
-	ld a, [$c837]
+;@ def CopyTextString(table: de)
+;@ path: text/printer
+;@ Copies text number wTextGroup/wTextIndex from the pointer table `table`, up
+;@ to and including its $F0 end mark, to the buffer at wTextCopyDest.
+CopyTextString::
+;> src = LookUpTextPointer(table)
+	call LookUpTextPointer
+;> dest = wTextCopyDest
+	ld a, [wTextCopyDest]
 	ld l, a
-	ld a, [$c838]
+	ld a, [wTextCopyDest + 1]
 	ld h, a
 
-jr_000_0601:
+.copy
+;> while True:
+;>     c = mem[src]; mem[dest] = c; src += 1; dest += 1
 	ld a, [de]
 	ld [hli], a
 	inc de
+;>     if c == 0xF0:
+;>         break
 	cp $f0
-	jr nz, jr_000_0601
+	jr nz, .copy
 
 	ret
 
 
-Call_0609::
-	ld hl, $c825
+;@ def RunTextToEnd()
+;@ path: text/printer
+;@ Prints the current text without letter delay and waits until it is done
+;@ (prompts in it still wait for a button, read by the VBlank handler).
+;@ test: skip waits for the pad
+RunTextToEnd::
+;> wTextState |= 0x02                     # no delay
+	ld hl, wTextState
 	set 1, [hl]
 
-jr_000_060e:
-	call Call_0618
-	ld a, [$c825]
+.loop
+;> while True:
+;>     UpdateText()
+	call UpdateText
+;>     if not wTextState:
+;>         break
+	ld a, [wTextState]
 	or a
-	jr nz, jr_000_060e
+	jr nz, .loop
 
 	ret
 
 
-Call_0618::
-	ld a, [$c826]
+;@ def UpdateText()
+;@ path: text/printer
+;@ The text printer's per-frame step (the VBlank handler calls it while
+;@ wTextState is on). Once a button has sped the text up (wTextFlags bit 7), it
+;@ keeps printing letters without delay in this same frame for as long as that
+;@ flag stays set.
+;@ test: skip runs the text printer
+UpdateText::
+;> if not wTextFlags & 0x80:
+;>     return TextPrinterStep()
+	ld a, [wTextFlags]
 	bit 7, a
-	jr z, Call_062F
+	jr z, TextPrinterStep
 
-jr_000_061f:
-	ld hl, $c825
+.fast
+;> while True:
+;>     wTextState |= 0x02
+	ld hl, wTextState
 	set 1, [hl]
-	call Call_062F
-	ld a, [$c826]
+;>     TextPrinterStep()
+	call TextPrinterStep
+;>     if not wTextFlags & 0x80:
+;>         break
+	ld a, [wTextFlags]
 	bit 7, a
-	jr nz, jr_000_061f
+	jr nz, .fast
 
 	ret
 
 
-Call_062F::
+;@ def TextPrinterStep()
+;@ path: text/printer
+;@ One step of the text printer, with the text's bank switched in:
+;@ - blinks the prompt arrow (box row 3, column 9) while wTextState bit 5 is set;
+;@ - bit 2, waiting for a button: for a yes/no question (control code $E6 or
+;@   $FF) Up/Down move the arrow between the two lines of the yes/no window
+;@   (screen column 15, rows 9 and 11); A answers (yes plays sound $59 unless the
+;@   code was $E6), B answers no; then the screen under the window is restored
+;@   from wTilemapBuffer and its tiles are reloaded. Otherwise any button except
+;@   Start goes on;
+;@ - bit 6: a wait that ends after wTextWaitTimer frames or on a button;
+;@ - bit 7: a pause of wTextPauseTimer frames;
+;@ - else the next byte of the text: $8D/$8E add a diacritic mark to the last
+;@   letter, $E0-$FF are control codes (run by Call_56_44C7), anything else is a
+;@   letter, drawn once wTextDelay has reached the speed (2 frames, or wTextSpeed);
+;@   a button press (not Start) makes the rest print without delay.
+;@ test: skip switches banks and calls a routine in another bank
+TextPrinterStep::
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
-	ld a, [$c824]
+;> set_rom_bank(wTextBank)
+	ld a, [wTextBank]
 	ld [$2100], a
+;> mem[0x4100] = (wTextBank >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
-	ld a, [$c825]
+;> if wTextState:
+	ld a, [wTextState]
 	or a
-	jp z, Jump_000_0853
+	jp z, .done
 
+;>     if wTextState & 0x20:              # the prompt arrow blinks
 	bit 5, a
-	jr z, jr_000_0666
+	jr z, .waiting
 
+;>         tile = 0xEE if wFrameCounter & 0x10 else 0xEA   # box background / arrow
 	ld c, $ea
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_000_0657
+	jr z, .arrow
 
 	ld c, $ee
 
-jr_000_0657:
+.arrow
+;>         WriteVRAM(MapAdvanceTiles(TextBoxMapAddress(0x60), 9), tile)
 	ld hl, $0060
-	call Call_0CFD
+	call TextBoxMapAddress
 	ld b, $09
-	call Call_0CE7
+	call MapAdvanceTiles
 	ld a, c
-	call Call_1AAD
+	call WriteVRAM
 
-jr_000_0666:
-	ld a, [$c825]
+.waiting
+;>     if wTextState & 0x04:              # waiting for a button
+	ld a, [wTextState]
 	bit 2, a
-	jp z, Jump_000_076d
+	jp z, .timedWait
 
-	ld a, [$c83a]
+;>         if wTextControlCode in (0xE6, 0xFF):   # a yes/no question
+	ld a, [wTextControlCode]
 	cp $e6
-	jp z, Jump_000_067e
+	jp z, .choice
 
-	ld a, [$c83a]
+	ld a, [wTextControlCode]
 	cp $ff
-	jp nz, Jump_000_0753
+	jp nz, .anyButton
 
-Jump_000_067e:
-	ld a, [$c846]
+.choice
+;>             pressed = wJoyPressed | wJoy2Pressed
+	ld a, [wJoyPressed]
 	ld b, a
-	ld a, [$c84a]
+	ld a, [wJoy2Pressed]
 	or b
+;>             if pressed & 0x40:         # Up: yes
 	bit 6, a
-	jr z, jr_000_0698
+	jr z, .down
 
-	ld a, [$c83c]
+;>                 wTextChoice = 0
+	ld a, [wTextChoice]
 	cp $00
-	jr z, jr_000_06a8
+	jr z, .draw
 
 	ld a, $00
-	ld [$c83c], a
-	jr jr_000_06a8
+	ld [wTextChoice], a
+	jr .draw
 
-jr_000_0698:
+.down
+;>             elif pressed & 0x80:       # Down: no
 	bit 7, a
-	jr z, jr_000_06a8
+	jr z, .draw
 
-	ld a, [$c83c]
+;>                 wTextChoice = 1
+	ld a, [wTextChoice]
 	cp $01
-	jr z, jr_000_06a8
+	jr z, .draw
 
 	ld a, $01
-	ld [$c83c], a
+	ld [wTextChoice], a
 
-jr_000_06a8:
+.draw
+;>             yes_tile, no_tile = 0xE8, 0xE0     # arrow on the "yes" line
 	ld c, $e8
 	ld b, $e0
-	ld a, [$c83c]
+;>             if wTextChoice:
+;>                 yes_tile, no_tile = 0xE0, 0xE8   # arrow on the "no" line
+	ld a, [wTextChoice]
 	or a
-	jr z, jr_000_06b6
+	jr z, .blink
 
 	ld c, $e0
 	ld b, $e8
 
-jr_000_06b6:
-	ld a, [$c8a4]
+.blink
+;>             if wFrameCounter & 0x10:
+;>                 yes_tile, no_tile = 0xE0, 0xE0   # blinked off
+	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_000_06c1
+	jr z, .drawArrows
 
 	ld c, $e0
 	ld b, $e0
 
-jr_000_06c1:
+.drawArrows
+;>             pos = MapAdvanceTiles(ScreenMapAddress(0x120), 15)   # screen row 9, column 15
 	push bc
 	ld hl, $0120
-	call Call_0D11
+	call ScreenMapAddress
 	ld b, $0f
-	call Call_0CE7
+	call MapAdvanceTiles
+;>             WriteVRAM(pos, yes_tile)
 	pop bc
 	ld a, c
-	call Call_1AAD
+	call WriteVRAM
+;>             pos = MapAdvanceTiles(ScreenMapAddress(0x160), 15)   # screen row 11, column 15
 	push bc
 	ld hl, $0160
-	call Call_0D11
+	call ScreenMapAddress
 	ld b, $0f
-	call Call_0CE7
+	call MapAdvanceTiles
+;>             WriteVRAM(pos, no_tile)
 	pop bc
 	ld a, b
-	call Call_1AAD
-	ld a, [$c846]
+	call WriteVRAM
+;>             pressed = wJoyPressed | wJoy2Pressed
+	ld a, [wJoyPressed]
 	ld b, a
-	ld a, [$c84a]
+	ld a, [wJoy2Pressed]
 	or b
+;>@ab             if pressed & 0x03:         # A or B answers
+;>                 if pressed & 0x01 and wTextChoice == 0:   # A on "yes"
 	bit 0, a
-	jr z, jr_000_0704
+	jr z, .notA
 
-	ld a, [$c83c]
+	ld a, [wTextChoice]
 	or a
-	jr nz, jr_000_0709
+	jr nz, .answerNo
 
-	ld a, [$c83a]
+;>                     if wTextControlCode != 0xE6:
+	ld a, [wTextControlCode]
 	cp $e6
-	jp z, Jump_000_070e
+	jp z, .close
 
+;>                         QueueSound(0x59)
 	ld a, $59
-	call Call_1B2C
-	jr jr_000_070e
+	call QueueSound
+	jr .close
 
-jr_000_0704:
+.notA
+;=@ab
 	bit 1, a
-	jp z, Jump_000_0853
+	jp z, .done
 
-jr_000_0709:
+.answerNo
+;>                 else:
+;>                     wTextChoice = 1
 	ld a, $01
-	ld [$c83c], a
+	ld [wTextChoice], a
 
-Jump_000_070e:
-jr_000_070e:
-	ld hl, $c825
+.close
+;>                 wTextState &= ~0x06    # no longer waiting
+	ld hl, wTextState
 	res 2, [hl]
 	res 1, [hl]
+;>                 row_addr = ScreenMapAddress(0)   # put back the screen under the window
 	ld hl, $0000
-	call Call_0D11
-	ld de, $c500
+	call ScreenMapAddress
+;>@row                 for row in range(18):
+	ld de, wTilemapBuffer
 	ld c, $12
 
-jr_000_0720:
+.row
+;>@col                     for col in range(32):
 	ld b, $20
 	push hl
 
-jr_000_0723:
+.col
+;>                         WriteVRAM(addr, mem[src])     # addr starts at row_addr, src at wTilemapBuffer
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
+;>                         next_col = (addr + 1) & 0x1F
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;>                         addr = (addr & ~0x1F) | next_col   # wraps within the map row
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>                         src += 1
 	inc de
+;=@col
 	dec b
-	jr nz, jr_000_0723
+	jr nz, .col
 
+;>                     row_addr += 0x20
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
+;>                     row_addr = 0x9800 | (row_addr & 0x3FF)   # wraps within the map
 	ld a, h
 	and $03
 	or $98
 	ld h, a
 	pop bc
+;=@row
 	dec c
-	jr nz, jr_000_0720
+	jr nz, .row
 
+;>                 DecompressVRAM(0x56, 0x0B, 0x8E50)   # reload the tiles the window used
 	ld de, $560b
 	ld hl, $8e50
-	call Call_1577
-	jp Jump_000_0853
+	call DecompressVRAM
+	jp .done
 
 
-Jump_000_0753:
-	ld a, [$c846]
+.anyButton
+;>         else:
+;>             if (wJoyPressed | wJoy2Pressed) & ~0x08:   # any button but Start
+	ld a, [wJoyPressed]
 	ld b, a
-	ld a, [$c84a]
+	ld a, [wJoy2Pressed]
 	or b
 	and $f7
-	jp z, Jump_000_0853
+	jp z, .done
 
-	ld hl, $c825
+;>                 wTextState &= ~0x06
+	ld hl, wTextState
 	res 2, [hl]
 	res 1, [hl]
-	call Call_0864
-	jp Jump_000_0853
+;>                 EraseTextPromptArrow()
+	call EraseTextPromptArrow
+	jp .done
 
 
-Jump_000_076d:
+.timedWait
+;>     elif wTextState & 0x40:            # a wait that a button can cut short
 	bit 6, a
-	jr z, jr_000_0794
+	jr z, .pause
 
-	ld a, [$c835]
+;>         wTextWaitTimer -= 1
+	ld a, [wTextWaitTimer]
 	dec a
-	ld [$c835], a
+	ld [wTextWaitTimer], a
+;>@wt         if wTextWaitTimer == 0 or (wJoyPressed | wJoy2Pressed) & ~0x08:
 	or a
-	jp z, Jump_000_0789
+	jp z, .endWait
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	ld b, a
-	ld a, [$c84a]
+;=@wt
+	ld a, [wJoy2Pressed]
 	or b
 	and $f7
-	jp z, Jump_000_0853
+	jp z, .done
 
-Jump_000_0789:
-	ld hl, $c825
+.endWait
+;>             wTextState &= ~0x40
+	ld hl, wTextState
 	res 6, [hl]
-	call Call_0864
-	jp Jump_000_0853
+;>             EraseTextPromptArrow()
+	call EraseTextPromptArrow
+	jp .done
 
 
-jr_000_0794:
+.pause
+;>     elif wTextState & 0x80:            # a pause
 	bit 7, a
-	jr z, jr_000_07ab
+	jr z, .letter
 
-	ld a, [$c836]
+;>         wTextPauseTimer -= 1
+	ld a, [wTextPauseTimer]
 	dec a
-	ld [$c836], a
+	ld [wTextPauseTimer], a
+;>         if wTextPauseTimer == 0:
 	or a
-	jp nz, Jump_000_0853
+	jp nz, .done
 
-	ld hl, $c825
+;>             wTextState &= ~0x80
+	ld hl, wTextState
 	res 7, [hl]
-	jp Jump_000_0853
+	jp .done
 
 
-jr_000_07ab:
-	ld a, [$c82d]
+.letter
+;>     else:
+;>         ptr = wTextPtr
+	ld a, [wTextPtr]
 	ld l, a
-	ld a, [$c82e]
+	ld a, [wTextPtr + 1]
 	ld h, a
+;>         c = mem[ptr]
 	ld a, [hl]
+;>         if c in (0x8D, 0x8E):          # a diacritic mark for the last letter
 	cp $8d
-	jp z, Jump_000_0822
+	jp z, .diacritic
 
 	cp $8e
-	jp z, Jump_000_0822
+	jp z, .diacritic
 
+;>@dia1             wTextPtr += 1
+;>@dia2             DrawDiacritic(c)
+;>         elif c >= 0xE0:                # a control code
 	cp $e0
-	jp nc, Jump_000_0838
+	jp nc, .control
 
-	ld a, [$c825]
+;>@ctl1             wTextPtr += 1
+;>@ctl2             Call_56_44C7(c)                # runs the control code
+;>@ctl3             wTextFlags &= ~0x02
+;>         else:
+;>             ready = True
+;>             if not wTextState & 0x02:  # with letter delay
+	ld a, [wTextState]
 	bit 1, a
-	jr nz, jr_000_07f0
+	jr nz, .print
 
-	ld a, [$c846]
+;>                 if (wJoyPressed | wJoy2Pressed) & ~0x08:   # a button speeds the text up
+	ld a, [wJoyPressed]
 	ld b, a
-	ld a, [$c84a]
+	ld a, [wJoy2Pressed]
 	or b
 	and $f7
-	jr z, jr_000_07db
+	jr z, .speed
 
-	ld hl, $c826
+;>                     wTextFlags |= 0x80
+	ld hl, wTextFlags
 	set 7, [hl]
 
-jr_000_07db:
+.speed
+;>                 speed = 2
 	ld a, $02
 	ld b, a
-	ld a, [$c825]
+;>                 if wTextState & 0x08:
+;>                     speed = wTextSpeed
+	ld a, [wTextState]
 	bit 3, a
-	jr z, jr_000_07e9
+	jr z, .delay
 
-	ld a, [$c833]
+	ld a, [wTextSpeed]
 	ld b, a
 
-jr_000_07e9:
-	ld a, [$c839]
+.delay
+;>                 ready = wTextDelay >= speed
+	ld a, [wTextDelay]
 	cp b
-	jp c, Jump_000_0853
+	jp c, .done
 
-jr_000_07f0:
+.print
+;>             if ready:
+;>                 wTextDelay = 0
 	xor a
-	ld [$c839], a
-	ld hl, $c826
+	ld [wTextDelay], a
+;>                 wTextFlags &= ~0x02
+	ld hl, wTextFlags
 	res 1, [hl]
-	call Call_0954
+;>                 ptr = NextTextByte()   # (its re-check for a control code can never fire)
+	call NextTextByte
 	ld a, [hl]
 	cp $e0
-	jp nc, Jump_000_0838
+	jp nc, .control
 
-	call Call_0880
-	ld a, [$c826]
+;>                 DrawGlyph(c)
+	call DrawGlyph
+;>                 if wTextFlags & 0x01:  # beep per letter
+	ld a, [wTextFlags]
 	bit 0, a
-	jr z, jr_000_0853
+	jr z, .done
 
+;>                     if speed not in (0x90, 0x9A):   # tests b, which still holds the delay, not the letter
 	ld a, b
 	cp $90
-	jr z, jr_000_0853
+	jr z, .done
 
 	cp $9a
-	jr z, jr_000_0853
+	jr z, .done
 
-	ld a, [$c840]
-	call Call_1B2C
-	ld hl, $c826
+;>                         QueueSound(wTextBeep)
+	ld a, [wTextBeep]
+	call QueueSound
+;>                         wTextFlags |= 0x02
+	ld hl, wTextFlags
 	set 1, [hl]
-	jr jr_000_0853
+	jr .done
 
-Jump_000_0822:
-	ld a, [$c82d]
+.diacritic
+;=@dia1
+	ld a, [wTextPtr]
 	add $01
-	ld [$c82d], a
-	ld a, [$c82e]
+	ld [wTextPtr], a
+	ld a, [wTextPtr + 1]
 	adc $00
-	ld [$c82e], a
+	ld [wTextPtr + 1], a
+;=@dia2
 	ld a, [hl]
-	call Call_08C1
-	jr jr_000_0853
+	call DrawDiacritic
+	jr .done
 
-Jump_000_0838:
-	ld a, [$c82d]
+.control
+;=@ctl1
+	ld a, [wTextPtr]
 	add $01
-	ld [$c82d], a
-	ld a, [$c82e]
+	ld [wTextPtr], a
+	ld a, [wTextPtr + 1]
 	adc $00
-	ld [$c82e], a
+	ld [wTextPtr + 1], a
+;=@ctl2
 	ld a, [hl]
 	ld d, a
 	ld hl, far_Call_56_44C7
 	rst $10
-	ld hl, $c826
+;=@ctl3
+	ld hl, wTextFlags
 	res 1, [hl]
 
-Jump_000_0853:
-jr_000_0853:
-	ld hl, $c839
+.done
+;> wTextDelay += 1
+	ld hl, wTextDelay
 	inc [hl]
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -1175,35 +1927,54 @@ jr_000_0853:
 	ret
 
 
-Call_0864::
-	ld a, [$c825]
+;@ def EraseTextPromptArrow()
+;@ path: text/printer
+;@ Removes the blinking prompt arrow (box row 3, column 9) if it is shown.
+EraseTextPromptArrow::
+;> if not wTextState & 0x20:
+;>     return
+	ld a, [wTextState]
 	bit 5, a
 	ret z
 
+;> wTextState &= ~0x20
 	res 5, a
-	ld [$c825], a
+	ld [wTextState], a
+;> pos = MapAdvanceTiles(TextBoxMapAddress(0x60), 9)
 	ld hl, $0060
-	call Call_0CFD
+	call TextBoxMapAddress
 	ld b, $09
-	call Call_0CE7
+	call MapAdvanceTiles
+;> WriteVRAM(pos, 0xEE)                   # box background tile
 	ld a, $ee
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
-Call_0880::
+;@ def DrawGlyph(char: a)
+;@ path: text/font
+;@ Draws letter `char` at the text cursor (CopyGlyphToCursor) with the font
+;@ bank $4F switched in.
+;@ test: skip switches banks
+DrawGlyph::
+;> saved = rom_bank()
 	ld l, a
 	ld a, [$4000]
 	push af
+;> set_rom_bank(0x4F)                     # the font
 	ld a, $4f
 	ld [$2100], a
+;> mem[0x4100] = (0x4F >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
-	call Call_08A2
+;> CopyGlyphToCursor(char)
+	call CopyGlyphToCursor
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -1211,48 +1982,75 @@ Call_0880::
 	ret
 
 
-Call_08A2::
-	call Call_091A
+;@ def CopyGlyphToCursor(char: l)
+;@ path: text/font
+;@ Copies the 16-byte tile of letter `char` from the font (bank $4F, $4010 +
+;@ 16 * char) to the VRAM tile at wTextCursor, two bytes at a time whenever
+;@ VRAM is accessible, and moves the cursor to the next tile.
+;@ test: skip waits for the LCD
+CopyGlyphToCursor::
+;> src, dest = GetGlyphAddress(char)
+	call GetGlyphAddress
+;> for i in range(8):
 	ld c, $08
 
-jr_000_08a7:
+.pair
+;>     disable_interrupts()
 	di
 
-jr_000_08a8:
+.wait
+;>     while rSTAT & 0x02:                # wait until VRAM is accessible
+;>         wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_08a8
+	jr nz, .wait
 
+;>     mem[dest] = mem[src]
 	ld a, [de]
 	ld [hli], a
 	inc e
+;>     mem[dest + 1] = mem[src + 1]
 	ld a, [de]
 	ld [hli], a
+;>     enable_interrupts()
 	ei
+;>     src += 2; dest += 2
 	inc de
 	dec c
-	jr nz, jr_000_08a7
+	jr nz, .pair
 
+;> wTextCursor = dest
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
-	ld [$c82c], a
+	ld [wTextCursor + 1], a
 	ret
 
 
-Call_08C1::
+;@ def DrawDiacritic(char: a)
+;@ path: text/font
+;@ Adds diacritic mark `char` ($8D or $8E) to the letter just drawn
+;@ (OverlayDiacritic), with the font bank $4F switched in.
+;@ test: skip switches banks
+DrawDiacritic::
+;> saved = rom_bank()
 	ld l, a
 	ld a, [$4000]
 	push af
+;> set_rom_bank(0x4F)                     # the font
 	ld a, $4f
 	ld [$2100], a
+;> mem[0x4100] = (0x4F >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
-	call Call_08E3
+;> OverlayDiacritic(char)
+	call OverlayDiacritic
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -1260,897 +2058,1327 @@ Call_08C1::
 	ret
 
 
-Call_08E3::
-	call Call_091A
+;@ def OverlayDiacritic(char: l)
+;@ path: text/font
+;@ ORs the font tile of `char` into the tile drawn last (the one before
+;@ wTextCursor), so the mark sits on that letter; in byte 3 (row 1, high
+;@ bitplane) bit 1 is cleared.
+;@ test: skip waits for the LCD
+OverlayDiacritic::
+;> src, cursor = GetGlyphAddress(char)
+	call GetGlyphAddress
+;> dest = cursor - 16                     # the last letter
 	ld a, l
 	sub $10
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
+;>@byte for i in range(16):
 	ld b, $10
 
-jr_000_08f0:
+.byte
+;>     disable_interrupts()
 	di
+;>     if i != 3:
 	ld a, b
 	cp $0d
-	jr z, jr_000_0901
+	jr z, .row1
 
-jr_000_08f6:
+.wait
+;>         while rSTAT & 0x02:            # wait until VRAM is accessible
+;>             wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_08f6
+	jr nz, .wait
 
+;>         mem[dest + i] |= mem[src + i]
 	ld a, [de]
 	or [hl]
 	ld [hli], a
-	jr jr_000_090c
+	jr .next
 
-jr_000_0901:
+.row1
+;>     else:
+;>         while rSTAT & 0x02:
+;>             wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_0901
+	jr nz, .row1
 
+;>         mem[dest + i] = (mem[dest + i] | mem[src + i]) & 0xFD
 	ld a, [de]
 	or [hl]
 	and $fd
 	ld [hli], a
 
-jr_000_090c:
+.next
+;>     enable_interrupts()
 	ei
+;=@byte
 	inc de
 	dec b
-	jr nz, jr_000_08f0
+	jr nz, .byte
 
+;> wTextCursor = dest + 16
 	ld a, l
-	ld [$c82b], a
+	ld [wTextCursor], a
 	ld a, h
-	ld [$c82c], a
+	ld [wTextCursor + 1], a
 	ret
 
 
-Call_091A::
+;@ def GetGlyphAddress(char: l) -> (de, hl)
+;@ path: text/font
+;@ Returns the font address of letter `char` ($4010 + 16 * char in bank $4F)
+;@ and the text cursor.
+GetGlyphAddress::
+;> offset = 16 * char
 	ld de, $4010
 	ld h, $00
 	add hl, hl
 	add hl, hl
 	add hl, hl
 	add hl, hl
+;> glyph = 0x4010 + offset
 	add hl, de
 	ld e, l
 	ld d, h
-	ld a, [$c82b]
+;> return glyph, wTextCursor
+	ld a, [wTextCursor]
 	ld l, a
-	ld a, [$c82c]
+	ld a, [wTextCursor + 1]
 	ld h, a
 	ret
 
 
-Call_092F::
+;@ def LookUpTextPointer(table: de) -> de
+;@ path: text/printer
+;@ Finds text number wTextGroup/wTextIndex in a two-level pointer table of the
+;@ current bank: `table` lists one pointer per group, each group lists one
+;@ pointer per text. Remembers the current bank in wTextBank.
+;@ test: skip reads the switched-in bank
+LookUpTextPointer::
+;> wTextBank = rom_bank()
 	ld a, [$4000]
 	push af
 	ld a, [$4000]
-	ld [$c824], a
-	ld a, [$c822]
+	ld [wTextBank], a
+;> entry = table + 2 * wTextGroup
+	ld a, [wTextGroup]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;> group = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ld a, [$c823]
+;> entry = group + 2 * wTextIndex
+	ld a, [wTextIndex]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
+;> text = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> set_rom_bank(wTextBank)                # (the same bank again)
 	pop af
 	ld [$2100], a
+;> return text
 	ret
 
 
-Call_0954::
-	ld a, [$c82d]
+;@ def NextTextByte() -> hl
+;@ path: text/printer
+;@ Returns the text read pointer and advances it by one.
+NextTextByte::
+;> ptr = wTextPtr
+	ld a, [wTextPtr]
 	ld l, a
-	ld a, [$c82e]
+	ld a, [wTextPtr + 1]
 	ld h, a
-	ld a, [$c82d]
+;> wTextPtr = ptr + 1
+	ld a, [wTextPtr]
 	add $01
-	ld [$c82d], a
-	ld a, [$c82e]
+	ld [wTextPtr], a
+	ld a, [wTextPtr + 1]
 	adc $00
-	ld [$c82e], a
+	ld [wTextPtr + 1], a
+;> return ptr
 	ret
 
 
-Call_096D::
+;@ def PrintSystemText(id: hl)
+;@ path: text/printer
+;@ Starts printing text `id` (high byte group, low byte entry) of the texts in
+;@ bank $41.
+;@ test: skip calls a routine in another bank
+PrintSystemText::
+;> wTextGroup = hi(id)
 	ld a, h
-	ld [$c822], a
+	ld [wTextGroup], a
+;> wTextIndex = lo(id)
 	ld a, l
-	ld [$c823], a
-	ld hl, far_Call_41_4A93
+	ld [wTextIndex], a
+;> StartText_41()                         # StartText with bank $41's table
+	ld hl, far_StartText_41
 	rst $10
 	ret
 
 
-Call_097A::
+;@ def CopySystemText(id: hl, dest: de)
+;@ path: text/printer
+;@ Copies text `id` of the texts in bank $41 into the buffer `dest`.
+;@ test: skip calls a routine in another bank
+CopySystemText::
+;> wTextCopyDest = dest
 	ld a, e
-	ld [$c837], a
+	ld [wTextCopyDest], a
 	ld a, d
-	ld [$c838], a
+	ld [wTextCopyDest + 1], a
+;> wTextGroup = hi(id)
 	ld a, h
-	ld [$c822], a
+	ld [wTextGroup], a
+;> wTextIndex = lo(id)
 	ld a, l
-	ld [$c823], a
-	ld hl, far_Call_41_4A9A
+	ld [wTextIndex], a
+;> CopyText_41()                         # CopyTextString with bank $41's table
+	ld hl, far_CopyText_41
 	rst $10
 	ret
 
 
-Call_098F::
+;@ def SetUpTextBox(tiles: hl, lines: e, line_length: d)
+;@ path: text/printer
+;@ Sets the VRAM tiles the text box draws its letters into (`lines` lines of
+;@ `line_length` tiles; wTextBoxWidth holds the line count, wTextBoxHeight the line length) and clears them.
+;@ test: skip calls a routine in another bank
+SetUpTextBox::
+;> wTextTiles = tiles
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxWidth = lines
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
+;> wTextBoxHeight = line_length
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
+;> Call_56_4485()                         # clear the tiles
 	ld hl, far_Call_56_4485
 	rst $10
 	ret
 
 
-Call_09A4::
+;@ def ByteToDecimal(value: a, dest: hl) -> hl
+;@ path: text/numbers
+;@ Writes `value` (0-255) as decimal digits (character codes 0-9, no leading
+;@ zeros) to `dest`, followed by the $F0 end mark. Returns the address of the
+;@ end mark.
+ByteToDecimal::
+;> digits = 3 if value >= 100 else 2 if value >= 10 else 1
 	cp $64
-	jr nc, jr_000_09ae
+	jr nc, .hundreds
 
 	cp $0a
-	jr nc, jr_000_09b3
+	jr nc, .tens
 
-	jr jr_000_09b8
+	jr .ones
 
-jr_000_09ae:
+.hundreds
+;> if digits >= 3:
+;>     value, dest = DecimalDigit(value, 100, dest)
 	ld e, $64
-	call Call_09BD
+	call DecimalDigit
 
-jr_000_09b3:
+.tens
+;> if digits >= 2:
+;>     value, dest = DecimalDigit(value, 10, dest)
 	ld e, $0a
-	call Call_09BD
+	call DecimalDigit
 
-jr_000_09b8:
+.ones
+;> mem[dest] = value
 	ld [hli], a
+;> mem[dest + 1] = 0xF0                   # end mark
 	ld a, $f0
 	ld [hl], a
+;> return dest + 1
 	ret
 
 
-Call_09BD::
+;@ def DecimalDigit(value: a, divisor: e, dest: hl) -> (a, hl)
+;@ path: text/numbers
+;@ Writes the digit value // divisor to `dest` and returns the remainder and
+;@ the next address.
+DecimalDigit::
+;> q = -1
 	ld d, $ff
 
-jr_000_09bf:
+.sub
+;> while True:
+;>     q += 1
 	inc d
+;>     value -= divisor
 	sub e
-	jr nc, jr_000_09bf
+;>     if value < 0:
+;>         break
+	jr nc, .sub
 
+;> value += divisor
 	add e
+;> mem[dest] = q
 	ld [hl], d
+;> return value, dest + 1
 	inc hl
 	ret
 
 
-Call_09C7::
+;@ def Number24ToDecimal(dest: hl) -> hl
+;@ path: text/numbers
+;@ Writes the 24-bit number in hNumber (below 10,000,000) as decimal digits
+;@ (character codes 0-9, no leading zeros) to `dest`, followed by the $F0 end
+;@ mark. Divisors are 24-bit: hDivisorHigh holds their top byte. hNumber is
+;@ used up (left as the remainder).
+;@ test: skip works on a 24-bit number spread over three HRAM bytes
+Number24ToDecimal::
+;> hDivisorHigh = 0x0F                    # 1,000,000 = $0F4240
 	ld a, $0f
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
+;> if PeekDecimalDigit24(0x4240):         # a millions digit: 7 digits
+;>     start = 7
 	ld e, $40
 	ld d, $42
-	call Call_0A2E
+	call PeekDecimalDigit24
 	or a
-	jp nz, Jump_000_09fb
+	jp nz, .from7
 
+;> else:
+;>     hDivisorHigh = 0x01                # 100,000 = $0186A0
 	ld a, $01
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
+;>     if PeekDecimalDigit24(0x86A0):
+;>         start = 6
 	ld e, $a0
 	ld d, $86
-	call Call_0A2E
+	call PeekDecimalDigit24
 	or a
-	jr nz, jr_000_0a09
+	jr nz, .from6
 
+;>     else:
+;>         hDivisorHigh = 0x00            # 10,000 = $002710
 	ld a, $00
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
+;>         if PeekDecimalDigit24(0x2710):
+;>             start = 5
 	ld e, $10
 	ld d, $27
-	call Call_0A2E
+	call PeekDecimalDigit24
 	or a
-	jr nz, jr_000_0a17
+	jr nz, .from5
 
-	ldh a, [$ffd5]
+;>         else:                          # below 10,000
+;>             return Number16ToDecimal(hNumber[0] | hNumber[1] << 8, dest)
+	ldh a, [hNumber]
 	ld c, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld b, a
-	jp Call_0A7C
+	jp Number16ToDecimal
 
 
-Jump_000_09fb:
+.from7
+;> if start >= 7:
+;>     hDivisorHigh = 0x0F
 	ld a, $0f
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
+;>     dest = PutDigit(DecimalDigit24(0x4240), dest)
 	ld e, $40
 	ld d, $42
-	call Call_0A52
-	call Call_0AD4
+	call DecimalDigit24
+	call PutDigit
 
-jr_000_0a09:
+.from6
+;> if start >= 6:
+;>     hDivisorHigh = 0x01
 	ld a, $01
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
+;>     dest = PutDigit(DecimalDigit24(0x86A0), dest)
 	ld e, $a0
 	ld d, $86
-	call Call_0A52
-	call Call_0AD4
+	call DecimalDigit24
+	call PutDigit
 
-jr_000_0a17:
+.from5
+;> hDivisorHigh = 0x00
 	ld a, $00
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
+;> dest = PutDigit(DecimalDigit24(0x2710), dest)
 	ld e, $10
 	ld d, $27
-	call Call_0A52
-	call Call_0AD4
-	ldh a, [$ffd5]
+	call DecimalDigit24
+	call PutDigit
+;> return Number16ToDecimal4Digits(hNumber[0] | hNumber[1] << 8, dest)   # the rest, with zeros
+	ldh a, [hNumber]
 	ld c, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld b, a
-	jp Jump_000_0a9f
+	jp Number16ToDecimal4Digits
 
 
-Call_0A2E::
-	ldh a, [$ffd5]
-	ld [$c0a0], a
-	ldh a, [$ffd6]
-	ld [$c0a1], a
-	ldh a, [$ffd7]
-	ld [$c0a2], a
-	call Call_0A52
+;@ def PeekDecimalDigit24(divisor_low: de) -> a
+;@ path: text/numbers
+;@ Returns the digit DecimalDigit24 would produce, without changing hNumber.
+;@ test: skip works on a 24-bit number spread over three HRAM bytes
+PeekDecimalDigit24::
+;> copy(wNumberBackup, hNumber, 3)
+	ldh a, [hNumber]
+	ld [wNumberBackup], a
+	ldh a, [hNumber + 1]
+	ld [wNumberBackup + 1], a
+	ldh a, [hNumber + 2]
+	ld [wNumberBackup + 2], a
+;> digit = DecimalDigit24(divisor_low)
+	call DecimalDigit24
+;> copy(hNumber, wNumberBackup, 3)
 	push af
-	ld a, [$c0a0]
-	ldh [$ffd5], a
-	ld a, [$c0a1]
-	ldh [$ffd6], a
-	ld a, [$c0a2]
-	ldh [$ffd7], a
+	ld a, [wNumberBackup]
+	ldh [hNumber], a
+	ld a, [wNumberBackup + 1]
+	ldh [hNumber + 1], a
+;> # (third byte)
+	ld a, [wNumberBackup + 2]
+	ldh [hNumber + 2], a
+;> return digit
 	pop af
 	ret
 
 
-Call_0A52::
+;@ def DecimalDigit24(divisor_low: de) -> a
+;@ path: text/numbers
+;@ Divides the 24-bit number in hNumber by the 24-bit divisor hDivisorHigh:d:e:
+;@ returns the quotient (a digit) and leaves the remainder in hNumber.
+;@ test: skip works on a 24-bit number spread over three HRAM bytes
+DecimalDigit24::
+;> divisor = hDivisorHigh << 16 | divisor_low
 	push hl
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	ld l, a
+;> q = -1
 	ld h, $ff
 
-jr_000_0a58:
+.sub
+;> while True:
+;>     q += 1
 	inc h
-	ldh a, [$ffd5]
+;>     number -= divisor                  # number = the 24 bits of hNumber; low two bytes ...
+	ldh a, [hNumber]
 	sub e
-	ldh [$ffd5], a
-	ldh a, [$ffd6]
+	ldh [hNumber], a
+	ldh a, [hNumber + 1]
 	sbc d
-	ldh [$ffd6], a
-	ldh a, [$ffd7]
+	ldh [hNumber + 1], a
+;>     # ... and the top byte, with the borrow
+	ldh a, [hNumber + 2]
 	sbc l
-	ldh [$ffd7], a
-	jr nc, jr_000_0a58
+	ldh [hNumber + 2], a
+;>     if number < 0:
+;>         break
+	jr nc, .sub
 
-	ldh a, [$ffd5]
+;> number += divisor                      # undo the last subtraction: low two bytes ...
+	ldh a, [hNumber]
 	add e
-	ldh [$ffd5], a
-	ldh a, [$ffd6]
+	ldh [hNumber], a
+	ldh a, [hNumber + 1]
 	adc d
-	ldh [$ffd6], a
-	ldh a, [$ffd7]
+	ldh [hNumber + 1], a
+;> # ... and the top byte
+	ldh a, [hNumber + 2]
 	adc l
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;> return q
 	ld a, h
 	pop hl
 	ret
 
 
-Call_0A7C::
+;@ def Number16ToDecimal(value: bc, dest: hl) -> hl
+;@ path: text/numbers
+;@ Writes `value` (below 10,000) as decimal digits (character codes 0-9, no
+;@ leading zeros) to `dest`, followed by the $F0 end mark. Entered at
+;@ Number16ToDecimal4Digits it always writes four digits (Number24ToDecimal
+;@ uses that for the lower digits).
+;@ test: skip has a second entry point
+Number16ToDecimal::
+;> if DecimalDigit16(value, 1000)[0]:     # a thousands digit
+;>     start = 4
 	ld de, $03e8
 	push bc
-	call Call_0ABF
+	call DecimalDigit16
 	pop bc
 	or a
-	jr nz, jr_000_0a9f
+	jr nz, Number16ToDecimal4Digits
 
+;> elif DecimalDigit16(value, 100)[0]:
+;>     start = 3
 	ld de, $0064
 	push bc
-	call Call_0ABF
+	call DecimalDigit16
 	pop bc
 	or a
-	jr nz, jr_000_0aa8
+	jr nz, Number16ToDecimal4Digits.hundreds
 
+;> elif DecimalDigit16(value, 10)[0]:
+;>     start = 2
 	ld de, $000a
 	push bc
-	call Call_0ABF
+	call DecimalDigit16
 	pop bc
 	or a
-	jr nz, jr_000_0ab1
+	jr nz, Number16ToDecimal4Digits.tens
 
-	jr jr_000_0aba
+;> else:
+;>     start = 1
+	jr Number16ToDecimal4Digits.ones
 
-Jump_000_0a9f:
-jr_000_0a9f:
+Number16ToDecimal4Digits:
+;> if start >= 4:
+;>     digit, value = DecimalDigit16(value, 1000)
 	ld de, $03e8
-	call Call_0ABF
-	call Call_0AD4
+	call DecimalDigit16
+;>     dest = PutDigit(digit, dest)
+	call PutDigit
 
-jr_000_0aa8:
+.hundreds
+;> if start >= 3:
+;>     digit, value = DecimalDigit16(value, 100)
 	ld de, $0064
-	call Call_0ABF
-	call Call_0AD4
+	call DecimalDigit16
+;>     dest = PutDigit(digit, dest)
+	call PutDigit
 
-jr_000_0ab1:
+.tens
+;> if start >= 2:
+;>     digit, value = DecimalDigit16(value, 10)
 	ld de, $000a
-	call Call_0ABF
-	call Call_0AD4
+	call DecimalDigit16
+;>     dest = PutDigit(digit, dest)
+	call PutDigit
 
-jr_000_0aba:
+.ones
+;> return PutDigit(value, dest)
 	ld a, c
-	call Call_0AD4
+	call PutDigit
 	ret
 
 
-Call_0ABF::
+;@ def DecimalDigit16(value: bc, divisor: de) -> (a, bc)
+;@ path: text/numbers
+;@ Returns value // divisor and value % divisor.
+DecimalDigit16::
+;> q = -1
 	push hl
 	ld h, $ff
 
-jr_000_0ac2:
+.sub
+;> while True:
+;>     q += 1
 	inc h
+;>     value -= divisor
 	ld a, c
 	sub e
 	ld c, a
 	ld a, b
 	sbc d
 	ld b, a
-	jr nc, jr_000_0ac2
+;>     if value < 0:
+;>         break
+	jr nc, .sub
 
+;> value += divisor                       # undo the last subtraction
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;> return q, value
 	ld a, h
 	pop hl
 	ret
 
 
-Call_0AD4::
+;@ def PutDigit(digit: a, dest: hl) -> hl
+;@ path: text/numbers
+;@ Writes `digit` and an $F0 end mark after it; returns the end mark's address
+;@ (where the next digit goes).
+PutDigit::
+;> mem[dest] = digit
 	ld [hli], a
+;> mem[dest + 1] = 0xF0
 	ld a, $f0
 	ld [hl], a
+;> return dest + 1
 	ret
 
 
-Call_0AD9::
+;@ def PrintMessage(n: hl)
+;@ path: text/messages
+;@ Starts printing dialogue message number `n` ($000-$9FF). The messages are
+;@ spread over the text banks $42-$4E; the handler for the high byte works out
+;@ the bank and the (group, entry) within that bank's pointer table.
+;@ test: skip calls routines in other banks
+PrintMessage::
+;> MessageGroupTable[hi(n)](n)
 	ld e, l
 	ld d, h
 	ld a, h
 	rst $00
 
-JumpTable_0ADD::
-	dw Jump_0AF1
-	dw Jump_0B13
-	dw Jump_0B3E
-	dw Jump_0B69
-	dw Jump_0B93
-	dw Jump_0BBE
-	dw Jump_0BFD
-	dw Jump_0C13
-	dw Jump_0C3F
-	dw Jump_0C6A
+;@ path: text/messages
+;@ Handlers of PrintMessage, one per 256 message numbers.
+MessageGroupTable::
+	dw PrintMessageGroup0
+	dw PrintMessageGroup1
+	dw PrintMessageGroup2
+	dw PrintMessageGroup3
+	dw PrintMessageGroup4
+	dw PrintMessageGroup5
+	dw PrintMessageGroup6
+	dw PrintMessageGroup7
+	dw PrintMessageGroup8
+	dw PrintMessageGroup9
 
-Jump_0AF1::
+;@ def PrintMessageGroup0(n: de)
+;@ path: text/messages
+;@ Messages $000-$0E1: bank $42 group 0; $0E2-$0FF: bank $43 group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup0::
+;> if lo(n) < 0xE2:
 	ld a, e
 	cp $e2
-	jr nc, jr_000_0b03
+	jr nc, .bank43
 
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = lo(n)
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_42_40EB
+	ld [wTextIndex], a
+;>     StartText_42()                     # print from bank $42
+	ld hl, far_StartText_42
 	rst $10
 	ret
 
 
-jr_000_0b03:
+.bank43
+;> else:
+;>     index = lo(n) - 0xE2
 	sub $e2
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_43_4127
+	ld [wTextIndex], a
+;>     StartText_43()                     # print from bank $43
+	ld hl, far_StartText_43
 	rst $10
 	ret
 
 
-Jump_0B13::
+;@ def PrintMessageGroup1(n: de)
+;@ path: text/messages
+;@ Messages $100-$197: bank $43 group 1; $198-$1FF: bank $44 group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup1::
+;> index = n - 0x100
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $01
 	ld d, a
+;> if index < 0x98:
 	ld a, e
 	cp $98
-	jr nc, jr_000_0b2e
+	jr nc, .bank44
 
+;>     wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_43_4127
+	ld [wTextIndex], a
+;>     StartText_43()                     # print from bank $43
+	ld hl, far_StartText_43
 	rst $10
 	ret
 
 
-jr_000_0b2e:
+.bank44
+;> else:
+;>     index -= 0x98
 	sub $98
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_44_40CD
+	ld [wTextIndex], a
+;>     StartText_44()                     # print from bank $44
+	ld hl, far_StartText_44
 	rst $10
 	ret
 
 
-Jump_0B3E::
+;@ def PrintMessageGroup2(n: de)
+;@ path: text/messages
+;@ Messages $200-$243: bank $44 group 1; $244-$2FF: bank $45 group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup2::
+;> index = n - 0x200
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $02
 	ld d, a
+;> if index < 0x44:
 	ld a, e
 	cp $44
-	jr nc, jr_000_0b59
+	jr nc, .bank45
 
+;>     wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_44_40CD
+	ld [wTextIndex], a
+;>     StartText_44()                     # print from bank $44
+	ld hl, far_StartText_44
 	rst $10
 	ret
 
 
-jr_000_0b59:
+.bank45
+;> else:
+;>     index -= 0x44
 	sub $44
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_45_4101
+	ld [wTextIndex], a
+;>     StartText_45()                     # print from bank $45
+	ld hl, far_StartText_45
 	rst $10
 	ret
 
 
-Jump_0B69::
+;@ def PrintMessageGroup3(n: de)
+;@ path: text/messages
+;@ Messages $300-$3C7: bank $46 group 0; $3C8-$3FF: bank $47 group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup3::
+;> index = n - 0x300
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $03
 	ld d, a
+;> if index < 0xC8:
 	ld a, e
 	cp $c8
-	jr nc, jr_000_0b83
+	jr nc, .bank47
 
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_46_4129
+	ld [wTextIndex], a
+;>     StartText_46()                     # print from bank $46
+	ld hl, far_StartText_46
 	rst $10
 	ret
 
 
-jr_000_0b83:
+.bank47
+;> else:
+;>     index -= 0xC8
 	sub $c8
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_47_4079
+	ld [wTextIndex], a
+;>     StartText_47()                     # print from bank $47
+	ld hl, far_StartText_47
 	rst $10
 	ret
 
 
-Jump_0B93::
+;@ def PrintMessageGroup4(n: de)
+;@ path: text/messages
+;@ Messages $400-$473: bank $47 group 1; $474-$4FF: bank $48 group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup4::
+;> index = n - 0x400
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $04
 	ld d, a
+;> if index < 0x74:
 	ld a, e
 	cp $74
-	jr nc, jr_000_0bae
+	jr nc, .bank48
 
+;>     wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_47_4079
+	ld [wTextIndex], a
+;>     StartText_47()                     # print from bank $47
+	ld hl, far_StartText_47
 	rst $10
 	ret
 
 
-jr_000_0bae:
+.bank48
+;> else:
+;>     index -= 0x74
 	sub $74
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_48_40E1
+	ld [wTextIndex], a
+;>     StartText_48()                     # print from bank $48
+	ld hl, far_StartText_48
 	rst $10
 	ret
 
 
-Jump_0BBE::
+;@ def PrintMessageGroup5(n: de)
+;@ path: text/messages
+;@ Messages $500-$511: bank $48 group 1; $512-$5DF: bank $49 group 0;
+;@ $5E0-$5FF: bank $4A group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup5::
+;> index = n - 0x500
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $05
 	ld d, a
+;> if index < 0x12:
 	ld a, e
 	cp $12
-	jr nc, jr_000_0bd9
+	jr nc, .bank49
 
+;>     wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_48_40E1
+	ld [wTextIndex], a
+;>     StartText_48()                     # print from bank $48
+	ld hl, far_StartText_48
 	rst $10
 	ret
 
 
-jr_000_0bd9:
+.bank49
+;> elif index < 0xE0:
 	cp $e0
-	jr nc, jr_000_0bed
+	jr nc, .bank4A
 
+;>     index -= 0x12
 	sub $12
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_49_4145
+	ld [wTextIndex], a
+;>     StartText_49()                     # print from bank $49
+	ld hl, far_StartText_49
 	rst $10
 	ret
 
 
-jr_000_0bed:
+.bank4A
+;> else:
+;>     index -= 0xE0
 	sub $e0
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4A_424B
+	ld [wTextIndex], a
+;>     StartText_4A()                     # print from bank $4A
+	ld hl, far_StartText_4A
 	rst $10
 	ret
 
 
-Jump_0BFD::
+;@ def PrintMessageGroup6(n: de)
+;@ path: text/messages
+;@ Messages $600-$6FF: bank $4A group 1.
+;@ test: skip calls routines in other banks
+PrintMessageGroup6::
+;> index = n - 0x600
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $06
 	ld d, a
+;> wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;> wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4A_424B
+	ld [wTextIndex], a
+;> StartText_4A()                         # print from bank $4A
+	ld hl, far_StartText_4A
 	rst $10
 	ret
 
 
-Jump_0C13::
+;@ def PrintMessageGroup7(n: de)
+;@ path: text/messages
+;@ Messages $700-$7BF: bank $4A group 2; $7C0-$7FF: bank $4B group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup7::
+;> index = n - 0x700
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $07
 	ld d, a
+;> if index < 0xC0:
 	ld a, e
 	cp $c0
-	jr nc, jr_000_0c2f
+	jr nc, .bank4B
 
+;>     wTextGroup = 2
 	inc d
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4A_424B
+	ld [wTextIndex], a
+;>     StartText_4A()                     # print from bank $4A
+	ld hl, far_StartText_4A
 	rst $10
 	ret
 
 
-jr_000_0c2f:
+.bank4B
+;> else:
+;>     index -= 0xC0
 	sub $c0
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4B_4089
+	ld [wTextIndex], a
+;>     StartText_4B()                     # print from bank $4B
+	ld hl, far_StartText_4B
 	rst $10
 	ret
 
 
-Jump_0C3F::
+;@ def PrintMessageGroup8(n: de)
+;@ path: text/messages
+;@ Messages $800-$867: bank $4B group 1; $868-$8FF: bank $4E group 0.
+;@ test: skip calls routines in other banks
+PrintMessageGroup8::
+;> index = n - 0x800
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $08
 	ld d, a
+;> if index < 0x68:
 	ld a, e
 	cp $68
-	jr nc, jr_000_0c5a
+	jr nc, .bank4E
 
+;>     wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4B_4089
+	ld [wTextIndex], a
+;>     StartText_4B()                     # print from bank $4B
+	ld hl, far_StartText_4B
 	rst $10
 	ret
 
 
-jr_000_0c5a:
+.bank4E
+;> else:
+;>     index -= 0x68
 	sub $68
 	ld e, a
+;>     wTextGroup = 0
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;>     wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4E_40B9
+	ld [wTextIndex], a
+;>     StartText_4E()                     # print from bank $4E
+	ld hl, far_StartText_4E
 	rst $10
 	ret
 
 
-Jump_0C6A::
+;@ def PrintMessageGroup9(n: de)
+;@ path: text/messages
+;@ Messages $900-$9FF: bank $4E group 1.
+;@ test: skip calls routines in other banks
+PrintMessageGroup9::
+;> index = n - 0x900
 	ld a, e
 	sub $00
 	ld e, a
 	ld a, d
 	sbc $09
 	ld d, a
+;> wTextGroup = 1
 	inc d
 	ld a, d
-	ld [$c822], a
+	ld [wTextGroup], a
+;> wTextIndex = index
 	ld a, e
-	ld [$c823], a
-	ld hl, far_Call_4E_40B9
+	ld [wTextIndex], a
+;> StartText_4E()                         # print from bank $4E
+	ld hl, far_StartText_4E
 	rst $10
 	ret
 
 
-Call_0C80::
+;@ def CopyName(src: de, dest: hl)
+;@ path: text/names
+;@ Copies a 4-letter name from `src` to `dest` and ends it with $F0. Diacritic
+;@ marks ($8D, $8E) are copied too but do not count as letters, so a mark after
+;@ the fourth letter is kept.
+CopyName::
+;> count = 4
 	ld b, $04
 
-jr_000_0c82:
+.copy
+;> while True:
+;>     c = mem[src]; mem[dest] = c; src += 1; dest += 1
 	ld a, [de]
 	ld [hli], a
 	inc de
+;>     if c in (0x8D, 0x8E):              # a mark is not a letter
+;>         continue
 	cp $8d
-	jr z, jr_000_0c82
+	jr z, .copy
 
 	cp $8e
-	jr z, jr_000_0c82
+	jr z, .copy
 
+;>     count -= 1
 	dec b
-	jr nz, jr_000_0c82
+;>     if count == 0:
+;>         break
+	jr nz, .copy
 
+;> if mem[src] not in (0x8D, 0x8E):
 	ld a, [de]
 	cp $8d
-	jr z, jr_000_0c9c
+	jr z, .mark
 
 	cp $8e
-	jr z, jr_000_0c9c
+	jr z, .mark
 
+;>     mem[dest] = 0xF0
 	ld [hl], $f0
 	ret
 
 
-jr_000_0c9c:
+.mark
+;> else:
+;>     mem[dest] = mem[src]               # the mark of the last letter
 	ld [hli], a
+;>     mem[dest + 1] = 0xF0
 	ld [hl], $f0
 	ret
 
 
-Call_0CA0::
+;@ def DrawTextBoxTiles(box: hl)
+;@ path: text/box
+;@ Fills the text box's area of the BG map at `box` with the box's letter tiles
+;@ (numbered from wTextTiles / 16 on): wTextBoxWidth lines of wTextBoxHeight
+;@ tiles (those two names are the wrong way round: $C829 is the line count,
+;@ $C82A the line length). Every line after the first is placed at the same
+;@ address, two map rows below the box's top.
+DrawTextBoxTiles::
+;> wTextBoxMap = box
 	ld a, l
-	ld [$c83e], a
+	ld [wTextBoxMap], a
 	ld a, h
-	ld [$c83f], a
-	ld a, [$c827]
+	ld [wTextBoxMap + 1], a
+;> tiles = wTextTiles
+	ld a, [wTextTiles]
 	ld e, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld d, a
+;> tile = tiles >> 2
 	srl d
 	rr e
 	srl d
 	rr e
+;> tile >>= 2                             # the tile number of the first letter tile
 	srl d
 	rr e
 	srl d
 	rr e
-	ld a, [$c829]
+;> lines = wTextBoxWidth
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+;> per_line = wTextBoxHeight
+	ld a, [wTextBoxHeight]
 	ld b, a
-	ld a, [$c83e]
+;> addr = wTextBoxMap
+	ld a, [wTextBoxMap]
 	ld l, a
-	ld a, [$c83f]
+	ld a, [wTextBoxMap + 1]
 	ld h, a
 
-jr_000_0cd0:
+.line
+;>@line for _ in range(lines):
 	push bc
 
-jr_000_0cd1:
+.tile
+;>@tile     for _ in range(per_line):
+;>         WriteVRAM(addr, lo(tile))
 	ld a, e
-	call Call_1AAD
-	call Call_0CEE
+	call WriteVRAM
+;>         addr = MapNextTile(addr)
+	call MapNextTile
+;>         tile += 1
 	inc e
+;=@tile
 	dec b
-	jr nz, jr_000_0cd1
+	jr nz, .tile
 
+;>     addr = TextBoxMapAddress(0x40)     # two map rows below the box's top
 	pop bc
 	ld hl, $0040
-	call Call_0CFD
+	call TextBoxMapAddress
+;=@line
 	dec c
-	jr nz, jr_000_0cd0
+	jr nz, .line
 
 	ret
 
 
-Call_0CE7::
-	call Call_0CEE
+;@ def MapAdvanceTiles(addr: hl, count: b) -> hl
+;@ path: gfx/tilemap
+;@ Moves a BG map address `count` tiles to the right, wrapping within the row.
+MapAdvanceTiles::
+;> for _ in range(count):
+;>     addr = MapNextTile(addr)
+	call MapNextTile
 	dec b
-	jr nz, Call_0CE7
+	jr nz, MapAdvanceTiles
 
+;> return addr
 	ret
 
 
-Call_0CEE::
+;@ def MapNextTile(addr: hl) -> hl
+;@ path: gfx/tilemap
+;@ The BG map address one tile to the right of `addr`, wrapping from column 31
+;@ back to column 0 of the same row. Keeps a.
+MapNextTile::
+;> col = (lo(addr) + 1) & 0x1F
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;> addr = (addr & 0xFFE0) | col
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;> return addr
 	pop af
 	ret
 
 
-Call_0CFD::
-	ld a, [$c83e]
+;@ def TextBoxMapAddress(offset: hl) -> hl
+;@ path: text/box
+;@ The BG map address `offset` bytes after the text box's corner wTextBoxMap,
+;@ wrapping within the 1 KiB map.
+TextBoxMapAddress::
+;> total = wTextBoxMap + offset
+	ld a, [wTextBoxMap]
 	add l
 	ld l, a
-	ld a, [$c83f]
+	ld a, [wTextBoxMap + 1]
 	adc h
+;> high = hi(total) & 0x03
 	and $03
 	ld h, a
-	ld a, [$c83f]
+;> return (hi(wTextBoxMap) & 0xFC | high) << 8 | lo(total)
+	ld a, [wTextBoxMap + 1]
 	and $fc
 	or h
 	ld h, a
 	ret
 
 
-Call_0D11::
+;@ def ScreenMapAddress(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ The address in the BG map at $9800 of the tile `offset` bytes (32 per row)
+;@ after the tile at the top left corner of the screen (from hScrollX/Y),
+;@ wrapping within the map.
+ScreenMapAddress::
+;> # (the offset waits on the stack)
 	push hl
-	ldh a, [$ffbb]
+;> corner_row = (lo(hScrollY) & 0xF8) * 4
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+;> corner = corner_row + (lo(hScrollX) & 0xF8) // 8
+	ldh a, [hScrollX]
 	and $f8
 	rrca
 	rrca
 	rrca
 	add l
+;> total = corner + offset
 	ld c, a
 	ld b, h
 	pop hl
 	ld a, c
 	add l
 	ld l, a
+;> high = hi(total) & 0x03
 	ld a, b
 	adc h
 	and $03
 	ld h, a
+;> return 0x9800 | high << 8 | lo(total)
 	and $03
 	or $98
 	ld h, a
 	ret
 
 
-Call_0D34::
+;@ def ClearMapTiles(addr: hl, count: b) -> hl
+;@ path: gfx/tilemap
+;@ Writes `count` blank tiles ($E0) into the BG map from `addr` to the right,
+;@ wrapping within the row.
+;@ test: skip waits for the LCD
+ClearMapTiles::
+;> for _ in range(count):
+;>     WriteVRAM(addr, 0xE0)
 	ld a, $e0
-	call Call_1AAD
-	call Call_0CEE
+	call WriteVRAM
+;>     addr = MapNextTile(addr)
+	call MapNextTile
 	dec b
-	jr nz, Call_0D34
+	jr nz, ClearMapTiles
 
+;> return addr
 	ret
 
 
-Call_0D40::
+;@ def CopyGlyph(char: a, dest: hl)
+;@ path: text/font
+;@ Copies the 16-byte font tile of letter `char` (bank $4F, $4010 + 16 * char)
+;@ to `dest` (without waiting for VRAM access).
+;@ test: skip switches banks
+CopyGlyph::
+;> offset = 16 * char
 	push hl
 	ld l, a
 	ld de, $4010
 	ld h, $00
 	add hl, hl
 	add hl, hl
+;> src = 0x4010 + offset
 	add hl, hl
 	add hl, hl
 	add hl, de
 	ld e, l
 	ld d, h
 	pop hl
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
+;> set_rom_bank(0x4F)                     # the font
 	ld a, $4f
 	ld [$2100], a
+;> mem[0x4100] = (0x4F >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;>@copy copy(dest, src, 16)
 	ld b, $08
 
-jr_000_0d62:
+.copy
 	ld a, [de]
 	ld [hli], a
 	inc e
 	ld a, [de]
 	ld [hli], a
+;=@copy
 	inc de
 	dec b
-	jr nz, jr_000_0d62
+	jr nz, .copy
 
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -2158,870 +3386,1208 @@ jr_000_0d62:
 	ret
 
 
-Call_0D78::
+;@ def ReadTextBankByte(addr: hl) -> a
+;@ path: text/printer
+;@ Reads the byte at `addr` in the text's bank (wTextBank).
+;@ test: skip switches banks
+ReadTextBankByte::
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
-	ld a, [$c824]
+;> set_rom_bank(wTextBank)
+	ld a, [wTextBank]
 	ld [$2100], a
+;> value = mem[addr]
 	ld a, [hl]
 	ld b, a
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> return value
 	ld a, b
 	ret
 
 
+;@ path: unused/leftovers
+;@ The text "MESBUF" (message buffer) in the game's character codes, ended by
+;@ $F0; nothing uses it.
+UnusedMesbufText::
 	db $30, $28, $36, $25, $38, $29, $f0
 
-Call_0D91::
-	ldh a, [$ffcb]
+;@ def DrawMetasprite(table: de)
+;@ path: gfx/sprites
+;@ Adds a metasprite to the shadow OAM (from slot hOAMCount on). `table` lists
+;@ one pointer per sprite set, each set one pointer per frame; hSpriteSet and
+;@ hSpriteFrame choose the frame. A frame is a list of 4-byte entries ended by
+;@ $80: Y offset (signed), X offset (signed), tile (hSpriteTileBase is added),
+;@ attributes (hSpriteAttr is XORed in; with its bit 5, X flip, the X offsets are
+;@ mirrored too). The offsets are relative to hSpriteX/hSpriteY minus the
+;@ scroll position; entries off the screen are left out. With hSpriteClip set,
+;@ entries are also left out above OAM line $34 (1) or from line $71 on (2), and
+;@ wherever the background tile under the entry is hSpriteBGTile or higher.
+;@ Stops at 40 sprites (and does nothing from 39 on).
+;@ test: skip writes OAM entries through pointer tables; SpriteInFrontOfBG polls the LCD
+DrawMetasprite::
+;> if hOAMCount >= 39:
+;>     return
+	ldh a, [hOAMCount]
 	cp $27
 	ret nc
 
-	ld hl, $ffbb
+;> offset_y = 0x10 - hScrollY             # computed as ~(hScrollY - $11): low byte ...
+	ld hl, hScrollY
 	ld a, [hli]
 	sub $11
 	cpl
 	ld c, a
+;> # ... and high byte
 	ld a, [hl]
 	sbc $00
 	cpl
 	ld b, a
-	ldh a, [$ffc5]
+;> hSpriteScreenY = u16(hSpriteY + offset_y)
+	ldh a, [hSpriteY]
 	add c
-	ldh [$ffcd], a
-	ldh a, [$ffc6]
+	ldh [hSpriteScreenY], a
+	ldh a, [hSpriteY + 1]
 	adc b
-	ldh [$ffce], a
-	ld hl, $ffb7
+	ldh [hSpriteScreenY + 1], a
+;> offset_x = 8 - hScrollX                # computed as ~(hScrollX - 9): low byte ...
+	ld hl, hScrollX
 	ld a, [hli]
 	sub $09
 	cpl
 	ld c, a
+;> # ... and high byte
 	ld a, [hl]
 	sbc $00
 	cpl
 	ld b, a
-	ld hl, $ffcf
-	ldh a, [$ffc3]
+;> hSpriteScreenX = u16(hSpriteX + offset_x)   # low byte ...
+	ld hl, hSpriteScreenX
+	ldh a, [hSpriteX]
 	add c
 	ld c, a
 	ld [hli], a
-	ldh a, [$ffc4]
+;> # ... and high byte
+	ldh a, [hSpriteX + 1]
 	adc b
 	ld b, a
 	ld [hli], a
+;> hSpriteScreenXFlip = u16(hSpriteScreenX - 8)
 	ld a, c
 	sub $08
 	ld [hli], a
 	ld a, b
 	sbc $00
 	ld [hl], a
-	ldh a, [$ffc7]
+;> entry = table + 2 * hSpriteSet
+	ldh a, [hSpriteSet]
 	add a
 	add e
 	ld l, a
 	ld a, $00
 	adc d
+;> frames = mem16[entry]
 	ld h, a
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	ldh a, [$ffc8]
+;> entry = frames + 2 * hSpriteFrame
+	ldh a, [hSpriteFrame]
 	add a
 	add e
 	ld l, a
 	ld a, $00
 	adc d
+;> data = mem16[entry]
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ldh a, [$ffcb]
+;> oam = wShadowOAM + 4 * hOAMCount
+	ldh a, [hOAMCount]
 	add a
 	add a
 	ld e, a
 	ld d, $c0
-	ldh a, [$ffd3]
+;> if hSpriteClip == 0:
+	ldh a, [hSpriteClip]
 	or a
-	jp nz, Jump_000_0ee3
+	jp nz, .clipped
 
-	ldh a, [$ffc9]
+;>     tile_base = hSpriteTileBase
+	ldh a, [hSpriteTileBase]
 	ld c, a
-	ldh a, [$ffca]
+;>     if not hSpriteAttr & 0x20:         # not mirrored
+	ldh a, [hSpriteAttr]
 	and $20
-	jr nz, jr_000_0e6f
+	jr nz, .mirrored
 
-jr_000_0dfd:
+.aLoop
+;>         while True:
+;>             dy = mem[data]; data += 1
 	ld a, [hli]
+;>             if dy == 0x80:             # end of the list
+;>                 return
 	cp $80
 	ret z
 
+;>             if dy < 0x80:
 	ld b, a
-	jr nc, jr_000_0e15
+	jr nc, .aYNeg
 
-	ldh a, [$ffcd]
+;>                 y = hSpriteScreenY + dy
+	ldh a, [hSpriteScreenY]
 	add b
 	ld b, a
-	ldh a, [$ffce]
+	ldh a, [hSpriteScreenY + 1]
 	adc $00
-	jr nz, jr_000_0e24
+;>                 visible = hi(y) == 0 and lo(y) < 0xA8
+	jr nz, .aSkip
 
 	ld a, b
 	cp $a8
-	jr c, jr_000_0e29
+	jr c, .aY
 
-	jr jr_000_0e24
+	jr .aSkip
 
-jr_000_0e15:
-	ldh a, [$ffcd]
+.aYNeg
+;>             else:
+;>                 y = hSpriteScreenY + dy - 0x100
+	ldh a, [hSpriteScreenY]
 	add b
 	ld b, a
-	ldh a, [$ffce]
+	ldh a, [hSpriteScreenY + 1]
 	adc $ff
-	jr nz, jr_000_0e24
+;>                 visible = hi(y) == 0 and lo(y) < 0xA8
+	jr nz, .aSkip
 
 	ld a, b
 	cp $a8
-	jr c, jr_000_0e29
+	jr c, .aY
 
-jr_000_0e24:
+.aSkip
+;>             if not visible:            # leave the entry out
+;>                 data += 3
 	inc hl
 	inc hl
 	inc hl
-	jr jr_000_0dfd
+;>                 continue
+	jr .aLoop
 
-jr_000_0e29:
+.aY
+;>             mem[oam] = lo(y); oam += 1
 	ld a, b
 	ld [de], a
 	inc e
+;>             dx = mem[data]; data += 1
 	ld a, [hli]
 	ld b, a
+;>             if dx < 0x80:
 	rlca
-	jr c, jr_000_0e42
+	jr c, .aXNeg
 
-	ldh a, [$ffcf]
+;>                 x = hSpriteScreenX + dx
+	ldh a, [hSpriteScreenX]
 	add b
 	ld b, a
-	ldh a, [$ffd0]
+	ldh a, [hSpriteScreenX + 1]
 	adc $00
-	jr nz, jr_000_0e51
+;>                 visible = hi(x) == 0 and lo(x) < 0xB8
+	jr nz, .aUndo
 
 	ld a, b
 	cp $b8
-	jr c, jr_000_0e58
+	jr c, .aPut
 
-	jr jr_000_0e51
+	jr .aUndo
 
-jr_000_0e42:
-	ldh a, [$ffcf]
+.aXNeg
+;>             else:
+;>                 x = hSpriteScreenX + dx - 0x100
+	ldh a, [hSpriteScreenX]
 	add b
 	ld b, a
-	ldh a, [$ffd0]
+	ldh a, [hSpriteScreenX + 1]
 	adc $ff
-	jr nz, jr_000_0e51
+;>                 visible = hi(x) == 0 and lo(x) < 0xB8
+	jr nz, .aUndo
 
 	ld a, b
 	cp $b8
-	jr c, jr_000_0e58
+	jr c, .aPut
 
-jr_000_0e51:
+.aUndo
+;>             if not visible:            # take the entry back
+;>                 data += 2
 	inc hl
 	inc hl
+;>                 oam -= 1; mem[oam] = 0
 	dec e
 	xor a
 	ld [de], a
-	jr jr_000_0dfd
+;>                 continue
+	jr .aLoop
 
-jr_000_0e58:
+.aPut
+;>             mem[oam] = lo(x); oam += 1
 	ld a, b
 	ld [de], a
 	inc e
+;>             mem[oam] = u8(mem[data] + tile_base); oam += 1; data += 1
 	ld a, [hli]
 	add c
 	ld [de], a
 	inc e
-	ldh a, [$ffca]
+;>             mem[oam] = mem[data] ^ hSpriteAttr; oam += 1; data += 1
+	ldh a, [hSpriteAttr]
 	xor [hl]
 	inc hl
 	ld [de], a
 	inc e
-	ldh a, [$ffcb]
+;>             hOAMCount += 1
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
+;>             if hOAMCount == 40:
+;>                 return
 	cp $28
-	jr nz, jr_000_0dfd
+	jr nz, .aLoop
 
 	ret
 
 
-jr_000_0e6f:
+.mirrored
+;>     else:
+;>         while True:
+;>             dy = mem[data]; data += 1
 	ld a, [hli]
+;>             if dy == 0x80:
+;>                 return
 	cp $80
 	ret z
 
+;>             if dy < 0x80:
 	ld b, a
-	jr nc, jr_000_0e87
+	jr nc, .bYNeg
 
-	ldh a, [$ffcd]
+;>                 y = hSpriteScreenY + dy
+	ldh a, [hSpriteScreenY]
 	add b
 	ld b, a
-	ldh a, [$ffce]
+	ldh a, [hSpriteScreenY + 1]
 	adc $00
-	jr nz, jr_000_0e96
+;>                 visible = hi(y) == 0 and lo(y) < 0xA8
+	jr nz, .bSkip
 
 	ld a, b
 	cp $a8
-	jr c, jr_000_0e9b
+	jr c, .bY
 
-	jr jr_000_0e96
+	jr .bSkip
 
-jr_000_0e87:
-	ldh a, [$ffcd]
+.bYNeg
+;>             else:
+;>                 y = hSpriteScreenY + dy - 0x100
+	ldh a, [hSpriteScreenY]
 	add b
 	ld b, a
-	ldh a, [$ffce]
+	ldh a, [hSpriteScreenY + 1]
 	adc $ff
-	jr nz, jr_000_0e96
+;>                 visible = hi(y) == 0 and lo(y) < 0xA8
+	jr nz, .bSkip
 
 	ld a, b
 	cp $a8
-	jr c, jr_000_0e9b
+	jr c, .bY
 
-jr_000_0e96:
+.bSkip
+;>             if not visible:
+;>                 data += 3
 	inc hl
 	inc hl
 	inc hl
-	jr jr_000_0e6f
+;>                 continue
+	jr .mirrored
 
-jr_000_0e9b:
+.bY
+;>             mem[oam] = lo(y); oam += 1
 	ld a, b
 	ld [de], a
 	inc e
+;>             dx = mem[data]; data += 1
 	ld a, [hli]
 	ld b, a
+;>             if dx < 0x80:
 	rlca
-	jr c, jr_000_0eb6
+	jr c, .bXNeg
 
-	ldh a, [$ffd1]
+;>                 x = hSpriteScreenXFlip - dx    # mirrored
+	ldh a, [hSpriteScreenXFlip]
 	sub b
 	ld b, a
-	ldh a, [$ffd2]
+	ldh a, [hSpriteScreenXFlip + 1]
 	sbc $00
-	jr z, jr_000_0ecc
+;>                 visible = hi(x) == 0           # (no right-edge test on this side)
+	jr z, .bPut
 
-	jr nz, jr_000_0ec5
+	jr nz, .bUndo
 
+;>                 # (an unreachable right-edge test)
 	ld a, b
 	cp $b8
-	jr c, jr_000_0ecc
+	jr c, .bPut
 
-	jr jr_000_0ec5
+	jr .bUndo
 
-jr_000_0eb6:
-	ldh a, [$ffd1]
+.bXNeg
+;>             else:
+;>                 x = hSpriteScreenXFlip - (dx - 0x100)
+	ldh a, [hSpriteScreenXFlip]
 	sub b
 	ld b, a
-	ldh a, [$ffd2]
+	ldh a, [hSpriteScreenXFlip + 1]
 	sbc $ff
-	jr nz, jr_000_0ec5
+;>                 visible = hi(x) == 0 and lo(x) < 0xB8
+	jr nz, .bUndo
 
 	ld a, b
 	cp $b8
-	jr c, jr_000_0ecc
+	jr c, .bPut
 
-jr_000_0ec5:
+.bUndo
+;>             if not visible:
+;>                 data += 2
 	inc hl
 	inc hl
+;>                 oam -= 1; mem[oam] = 0
 	dec e
 	xor a
 	ld [de], a
-	jr jr_000_0e6f
+;>                 continue
+	jr .mirrored
 
-jr_000_0ecc:
+.bPut
+;>             mem[oam] = lo(x); oam += 1
 	ld a, b
 	ld [de], a
 	inc e
+;>             mem[oam] = u8(mem[data] + tile_base); oam += 1; data += 1
 	ld a, [hli]
 	add c
 	ld [de], a
 	inc e
-	ldh a, [$ffca]
+;>             mem[oam] = mem[data] ^ hSpriteAttr; oam += 1; data += 1
+	ldh a, [hSpriteAttr]
 	xor [hl]
 	inc hl
 	ld [de], a
 	inc e
-	ldh a, [$ffcb]
+;>             hOAMCount += 1
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
+;>             if hOAMCount == 40:
+;>                 return
 	cp $28
-	jr nz, jr_000_0e6f
+	jr nz, .mirrored
 
 	ret
 
 
-Jump_000_0ee3:
-	ldh a, [$ffca]
+.clipped
+;> else:                                  # clipped
+;>     if not hSpriteAttr & 0x20:
+	ldh a, [hSpriteAttr]
 	and $20
-	jr nz, jr_000_0f63
+	jr nz, .dLoop
 
-jr_000_0ee9:
+.cLoop
+;>         while True:
+;>             dy = mem[data]; data += 1
 	ld a, [hli]
+;>             if dy == 0x80:
+;>                 return
 	cp $80
 	ret z
 
+;>             dy = dy if dy < 0x80 else dy - 0x100
 	ld c, a
 	ld b, $00
 	rlca
-	jr nc, jr_000_0ef4
+	jr nc, .cY
 
 	dec b
 
-jr_000_0ef4:
-	ldh a, [$ffcd]
+.cY
+;>             y = hSpriteScreenY + dy
+	ldh a, [hSpriteScreenY]
 	add c
 	ld c, a
-	ldh a, [$ffce]
+	ldh a, [hSpriteScreenY + 1]
 	adc b
-	jr nz, jr_000_0f1f
+;>             visible = hi(y) == 0 and lo(y) < 0xA8
+	jr nz, .cSkip
 
 	ld a, c
 	cp $a8
-	jr nc, jr_000_0f1f
+	jr nc, .cSkip
 
-	ldh a, [$ffd3]
+;>             if hSpriteClip == 1:       # (0 cannot happen here)
+	ldh a, [hSpriteClip]
 	or a
-	jr z, jr_000_0f24
+	jr z, .cShow
 
 	cp $01
-	jr nz, jr_000_0f12
+	jr nz, .cClip2
 
+;>                 visible = lo(y) >= 0x34
 	ld a, c
 	cp $34
-	jr c, jr_000_0f1f
+	jr c, .cSkip
 
-	jr jr_000_0f24
+	jr .cShow
 
-jr_000_0f12:
+.cClip2
+;>             elif hSpriteClip == 2:
 	cp $02
-	jr nz, jr_000_0f1d
+	jr nz, .cClipOther
 
+;>                 visible = lo(y) < 0x71
 	ld a, c
 	cp $71
-	jr c, jr_000_0f24
+	jr c, .cShow
 
-	jr jr_000_0f1f
+	jr .cSkip
 
-jr_000_0f1d:
-	jr jr_000_0f24
+.cClipOther
+;>             # (other values: no band)
+	jr .cShow
 
-jr_000_0f1f:
+.cSkip
+;>             if not visible:
+;>                 data += 3
 	inc hl
 	inc hl
 	inc hl
-	jr jr_000_0ee9
+;>                 continue
+	jr .cLoop
 
-jr_000_0f24:
+.cShow
+;>             mem[oam] = lo(y); oam += 1
 	ld a, c
 	ld [de], a
 	inc e
+;>             dx = mem[data]; data += 1
 	ld a, [hli]
 	ld c, a
+;>             dx = dx if dx < 0x80 else dx - 0x100
 	ld b, $00
 	rlca
-	jr nc, jr_000_0f2f
+	jr nc, .cX
 
 	dec b
 
-jr_000_0f2f:
-	ldh a, [$ffcf]
+.cX
+;>             x = hSpriteScreenX + dx
+	ldh a, [hSpriteScreenX]
 	add c
 	ld c, a
-	ldh a, [$ffd0]
+	ldh a, [hSpriteScreenX + 1]
 	adc b
-	jr nz, jr_000_0f3d
+;>             visible = hi(x) == 0 and lo(x) < 0xB8
+	jr nz, .cUndo
 
 	ld a, c
 	cp $b8
-	jr c, jr_000_0f44
+	jr c, .cPut
 
-jr_000_0f3d:
+.cUndo
+;>             if not visible:
+;>                 data += 2
 	inc hl
 	inc hl
+;>                 oam -= 1; mem[oam] = 0
 	dec e
 	xor a
 	ld [de], a
-	jr jr_000_0ee9
+;>                 continue
+	jr .cLoop
 
-jr_000_0f44:
+.cPut
+;>             mem[oam] = lo(x)
 	ld a, c
 	ld [de], a
-	call Call_0FDD
-	jr nc, jr_000_0f3d
+;>             if not SpriteInFrontOfBG(oam):   # a background tile covers it: take the entry back
+;>                 data += 2; oam -= 1; mem[oam] = 0; continue   # (the code at .cUndo)
+	call SpriteInFrontOfBG
+	jr nc, .cUndo
 
+;>             oam += 1
 	inc e
-	ldh a, [$ffc9]
+;>             mem[oam] = u8(mem[data] + hSpriteTileBase); oam += 1; data += 1
+	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [hli]
 	add b
 	ld [de], a
 	inc e
-	ldh a, [$ffca]
+;>             mem[oam] = mem[data] ^ hSpriteAttr; oam += 1; data += 1
+	ldh a, [hSpriteAttr]
 	xor [hl]
 	inc hl
 	ld [de], a
 	inc e
-	ldh a, [$ffcb]
+;>             hOAMCount += 1
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
+;>             if hOAMCount == 40:
+;>                 return
 	cp $28
-	jr nz, jr_000_0ee9
+	jr nz, .cLoop
 
 	ret
 
 
-jr_000_0f63:
+.dLoop
+;>     else:                              # clipped and mirrored
+;>         while True:
+;>             dy = mem[data]; data += 1
 	ld a, [hli]
+;>             if dy == 0x80:
+;>                 return
 	cp $80
 	ret z
 
+;>             dy = dy if dy < 0x80 else dy - 0x100
 	ld c, a
 	ld b, $00
 	rlca
-	jr nc, jr_000_0f6e
+	jr nc, .dY
 
 	dec b
 
-jr_000_0f6e:
-	ldh a, [$ffcd]
+.dY
+;>             y = hSpriteScreenY + dy
+	ldh a, [hSpriteScreenY]
 	add c
 	ld c, a
-	ldh a, [$ffce]
+	ldh a, [hSpriteScreenY + 1]
 	adc b
-	jr nz, jr_000_0f99
+;>             visible = hi(y) == 0 and lo(y) < 0xA8
+	jr nz, .dSkip
 
 	ld a, c
 	cp $a8
-	jr nc, jr_000_0f99
+	jr nc, .dSkip
 
-	ldh a, [$ffd3]
+;>             if hSpriteClip == 1:
+	ldh a, [hSpriteClip]
 	or a
-	jr z, jr_000_0f9e
+	jr z, .dShow
 
 	cp $01
-	jr nz, jr_000_0f8c
+	jr nz, .dClip2
 
+;>                 visible = lo(y) >= 0x34
 	ld a, c
 	cp $34
-	jr c, jr_000_0f99
+	jr c, .dSkip
 
-	jr jr_000_0f9e
+	jr .dShow
 
-jr_000_0f8c:
+.dClip2
+;>             elif hSpriteClip == 2:
 	cp $02
-	jr nz, jr_000_0f97
+	jr nz, .dClipOther
 
+;>                 visible = lo(y) < 0x71
 	ld a, c
 	cp $71
-	jr c, jr_000_0f9e
+	jr c, .dShow
 
-	jr jr_000_0f99
+	jr .dSkip
 
-jr_000_0f97:
-	jr jr_000_0f9e
+.dClipOther
+;>             # (other values: no band)
+	jr .dShow
 
-jr_000_0f99:
+.dSkip
+;>             if not visible:
+;>                 data += 3
 	inc hl
 	inc hl
 	inc hl
-	jr jr_000_0f63
+;>                 continue
+	jr .dLoop
 
-jr_000_0f9e:
+.dShow
+;>             mem[oam] = lo(y); oam += 1
 	ld a, c
 	ld [de], a
 	inc e
+;>             dx = mem[data]; data += 1
 	ld a, [hli]
 	ld c, a
+;>             dx = dx if dx < 0x80 else dx - 0x100
 	ld b, $00
 	rlca
-	jr nc, jr_000_0fa9
+	jr nc, .dX
 
 	dec b
 
-jr_000_0fa9:
-	ldh a, [$ffd1]
+.dX
+;>             x = hSpriteScreenXFlip - dx    # mirrored
+	ldh a, [hSpriteScreenXFlip]
 	sub c
 	ld c, a
-	ldh a, [$ffd2]
+	ldh a, [hSpriteScreenXFlip + 1]
 	sbc b
-	jr nz, jr_000_0fb7
+;>             visible = hi(x) == 0 and lo(x) < 0xB8
+	jr nz, .dUndo
 
 	ld a, c
 	cp $b8
-	jr c, jr_000_0fbe
+	jr c, .dPut
 
-jr_000_0fb7:
+.dUndo
+;>             if not visible:
+;>                 data += 2
 	inc hl
 	inc hl
+;>                 oam -= 1; mem[oam] = 0
 	dec e
 	xor a
 	ld [de], a
-	jr jr_000_0f63
+;>                 continue
+	jr .dLoop
 
-jr_000_0fbe:
+.dPut
+;>             mem[oam] = lo(x)
 	ld a, c
 	ld [de], a
-	call Call_0FDD
-	jr nc, jr_000_0fb7
+;>             if not SpriteInFrontOfBG(oam):   # a background tile covers it: take the entry back
+;>                 data += 2; oam -= 1; mem[oam] = 0; continue   # (the code at .dUndo)
+	call SpriteInFrontOfBG
+	jr nc, .dUndo
 
+;>             oam += 1
 	inc e
-	ldh a, [$ffc9]
+;>             mem[oam] = u8(mem[data] + hSpriteTileBase); oam += 1; data += 1
+	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [hli]
 	add b
 	ld [de], a
 	inc e
-	ldh a, [$ffca]
+;>             mem[oam] = mem[data] ^ hSpriteAttr; oam += 1; data += 1
+	ldh a, [hSpriteAttr]
 	xor [hl]
 	inc hl
 	ld [de], a
 	inc e
-	ldh a, [$ffcb]
+;>             hOAMCount += 1
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
+;>             if hOAMCount == 40:
+;>                 return
 	cp $28
-	jr nz, jr_000_0f63
+	jr nz, .dLoop
 
 	ret
 
 
-Call_0FDD::
+;@ def SpriteInFrontOfBG(oam: de) -> carry
+;@ path: gfx/sprites
+;@ For the OAM entry whose Y and X were just written (`oam` points at X): looks
+;@ up the background tile under the sprite's pixel (4, 4) and returns carry
+;@ (the sprite stays) when that tile number is below hSpriteBGTile; higher
+;@ tiles are in front of sprites.
+;@ test: skip polls the LCD
+SpriteInFrontOfBG::
+;> y = mem[oam - 1]
 	push hl
 	push bc
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld b, a
 	dec e
 	ld a, [de]
+;> row = (y + lo(hScrollY) - 12) & 0xF8   # OAM Y - 16 + 4
 	inc e
 	add b
 	sub $0c
 	and $f8
+;> addr = row * 4                         # 32 tiles per row of 8 pixels
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+;> x = mem[oam]
+	ldh a, [hScrollX]
 	ld b, a
 	ld a, [de]
+;> col = ((x + lo(hScrollX) - 4) & 0xF8) // 8   # OAM X - 8 + 4
 	add b
 	sub $04
 	and $f8
 	rrca
 	rrca
 	rrca
+;> addr = 0x9800 + ((addr + col) & 0x3FF)
 	add l
 	ld l, a
 	ld a, h
 	and $03
 	adc $98
 	ld h, a
-	ldh a, [$ffd4]
+;> limit = hSpriteBGTile
+	ldh a, [hSpriteBGTile]
 	ld b, a
+;> disable_interrupts()
 	di
 
-jr_000_1007:
+.wait
+;> while rSTAT & 0x02:                    # wait until VRAM is accessible
+;>     wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_1007
+	jr nz, .wait
 
+;> tile = mem[addr]
 	ld a, [hl]
+;> enable_interrupts()
 	ei
+;> return tile < limit
 	cp b
 	pop bc
 	pop hl
 	ret
 
 
-Call_1013::
-	ld a, [$c81c]
+;@ def SGBPacketDelay()
+;@ path: system/sgb
+;@ On a Super Game Boy, waits about 4 frames (a busy loop), the time the SGB
+;@ needs between packets.
+;@ test: skip long busy loop
+SGBPacketDelay::
+;> if not wOnSGB:
+;>     return
+	ld a, [wOnSGB]
 	or a
 	ret z
 
+;>@x for _ in range(0x1B58):
 	ld de, $1b58
 
-jr_000_101b:
+.loop
+;>     pass                               # 10 cycles per pass
 	nop
 	nop
 	nop
 	dec de
 	ld a, d
 	or e
-	jr nz, jr_000_101b
+;=@x
+	jr nz, .loop
 
 	ret
 
 
-Call_1024::
+;@ def DetectSGB() -> carry
+;@ path: system/sgb
+;@ Looks for a Super Game Boy: asks for two-player mode (packet $0B), then
+;@ clocks the pad lines; a Super Game Boy answers by switching the pad number
+;@ seen in the low bits of rP1. Then back to one player (packet $0A). Returns
+;@ carry when a Super Game Boy was found.
+;@ test: skip talks to the Super Game Boy through rP1
+DetectSGB::
+;> wSGBPacketID = 0x0B                    # two players
 	ld a, $0b
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+;> SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+;> SGBPacketDelay()
+	call SGBPacketDelay
+;> found = rP1 & 3 != 3
 	ldh a, [rP1]
 	and $03
 	cp $03
-	jr nz, jr_000_1074
+	jr nz, .found
 
+;> if not found:
+;>     rP1 = 0x20                         # one clock pulse on the pad lines ...
 	ld a, $20
 	ldh [rP1], a
+;>     read_buttons(0x20)
 	ldh a, [rP1]
 	ldh a, [rP1]
+;>     rP1 = 0x30
 	ld a, $30
 	ldh [rP1], a
+;>     rP1 = 0x10
 	ld a, $10
 	ldh [rP1], a
+;>     read_buttons(0x10)                 # (six reads)
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
+;>     rP1 = 0x30                         # ... then read the pad number
 	ld a, $30
 	ldh [rP1], a
+;>     pad = rP1                          # (four reads)
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
+;>     found = pad & 3 != 3               # the SGB switched to pad 2
 	and $03
 	cp $03
-	jr nz, jr_000_1074
+	jr nz, .found
 
+;>@f1 wSGBPacketID = 0x0A                  # back to one player
 	ld a, $0a
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+;>@f2 SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+;>@f3 SGBPacketDelay()
+	call SGBPacketDelay
+;>@f4 return found
 	sub a
 	ret
 
 
-jr_000_1074:
+.found
+;=@f1
 	ld a, $0a
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+;=@f2
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+;=@f3
+	call SGBPacketDelay
+;=@f4
 	scf
 	ret
 
 
-Call_1082::
+;@ def ReadSGBJoypads()
+;@ path: system/joypad
+;@ Reads the pads of all players connected to a Super Game Boy (up to four):
+;@ each read tells which player's pad is selected (the low bits of rP1), and
+;@ writing $30 afterwards moves on to the next one; it stops when it is back at
+;@ the first. Each player gets the buttons held and the buttons newly pressed in
+;@ wSGBJoypads (two bytes per player, bits as in wJoyHeld).
+;@ test: skip reads the pad through rP1
+ReadSGBJoypads::
+;> first = rP1
 	ldh a, [rP1]
 	ld b, $04
 	ld c, a
-	jr jr_000_108d
+;>@pl for i in range(4):
+	jr .read
 
-Jump_000_1089:
+.next
+;>     if i > 0:
+;>         p1 = rP1
 	ldh a, [rP1]
+;>         if p1 == first:                # all players read
+;>             return
 	cp c
 	ret z
 
-jr_000_108d:
+.read
+;>     player = ~p1 & 3                   # (p1 = first in the first pass)
 	cpl
 	and $03
+;>     slot = wSGBJoypads + 2 * player
 	sla a
 	ld d, $00
 	ld e, a
-	ld hl, $c76c
+	ld hl, wSGBJoypads
 	add hl, de
+;>     rP1 = 0x20                         # the direction keys
 	ld a, $20
 	ldh [rP1], a
+;>     dirs = (~rP1 & 0x0F) << 4
 	ldh a, [rP1]
 	ldh a, [rP1]
 	cpl
 	and $0f
 	swap a
 	ld d, a
+;>     rP1 = 0x30
 	ld a, $30
 	ldh [rP1], a
+;>     rP1 = 0x10                         # the buttons
 	ld a, $10
 	ldh [rP1], a
+;>     raw = rP1                          # (six reads while the lines settle)
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
+;>     held = dirs | (~raw & 0x0F)
 	cpl
 	and $0f
 	or d
 	ld d, a
+;>     mem[slot + 1] = (mem[slot] ^ held) & held   # newly pressed
 	ld a, [hli]
 	xor d
 	and d
 	ld [hld], a
+;>     mem[slot] = held
 	ld a, d
 	ld [hl], a
+;>     rP1 = 0x30                         # on to the next player
 	ld a, $30
 	ldh [rP1], a
+;=@pl
 	dec b
-	jp nz, Jump_000_1089
+	jp nz, .next
 
 	ret
 
 
-Call_10CF::
-	ld a, [$c81c]
+;@ def SGBDelay(frames: bc)
+;@ path: system/sgb
+;@ On a Super Game Boy, waits about `frames` frames (a busy loop).
+;@ test: skip long busy loop
+SGBDelay::
+;> if not wOnSGB:
+;>     return
+	ld a, [wOnSGB]
 	or a
 	ret z
 
-jr_000_10d4:
+.frame
+;>@fr for _ in range(frames):
+;>@in     for _ in range(0x06D6):
 	ld de, $06d6
 
-jr_000_10d7:
+.loop
+;>         pass                           # 10 cycles per pass
 	nop
 	nop
 	nop
 	dec de
 	ld a, d
 	or e
-	jr nz, jr_000_10d7
+;=@in
+	jr nz, .loop
 
+;=@fr
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_000_10d4
+	jr nz, .frame
 
 	ret
 
 
-Call_10E5::
-	ld [$c774], a
-	ld a, [$c81c]
+;@ def SGBTransferCompressed(packet: a, data: de)
+;@ path: system/sgb
+;@ Sends a block of graphics data to the Super Game Boy (for the border): the
+;@ data (compressed, bank d, entry e of that bank's table) is unpacked to VRAM
+;@ $8800, the BG map shows those $1000 bytes as 20 x 13 tiles, and with the
+;@ screen on the SGB is sent `packet` (a transfer command), which makes it read
+;@ the screen. The LCD is off again afterwards.
+;@ test: skip talks to the Super Game Boy
+SGBTransferCompressed::
+;> wSGBPacketID = packet
+	ld [wSGBPacketID], a
+;> if not wOnSGB:
+;>     return
+	ld a, [wOnSGB]
 	or a
 	ret z
 
-	call Call_11E7
-	call Call_140B
+;> TurnOffLCD()
+	call TurnOffLCD
+;> ClearScroll()
+	call ClearScroll
+;> rSCX = 0
 	xor a
 	ldh [rSCX], a
+;> rSCY = 0
 	ldh [rSCY], a
+;> FillMemory(0x8800, 0x1000, 0)
 	push de
 	ld hl, $8800
 	ld bc, $1000
 	xor a
-	call Call_12C7
+	call FillMemory
+;> rBGP = 0xE4                            # plain grey shades: bytes go through unchanged
 	pop de
 	ld a, $e4
 	ldh [rBGP], a
+;> Decompress(hi(data), lo(data), 0x8800)
 	ld hl, $8800
-	call Call_14CF
+	call Decompress
+;> tile = 0x80
 	ld hl, $9800
 	ld de, $000c
 	ld a, $80
+;>@rows for row in range(13):
 	ld c, $0d
 
-jr_000_1118:
+.row
+;>@cols     for col in range(20):
 	ld b, $14
 
-jr_000_111a:
+.col
+;>         mem[0x9800 + 32 * row + col] = tile
 	ld [hli], a
+;>         tile = u8(tile + 1)
 	inc a
+;=@cols
 	dec b
-	jr nz, jr_000_111a
+	jr nz, .col
 
+;=@rows
 	add hl, de
 	dec c
-	jr nz, jr_000_1118
+	jr nz, .row
 
+;> rLCDC = 0x81                           # screen on, BG tiles at $8800
 	ld a, $81
 	ldh [rLCDC], a
-	ld [$c8a1], a
+;> wLCDC = 0x81
+	ld [wLCDC], a
+;> SGBDelay(5)
 	ld bc, $0005
-	call Call_10CF
-	ld hl, far_Call_08_4015
+	call SGBDelay
+;> SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
+;> SGBDelay(6)
 	ld bc, $0006
-	call Call_10CF
-	call Call_11E7
+	call SGBDelay
+;> TurnOffLCD()
+	call TurnOffLCD
 	ret
 
 
-Call_113E::
-	ld [$c774], a
-	ld a, [$c81c]
+;@ def SGBTransfer(packet: a, data: de, length: bc)
+;@ path: system/sgb
+;@ Like SGBTransferCompressed, for `length` bytes of uncompressed data (bank d,
+;@ entry e of that bank's table) copied to VRAM $8800.
+;@ test: skip talks to the Super Game Boy
+SGBTransfer::
+;> wSGBPacketID = packet
+	ld [wSGBPacketID], a
+;> if not wOnSGB:
+;>     return
+	ld a, [wOnSGB]
 	or a
 	ret z
 
+;> TurnOffLCD()
 	push bc
-	call Call_11E7
-	call Call_140B
+	call TurnOffLCD
+;> ClearScroll()
+	call ClearScroll
+;> rSCX = 0
 	xor a
 	ldh [rSCX], a
+;> rSCY = 0
 	ldh [rSCY], a
+;> rBGP = 0xE4
 	ld a, $e4
 	ldh [rBGP], a
+;> saved = rom_bank()
 	pop bc
 	ld a, [$4000]
 	push af
+;> set_rom_bank(hi(data))
 	push bc
 	ld a, d
 	ld [$2100], a
+;> mem[0x4100] = (hi(data) >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;> entry = 0x4001 + 2 * lo(data)          # the bank's table of entry points
 	ld a, e
 	add a
 	ld e, a
 	ld d, $00
 	ld hl, $4001
 	add hl, de
+;> src = mem16[entry]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;>@cp copy(0x8800, src, length)
 	pop bc
 	ld hl, $8800
 
-jr_000_1178:
+.copy
 	ld a, [de]
 	ld [hli], a
 	inc de
+;=@cp
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_000_1178
+	jr nz, .copy
 
+;> tile = 0x80
 	ld hl, $9800
 	ld de, $000c
 	ld a, $80
+;>@rows for row in range(13):
 	ld c, $0d
 
-jr_000_118a:
+.row
+;>@cols     for col in range(20):
 	ld b, $14
 
-jr_000_118c:
+.col
+;>         mem[0x9800 + 32 * row + col] = tile
 	ld [hli], a
+;>         tile = u8(tile + 1)
 	inc a
+;=@cols
 	dec b
-	jr nz, jr_000_118c
+	jr nz, .col
 
+;=@rows
 	add hl, de
 	dec c
-	jr nz, jr_000_118a
+	jr nz, .row
 
+;> rLCDC = 0x81
 	ld a, $81
 	ldh [rLCDC], a
-	ld [$c8a1], a
+;> wLCDC = 0x81
+	ld [wLCDC], a
+;> SGBDelay(5)
 	ld bc, $0005
-	call Call_10CF
-	ld hl, far_Call_08_4015
+	call SGBDelay
+;> SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
+;> SGBDelay(6)
 	ld bc, $0006
-	call Call_10CF
-	call Call_11E7
+	call SGBDelay
+;> TurnOffLCD()
+	call TurnOffLCD
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -3029,272 +4595,435 @@ jr_000_118c:
 	ret
 
 
-Call_11BC::
+;@ def ClearSGBPacket()
+;@ path: system/sgb
+;@ Clears the 16-byte packet buffer wSGBPacket.
+ClearSGBPacket::
+;>@f fill(wSGBPacket, 0, 16)
 	push hl
 	push bc
 	xor a
-	ld hl, $c777
+	ld hl, wSGBPacket
 	ld c, $10
 
-jr_000_11c4:
+.loop
+;=@f
 	ld [hli], a
 	dec c
-	jr nz, jr_000_11c4
+	jr nz, .loop
 
 	pop bc
 	pop hl
 	ret
 
 
-Jump_000_11cb:
+;@ def EnableLCDAndInterrupts(enabled: a)
+;@ path: system/lcd
+;@ Turns the screen on and enables the interrupts in `enabled` (an rIE mask).
+;@ Linked games first run CloseLink.
+;@ test: skip calls into the link code
+EnableLCDAndInterrupts::
+;> if wLinkActive:
 	push af
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
-	jr z, jr_000_11d5
+	jr z, .on
 
-	call Call_1D45
+;>     CloseLink()
+	call CloseLink
 
-jr_000_11d5:
-	call Call_11FB
+.on
+;> TurnOnLCD()
+	call TurnOnLCD
+;> SetInterrupts(enabled)
 	pop af
-	call Call_1227
+	call SetInterrupts
+;> enable_interrupts()
 	ei
 	ret
 
 
-Call_11DE::
+;@ def DisableInterruptsAndLCD()
+;@ path: system/lcd
+;@ Clears pending interrupts, disables the VBlank, timer, serial and joypad
+;@ interrupts (keeps LCD STAT), then turns the screen off (continues into
+;@ TurnOffLCD).
+;@ test: skip waits for the LCD
+DisableInterruptsAndLCD::
+;> rIF = 0
 	xor a
 	ldh [rIF], a
+;> rIE &= 0xE2
 	ldh a, [rIE]
 	and $e2
 	ldh [rIE], a
 
-Call_11E7::
-	ld hl, $ff40
+;@ def TurnOffLCD()
+;@ path: system/lcd
+;@ Turns the screen off, waiting for line $91 (VBlank) first so the LCD is not
+;@ stopped mid-frame.
+;@ test: skip waits for the LCD
+TurnOffLCD::
+;> if not rLCDC & 0x80:
+;>     return
+	ld hl, rLCDC
 	bit 7, [hl]
 	ret z
 
-jr_000_11ed:
+.wait
+;> wait_ly(0x91)
 	ldh a, [rLY]
 	cp $91
-	jr nz, jr_000_11ed
+	jr nz, .wait
 
+;> rLCDC &= ~0x80
 	res 7, [hl]
-	ld hl, $c8a1
+;> wLCDC &= ~0x80
+	ld hl, wLCDC
 	res 7, [hl]
 	ret
 
 
-Call_11FB::
-	ld hl, $c8a1
+;@ def TurnOnLCD()
+;@ path: system/lcd
+;@ Turns the screen on (through wLCDC); on a Super Game Boy sends packet 1.
+;@ The bytes after it are an unused routine that disables the serial interrupt.
+;@ test: skip talks to the Super Game Boy
+TurnOnLCD::
+;> wLCDC |= 0x80
+	ld hl, wLCDC
 	set 7, [hl]
+;> rLCDC = wLCDC
 	ld a, [hl]
 	ldh [rLCDC], a
-	ld a, [$c81c]
+;> if not wOnSGB:
+;>     return
+	ld a, [wOnSGB]
 	or a
 	ret z
 
+;> wSGBPacketID = 1
 	ld a, $01
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+;> SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
-	call Call_1013
+;> SGBPacketDelay()
+	call SGBPacketDelay
 	ret
 
 
 	db $c9, $af, $e0, $0f, $f0, $ff, $e6, $f7, $e0, $ff, $c9
 
-Call_1220::
+;@ def WaitSerialTransfer()
+;@ path: link/serial
+;@ Waits until the current link cable transfer is done.
+;@ test: skip polls rSC
+WaitSerialTransfer::
+;> wait_serial()
 	ldh a, [rSC]
 	bit 7, a
-	jr nz, Call_1220
+	jr nz, WaitSerialTransfer
 
 	ret
 
 
-Call_1227::
+;@ def SetInterrupts(enabled: a)
+;@ path: system/interrupts
+;@ Clears pending interrupts and enables those in `enabled`.
+SetInterrupts::
+;> rIF = 0
 	ld b, a
 	xor a
 	ldh [rIF], a
+;> rIE = enabled
 	ld a, b
 	ldh [rIE], a
 	ret
 
 
-Call_122F::
-	ldh a, [$ffb7]
+;@ def ApplyScroll()
+;@ path: gfx/scroll
+;@ Copies the scroll and window positions to the LCD registers (VBlank).
+ApplyScroll::
+;> rSCX = lo(hScrollX)
+	ldh a, [hScrollX]
 	ldh [rSCX], a
-	ldh a, [$ffbb]
+;> rSCY = lo(hScrollY)
+	ldh a, [hScrollY]
 	ldh [rSCY], a
-	ldh a, [$ffb5]
+;> rWX = hWX
+	ldh a, [hWX]
 	ldh [rWX], a
-	ldh a, [$ffb6]
+;> rWY = hWY
+	ldh a, [hWY]
 	ldh [rWY], a
 	ret
 
 
-Call_1240::
+;@ def ApplyLCDC()
+;@ path: system/lcd
+;@ Writes wLCDC to rLCDC once the LCD is not reading VRAM.
+;@ test: skip polls the LCD
+ApplyLCDC::
+;> while rSTAT & 0x02:
+;>     wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, Call_1240
+	jr nz, ApplyLCDC
 
-	ld a, [$c8a1]
+;> rLCDC = wLCDC
+	ld a, [wLCDC]
 	ldh [rLCDC], a
 	ret
 
 
-Call_124C::
+;@ def ApplyPalettes()
+;@ path: gfx/palettes
+;@ VBlank palette update: the Game Boy Color palettes (bank $17 entry 3), then
+;@ the Game Boy palettes wBGP, wOBP0, wOBP1.
+;@ test: skip calls a routine in another bank
+ApplyPalettes::
+;> far_call(0x17, 0x03)                   # Game Boy Color palettes
 	ld hl, $1703
 	rst $10
-	ld hl, $c89b
+;> rBGP = wBGP
+	ld hl, wBGP
 	ld a, [hli]
 	ldh [rBGP], a
+;> rOBP0 = wOBP0
 	ld a, [hli]
 	ldh [rOBP0], a
+;> rOBP1 = wOBP1
 	ld a, [hl]
 	ldh [rOBP1], a
 	ret
 
 
-Call_125D::
+;@ def EnableLYCInterrupt()
+;@ path: system/interrupts
+;@ Lets the LCD STAT interrupt fire on the LY=LYC match.
+EnableLYCInterrupt::
+;> rSTAT |= 0x40
 	ldh a, [rSTAT]
 	or $40
 	ldh [rSTAT], a
 	ret
 
 
-Call_1264::
+;@ def DisableSTATInterrupts()
+;@ path: system/interrupts
+;@ Switches off all LCD STAT interrupt sources.
+DisableSTATInterrupts::
+;> rSTAT &= 0x07
 	ldh a, [rSTAT]
 	and $07
 	ldh [rSTAT], a
 	ret
 
 
-Call_126B::
+;@ def SerialSendMaster(value: a)
+;@ path: link/serial
+;@ Starts sending `value` over the link cable with the internal clock (this
+;@ Game Boy drives the transfer).
+;@ test: skip starts a serial transfer
+SerialSendMaster::
+;> disable_interrupts()
 	di
-	call Call_127F
+;> SetSerialByte(value)
+	call SetSerialByte
+;> rSC = 0x81
 	ld a, $81
 	ldh [rSC], a
+;> enable_interrupts()
 	ei
 	ret
 
 
-Call_1275::
+;@ def SerialSendSlave(value: a)
+;@ path: link/serial
+;@ Puts `value` up for sending and waits for the other Game Boy's clock.
+;@ test: skip starts a serial transfer
+SerialSendSlave::
+;> disable_interrupts()
 	di
-	call Call_127F
+;> SetSerialByte(value)
+	call SetSerialByte
+;> rSC = 0x80
 	ld a, $80
 	ldh [rSC], a
+;> enable_interrupts()
 	ei
 	ret
 
 
-Call_127F::
+;@ def SetSerialByte(value: a)
+;@ path: link/serial
+;@ Stops any transfer and loads `value` into the serial data register.
+;@ test: skip writes the serial registers
+SetSerialByte::
+;> rSC = 0
 	ld b, a
 	ld a, $00
 	ldh [rSC], a
+;> rSB = value
 	ld a, b
 	ldh [rSB], a
 	ret
 
 
-Call_1288::
-	ld a, [$c81d]
+;@ def ClearRAM()
+;@ path: system/boot
+;@ Clears WRAM $C000-$DDFF and HRAM $FF8A-$FFFD, keeping wOnCGB.
+;@ test: skip clears the whole RAM
+ClearRAM::
+;> on_cgb = wOnCGB
+	ld a, [wOnCGB]
 	push af
-	ld hl, $c000
+;> FillMemory(wShadowOAM, 0x1E00, 0)
+	ld hl, wShadowOAM
 	ld bc, $1e00
 	xor a
-	call Call_12C7
-	ld hl, $ff8a
+	call FillMemory
+;> FillMemory(hPlayerGfx, 0x74, 0)        # $FF8A-$FFFD
+	ld hl, hPlayerGfx
 	ld bc, $0074
 	xor a
-	call Call_12C7
+	call FillMemory
+;> wOnCGB = on_cgb
 	pop af
-	ld [$c81d], a
+	ld [wOnCGB], a
 	ret
 
 
-Call_12A5::
+;@ def ClearBGMaps()
+;@ path: gfx/tilemap
+;@ Clears both BG maps ($9800-$9FFF) to tile 0, and on a Game Boy Color their
+;@ attributes too.
+;@ test: skip writes VRAM bank 1
+ClearBGMaps::
+;> FillMemory(0x9800, 0x800, 0)
 	ld hl, $9800
 	ld bc, $0800
 	xor a
-	call Call_12C7
-	ld a, [$c81d]
+	call FillMemory
+;> if not wOnCGB:
+;>     return
+	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
+;> FillMemory(0x9800, 0x800, 0)           # the attributes
 	ld hl, $9800
 	ld bc, $0800
 	xor a
-	call Call_12C7
+	call FillMemory
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
 
-Call_12C7::
+;@ def FillMemory(dest: hl, count: bc, value: a)
+;@ path: system/memory
+;@ Sets `count` bytes from `dest` on to `value` (count 0 means 65536).
+;@ test: count = rand(1, 0x100)
+FillMemory::
+;>@fill fill(dest, value, count)
 	ld d, a
 
-jr_000_12c8:
+.loop
 	ld [hl], d
 	inc hl
 	dec bc
 	ld a, b
+;=@fill
 	or c
-	jr nz, jr_000_12c8
+	jr nz, .loop
 
 	ret
 
 
-Call_12D0::
+;@ def Random() -> a
+;@ path: system/random
+;@ Steps the random number generator: x = x * 5 + $1357 (16 bits), returns the
+;@ new low byte. The main loop calls it all the time while the game waits.
+Random::
+;> x = (wRandomHigh << 8 | wRandomLow)
 	push hl
 	push de
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	ld h, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld l, a
+;>@x x = u16(x * 5 + 0x1357)
 	ld d, h
 	ld e, l
 	add hl, hl
 	add hl, hl
 	add hl, de
+;=@x
 	ld de, $1357
 	add hl, de
+;> wRandomHigh = hi(x)
 	ld a, h
-	ld [$c899], a
+	ld [wRandomHigh], a
+;> wRandomLow = lo(x)
 	ld a, l
-	ld [$c89a], a
+	ld [wRandomLow], a
+;> return lo(x)
 	pop de
 	pop hl
 	ret
 
 
-Call_12EE::
-	ld a, [$c81c]
+;@ def ReadJoypad()
+;@ path: system/joypad
+;@ Reads the pad into wJoyHeld (and keeps the previous state in wJoyHeldLast).
+;@ On a Super Game Boy it reads all players' pads; player 2's goes to
+;@ wJoy2Held. The bytes after it are an unused variant that reads the pad into
+;@ wJoy2Held.
+;@ test: skip reads the pad through rP1
+ReadJoypad::
+;> if wOnSGB:
+	ld a, [wOnSGB]
 	or a
-	jr z, jr_000_1310
+	jr z, .plain
 
-	call Call_1082
-	ld a, [$c842]
-	ld [$c843], a
-	ld a, [$c76c]
-	ld [$c842], a
-	ld a, [$c844]
-	ld [$c845], a
-	ld a, [$c76e]
-	ld [$c844], a
+;>     ReadSGBJoypads()
+	call ReadSGBJoypads
+;>     wJoyHeldLast = wJoyHeld
+	ld a, [wJoyHeld]
+	ld [wJoyHeldLast], a
+;>     wJoyHeld = wSGBJoypads[0]          # player 1
+	ld a, [wSGBJoypads]
+	ld [wJoyHeld], a
+;>     wJoy2HeldLast = wJoy2Held
+	ld a, [wJoy2Held]
+	ld [wJoy2HeldLast], a
+;>     wJoy2Held = wSGBJoypads[2]         # player 2
+	ld a, [wSGBJoypads + 2]
+	ld [wJoy2Held], a
 	ret
 
 
-jr_000_1310:
+.plain
+;> else:
+;>     wJoy2Active = 0
 	xor a
-	ld [$c841], a
-	call Call_1338
-	ld a, [$c842]
-	ld [$c843], a
+	ld [wJoy2Active], a
+;>     held = ReadButtons()
+	call ReadButtons
+;>     wJoyHeldLast = wJoyHeld
+	ld a, [wJoyHeld]
+	ld [wJoyHeldLast], a
+;>     wJoyHeld = held
 	ld a, b
-	ld [$c842], a
+	ld [wJoyHeld], a
+;>     rP1 = 0x30                         # deselect both groups
 	ld a, $30
 	ldh [rP1], a
 	ret
@@ -3303,27 +5032,38 @@ jr_000_1310:
 	db $cd, $38, $13, $fa, $44, $c8, $ea, $45, $c8, $78, $ea, $44, $c8, $3e, $30, $e0
 	db $00, $c9
 
-Call_1338::
+;@ def ReadButtons() -> b
+;@ path: system/joypad
+;@ Reads the pad: returns Down Up Left Right in bits 7-4 and Start Select B A
+;@ in bits 3-0 (set = pressed). The extra reads give the lines time to settle.
+;@ test: skip reads the pad through rP1
+ReadButtons::
+;> rP1 = 0x20                             # the direction keys
 	ld a, $20
 	ldh [rP1], a
+;> dirs = (~rP1 & 0x0F) << 4              # (two reads)
 	ldh a, [rP1]
 	ldh a, [rP1]
 	cpl
 	and $0f
 	swap a
 	ld b, a
+;> rP1 = 0x10                             # the buttons
 	ld a, $10
 	ldh [rP1], a
+;> raw = rP1                              # (ten reads) ...
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
+;> # ...
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
+;> return dirs | (~raw & 0x0F)
 	cpl
 	and $0f
 	or b
@@ -3331,424 +5071,602 @@ Call_1338::
 	ret
 
 
-Call_1364::
-	ld a, [$c86c]
+;@ def UpdateJoypadPresses()
+;@ path: system/joypad
+;@ From the held buttons works out, for both pads, the buttons newly pressed
+;@ this frame and the "repeat" buttons: new presses, and while the same buttons
+;@ stay held, all of them again after 20 frames and then every 6 frames (for
+;@ scrolling through menus). The second pad is cleared unless it is in use.
+UpdateJoypadPresses::
+;> if not wLinkActive and not wJoy2Active:
+	ld a, [wLinkActive]
 	or a
-	jr nz, jr_000_1377
+	jr nz, .pad1
 
-	ld a, [$c841]
+	ld a, [wJoy2Active]
 	or a
-	jr nz, jr_000_1377
+	jr nz, .pad1
 
+;>     wJoy2Held = 0
 	xor a
-	ld [$c844], a
-	ld [$c845], a
+	ld [wJoy2Held], a
+;>     wJoy2HeldLast = 0
+	ld [wJoy2HeldLast], a
 
-jr_000_1377:
+.pad1
+;> wJoyRepeat = 0
 	xor a
-	ld [$c847], a
-	ld hl, $c842
+	ld [wJoyRepeat], a
+;> changed = wJoyHeld ^ wJoyHeldLast
+	ld hl, wJoyHeld
 	ld a, [hl]
 	inc hl
 	xor [hl]
+;> wJoyPressed = wJoyHeld & changed
 	dec hl
 	and [hl]
-	ld [$c846], a
-	ld hl, $c842
+	ld [wJoyPressed], a
+;> if wJoyHeld == 0 or wJoyHeld != wJoyHeldLast:
+	ld hl, wJoyHeld
 	ld a, [hli]
 	or a
-	jr z, jr_000_1390
+	jr z, .new1
 
 	cp [hl]
-	jr z, jr_000_139d
+	jr z, .same1
 
-jr_000_1390:
-	ld a, [$c846]
-	ld [$c847], a
+.new1
+;>     wJoyRepeat = wJoyPressed
+	ld a, [wJoyPressed]
+	ld [wJoyRepeat], a
+;>     wJoyRepeatTimer = 20
 	ld a, $14
-	ld [$c848], a
-	jr jr_000_13ad
+	ld [wJoyRepeatTimer], a
+	jr .pad2
 
-jr_000_139d:
-	ld hl, $c848
+.same1
+;> else:
+;>     if wJoyRepeatTimer == 0:
+	ld hl, wJoyRepeatTimer
 	ld a, [hl]
 	or a
-	jr nz, jr_000_13ac
+	jr nz, .tick1
 
+;>         wJoyRepeatTimer = 6
 	ld [hl], $06
-	ld a, [$c842]
-	ld [$c847], a
+;>         wJoyRepeat = wJoyHeld
+	ld a, [wJoyHeld]
+	ld [wJoyRepeat], a
 
-jr_000_13ac:
+.tick1
+;>     wJoyRepeatTimer -= 1
 	dec [hl]
 
-jr_000_13ad:
+.pad2
+;> wJoy2Repeat = 0
 	xor a
-	ld [$c84b], a
-	ld hl, $c844
+	ld [wJoy2Repeat], a
+;> changed = wJoy2Held ^ wJoy2HeldLast
+	ld hl, wJoy2Held
 	ld a, [hl]
 	inc hl
 	xor [hl]
+;> wJoy2Pressed = wJoy2Held & changed
 	dec hl
 	and [hl]
-	ld [$c84a], a
-	ld hl, $c844
+	ld [wJoy2Pressed], a
+;> if wJoy2Held == 0 or wJoy2Held != wJoy2HeldLast:
+	ld hl, wJoy2Held
 	ld a, [hli]
 	or a
-	jr z, jr_000_13c6
+	jr z, .new2
 
 	cp [hl]
-	jr z, jr_000_13d3
+	jr z, .same2
 
-jr_000_13c6:
-	ld a, [$c84a]
-	ld [$c84b], a
+.new2
+;>     wJoy2Repeat = wJoy2Pressed
+	ld a, [wJoy2Pressed]
+	ld [wJoy2Repeat], a
+;>     wJoy2RepeatTimer = 20
 	ld a, $14
-	ld [$c84c], a
-	jr jr_000_13e3
+	ld [wJoy2RepeatTimer], a
+	jr .done
 
-jr_000_13d3:
-	ld hl, $c84c
+.same2
+;> else:
+;>     if wJoy2RepeatTimer == 0:
+	ld hl, wJoy2RepeatTimer
 	ld a, [hl]
 	or a
-	jr nz, jr_000_13e2
+	jr nz, .tick2
 
+;>         wJoy2RepeatTimer = 6
 	ld [hl], $06
-	ld a, [$c844]
-	ld [$c84b], a
+;>         wJoy2Repeat = wJoy2Held
+	ld a, [wJoy2Held]
+	ld [wJoy2Repeat], a
 
-jr_000_13e2:
+.tick2
+;>     wJoy2RepeatTimer -= 1
 	dec [hl]
 
-jr_000_13e3:
+.done
 	ret
 
 
 	db $87, $85, $6f, $3e, $00, $8c, $67, $2a, $66, $6f, $c9
 
-Call_13EF::
-	ld hl, $c89b
+;@ def InitPalettes()
+;@ path: gfx/palettes
+;@ Sets the Game Boy palettes to their start values (BGP $D2, OBP0 $D2,
+;@ OBP1 $E2) and keeps a copy in wDefaultPalettes. (The bytes before it are an
+;@ unused table-pointer lookup.)
+InitPalettes::
+;> wBGP = 0xD2
+	ld hl, wBGP
 	ld a, $d2
 	ld [hli], a
+;> wOBP0 = 0xD2
 	ld a, $d2
 	ld [hli], a
+;> wOBP1 = 0xE2
 	ld a, $e2
 	ld [hl], a
-	ld hl, $c89e
-	ld a, [$c89b]
+;> wDefaultPalettes[0] = wBGP
+	ld hl, wDefaultPalettes
+	ld a, [wBGP]
 	ld [hli], a
-	ld a, [$c89c]
+;> wDefaultPalettes[1] = wOBP0
+	ld a, [wOBP0]
 	ld [hli], a
-	ld a, [$c89d]
+;> wDefaultPalettes[2] = wOBP1
+	ld a, [wOBP1]
 	ld [hl], a
 	ret
 
 
-Call_140B::
+;@ def ClearScroll()
+;@ path: gfx/scroll
+;@ Zeroes the eight HRAM bytes from hScrollX on (both scroll positions): four
+;@ here, four more by running on into Clear4Bytes.
+;@ test: skip falls through into Clear4Bytes
+ClearScroll::
+;> fill(hScrollX, 0, 8)
 	xor a
-	ld hl, $ffb7
-	call Call_1412
+	ld hl, hScrollX
+	call Clear4Bytes
 
-Call_1412::
+;@ def Clear4Bytes(dest: hl, value: a) -> hl
+;@ path: system/memory
+;@ Writes `value` to four bytes from `dest` on; returns the address after them.
+Clear4Bytes::
+;> fill(dest, value, 4)
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;> return dest + 4
 	ret
 
 
-Call_1417::
+;@ def ClearShadowOAM()
+;@ path: gfx/oam
+;@ Empties the sprite list: hOAMCount = 0 and all of wShadowOAM zero.
+ClearShadowOAM::
+;> hOAMCount = 0
 	xor a
-	ldh [$ffcb], a
-	ld hl, $c000
+	ldh [hOAMCount], a
+;> FillMemory(wShadowOAM, 160, 0)
+	ld hl, wShadowOAM
 	ld bc, $00a0
-	call Call_12C7
+	call FillMemory
 	ret
 
 
-Call_1424::
-	ldh a, [$ffcb]
+;@ def HideUnusedSprites()
+;@ path: gfx/oam
+;@ Hides the shadow OAM slots from hOAMCount to 39 (Y = 0).
+HideUnusedSprites::
+;> if hOAMCount == 40:
+;>     return
+	ldh a, [hOAMCount]
 	cp $28
 	ret z
 
+;>@hide for slot in range(hOAMCount, 40):
 	ld l, a
 	sla l
 	sla l
 	ld h, $c0
 	sub $28
 	ld b, a
+;>     wShadowOAM[4 * slot] = 0
 	xor a
 
-jr_000_1434:
+.loop
 	ld [hli], a
 	inc l
 	inc l
 	inc l
+;=@hide
 	inc b
-	jr nz, jr_000_1434
+	jr nz, .loop
 
 	ret
 
 
-Call_143C::
-	ld a, [$c740]
+;@ def CopyMapUpdate()
+;@ path: gfx/tilemap
+;@ VBlank part of the map streaming: copies the queued row or column of tiles
+;@ (wMapUpdateTiles, wMapUpdateLen of them) to the BG map at wMapUpdateDest; on
+;@ a Game Boy Color the attributes that follow the tiles in the buffer go to VRAM
+;@ bank 1. A row wraps within its 32 columns, a column within the map at
+;@ $9800. Then the queue is emptied.
+;@ test: skip writes VRAM bank 1
+CopyMapUpdate::
+;> dest = wMapUpdateDest
+	ld a, [wMapUpdateDest]
 	ld e, a
-	ld a, [$c741]
+	ld a, [wMapUpdateDest + 1]
 	ld d, a
+;> if dest == 0:                          # nothing queued
+;>     return
 	ld a, d
 	or e
-	jr nz, jr_000_1449
+	jr nz, .queued
 
 	ret
 
 
-jr_000_1449:
-	ld a, [$c743]
+.queued
+;> count = wMapUpdateLen
+	ld a, [wMapUpdateLen]
 	ld b, a
-	ld hl, $c744
-	ld a, [$c742]
+;> src = wMapUpdateTiles
+	ld hl, wMapUpdateTiles
+;> if wMapUpdateDir == 0xFF:
+;>     return
+	ld a, [wMapUpdateDir]
 	cp $ff
 	ret z
 
+;> if wMapUpdateDir == 0:                 # a row
 	or a
-	jr nz, jr_000_148f
+	jr nz, .column
 
+;>     row = lo(dest) & 0xE0
 	ld a, e
 	and $e0
 	ld c, a
 
-jr_000_145d:
+.row
+;>@r1     for _ in range(count):
+;>         mem[dest] = mem[src]; src += 1
 	ld a, [hli]
 	ld [de], a
+;>         dest = (dest & 0xFF00) | row | ((lo(dest) + 1) & 0x1F)
 	inc e
 	ld a, e
 	and $1f
 	or c
 	ld e, a
+;=@r1
 	dec b
-	jr nz, jr_000_145d
+	jr nz, .row
 
-	ld a, [$c81d]
+;>     if wOnCGB:
+	ld a, [wOnCGB]
 	or a
-	jr z, jr_000_14c7
+	jr z, .done
 
+;>         rVBK = 1                       # the attributes
 	ld a, $01
 	ldh [rVBK], a
-	ld a, [$c740]
+;>         dest = wMapUpdateDest
+	ld a, [wMapUpdateDest]
 	ld e, a
-	ld a, [$c741]
+	ld a, [wMapUpdateDest + 1]
 	ld d, a
-	ld a, [$c743]
+;>         count = wMapUpdateLen
+	ld a, [wMapUpdateLen]
 	ld b, a
 
-jr_000_147e:
+.rowAttr
+;>@r2         for _ in range(count):
+;>             mem[dest] = mem[src]; src += 1
 	ld a, [hli]
 	ld [de], a
+;>             dest = (dest & 0xFF00) | row | ((lo(dest) + 1) & 0x1F)
 	inc e
 	ld a, e
 	and $1f
 	or c
 	ld e, a
+;=@r2
 	dec b
-	jr nz, jr_000_147e
+	jr nz, .rowAttr
 
+;>         rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
-	jr jr_000_14c7
+	jr .done
 
-jr_000_148f:
+.column
+;> else:                                  # a column
+;>@c1     for _ in range(count):
+;>         mem[dest] = mem[src]; src += 1
 	ld a, [hli]
 	ld [de], a
+;>         dest = (dest + 0x20) & ~0x0400  # next row, wrapping from $9C00 to $9800
 	ld a, e
 	add $20
 	ld e, a
 	ld a, d
 	adc $00
 	res 2, a
+;=@c1
 	ld d, a
 	dec b
-	jr nz, jr_000_148f
+	jr nz, .column
 
-	ld a, [$c81d]
+;>     if wOnCGB:
+	ld a, [wOnCGB]
 	or a
-	jr z, jr_000_14c7
+	jr z, .done
 
+;>         rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
-	ld a, [$c740]
+;>         dest = wMapUpdateDest
+	ld a, [wMapUpdateDest]
 	ld e, a
-	ld a, [$c741]
+	ld a, [wMapUpdateDest + 1]
 	ld d, a
-	ld a, [$c743]
+;>         count = wMapUpdateLen
+	ld a, [wMapUpdateLen]
 	ld b, a
 
-jr_000_14b4:
+.columnAttr
+;>@c2         for _ in range(count):
+;>             mem[dest] = mem[src]; src += 1
 	ld a, [hli]
 	ld [de], a
+;>             dest = (dest + 0x20) & ~0x0400
 	ld a, e
 	add $20
 	ld e, a
 	ld a, d
 	adc $00
 	res 2, a
+;=@c2
 	ld d, a
 	dec b
-	jr nz, jr_000_14b4
+	jr nz, .columnAttr
 
+;>         rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 
-jr_000_14c7:
+.done
+;> wMapUpdateDest = 0
 	xor a
-	ld [$c740], a
-	ld [$c741], a
+	ld [wMapUpdateDest], a
+	ld [wMapUpdateDest + 1], a
 	ret
 
 
-Call_14CF::
-	ld a, [$da78]
+;@ def Decompress(bank: d, entry: e, dest: hl)
+;@ path: gfx/decompress
+;@ Unpacks compressed data (entry `entry` of bank `bank`'s table) to `dest` in
+;@ RAM (see DecompressCore for the format). wDecompressBusy keeps two
+;@ decompressions (one may run from the VBlank handler) from mixing their
+;@ HRAM state: this one waits until the other is done.
+;@ test: skip switches banks
+Decompress::
+;> while wDecompressBusy:
+;>     wait_vblank_flag()
+	ld a, [wDecompressBusy]
 	or a
-	jr nz, Call_14CF
+	jr nz, Decompress
 
+;> wDecompressBusy = 1
 	inc a
-	ld [$da78], a
-	call Call_14E1
+	ld [wDecompressBusy], a
+;> DecompressCore(bank, entry, dest)
+	call DecompressCore
+;> wDecompressBusy = 0
 	xor a
-	ld [$da78], a
+	ld [wDecompressBusy], a
 	ret
 
 
-Call_14E1::
+;@ def DecompressCore(bank: d, entry: e, dest: hl)
+;@ path: gfx/decompress
+;@ The game's compression format (graphics, maps and more). The data starts
+;@ with a header: the unpacked length (2 bytes, little endian) and a marker
+;@ byte. Then a stream of bytes: any byte other than the marker is copied
+;@ as it is. The marker starts a back-reference of 2 or 3 more bytes:
+;@ `ll`, `hc` (and `nn`): offset = h << 8 | ll (12 bits), count = c + 4, and when
+;@ c is $F the count is nn + $13 instead. The reference copies `count` bytes
+;@ from dest + offset on (dest = the start of the output); a position at or past
+;@ the end of the output (dest + length) is taken $1000 lower, and a position
+;@ that then lies before dest gives 0. So the output works as a 4 KiB window.
+;@ Unpacking stops after `length` bytes, even inside a reference.
+;@ test: skip switches banks
+DecompressCore::
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
-	call Call_1627
+;> length, data = DecompressSetup(bank, entry, dest)   # switches to the data's bank
+	call DecompressSetup
 
-Jump_000_14e8:
-jr_000_14e8:
+.next
+;> while True:
+;>     byte = mem[data]; data += 1
 	ld a, [de]
 	inc de
+;>     if byte != hLZMarker:              # a literal byte
 	push hl
-	ld hl, $ffab
+	ld hl, hLZMarker
 	cp [hl]
-	jr z, jr_000_14fc
+	jr z, .reference
 
+;>         mem[dest] = byte; dest += 1
 	pop hl
 	ld [hl], a
 	inc hl
+;>         length -= 1
 	dec bc
+;>         if length == 0:
+;>             break
 	ld a, b
 	or c
-	jr nz, jr_000_14e8
+	jr nz, .next
 
-	jp Jump_000_156a
+	jp .end
 
 
-jr_000_14fc:
+.reference
+;>     else:                              # a back-reference
+;>         hLZOffset = mem[data]; data += 1
 	pop hl
 	ld a, [de]
-	ldh [$ffb0], a
+	ldh [hLZOffset], a
 	inc de
+;>         x = mem[data]; data += 1
 	ld a, [de]
-	ldh [$ffaf], a
+	ldh [hLZCount], a
 	inc de
-	ldh a, [$ffaf]
+;>         count = (x & 0x0F) + 4
+	ldh a, [hLZCount]
 	push af
 	and $0f
 	add $04
+;>         if count == 0x13:              # a long one: the count follows
+;>             count = mem[data] + 0x13; data += 1
 	cp $13
-	jr nz, jr_000_1514
+	jr nz, .count
 
 	ld a, [de]
 	inc de
 	add $13
 
-jr_000_1514:
-	ldh [$ffaf], a
+.count
+;>         hLZCount = count
+	ldh [hLZCount], a
+;>         offset = (x >> 4) << 8 | hLZOffset
 	pop af
 	push de
 	swap a
 	and $0f
 	ld d, a
-	ldh a, [$ffb0]
+	ldh a, [hLZOffset]
+;>@src         src = hLZDest + offset
 	ld e, a
 	push hl
-	ldh a, [$ffac]
+	ldh a, [hLZDest]
 	ld l, a
-	ldh a, [$ffad]
+	ldh a, [hLZDest + 1]
 	ld h, a
+;=@src
 	add hl, de
 	ld e, l
 	ld d, h
 	pop hl
 
-jr_000_152b:
-	ldh a, [$ffb2]
+.copy
+;>         while True:
+;>             value = None               # (set to 0 below for a position before the output)
+;>@ge             if src >= hLZEnd:          # past the end: back by 4 KiB
+	ldh a, [hLZEnd + 1]
 	cp d
-	jr z, jr_000_1534
+	jr z, .endLow
 
-	jr c, jr_000_153b
+	jr c, .wrap
 
-	jr jr_000_1556
+	jr .byte
 
-jr_000_1534:
-	ldh a, [$ffb1]
+.endLow
+;=@ge
+	ldh a, [hLZEnd]
 	cp e
-	jr z, jr_000_153b
+	jr z, .wrap
 
-	jr nc, jr_000_1556
+	jr nc, .byte
 
-jr_000_153b:
+.wrap
+;>                 src -= 0x1000
 	ld a, $f0
 	add d
 	ld d, a
-	ldh a, [$ffb4]
+;>@zero                 if src < hLZStart:      # before the output: a zero
+	ldh a, [hLZStart + 1]
 	cp d
-	jr z, jr_000_1548
+	jr z, .startLow
 
-	jr nc, jr_000_154f
+	jr nc, .zero
 
-	jr jr_000_1556
+	jr .byte
 
-jr_000_1548:
-	ldh a, [$ffb3]
+.startLow
+;=@zero
+	ldh a, [hLZStart]
 	cp e
-	jr z, jr_000_1556
+	jr z, .byte
 
-	jr c, jr_000_1556
+	jr c, .byte
 
-jr_000_154f:
+.zero
+;>                     src += 0x1000
 	ld a, $10
 	add d
 	ld d, a
+;>                     value = 0
 	xor a
-	jr jr_000_1557
+	jr .put
 
-jr_000_1556:
+.byte
+;>             if value is None:
+;>                 value = mem[src]
 	ld a, [de]
 
-jr_000_1557:
+.put
+;>             mem[dest] = value; dest += 1
 	ld [hli], a
+;>             src += 1
 	inc de
+;>             length -= 1
 	dec bc
+;>             if length == 0:
+;>                 break
 	ld a, b
 	or c
-	jr z, jr_000_1569
+	jr z, .finish
 
-	ldh a, [$ffaf]
+;>             hLZCount -= 1
+	ldh a, [hLZCount]
 	dec a
-	ldh [$ffaf], a
-	jr nz, jr_000_152b
+	ldh [hLZCount], a
+;>             if hLZCount == 0:
+;>                 break
+	jr nz, .copy
 
+;>@fin         if length == 0: break
+;>         # (data pointer back from the stack)
 	pop de
-	jp Jump_000_14e8
+	jp .next
 
 
-jr_000_1569:
+.finish
+;=@fin
 	pop de
 
-Jump_000_156a:
+.end
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -3756,152 +5674,212 @@ Jump_000_156a:
 	ret
 
 
-Call_1577::
-	ld a, [$da78]
+;@ def DecompressVRAM(bank: d, entry: e, dest: hl)
+;@ path: gfx/decompress
+;@ Like Decompress, for a destination in VRAM while the screen is on (every
+;@ byte is read and written when VRAM is accessible).
+;@ test: skip switches banks
+DecompressVRAM::
+;> while wDecompressBusy:
+;>     wait_vblank_flag()
+	ld a, [wDecompressBusy]
 	or a
-	jr nz, Call_1577
+	jr nz, DecompressVRAM
 
+;> wDecompressBusy = 1
 	inc a
-	ld [$da78], a
-	call Call_1589
+	ld [wDecompressBusy], a
+;> DecompressVRAMCore(bank, entry, dest)
+	call DecompressVRAMCore
+;> wDecompressBusy = 0
 	xor a
-	ld [$da78], a
+	ld [wDecompressBusy], a
 	ret
 
 
-Call_1589::
+;@ def DecompressVRAMCore(bank: d, entry: e, dest: hl)
+;@ path: gfx/decompress
+;@ DecompressCore for VRAM: writes through WriteVRAMInc, and back-references
+;@ read the earlier output from VRAM once it is accessible.
+;@ test: skip switches banks
+DecompressVRAMCore::
+;> saved = rom_bank()
 	ld a, [$4000]
 	push af
-	call Call_1627
+;> length, data = DecompressSetup(bank, entry, dest)
+	call DecompressSetup
 
-Jump_000_1590:
-jr_000_1590:
+.next
+;> while True:
+;>     byte = mem[data]; data += 1
 	ld a, [de]
 	inc de
+;>     if byte != hLZMarker:
 	push hl
-	ld hl, $ffab
+	ld hl, hLZMarker
 	cp [hl]
-	jr z, jr_000_15a5
+	jr z, .reference
 
+;>         dest = WriteVRAMInc(dest, byte)
 	pop hl
-	call Call_1AB9
+	call WriteVRAMInc
+;>         length -= 1
 	dec bc
+;>         if length == 0:
+;>             break
 	ld a, b
 	or c
-	jr nz, jr_000_1590
+	jr nz, .next
 
-	jp Jump_000_161a
+	jp .end
 
 
-jr_000_15a5:
+.reference
+;>     else:
+;>         hLZOffset = mem[data]; data += 1
 	pop hl
 	ld a, [de]
-	ldh [$ffb0], a
+	ldh [hLZOffset], a
 	inc de
+;>         x = mem[data]; data += 1
 	ld a, [de]
-	ldh [$ffaf], a
+	ldh [hLZCount], a
 	inc de
-	ldh a, [$ffaf]
+;>         count = (x & 0x0F) + 4
+	ldh a, [hLZCount]
 	push af
 	and $0f
 	add $04
+;>         if count == 0x13:
+;>             count = mem[data] + 0x13; data += 1
 	cp $13
-	jr nz, jr_000_15bd
+	jr nz, .count
 
 	ld a, [de]
 	inc de
 	add $13
 
-jr_000_15bd:
-	ldh [$ffaf], a
+.count
+;>         hLZCount = count
+	ldh [hLZCount], a
+;>         offset = (x >> 4) << 8 | hLZOffset
 	pop af
 	push de
 	swap a
 	and $0f
 	ld d, a
-	ldh a, [$ffb0]
+	ldh a, [hLZOffset]
+;>@src         src = hLZDest + offset
 	ld e, a
 	push hl
-	ldh a, [$ffac]
+	ldh a, [hLZDest]
 	ld l, a
-	ldh a, [$ffad]
+	ldh a, [hLZDest + 1]
 	ld h, a
+;=@src
 	add hl, de
 	ld e, l
 	ld d, h
 	pop hl
 
-jr_000_15d4:
-	ldh a, [$ffb2]
+.copy
+;>         while True:
+;>             value = None
+;>@ge             if src >= hLZEnd:
+	ldh a, [hLZEnd + 1]
 	cp d
-	jr z, jr_000_15dd
+	jr z, .endLow
 
-	jr c, jr_000_15e4
+	jr c, .wrap
 
-	jr jr_000_15ff
+	jr .byte
 
-jr_000_15dd:
-	ldh a, [$ffb1]
+.endLow
+;=@ge
+	ldh a, [hLZEnd]
 	cp e
-	jr z, jr_000_15e4
+	jr z, .wrap
 
-	jr nc, jr_000_15ff
+	jr nc, .byte
 
-jr_000_15e4:
+.wrap
+;>                 src -= 0x1000
 	ld a, $f0
 	add d
 	ld d, a
-	ldh a, [$ffb4]
+;>@zero                 if src < hLZStart:
+	ldh a, [hLZStart + 1]
 	cp d
-	jr z, jr_000_15f1
+	jr z, .startLow
 
-	jr nc, jr_000_15f8
+	jr nc, .zero
 
-	jr jr_000_15ff
+	jr .byte
 
-jr_000_15f1:
-	ldh a, [$ffb3]
+.startLow
+;=@zero
+	ldh a, [hLZStart]
 	cp e
-	jr z, jr_000_15ff
+	jr z, .byte
 
-	jr c, jr_000_15ff
+	jr c, .byte
 
-jr_000_15f8:
+.zero
+;>                     src += 0x1000
 	ld a, $10
 	add d
 	ld d, a
+;>                     value = 0
 	xor a
-	jr jr_000_1605
+	jr .put
 
-jr_000_15ff:
+.byte
+;>             if value is None:
+;>                 disable_interrupts()
 	di
-	call Call_1AA6
+;>                 WaitVRAMAccess()
+	call WaitVRAMAccess
+;>                 value = mem[src]
 	ld a, [de]
+;>                 enable_interrupts()
 	ei
 
-jr_000_1605:
-	call Call_1AB9
+.put
+;>             dest = WriteVRAMInc(dest, value)
+	call WriteVRAMInc
+;>             src += 1
 	inc de
+;>             length -= 1
 	dec bc
+;>             if length == 0:
+;>                 break
 	ld a, b
 	or c
-	jr z, jr_000_1619
+	jr z, .finish
 
-	ldh a, [$ffaf]
+;>             hLZCount -= 1
+	ldh a, [hLZCount]
 	dec a
-	ldh [$ffaf], a
-	jr nz, jr_000_15d4
+	ldh [hLZCount], a
+;>             if hLZCount == 0:
+;>                 break
+	jr nz, .copy
 
+;>@fin         if length == 0: break
+;>         # (data pointer back from the stack)
 	pop de
-	jp Jump_000_1590
+	jp .next
 
 
-jr_000_1619:
+.finish
+;=@fin
 	pop de
 
-Jump_000_161a:
+.end
+;> set_rom_bank(saved)
 	pop af
 	ld [$2100], a
+;> mem[0x4100] = (saved >> 5) & 3
 	swap a
 	rra
 	and $03
@@ -3909,486 +5887,701 @@ Jump_000_161a:
 	ret
 
 
-Call_1627::
+;@ def DecompressSetup(bank: d, entry: e, dest: hl) -> (bc, de)
+;@ path: gfx/decompress
+;@ Switches to `bank`, finds entry `entry` of its table at $4001 and reads the
+;@ compressed data's header: returns the unpacked length and the address of
+;@ the stream, and sets hLZMarker, hLZDest/hLZStart (= dest) and hLZEnd
+;@ (= dest + length). Leaves the bank switched in.
+;@ test: skip switches banks
+DecompressSetup::
+;> set_rom_bank(bank)
 	ld a, d
 	ld [$2100], a
+;> mem[0x4100] = (bank >> 5) & 3
 	swap a
 	rra
 	and $03
 	ld [$4100], a
+;> slot = 0x4001 + 2 * entry              # the bank's table of entry points
 	push hl
 	ld l, e
 	ld h, $00
 	add hl, hl
 	ld de, $4001
 	add hl, de
+;> header = mem16[slot]
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	pop hl
+;> length = mem16[header]
 	ld a, [de]
 	ld c, a
 	inc de
 	ld a, [de]
 	ld b, a
 	inc de
+;> hLZMarker = mem[header + 2]
 	ld a, [de]
-	ldh [$ffab], a
+	ldh [hLZMarker], a
 	inc de
+;> hLZDest = dest
 	ld a, l
-	ldh [$ffac], a
+	ldh [hLZDest], a
 	ld a, h
-	ldh [$ffad], a
+	ldh [hLZDest + 1], a
+;> hLZEnd = dest + length
 	push hl
 	add hl, bc
 	ld a, l
-	ldh [$ffb1], a
+	ldh [hLZEnd], a
 	ld a, h
-	ldh [$ffb2], a
+	ldh [hLZEnd + 1], a
+;> hLZStart = dest
 	pop hl
 	ld a, l
-	ldh [$ffb3], a
+	ldh [hLZStart], a
 	ld a, h
-	ldh [$ffb4], a
+	ldh [hLZStart + 1], a
+;> return length, header + 3
 	ret
 
 
-Call_1660::
-	ld hl, $c853
-	ld a, [$c89b]
+;@ def InitFade()
+;@ path: gfx/fade
+;@ Resets the palette fade: the current Game Boy palettes become the fade
+;@ palettes, no fade runs, fades go to white on all three Game Boy palettes and
+;@ all four SGB palettes.
+InitFade::
+;> wFadePalettes[0] = wBGP
+	ld hl, wFadePalettes
+	ld a, [wBGP]
 	ld [hli], a
-	ld a, [$c89c]
+;> wFadePalettes[1] = wOBP0
+	ld a, [wOBP0]
 	ld [hli], a
-	ld a, [$c89d]
+;> wFadePalettes[2] = wOBP1
+	ld a, [wOBP1]
 	ld [hl], a
-	jr jr_000_1671
+	jr .clear
 
-jr_000_1671:
+.clear
+;>@f fill(wFadeLevel, 0, 5)                 # level, speed, timer, colour offset
 	xor a
-	ld hl, $c856
+	ld hl, wFadeLevel
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@f
 	ld [hl], a
-	ld [$c850], a
+;> wFadeState = 0
+	ld [wFadeState], a
+;> wFadeType = 0x07                       # to white, all of BGP, OBP0, OBP1
 	ld a, $07
-	ld [$c851], a
+	ld [wFadeType], a
+;> wFadeSGBMask = 0x1F                    # all four SGB palettes
 	ld a, $1f
-	ld [$c852], a
+	ld [wFadeSGBMask], a
 	ret
 
 
-Call_1688::
+;@ def StartFade(state: a)
+;@ path: gfx/fade
+;@ Starts a palette fade; UpdateFade then runs it in the VBlank handler. `state`
+;@ bit 7 set = fade in (from white, or black when wFadeType bit 7 is set, to the
+;@ palettes), clear = fade out. The rest sets the speed: frames per step are
+;@ state / 4 on a Super Game Boy and state + 2 on a Game Boy for a fade-out,
+;@ and (~state) / 4 or ~state + 2 for a fade-in. On a Game Boy Color bank $17
+;@ does the work. A fade-out also calls StartMusicFadeOut.
+;@ test: skip talks to the Super Game Boy and calls routines in other banks
+StartFade::
+;> if wOnCGB:
 	ld b, a
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
-	jp nz, Jump_000_1734
+	jp nz, .cgb
 
-	ld a, [$c81c]
+;>@cgb1     wFadeState = state
+;>@cgb2     StartCGBFade()
+;> elif wOnSGB:
+	ld a, [wOnSGB]
 	or a
-	jp z, Jump_000_173f
+	jp z, .dmg
 
+;>     if not state & 0x80:               # fade out
 	bit 7, b
-	jr nz, jr_000_16c5
+	jr nz, .sgbIn
 
+;>         wFadeState = state
 	ld a, b
-	ld [$c850], a
-	ld hl, $c7f7
-	ld de, $c7d7
+	ld [wFadeState], a
+;>@t1         copy(wSGBPalettesTarget, wSGBPalettes, 32)   # fade from the current colours
+	ld hl, wSGBPalettesTarget
+	ld de, wSGBPalettes
 	ld c, $20
 
-jr_000_16a7:
+.copy1
+;=@t1
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec c
-	jr nz, jr_000_16a7
+	jr nz, .copy1
 
+;>         wFadeLevel = 0
 	ld a, $00
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+;>         wFadeSpeed = wFadeState >> 2
+	ld a, [wFadeState]
 	srl a
 	srl a
-	ld [$c857], a
-	ld [$c858], a
-	call Call_1BD5
-	jp Jump_000_17db
+	ld [wFadeSpeed], a
+;>         wFadeTimer = wFadeSpeed
+	ld [wFadeTimer], a
+;>         StartMusicFadeOut()
+	call StartMusicFadeOut
+	jp .done
 
 
-jr_000_16c5:
+.sgbIn
+;>     else:                              # fade in
+;>         wFadeState = state
 	ld a, b
-	ld [$c850], a
+	ld [wFadeState], a
+;>         wFadeLevel = 0x20
 	ld a, $20
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+;>         wFadeSpeed = (~wFadeState & 0xFF) >> 2
+	ld a, [wFadeState]
 	cpl
 	srl a
 	srl a
-	ld [$c857], a
-	ld [$c858], a
-	ld hl, $c7f7
-	ld de, $c7d7
+	ld [wFadeSpeed], a
+;>         wFadeTimer = wFadeSpeed
+	ld [wFadeTimer], a
+;>@t2         copy(wSGBPalettesTarget, wSGBPalettes, 32)   # the colours to fade to
+	ld hl, wSGBPalettesTarget
+	ld de, wSGBPalettes
 	ld c, $20
 
-jr_000_16e4:
+.copy2
+;=@t2
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec c
-	jr nz, jr_000_16e4
+	jr nz, .copy2
 
+;>         color = 0x7FFF                 # white ...
 	ld de, $7fff
-	ld a, [$c851]
+;>         if wFadeType & 0x80:
+;>             color = 0x0000             # ... or black
+	ld a, [wFadeType]
 	bit 7, a
-	jr z, jr_000_16f7
+	jr z, .fill
 
 	ld de, $0000
 
-jr_000_16f7:
-	ld hl, $c7d7
+.fill
+;>@fl         for i in range(16):
+	ld hl, wSGBPalettes
 	ld c, $10
 
-jr_000_16fc:
+.fillLoop
+;>             mem16[wSGBPalettes + 2 * i] = color
 	ld [hl], e
 	inc hl
 	ld [hl], d
 	inc hl
+;=@fl
 	dec c
-	jr nz, jr_000_16fc
+	jr nz, .fillLoop
 
-	call Call_11BC
-	ld hl, $c7d7
-	ld de, $c777
+;>         ClearSGBPacket()
+	call ClearSGBPacket
+;>         wSGBPacket[0] = 0x01               # PAL01: palettes 0 and 1
+	ld hl, wSGBPalettes
+	ld de, wSGBPacket
 	ld a, $01
 	ld [de], a
+;>         SendSGBPalettePacket(wSGBPalettes, wSGBPacket + 1)
 	inc de
-	call Call_18C0
-	call Call_1013
-	ld a, [$c852]
+	call SendSGBPalettePacket
+;>         SGBPacketDelay()
+	call SGBPacketDelay
+;>         if wFadeSGBMask & 0x10:
+	ld a, [wFadeSGBMask]
 	bit 4, a
-	jp z, Jump_000_17db
+	jp z, .done
 
-	call Call_11BC
-	ld hl, $c7e7
-	ld de, $c777
+;>             ClearSGBPacket()
+	call ClearSGBPacket
+;>             wSGBPacket[0] = 0x09           # PAL23: palettes 2 and 3
+	ld hl, wSGBPalettes + 16
+	ld de, wSGBPacket
 	ld a, $09
 	ld [de], a
+;>             SendSGBPalettePacket(wSGBPalettes + 16, wSGBPacket + 1)
 	inc de
-	call Call_18C0
-	call Call_1013
-	jp Jump_000_17db
+	call SendSGBPalettePacket
+;>             SGBPacketDelay()
+	call SGBPacketDelay
+	jp .done
 
 
-Jump_000_1734:
+.cgb
+;=@cgb1
 	ld a, b
-	ld [$c850], a
-	ld hl, far_Call_17_4410
+	ld [wFadeState], a
+;=@cgb2
+	ld hl, far_StartCGBFade
 	rst $10
-	jp Jump_000_17db
+	jp .done
 
 
-Jump_000_173f:
-	ld a, [$c851]
+.dmg
+;> else:                                  # Game Boy
+;>     if not wFadeType & 0x80:           # white
+	ld a, [wFadeType]
 	bit 7, a
-	jr nz, jr_000_1792
+	jr nz, .dmgBlack
 
+;>         if not state & 0x80:           # fade out
 	bit 7, b
-	jr nz, jr_000_1772
+	jr nz, .whiteIn
 
+;>             wFadeState = state
 	ld a, b
-	ld [$c850], a
-	ld hl, $c853
-	ld a, [$c89b]
+	ld [wFadeState], a
+;>             wFadePalettes[0] = wBGP
+	ld hl, wFadePalettes
+	ld a, [wBGP]
 	ld [hli], a
-	ld a, [$c89c]
+;>             wFadePalettes[1] = wOBP0
+	ld a, [wOBP0]
 	ld [hli], a
-	ld a, [$c89d]
+;>             wFadePalettes[2] = wOBP1
+	ld a, [wOBP1]
 	ld [hl], a
+;>             wFadeLevel = 0
 	ld a, $00
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+;>             wFadeSpeed = u8(wFadeState + 2)
+	ld a, [wFadeState]
 	add $02
-	ld [$c857], a
-	ld [$c858], a
-	call Call_1BD5
-	jr jr_000_17db
+	ld [wFadeSpeed], a
+;>             wFadeTimer = wFadeSpeed
+	ld [wFadeTimer], a
+;>             StartMusicFadeOut()
+	call StartMusicFadeOut
+	jr .done
 
-jr_000_1772:
+.whiteIn
+;>         else:                          # fade in
+;>             wFadeState = state
 	ld a, b
-	ld [$c850], a
+	ld [wFadeState], a
+;>             wFadeLevel = 4
 	ld a, $04
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+;>             wFadeSpeed = u8(~wFadeState + 2)
+	ld a, [wFadeState]
 	cpl
 	add $02
-	ld [$c857], a
-	ld [$c858], a
+	ld [wFadeSpeed], a
+;>             wFadeTimer = wFadeSpeed
+	ld [wFadeTimer], a
+;>             wBGP = 0                   # all white
 	ld a, $00
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hli], a
+;>             wOBP0 = 0
 	ld [hli], a
+;>             wOBP1 = 0
 	ld [hl], a
-	jp Jump_000_17db
+	jp .done
 
 
-jr_000_1792:
+.dmgBlack
+;>     else:                              # black
+;>         if not state & 0x80:
 	bit 7, b
-	jr nz, jr_000_17be
+	jr nz, .blackIn
 
+;>             wFadeState = state
 	ld a, b
-	ld [$c850], a
-	ld hl, $c853
-	ld a, [$c89b]
+	ld [wFadeState], a
+;>             wFadePalettes[0] = wBGP
+	ld hl, wFadePalettes
+	ld a, [wBGP]
 	ld [hli], a
-	ld a, [$c89c]
+;>             wFadePalettes[1] = wOBP0
+	ld a, [wOBP0]
 	ld [hli], a
-	ld a, [$c89d]
+;>             wFadePalettes[2] = wOBP1
+	ld a, [wOBP1]
 	ld [hl], a
+;>             wFadeLevel = 0
 	ld a, $00
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+;>             wFadeSpeed = u8(wFadeState + 2)
+	ld a, [wFadeState]
 	add $02
-	ld [$c857], a
-	ld [$c858], a
-	call Call_1BD5
-	jr jr_000_17db
+	ld [wFadeSpeed], a
+;>             wFadeTimer = wFadeSpeed
+	ld [wFadeTimer], a
+;>             StartMusicFadeOut()
+	call StartMusicFadeOut
+	jr .done
 
-jr_000_17be:
+.blackIn
+;>         else:
+;>             wFadeState = state
 	ld a, b
-	ld [$c850], a
+	ld [wFadeState], a
+;>             wFadeLevel = 4
 	ld a, $04
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+;>             wFadeSpeed = u8(~wFadeState + 2)
+	ld a, [wFadeState]
 	cpl
 	add $02
-	ld [$c857], a
-	ld [$c858], a
+	ld [wFadeSpeed], a
+;>             wFadeTimer = wFadeSpeed
+	ld [wFadeTimer], a
+;>             wBGP = 0xFF                # all black
 	ld a, $ff
-	ld hl, $c89b
+	ld hl, wBGP
 	ld [hli], a
+;>             wOBP0 = 0xFF
 	ld [hli], a
+;>             wOBP1 = 0xFF
 	ld [hl], a
 
-Jump_000_17db:
-jr_000_17db:
+.done
 	ret
 
 
 	db $29, $29, $29, $01, $00, $88, $09, $0e, $08, $2a, $12, $13, $0d, $20, $fa, $c9
 
-Call_17EC::
-	ld a, [$c850]
+;@ def UpdateFade()
+;@ path: gfx/fade
+;@ One frame of the palette fade (from the VBlank handler): every wFadeSpeed
+;@ frames the fade level moves one step and the palettes are recomputed. On a
+;@ Super Game Boy the level goes 0 -> 31 (out) or 32 -> 0 (in) in steps of 5;
+;@ the Game Boy and Game Boy Color versions are UpdateFadeDMG / UpdateFadeCGB.
+;@ During a fade-out UpdateMusicFadeOut runs too.
+;@ test: skip talks to the Super Game Boy and calls routines in other banks
+UpdateFade::
+;> if not wFadeState:
+;>     return
+	ld a, [wFadeState]
 	or a
 	ret z
 
+;> if not wFadeState & 0x80:
+;>     UpdateMusicFadeOut()
 	bit 7, a
-	call z, Call_1C18
-	ld a, [$c81d]
+	call z, UpdateMusicFadeOut
+;> if wOnCGB:
+;>     return UpdateFadeCGB()
+	ld a, [wOnCGB]
 	or a
-	jp nz, Jump_000_1964
+	jp nz, UpdateFadeCGB
 
-	ld a, [$c81c]
+;> if not wOnSGB:
+;>     return UpdateFadeDMG()
+	ld a, [wOnSGB]
 	or a
-	jp z, Jump_000_1969
+	jp z, UpdateFadeDMG
 
-	ld a, [$c850]
+;> if not wFadeState & 0x80:              # fade out
+	ld a, [wFadeState]
 	bit 7, a
-	jr nz, jr_000_1836
+	jr nz, .in
 
-	ld a, [$c858]
+;>     if wFadeTimer:
+	ld a, [wFadeTimer]
 	or a
-	jr z, jr_000_1816
+	jr z, .outStep
 
+;>         wFadeTimer -= 1
+;>         return
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
-jr_000_1816:
-	ld a, [$c856]
+.outStep
+;>     wFadeLevel = min(wFadeLevel + 5, 31)
+	ld a, [wFadeLevel]
 	add $05
 	cp $1f
-	jr c, jr_000_1821
+	jr c, .outSet
 
 	ld a, $1f
 
-jr_000_1821:
-	ld [$c856], a
-	call Call_185F
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+.outSet
+	ld [wFadeLevel], a
+;>     FadeSGBPalettes()
+	call FadeSGBPalettes
+;>     wFadeTimer = wFadeSpeed
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+;>     if wFadeLevel == 31:
+;>         return EndFade()
+	ld a, [wFadeLevel]
 	cp $1f
-	jp z, Jump_000_1aa1
+	jp z, EndFade
 
 	ret
 
 
-jr_000_1836:
-	ld a, [$c858]
+.in
+;> else:                                  # fade in
+;>     if wFadeTimer:
+	ld a, [wFadeTimer]
 	or a
-	jr z, jr_000_1841
+	jr z, .inStep
 
+;>         wFadeTimer -= 1
+;>         return
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
-jr_000_1841:
-	ld a, [$c856]
+.inStep
+;>     wFadeLevel = max(wFadeLevel - 5, 0)
+	ld a, [wFadeLevel]
 	sub $05
 	bit 7, a
-	jr z, jr_000_184b
+	jr z, .inSet
 
 	xor a
 
-jr_000_184b:
-	ld [$c856], a
-	call Call_185F
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+.inSet
+	ld [wFadeLevel], a
+;>     FadeSGBPalettes()
+	call FadeSGBPalettes
+;>     wFadeTimer = wFadeSpeed
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+;>     if wFadeLevel == 0:
+;>         return EndFade()
+	ld a, [wFadeLevel]
 	or a
-	jp z, Jump_000_1aa1
+	jp z, EndFade
 
 	ret
 
 
-Call_185F::
-	ld a, [$c852]
+;@ def FadeSGBPalettes()
+;@ path: gfx/fade
+;@ Recomputes the SGB palettes chosen by wFadeSGBMask at the current fade level
+;@ and sends them: palettes 0 and 1 (PAL01 packet), and with mask bit 4 also
+;@ palettes 2 and 3 (PAL23). It runs on into SendSGBPalettePacket for the second.
+;@ test: skip talks to the Super Game Boy
+FadeSGBPalettes::
+;> if wFadeSGBMask & 0x01:
+;>     wFadeColorOffset = 0x00            # palette 0
+	ld a, [wFadeSGBMask]
 	bit 0, a
 	ld a, $00
-	ld [$c85a], a
-	call nz, Call_18DC
-	ld a, [$c852]
+	ld [wFadeColorOffset], a
+;>     FadePaletteColors()
+	call nz, FadePaletteColors
+;> if wFadeSGBMask & 0x02:
+;>     wFadeColorOffset = 0x08            # palette 1
+	ld a, [wFadeSGBMask]
 	bit 1, a
 	ld a, $08
-	ld [$c85a], a
-	call nz, Call_18DC
-	ld a, [$c852]
+	ld [wFadeColorOffset], a
+;>     FadePaletteColors()
+	call nz, FadePaletteColors
+;> if wFadeSGBMask & 0x10:
+	ld a, [wFadeSGBMask]
 	bit 4, a
-	jr z, jr_000_189a
+	jr z, .send
 
-	ld a, [$c852]
+;>     if wFadeSGBMask & 0x04:
+;>         wFadeColorOffset = 0x10        # palette 2
+	ld a, [wFadeSGBMask]
 	bit 2, a
 	ld a, $10
-	ld [$c85a], a
-	call nz, Call_18DC
-	ld a, [$c852]
+	ld [wFadeColorOffset], a
+;>         FadePaletteColors()
+	call nz, FadePaletteColors
+;>     if wFadeSGBMask & 0x08:
+;>         wFadeColorOffset = 0x18        # palette 3
+	ld a, [wFadeSGBMask]
 	bit 3, a
 	ld a, $18
-	ld [$c85a], a
-	call nz, Call_18DC
+	ld [wFadeColorOffset], a
+;>         FadePaletteColors()
+	call nz, FadePaletteColors
 
-jr_000_189a:
-	call Call_11BC
-	ld hl, $c7d7
-	ld de, $c777
+.send
+;> ClearSGBPacket()
+	call ClearSGBPacket
+;> wSGBPacket[0] = 0x01                   # PAL01
+	ld hl, wSGBPalettes
+	ld de, wSGBPacket
 	ld a, $01
 	ld [de], a
+;> SendSGBPalettePacket(wSGBPalettes, wSGBPacket + 1)
 	inc de
-	call Call_18C0
-	ld a, [$c852]
+	call SendSGBPalettePacket
+;> if not wFadeSGBMask & 0x10:
+;>     return
+	ld a, [wFadeSGBMask]
 	bit 4, a
 	ret z
 
-	call Call_1013
-	call Call_11BC
-	ld hl, $c7e7
-	ld de, $c777
+;> SGBPacketDelay()
+	call SGBPacketDelay
+;> ClearSGBPacket()
+	call ClearSGBPacket
+;> wSGBPacket[0] = 0x09                   # PAL23
+	ld hl, wSGBPalettes + 16
+	ld de, wSGBPacket
 	ld a, $09
 	ld [de], a
+;> return SendSGBPalettePacket(wSGBPalettes + 16, wSGBPacket + 1)   # (runs on into it)
 	inc de
 
-Call_18C0::
+;@ def SendSGBPalettePacket(src: hl, dest: de)
+;@ path: system/sgb
+;@ Completes an SGB palette packet (PAL01 or PAL23) whose command byte is
+;@ already in place: copies the four colours of the first palette at `src`
+;@ and colours 1-3 of the second (colour 0 is shared), then sends wSGBPacket.
+;@ test: skip talks to the Super Game Boy
+SendSGBPalettePacket::
+;>@c1 copy(dest, src, 8)                  # first palette, colours 0-3
 	ld c, $08
 
-jr_000_18c2:
+.first
 	ld a, [hli]
 	ld [de], a
 	inc de
+;=@c1
 	dec c
-	jr nz, jr_000_18c2
+	jr nz, .first
 
+;>@c2 copy(dest + 8, src + 10, 6)         # second palette, colours 1-3
 	inc hl
 	inc hl
 	ld c, $06
 
-jr_000_18cc:
+.second
 	ld a, [hli]
 	ld [de], a
+;=@c2
 	inc de
 	dec c
-	jr nz, jr_000_18cc
+	jr nz, .second
 
+;> wSGBPacketID = 0xFF                    # send the packet in wSGBPacket
 	ld a, $ff
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+;> SendSGBPacket()
+	ld hl, far_SendSGBPacket
 	rst $10
 	ret
 
 
-Call_18DC::
-	call Call_18ED
-	call Call_18E5
-	call Call_18E5
+;@ def FadePaletteColors()
+;@ path: gfx/fade
+;@ Fades the four colours of one SGB palette, from wFadeColorOffset on.
+;@ test: skip runs on into FadeNextColor
+FadePaletteColors::
+;> FadeColor()
+	call FadeColor
+;> FadeNextColor()
+	call FadeNextColor
+;> FadeNextColor()
+	call FadeNextColor
+;> # (and once more by running on into FadeNextColor)
 
-Call_18E5::
-	ld a, [$c85a]
+;@ def FadeNextColor()
+;@ path: gfx/fade
+;@ Moves on to the next colour and fades it (runs on into FadeColor).
+;@ test: skip runs on into FadeColor
+FadeNextColor::
+;> wFadeColorOffset += 2
+	ld a, [wFadeColorOffset]
 	add $02
-	ld [$c85a], a
+	ld [wFadeColorOffset], a
 
-Call_18ED::
-	ld hl, $c7f7
-	ld a, [$c85a]
+;@ def FadeColor()
+;@ path: gfx/fade
+;@ Fades one SGB colour (RGB555, offset wFadeColorOffset): each 5-bit part of
+;@ the target colour goes through FadeComponent; the result is stored in
+;@ wSGBPalettes.
+FadeColor::
+;>@col color = mem16[wSGBPalettesTarget + wFadeColorOffset]
+	ld hl, wSGBPalettesTarget
+	ld a, [wFadeColorOffset]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@col
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> red = FadeComponent(color & 0x1F, wFadeLevel)
 	push de
 	ld hl, $0000
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	ld b, a
 	ld a, e
-	call Call_1948
+	call FadeComponent
+;> result = red
 	ld l, a
+;>@g green = FadeComponent((color >> 5) & 0x1F, wFadeLevel)
 	sla e
 	rl d
 	sla e
 	rl d
 	sla e
 	rl d
+;=@g
 	ld a, d
-	call Call_1948
+	call FadeComponent
+;>@gr result += green << 5
 	ld d, a
 	ld e, $00
 	srl d
 	rr e
 	srl d
 	rr e
+;=@gr
 	srl d
 	rr e
 	add hl, de
+;> blue = FadeComponent((color >> 10) & 0x1F, wFadeLevel)
 	pop de
 	ld a, d
 	srl a
 	srl a
-	call Call_1948
+	call FadeComponent
+;> result += blue << 10
 	sla a
 	sla a
 	add h
 	ld h, a
+;>@st mem16[wSGBPalettes + wFadeColorOffset] = result
 	push hl
 	pop de
-	ld hl, $c7d7
+	ld hl, wSGBPalettes
 	ld b, $00
-	ld a, [$c85a]
+	ld a, [wFadeColorOffset]
 	ld c, a
+;=@st
 	add hl, bc
 	ld [hl], e
 	inc hl
@@ -4396,140 +6589,213 @@ Call_18ED::
 	ret
 
 
-Call_1948::
+;@ def FadeComponent(value: a, level: b) -> a
+;@ path: gfx/fade
+;@ One 5-bit colour part at fade level `level`: towards white (31) or, when
+;@ wFadeType bit 7 is set, towards black (0).
+FadeComponent::
+;> if not wFadeType & 0x80:
 	push af
-	ld a, [$c851]
+	ld a, [wFadeType]
 	ld c, a
 	pop af
 	bit 7, c
-	jr nz, jr_000_195d
+	jr nz, .black
 
+;>     return min((value & 0x1F) + level, 31)
 	and $1f
 	add b
 	cp $1f
-	jr c, jr_000_1963
+	jr c, .done
 
 	ld a, $1f
-	jr jr_000_1963
+	jr .done
 
-jr_000_195d:
+.black
+;> else:
+;>     return max((value & 0x1F) - level, 0)
 	and $1f
 	sub b
-	jr nc, jr_000_1963
+	jr nc, .done
 
 	xor a
 
-jr_000_1963:
+.done
 	ret
 
 
-Jump_000_1964:
+;@ def UpdateFadeCGB()
+;@ path: gfx/fade
+;@ Game Boy Color fade step: entry 5 of bank $17.
+;@ test: skip calls a routine in another bank
+UpdateFadeCGB::
+;> far_call(0x17, 0x05)
 	ld hl, $1705
 	rst $10
 	ret
 
 
-Jump_000_1969:
-	ld a, [$c851]
+;@ def UpdateFadeDMG()
+;@ path: gfx/fade
+;@ Game Boy fade step: every wFadeSpeed frames the level moves one step (out:
+;@ 0 -> 4, in: 4 -> -1) and the palettes in wFadeType are recomputed from
+;@ wFadePalettes. Fades to black are UpdateFadeDMGBlack.
+UpdateFadeDMG::
+;> if wFadeType & 0x80:
+;>     return UpdateFadeDMGBlack()
+	ld a, [wFadeType]
 	bit 7, a
-	jp nz, Jump_000_1a08
+	jp nz, UpdateFadeDMGBlack
 
-	ld a, [$c850]
+;> if not wFadeState & 0x80:              # fade out
+	ld a, [wFadeState]
 	bit 7, a
-	jr nz, jr_000_1999
+	jr nz, .in
 
-	ld a, [$c858]
+;>     if wFadeTimer:
+	ld a, [wFadeTimer]
 	or a
-	jr z, jr_000_1983
+	jr z, .outStep
 
+;>         wFadeTimer -= 1
+;>         return
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
-jr_000_1983:
-	call Call_19BA
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+.outStep
+;>     FadeDMGToWhite()
+	call FadeDMGToWhite
+;>     wFadeTimer = wFadeSpeed
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+;>     wFadeLevel += 1
+	ld a, [wFadeLevel]
 	inc a
-	ld [$c856], a
+	ld [wFadeLevel], a
+;>     if wFadeLevel == 4:
+;>         return EndFade()
 	cp $04
-	jp z, Jump_000_1aa1
+	jp z, EndFade
 
 	ret
 
 
-jr_000_1999:
-	ld a, [$c858]
+.in
+;> else:                                  # fade in
+;>     if wFadeTimer:
+	ld a, [wFadeTimer]
 	or a
-	jr z, jr_000_19a4
+	jr z, .inStep
 
+;>         wFadeTimer -= 1
+;>         return
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
-jr_000_19a4:
-	call Call_19BA
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+.inStep
+;>     FadeDMGToWhite()
+	call FadeDMGToWhite
+;>     wFadeTimer = wFadeSpeed
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+;>     wFadeLevel = u8(wFadeLevel - 1)
+	ld a, [wFadeLevel]
 	dec a
-	ld [$c856], a
+	ld [wFadeLevel], a
+;>     if wFadeLevel == 0xFF:
+;>         return EndFade()
 	cp $ff
-	jp z, Jump_000_1aa1
+	jp z, EndFade
 
 	ret
 
 
-Call_19BA::
-	ld a, [$c851]
+;@ def FadeDMGToWhite()
+;@ path: gfx/fade
+;@ Sets wBGP / wOBP0 / wOBP1 (those chosen by wFadeType bits 0-2) to their
+;@ wFadePalettes value lightened by wFadeLevel shades.
+FadeDMGToWhite::
+;> if wFadeType & 0x01:
+;>     FadeDMGPaletteToWhite(wFadePalettes[0], wBGP)
+	ld a, [wFadeType]
 	bit 0, a
-	ld a, [$c853]
-	ld hl, $c89b
-	call nz, Call_19E0
-	ld a, [$c851]
+	ld a, [wFadePalettes]
+	ld hl, wBGP
+	call nz, FadeDMGPaletteToWhite
+;> if wFadeType & 0x02:
+;>     FadeDMGPaletteToWhite(wFadePalettes[1], wOBP0)
+	ld a, [wFadeType]
 	bit 1, a
-	ld a, [$c854]
+	ld a, [wFadePalettes + 1]
 	inc hl
-	call nz, Call_19E0
-	ld a, [$c851]
+	call nz, FadeDMGPaletteToWhite
+;> if wFadeType & 0x04:
+;>     FadeDMGPaletteToWhite(wFadePalettes[2], wOBP1)
+	ld a, [wFadeType]
 	bit 2, a
-	ld a, [$c855]
+	ld a, [wFadePalettes + 2]
 	inc hl
-	jr nz, Call_19E0
+	jr nz, FadeDMGPaletteToWhite
 
 	ret
 
 
-Call_19E0::
+;@ def FadeDMGPaletteToWhite(palette: a, dest: hl)
+;@ path: gfx/fade
+;@ Writes `palette` with each of its four 2-bit shades lowered by wFadeLevel
+;@ (not below 0, white) to `dest`.
+FadeDMGPaletteToWhite::
+;> level = wFadeLevel
 	ld d, a
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	ld b, a
+;> out = 0
 	ld c, $00
+;> out = FadeDMGShadeToWhite(palette, level, out)   # shade 0 ...
 	ld a, d
-	call Call_19FB
-	call Call_19F6
-	call Call_19F6
-	call Call_19F6
+	call FadeDMGShadeToWhite
+;>@sh for _ in range(3):                  # ... and shades 1-3
+;>     out = FadeDMGShadeToWhiteNext(...)
+	call FadeDMGShadeToWhiteNext
+;=@sh
+	call FadeDMGShadeToWhiteNext
+;=@sh
+	call FadeDMGShadeToWhiteNext
+;> mem[dest] = out
 	ld [hl], c
 	ret
 
 
-Call_19F6::
+;@ def FadeDMGShadeToWhiteNext(palette: d, level: b, out: c) -> c
+;@ path: gfx/fade
+;@ Rotates the palette to its next shade and fades it (runs on into
+;@ FadeDMGShadeToWhite).
+;@ test: skip runs on into FadeDMGShadeToWhite
+FadeDMGShadeToWhiteNext::
+;> palette = rotate_right(palette, 2)
 	rrc d
 	rrc d
 	ld a, d
 
-Call_19FB::
+;@ def FadeDMGShadeToWhite(shade: a, level: b, out: c) -> c
+;@ path: gfx/fade
+;@ Adds the low 2-bit shade of `shade`, lowered by `level` (not below 0), on
+;@ top of `out`, which rotates right by 2 so that after four shades they are
+;@ back in their places.
+FadeDMGShadeToWhite::
+;> value = max((shade & 3) - level, 0)
 	and $03
 	sub b
-	jr nc, jr_000_1a01
+	jr nc, .put
 
 	xor a
 
-jr_000_1a01:
+.put
+;> out = rotate_right(out | value, 2)
 	or c
 	ld c, a
 	rrc c
@@ -4537,104 +6803,159 @@ jr_000_1a01:
 	ret
 
 
-Jump_000_1a08:
-	ld a, [$c850]
+;@ def UpdateFadeDMGBlack()
+;@ path: gfx/fade
+;@ UpdateFadeDMG for fades to and from black.
+UpdateFadeDMGBlack::
+;> if not wFadeState & 0x80:              # fade out
+	ld a, [wFadeState]
 	bit 7, a
-	jr nz, jr_000_1a30
+	jr nz, .in
 
-	ld a, [$c858]
+;>     if wFadeTimer:
+	ld a, [wFadeTimer]
 	or a
-	jr z, jr_000_1a1a
+	jr z, .outStep
 
+;>         wFadeTimer -= 1
+;>         return
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
-jr_000_1a1a:
-	call Call_1A50
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+.outStep
+;>     FadeDMGToBlack()
+	call FadeDMGToBlack
+;>     wFadeTimer = wFadeSpeed
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+;>     wFadeLevel += 1
+	ld a, [wFadeLevel]
 	inc a
-	ld [$c856], a
+	ld [wFadeLevel], a
+;>     if wFadeLevel == 4:
+;>         return EndFade()
 	cp $04
-	jp z, Jump_000_1aa1
+	jp z, EndFade
 
 	ret
 
 
-jr_000_1a30:
-	ld a, [$c858]
+.in
+;> else:
+;>     if wFadeTimer:
+	ld a, [wFadeTimer]
 	or a
-	jr z, jr_000_1a3b
+	jr z, .inStep
 
+;>         wFadeTimer -= 1
+;>         return
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
-jr_000_1a3b:
-	call Call_1A50
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+.inStep
+;>     FadeDMGToBlack()
+	call FadeDMGToBlack
+;>     wFadeTimer = wFadeSpeed
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+;>     wFadeLevel = u8(wFadeLevel - 1)
+	ld a, [wFadeLevel]
 	dec a
-	ld [$c856], a
+	ld [wFadeLevel], a
+;>     if wFadeLevel == 0xFF:
+;>         return EndFade()
 	cp $ff
-	jr z, jr_000_1aa1
+	jr z, EndFade
 
 	ret
 
 
-Call_1A50::
-	ld a, [$c851]
+;@ def FadeDMGToBlack()
+;@ path: gfx/fade
+;@ Sets wBGP / wOBP0 / wOBP1 (those chosen by wFadeType bits 0-2) to their
+;@ wFadePalettes value darkened by wFadeLevel shades.
+FadeDMGToBlack::
+;> if wFadeType & 0x01:
+;>     FadeDMGPaletteToBlack(wFadePalettes[0], wBGP)
+	ld a, [wFadeType]
 	bit 0, a
-	ld a, [$c853]
-	ld hl, $c89b
-	call nz, Call_1A76
-	ld a, [$c851]
+	ld a, [wFadePalettes]
+	ld hl, wBGP
+	call nz, FadeDMGPaletteToBlack
+;> if wFadeType & 0x02:
+;>     FadeDMGPaletteToBlack(wFadePalettes[1], wOBP0)
+	ld a, [wFadeType]
 	bit 1, a
-	ld a, [$c854]
+	ld a, [wFadePalettes + 1]
 	inc hl
-	call nz, Call_1A76
-	ld a, [$c851]
+	call nz, FadeDMGPaletteToBlack
+;> if wFadeType & 0x04:
+;>     FadeDMGPaletteToBlack(wFadePalettes[2], wOBP1)
+	ld a, [wFadeType]
 	bit 2, a
-	ld a, [$c855]
+	ld a, [wFadePalettes + 2]
 	inc hl
-	jr nz, Call_1A76
+	jr nz, FadeDMGPaletteToBlack
 
 	ret
 
 
-Call_1A76::
+;@ def FadeDMGPaletteToBlack(palette: a, dest: hl)
+;@ path: gfx/fade
+;@ Writes `palette` with each of its four 2-bit shades raised by wFadeLevel
+;@ (not above 3, black) to `dest`.
+FadeDMGPaletteToBlack::
+;> level = wFadeLevel
 	ld d, a
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	ld b, a
+;> out = 0
 	ld c, $00
+;> out = FadeDMGShadeToBlack(palette, level, out)   # shade 0 ...
 	ld a, d
-	call Call_1A91
-	call Call_1A8C
-	call Call_1A8C
-	call Call_1A8C
+	call FadeDMGShadeToBlack
+;>@sh for _ in range(3):                  # ... and shades 1-3
+;>     out = FadeDMGShadeToBlackNext(...)
+	call FadeDMGShadeToBlackNext
+;=@sh
+	call FadeDMGShadeToBlackNext
+;=@sh
+	call FadeDMGShadeToBlackNext
+;> mem[dest] = out
 	ld [hl], c
 	ret
 
 
-Call_1A8C::
+;@ def FadeDMGShadeToBlackNext(palette: d, level: b, out: c) -> c
+;@ path: gfx/fade
+;@ Rotates the palette to its next shade and fades it (runs on into
+;@ FadeDMGShadeToBlack).
+;@ test: skip runs on into FadeDMGShadeToBlack
+FadeDMGShadeToBlackNext::
+;> palette = rotate_right(palette, 2)
 	rrc d
 	rrc d
 	ld a, d
 
-Call_1A91::
+;@ def FadeDMGShadeToBlack(shade: a, level: b, out: c) -> c
+;@ path: gfx/fade
+;@ Adds the low 2-bit shade of `shade`, raised by `level` (not above 3), on top
+;@ of `out`, which rotates right by 2.
+FadeDMGShadeToBlack::
+;> value = min((shade & 3) + level, 3)
 	and $03
 	add b
 	cp $03
-	jr c, jr_000_1a9a
+	jr c, .put
 
 	ld a, $03
 
-jr_000_1a9a:
+.put
+;> out = rotate_right(out | value, 2)
 	or c
 	ld c, a
 	rrc c
@@ -4642,224 +6963,321 @@ jr_000_1a9a:
 	ret
 
 
-Jump_000_1aa1:
-jr_000_1aa1:
+;@ def EndFade()
+;@ path: gfx/fade
+;@ Marks the palette fade as finished.
+EndFade::
+;> wFadeState = 0
 	xor a
-	ld [$c850], a
+	ld [wFadeState], a
 	ret
 
 
-Call_1AA6::
+;@ def WaitVRAMAccess()
+;@ path: system/lcd
+;@ Waits until the LCD is in HBlank or VBlank, when VRAM can be accessed.
+;@ test: skip polls the LCD
+WaitVRAMAccess::
+;> while rSTAT & 0x02:
+;>     wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
 	ret z
 
-	jr Call_1AA6
+	jr WaitVRAMAccess
 
-Call_1AAD::
+;@ def WriteVRAM(value: a, addr: hl)
+;@ path: system/lcd
+;@ Writes `value` to VRAM at `addr` as soon as VRAM is accessible (interrupts
+;@ off meanwhile, so the moment is not missed).
+;@ test: skip polls the LCD
+WriteVRAM::
+;> disable_interrupts()
 	push af
 	di
 
-jr_000_1aaf:
+.wait
+;> while rSTAT & 0x02:
+;>     wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_1aaf
+	jr nz, .wait
 
+;> mem[addr] = value
 	pop af
 	ld [hl], a
+;> enable_interrupts()
 	ei
 	ret
 
 
-Call_1AB9::
+;@ def WriteVRAMInc(value: a, addr: hl) -> hl
+;@ path: system/lcd
+;@ WriteVRAM, returning the next address.
+;@ test: skip polls the LCD
+WriteVRAMInc::
+;> disable_interrupts()
 	push af
 	di
 
-jr_000_1abb:
+.wait
+;> while rSTAT & 0x02:
+;>     wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_1abb
+	jr nz, .wait
 
+;> mem[addr] = value
 	pop af
 	ld [hli], a
+;> enable_interrupts()
 	ei
+;> return addr + 1
 	ret
 
 
-Call_1AC5::
+;@ def WriteVRAMAttr(value: a, addr: hl)
+;@ path: system/lcd
+;@ On a Game Boy Color, writes the BG map attribute `value` (VRAM bank 1) at
+;@ `addr` once VRAM is accessible; does nothing on other models.
+;@ test: skip polls the LCD
+WriteVRAMAttr::
+;> if not wOnCGB:
+;>     return
 	push af
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
-	jr nz, jr_000_1ace
+	jr nz, .cgb
 
 	pop af
 	ret
 
 
-jr_000_1ace:
+.cgb
+;> disable_interrupts()
 	di
 
-jr_000_1acf:
+.wait
+;> while rSTAT & 0x02:
+;>     wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_000_1acf
+	jr nz, .wait
 
+;> rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
+;> mem[addr] = value
 	pop af
 	ld [hl], a
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
+;> enable_interrupts()
 	ei
 	ret
 
 
-Call_1AE1::
-	ld [$c8b7], a
+;@ def QueueMusic(song: a)
+;@ path: sound/queue
+;@ Asks for song `song` to start in the next VBlank (PlayQueuedSounds).
+QueueMusic::
+;> wQueuedMusic = song
+	ld [wQueuedMusic], a
 	ret
 
 
-Call_1AE5::
-	ld [$c8b5], a
+;@ def PlayMusic(song: a)
+;@ path: sound/queue
+;@ Stops all sound and starts song `song` (0 = silence). The sound engine has
+;@ entry points that start a song on a different number of passes through
+;@ StartSoundChannel: song $27 uses StartSounds4, songs $3A, $3F, $47, $49, $4B, $4D, $4F,
+;@ $5D and $9D use StartSounds2, all others StartSounds3.
+;@ test: skip runs the sound engine
+PlayMusic::
+;> wMusic = song
+	ld [wMusic], a
+;> disable_interrupts()
 	di
-	call Call_3331
-	ld a, [$c8b5]
+;> InitSound()                            # stop all sound
+	call InitSound
+;> if song:
+	ld a, [wMusic]
 	or a
-	jr z, jr_000_1b2a
+	jr z, .done
 
-	ld [$de24], a
+;>     wSoundID = song
+	ld [wSoundID], a
+;>     if song == 0x27:
 	cp $27
-	jr z, jr_000_1b22
+	jr z, .s27
 
+;>@a         StartSounds4()
+;>@b     elif song in (0x3A, 0x3F, 0x47, 0x49, 0x4B, 0x4D, 0x4F, 0x5D, 0x9D):
 	cp $3a
-	jr z, jr_000_1b27
+	jr z, .short
 
 	cp $3f
-	jr z, jr_000_1b27
+	jr z, .short
 
 	cp $47
-	jr z, jr_000_1b27
+	jr z, .short
 
+;=@b
 	cp $49
-	jr z, jr_000_1b27
+	jr z, .short
 
 	cp $4b
-	jr z, jr_000_1b27
+	jr z, .short
 
 	cp $4d
-	jr z, jr_000_1b27
+	jr z, .short
 
+;=@b
 	cp $4f
-	jr z, jr_000_1b27
+	jr z, .short
 
 	cp $5d
-	jr z, jr_000_1b27
+	jr z, .short
 
 	cp $9d
-	jr z, jr_000_1b27
+	jr z, .short
 
-	call Call_33CC
+;>@c         StartSounds2()
+;>     else:
+;>         StartSounds3()
+	call StartSounds3
+;>@ei enable_interrupts()
 	ei
 	ret
 
 
-jr_000_1b22:
-	call Call_33C9
+.s27
+;=@a
+	call StartSounds4
+;=@ei
 	ei
 	ret
 
 
-jr_000_1b27:
-	call Call_33CF
+.short
+;=@c
+	call StartSounds2
 
-jr_000_1b2a:
+.done
+;=@ei
 	ei
 	ret
 
 
-Call_1B2C::
-	ld [$c8b8], a
+;@ def QueueSound(id: a)
+;@ path: sound/queue
+;@ Asks for sound effect `id` to start in the next VBlank (PlayQueuedSounds).
+QueueSound::
+;> wQueuedSound = id
+	ld [wQueuedSound], a
 	ret
 
 
-Call_1B30::
+;@ def PlaySound(id: a)
+;@ path: sound/queue
+;@ Starts sound effect `id` without stopping the music. Like PlayMusic it picks
+;@ the engine entry by number: $3F, $47, $49, $4B, $4D, $4F, $57, $5D, $63,
+;@ $69, $74, $76, $78, $7C, $86, $8A, $90, $97, $99, $9D use StartSounds2; $41,
+;@ $44, $61 use StartSounds3; all others StartSoundChannel. Keeps all registers.
+;@ test: skip runs the sound engine
+PlaySound::
+;> wSoundID = id                          # (all registers are kept)
 	push af
 	push bc
 	push de
 	push hl
-	ld [$de24], a
+	ld [wSoundID], a
+;>@k kind = (2 if id in (0x3F, 0x47, 0x49, 0x4B, 0x4D, 0x4F, 0x57, 0x5D, 0x63, 0x69, 0x74, 0x76, 0x78, 0x7C, 0x86, 0x8A, 0x90, 0x97, 0x99, 0x9D) else 3 if id in (0x41, 0x44, 0x61) else 1)
 	cp $3f
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $41
-	jr z, jr_000_1ba7
+	jr z, .three
 
 	cp $44
-	jr z, jr_000_1ba7
+	jr z, .three
 
+;=@k
 	cp $47
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $49
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $4b
-	jr z, jr_000_1b9d
+	jr z, .two
 
+;=@k
 	cp $4d
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $4f
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $57
-	jr z, jr_000_1b9d
+	jr z, .two
 
+;=@k
 	cp $5d
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $63
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $61
-	jr z, jr_000_1ba7
+	jr z, .three
 
+;=@k
 	cp $69
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $74
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $76
-	jr z, jr_000_1b9d
+	jr z, .two
 
+;=@k
 	cp $78
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $7c
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $86
-	jr z, jr_000_1b9d
+	jr z, .two
 
+;=@k
 	cp $8a
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $90
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $97
-	jr z, jr_000_1b9d
+	jr z, .two
 
+;=@k
 	cp $99
-	jr z, jr_000_1b9d
+	jr z, .two
 
 	cp $9d
-	jr z, jr_000_1b9d
+	jr z, .two
 
+;> if kind == 1:
+;>     disable_interrupts()
 	di
-	call Call_33D2
+;>     StartSoundChannel()
+	call StartSoundChannel
+;>     enable_interrupts()
 	ei
+;>     return
 	pop hl
 	pop de
 	pop bc
@@ -4867,10 +7285,15 @@ Call_1B30::
 	ret
 
 
-jr_000_1b9d:
+.two
+;> elif kind == 2:
+;>     disable_interrupts()
 	di
-	call Call_33CF
+;>     StartSounds2()
+	call StartSounds2
+;>     enable_interrupts()
 	ei
+;>     return
 	pop hl
 	pop de
 	pop bc
@@ -4878,10 +7301,15 @@ jr_000_1b9d:
 	ret
 
 
-jr_000_1ba7:
+.three
+;> else:
+;>     disable_interrupts()
 	di
-	call Call_33CC
+;>     StartSounds3()
+	call StartSounds3
+;>     enable_interrupts()
 	ei
+;>     return
 	pop hl
 	pop de
 	pop bc
@@ -4889,36 +7317,47 @@ jr_000_1ba7:
 	ret
 
 
-Call_1BB1::
-	ld a, [$c8b7]
+;@ def PlayQueuedSounds()
+;@ path: sound/queue
+;@ VBlank: starts the queued song (song $9D is ignored here) and the queued
+;@ sound effect, then empties the queue. The byte after it is an unused `ret`.
+;@ test: skip runs the sound engine
+PlayQueuedSounds::
+;> if wQueuedMusic not in (0xFF, 0x9D):
+	ld a, [wQueuedMusic]
 	cp $ff
-	jr z, jr_000_1bc4
+	jr z, .sound
 
 	cp $9d
-	jr z, jr_000_1bc4
+	jr z, .sound
 
-	call Call_1AE5
+;>     PlayMusic(wQueuedMusic)
+	call PlayMusic
+;>     wQueuedMusic = 0xFF
 	ld a, $ff
-	ld [$c8b7], a
+	ld [wQueuedMusic], a
 
-jr_000_1bc4:
-	ld a, [$c8b8]
+.sound
+;> if wQueuedSound != 0xFF:
+	ld a, [wQueuedSound]
 	cp $ff
-	jr z, jr_000_1bd3
+	jr z, .done
 
-	call Call_1B30
+;>     PlaySound(wQueuedSound)
+	call PlaySound
+;>     wQueuedSound = 0xFF
 	ld a, $ff
-	ld [$c8b8], a
+	ld [wQueuedSound], a
 
-jr_000_1bd3:
+.done
 	ret
 
 
 	db $c9
 
-Call_1BD5::
+StartMusicFadeOut::
 	ld b, a
-	ld a, [$c88f]
+	ld a, [wMapLoadState]
 	or a
 	jr nz, jr_000_1c13
 
@@ -4929,14 +7368,14 @@ Call_1BD5::
 	or a
 	jr z, jr_000_1c13
 
-	ld [$c894], a
-	ld a, [$c81c]
+	ld [wMusicFadeDelay], a
+	ld a, [wOnSGB]
 	or a
 	jr nz, jr_000_1bf5
 
-	ld a, [$c894]
+	ld a, [wMusicFadeDelay]
 	sra a
-	ld [$c894], a
+	ld [wMusicFadeDelay], a
 
 jr_000_1bf5:
 	ldh a, [rNR50]
@@ -4949,39 +7388,39 @@ jr_000_1bf5:
 	or a
 	jr z, jr_000_1c13
 
-	ld a, [$c894]
-	ld [$c895], a
+	ld a, [wMusicFadeDelay]
+	ld [wMusicFadeTimer], a
 	ld a, $08
-	ld [$c896], a
+	ld [wMusicFadeSteps], a
 	ldh a, [rNR50]
-	ld [$c897], a
+	ld [wMusicFadeVolume], a
 	ret
 
 
 jr_000_1c13:
 	xor a
-	ld [$c894], a
+	ld [wMusicFadeDelay], a
 	ret
 
 
-Call_1C18::
-	ld a, [$c88f]
+UpdateMusicFadeOut::
+	ld a, [wMapLoadState]
 	or a
 	jr nz, jr_000_1c84
 
-	ld a, [$c894]
+	ld a, [wMusicFadeDelay]
 	bit 7, a
 	jr nz, jr_000_1c84
 
 	or a
 	ret z
 
-	ld a, [$c895]
+	ld a, [wMusicFadeTimer]
 	or a
 	jr z, jr_000_1c32
 
 	dec a
-	ld [$c895], a
+	ld [wMusicFadeTimer], a
 	ret
 
 
@@ -4991,7 +7430,7 @@ jr_000_1c32:
 	cp $88
 	jr z, jr_000_1c84
 
-	ld a, [$c897]
+	ld a, [wMusicFadeVolume]
 	or a
 	jr z, jr_000_1c84
 
@@ -5026,38 +7465,38 @@ jr_000_1c5c:
 	swap a
 	or d
 	ldh [rNR50], a
-	ld [$c897], a
+	ld [wMusicFadeVolume], a
 	or a
 	jr z, jr_000_1c79
 
-	ld a, [$c896]
+	ld a, [wMusicFadeSteps]
 	or a
 	jr z, jr_000_1c84
 
 	dec a
-	ld [$c896], a
-	ld a, [$c894]
-	ld [$c895], a
+	ld [wMusicFadeSteps], a
+	ld a, [wMusicFadeDelay]
+	ld [wMusicFadeTimer], a
 	ret
 
 
 jr_000_1c79:
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	jr nz, jr_000_1c84
 
 	di
-	call Call_3331
+	call InitSound
 	ei
 
 jr_000_1c84:
 	xor a
-	ld [$c894], a
+	ld [wMusicFadeDelay], a
 	ret
 
 
-Call_1C89::
-	ld hl, $c81b
+LoadSGBBorder::
+	ld hl, wLoadedGfxSet
 	cp [hl]
 	ret z
 
@@ -5068,16 +7507,16 @@ Call_1C89::
 	ld a, $10
 	ld de, $0805
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $11
 	ld de, $0806
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $0f
 	ld de, $0807
-	call Call_10E5
+	call SGBTransferCompressed
 	jr jr_000_1d37
 
 jr_000_1cb9:
@@ -5087,16 +7526,16 @@ jr_000_1cb9:
 	ld a, $10
 	ld de, $0808
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $11
 	ld de, $2c00
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $0f
 	ld de, $0809
-	call Call_10E5
+	call SGBTransferCompressed
 	jr jr_000_1d37
 
 jr_000_1ce3:
@@ -5106,16 +7545,16 @@ jr_000_1ce3:
 	ld a, $10
 	ld de, $2c01
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $11
 	ld de, $3211
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $0f
 	ld de, $3212
-	call Call_10E5
+	call SGBTransferCompressed
 	jr jr_000_1d37
 
 jr_000_1d0d:
@@ -5125,16 +7564,16 @@ jr_000_1d0d:
 	ld a, $10
 	ld de, $2e24
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $11
 	ld de, $2e25
 	ld bc, $1000
-	call Call_113E
-	call Call_1013
+	call SGBTransfer
+	call SGBPacketDelay
 	ld a, $0f
 	ld de, $3213
-	call Call_10E5
+	call SGBTransferCompressed
 	jr jr_000_1d37
 
 jr_000_1d37:
@@ -5143,18 +7582,18 @@ jr_000_1d37:
 
 	db $78, $ea, $26, $de, $79, $ea, $27, $de, $af, $ea, $28, $de, $c9
 
-Call_1D45::
-	ld a, [$c86c]
+CloseLink::
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_000_1d94
 
 	ld a, $08
-	call Call_1227
-	ld a, [$c864]
+	call SetInterrupts
+	ld a, [wSerialLock]
 	set 7, a
 	res 6, a
-	ld [$c864], a
-	ld a, [$c863]
+	ld [wSerialLock], a
+	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_000_1d69
 
@@ -5168,28 +7607,28 @@ jr_000_1d64:
 
 jr_000_1d69:
 	ei
-	call Call_1DA2
-	call Call_1220
+	call LinkSendCloseByte
+	call WaitSerialTransfer
 	ldh a, [rSB]
 	cp $f5
-	call nz, Call_1DA2
+	call nz, LinkSendCloseByte
 	di
-	ld a, [$c864]
+	ld a, [wSerialLock]
 	res 7, a
-	ld [$c864], a
-	ld a, [$c864]
+	ld [wSerialLock], a
+	ld a, [wSerialLock]
 	res 0, a
 	res 1, a
-	ld [$c864], a
-	ld a, [$c863]
+	ld [wSerialLock], a
+	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, $f8
-	call nz, Call_1275
+	call nz, SerialSendSlave
 
 jr_000_1d94:
 	xor a
-	ld [$c866], a
-	ld hl, $c842
+	ld [wLinkPhase], a
+	ld hl, wJoyHeld
 	ld b, $0e
 
 jr_000_1d9d:
@@ -5200,31 +7639,31 @@ jr_000_1d9d:
 	ret
 
 
-Call_1DA2::
-	ld a, [$c863]
+LinkSendCloseByte::
+	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, $f5
-	call nz, Call_1275
-	ld a, [$c863]
+	call nz, SerialSendSlave
+	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, $f5
-	call z, Call_126B
+	call z, SerialSendMaster
 
 jr_000_1db6:
-	ld a, [$c864]
+	ld a, [wSerialLock]
 	bit 6, a
 	jr z, jr_000_1db6
 
 	ret
 
 
-Call_1DBE::
+Multiply::
 	ld b, $00
 	ld h, b
 	ld l, b
-	call Call_1DC5
+	call MultiplyNibble
 
-Call_1DC5::
+MultiplyNibble::
 	rrca
 	jr nc, jr_000_1dc9
 
@@ -5260,15 +7699,15 @@ jr_000_1de1:
 	ret
 
 
-Call_1DE6::
+Multiply24::
 	push af
 	push bc
 	ld c, b
-	call Call_1DBE
+	call Multiply
 	pop bc
 	pop af
 	push hl
-	call Call_1DBE
+	call Multiply
 	pop bc
 	ld a, c
 	add h
@@ -5279,7 +7718,7 @@ Call_1DE6::
 	ret
 
 
-Call_1DFB::
+Divide8::
 	ld d, $08
 	ld e, a
 	xor a
@@ -5303,7 +7742,7 @@ jr_000_1e09:
 	ret
 
 
-Call_1E0D::
+Divide16::
 	ld d, $10
 	ld e, a
 	xor a
@@ -5327,7 +7766,7 @@ jr_000_1e1a:
 	ret
 
 
-Call_1E1E::
+Divide24::
 	ld d, $18
 	ld b, a
 	xor a
@@ -5352,9 +7791,9 @@ jr_000_1e2d:
 	ret
 
 
-Call_1E31::
+GetCollisionAt::
 	ld a, $ff
-	ldh [$ffa9], a
+	ldh [hTestResult], a
 	ldh a, [$ffa6]
 	bit 7, a
 	ret nz
@@ -5363,16 +7802,16 @@ Call_1E31::
 	bit 7, a
 	ret nz
 
-	ld hl, $ff9d
-	ldh a, [$ffa5]
+	ld hl, hMapWidth
+	ldh a, [hTestX]
 	sub [hl]
 	inc hl
 	ldh a, [$ffa6]
 	sbc [hl]
 	ret nc
 
-	ld hl, $ff9f
-	ldh a, [$ffa7]
+	ld hl, hMapHeight
+	ldh a, [hTestY]
 	sub [hl]
 	inc hl
 	ldh a, [$ffa8]
@@ -5380,15 +7819,15 @@ Call_1E31::
 	ret nc
 
 	ld a, $0f
-	ldh [$ffa9], a
-	ld a, [$c8eb]
+	ldh [hTestResult], a
+	ld a, [wFieldFlags]
 	bit 2, a
 	ret nz
 
-	ld hl, $ffb7
-	ldh a, [$ffa5]
+	ld hl, hScrollX
+	ldh a, [hTestX]
 	sub [hl]
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld b, a
 	inc hl
 	ldh a, [$ffa6]
@@ -5401,10 +7840,10 @@ Call_1E31::
 	cp $a0
 	ret nc
 
-	ld hl, $ffbb
-	ldh a, [$ffa7]
+	ld hl, hScrollY
+	ldh a, [hTestY]
 	sub [hl]
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld b, a
 	inc hl
 	ldh a, [$ffa8]
@@ -5417,7 +7856,7 @@ Call_1E31::
 	cp $80
 	ret nc
 
-	ldh a, [$ffa7]
+	ldh a, [hTestY]
 	and $f8
 	ld l, a
 	ldh a, [$ffa8]
@@ -5426,11 +7865,11 @@ Call_1E31::
 	sla l
 	rla
 	ld h, a
-	ld de, $c300
+	ld de, wSavedTilemap
 	add hl, de
 	ldh a, [$ffa6]
 	ld d, a
-	ldh a, [$ffa5]
+	ldh a, [hTestX]
 	srl d
 	rra
 	srl d
@@ -5443,16 +7882,16 @@ Call_1E31::
 	add hl, de
 	ld c, [hl]
 	ld a, [hl]
-	ldh [$ffaa], a
+	ldh [hTestTile], a
 	ld de, $26e3
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr z, jr_000_1ebf
 
 	ld de, $2a63
 
 jr_000_1ebf:
-	ld a, [$c968]
+	ld a, [wMapId]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -5468,22 +7907,22 @@ jr_000_1ebf:
 
 jr_000_1ed1:
 	ld a, b
-	ldh [$ffa9], a
+	ldh [hTestResult], a
 	ret
 
 
-Call_1ED5::
-	ld hl, $c777
+SGBAttrBlkBegin::
+	ld hl, wSGBPacket
 	ld bc, $0020
 	xor a
-	call Call_12C7
+	call FillMemory
 	ld a, $20
-	ld [$c777], a
+	ld [wSGBPacket], a
 	ld a, $00
 	ld [$c778], a
 	ld hl, $c779
 	ld a, l
-	ld [$c775], a
+	ld [wSGBPacketPtr], a
 	ld a, h
 	ld [$c776], a
 	ret
@@ -5494,7 +7933,7 @@ Call_1ED5::
 	db $13, $7d, $81, $12, $13, $7b, $ea, $75, $c7, $7a, $ea, $76, $c7, $21, $78, $c7
 	db $34, $c9
 
-Call_1F27::
+SGBAttrBlkAdd::
 	ld e, a
 	add a
 	add a
@@ -5504,7 +7943,7 @@ Call_1F27::
 	or e
 	push af
 	push de
-	ld a, [$c775]
+	ld a, [wSGBPacketPtr]
 	ld e, a
 	ld a, [$c776]
 	ld d, a
@@ -5529,7 +7968,7 @@ Call_1F27::
 	ld [de], a
 	inc de
 	ld a, e
-	ld [$c775], a
+	ld [wSGBPacketPtr], a
 	ld a, d
 	ld [$c776], a
 	ld hl, $c778
@@ -5537,12 +7976,12 @@ Call_1F27::
 	ret
 
 
-Call_1F59::
+SGBAttrBlkSend::
 	ld a, [$c778]
 	or a
 	ret z
 
-	ld a, [$c775]
+	ld a, [wSGBPacketPtr]
 	ld l, a
 	ld a, [$c776]
 	ld h, a
@@ -5563,100 +8002,100 @@ Call_1F59::
 	ld a, l
 	and $07
 	add $21
-	ld [$c777], a
+	ld [wSGBPacket], a
 	ld a, $ff
-	ld [$c774], a
-	ld hl, far_Call_08_4015
+	ld [wSGBPacketID], a
+	ld hl, far_SendSGBPacket
 	rst $10
 	ret
 
 
-Call_1F90::
+PrintNumber7::
 	ld a, $0f
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld e, $40
 	ld d, $42
-	call Call_2012
+	call PeekDigit24
 	or a
-	jp nz, Jump_000_1fd6
+	jp nz, PrintNumber7Zeros
 
-	call Call_20D9
-	call Call_20DF
+	call DrawBlankTile
+	call NextTileColumn
 
-Call_1FA5::
+PrintNumber6::
 	ld a, $01
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld e, $a0
 	ld d, $86
-	call Call_2012
+	call PeekDigit24
 	or a
-	jr nz, jr_000_1fe7
+	jr nz, PrintNumber6Zeros
 
-	call Call_20D9
-	call Call_20DF
+	call DrawBlankTile
+	call NextTileColumn
 
-Call_1FB9::
+PrintNumber5::
 	ld a, $00
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld e, $10
 	ld d, $27
-	call Call_2012
+	call PeekDigit24
 	or a
-	jr nz, Call_1FF8
+	jr nz, PrintNumber5Zeros
 
-	call Call_20D9
-	call Call_20DF
-	ldh a, [$ffd5]
+	call DrawBlankTile
+	call NextTileColumn
+	ldh a, [hNumber]
 	ld c, a
 	ldh a, [$ffd6]
 	ld b, a
-	jp Jump_000_2060
+	jp PrintNumber4
 
 
-Jump_000_1fd6:
+PrintNumber7Zeros::
 	ld a, $0f
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld e, $40
 	ld d, $42
-	call Call_2036
-	call Call_20D3
-	call Call_20DF
+	call NextDigit24
+	call DrawDigitTile
+	call NextTileColumn
 
-jr_000_1fe7:
+PrintNumber6Zeros::
 	ld a, $01
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld e, $a0
 	ld d, $86
-	call Call_2036
-	call Call_20D3
-	call Call_20DF
+	call NextDigit24
+	call DrawDigitTile
+	call NextTileColumn
 
-Call_1FF8::
+PrintNumber5Zeros::
 	ld a, $00
-	ldh [$ffdb], a
+	ldh [hDivisorHigh], a
 	ld e, $10
 	ld d, $27
-	call Call_2036
-	call Call_20D3
-	call Call_20DF
-	ldh a, [$ffd5]
+	call NextDigit24
+	call DrawDigitTile
+	call NextTileColumn
+	ldh a, [hNumber]
 	ld c, a
 	ldh a, [$ffd6]
 	ld b, a
-	jp Jump_000_2095
+	jp PrintNumber4Zeros
 
 
-Call_2012::
-	ldh a, [$ffd5]
-	ld [$c0a0], a
+PeekDigit24::
+	ldh a, [hNumber]
+	ld [wNumberBackup], a
 	ldh a, [$ffd6]
 	ld [$c0a1], a
 	ldh a, [$ffd7]
 	ld [$c0a2], a
-	call Call_2036
+	call NextDigit24
 	push af
-	ld a, [$c0a0]
-	ldh [$ffd5], a
+	ld a, [wNumberBackup]
+	ldh [hNumber], a
 	ld a, [$c0a1]
 	ldh [$ffd6], a
 	ld a, [$c0a2]
@@ -5665,17 +8104,17 @@ Call_2012::
 	ret
 
 
-Call_2036::
+NextDigit24::
 	push hl
-	ldh a, [$ffdb]
+	ldh a, [hDivisorHigh]
 	ld l, a
 	ld h, $ff
 
 jr_000_203c:
 	inc h
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	sub e
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ldh a, [$ffd6]
 	sbc d
 	ldh [$ffd6], a
@@ -5684,9 +8123,9 @@ jr_000_203c:
 	ldh [$ffd7], a
 	jr nc, jr_000_203c
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add e
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ldh a, [$ffd6]
 	adc d
 	ldh [$ffd6], a
@@ -5698,66 +8137,66 @@ jr_000_203c:
 	ret
 
 
-Jump_000_2060:
+PrintNumber4::
 	ld de, $03e8
 	push bc
-	call Call_20BE
+	call NextDigit16
 	pop bc
 	or a
 	jr nz, jr_000_2095
 
-	call Call_20D9
-	call Call_20DF
+	call DrawBlankTile
+	call NextTileColumn
 
-Call_2071::
+PrintNumber3::
 	ld de, $0064
 	push bc
-	call Call_20BE
+	call NextDigit16
 	pop bc
 	or a
-	jr nz, jr_000_20a1
+	jr nz, PrintNumber3Zeros
 
-	call Call_20D9
-	call Call_20DF
+	call DrawBlankTile
+	call NextTileColumn
 
-Call_2082::
+PrintNumber2::
 	ld de, $000a
 	push bc
-	call Call_20BE
+	call NextDigit16
 	pop bc
 	or a
-	jr nz, Call_20AD
+	jr nz, PrintNumber2Zeros
 
-	call Call_20D9
-	call Call_20DF
+	call DrawBlankTile
+	call NextTileColumn
 	jr jr_000_20b9
 
-Jump_000_2095:
+PrintNumber4Zeros::
 jr_000_2095:
 	ld de, $03e8
-	call Call_20BE
-	call Call_20D3
-	call Call_20DF
+	call NextDigit16
+	call DrawDigitTile
+	call NextTileColumn
 
-jr_000_20a1:
+PrintNumber3Zeros::
 	ld de, $0064
-	call Call_20BE
-	call Call_20D3
-	call Call_20DF
+	call NextDigit16
+	call DrawDigitTile
+	call NextTileColumn
 
-Call_20AD::
+PrintNumber2Zeros::
 	ld de, $000a
-	call Call_20BE
-	call Call_20D3
-	call Call_20DF
+	call NextDigit16
+	call DrawDigitTile
+	call NextTileColumn
 
 jr_000_20b9:
 	ld a, c
-	call Call_20D3
+	call DrawDigitTile
 	ret
 
 
-Call_20BE::
+NextDigit16::
 	push hl
 	ld h, $ff
 
@@ -5782,19 +8221,19 @@ jr_000_20c1:
 	ret
 
 
-Call_20D3::
+DrawDigitTile::
 	add $f0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
-Call_20D9::
+DrawBlankTile::
 	ld a, $e0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
-Call_20DF::
+NextTileColumn::
 	push af
 	ld a, l
 	and $e0
@@ -5810,7 +8249,7 @@ Call_20DF::
 	ret
 
 
-Call_20EE::
+ReadSRAMByte::
 	di
 	ld a, $0a
 	ld [$0100], a
@@ -5823,7 +8262,7 @@ Call_20EE::
 	ret
 
 
-Call_20FE::
+WriteSRAMByte::
 	di
 	push af
 	ld a, $0a
@@ -5836,7 +8275,7 @@ Call_20FE::
 	ret
 
 
-Call_210E::
+SRAMChecksum::
 	ld a, $0a
 	ld [$0100], a
 	ld de, $4638
@@ -5858,26 +8297,26 @@ jr_000_2116:
 	ret
 
 
-Call_2128::
-	ld hl, $ff8a
-	ld de, $a003
+SaveGame::
+	ld hl, hPlayerGfx
+	ld de, sSavedHRAM
 	ld bc, $0021
-	call Call_2184
-	ld hl, $c8ea
-	ld de, $a024
+	call CopyToSRAM
+	ld hl, wGameStarted
+	ld de, sSavedWRAM
 	ld bc, $1100
-	call Call_2184
-	ld hl, $c300
-	ld de, $bcc8
+	call CopyToSRAM
+	ld hl, wSavedTilemap
+	ld de, sSavedScreenTiles
 	ld bc, $0200
-	call Call_2184
-	ld hl, $c200
-	ld de, $bec8
+	call CopyToSRAM
+	ld hl, wScreenMap
+	ld de, sSavedScreenMap
 	ld bc, $0100
-	call Call_2184
+	call CopyToSRAM
 
-Jump_000_2158:
-	ld hl, $a002
+FinishSave::
+	ld hl, sSaveValid
 	ld a, $01
 	push af
 	ld a, $0a
@@ -5886,12 +8325,12 @@ Jump_000_2158:
 	ld [hl], a
 	ld a, $00
 	ld [$0100], a
-	ld hl, $a002
+	ld hl, sSaveValid
 	ld bc, $1ffe
-	call Call_210E
+	call SRAMChecksum
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a000
+	ld hl, sChecksum
 	ld [hl], e
 	inc hl
 	ld [hl], d
@@ -5900,7 +8339,7 @@ Jump_000_2158:
 	ret
 
 
-Call_2184::
+CopyToSRAM::
 	ld a, $0a
 	ld [$0100], a
 
@@ -5918,20 +8357,20 @@ jr_000_2189:
 	ret
 
 
-Call_2197::
-	ld hl, $cac1
-	ld de, $a1fb
+SaveMonsters::
+	ld hl, wMonsters
+	ld de, sMonsters
 	ld bc, $0ba4
-	call Call_2184
-	ld hl, $ca8d
-	ld de, $a1c7
+	call CopyToSRAM
+	ld hl, wPartyCount
+	ld de, sPartyCount
 	ld bc, $0007
-	call Call_2184
-	jp Jump_000_2158
+	call CopyToSRAM
+	jp FinishSave
 
 
-Call_21B2::
-	ld hl, $a002
+LoadGame::
+	ld hl, sSaveValid
 	ld a, $0a
 	ld [$0100], a
 	ld a, [hl]
@@ -5942,26 +8381,26 @@ Call_21B2::
 	or a
 	ret z
 
-	ld hl, $ff8a
-	ld de, $a003
+	ld hl, hPlayerGfx
+	ld de, sSavedHRAM
 	ld bc, $0021
-	call Call_21F5
-	ld hl, $c8ea
-	ld de, $a024
+	call CopyFromSRAM
+	ld hl, wGameStarted
+	ld de, sSavedWRAM
 	ld bc, $1100
-	call Call_21F5
-	ld hl, $c300
-	ld de, $bcc8
+	call CopyFromSRAM
+	ld hl, wSavedTilemap
+	ld de, sSavedScreenTiles
 	ld bc, $0200
-	call Call_21F5
-	ld hl, $c200
-	ld de, $bec8
+	call CopyFromSRAM
+	ld hl, wScreenMap
+	ld de, sSavedScreenMap
 	ld bc, $0100
-	call Call_21F5
+	call CopyFromSRAM
 	ret
 
 
-Call_21F5::
+CopyFromSRAM::
 	ld a, $0a
 	ld [$0100], a
 
@@ -5979,14 +8418,14 @@ jr_000_21fa:
 	ret
 
 
-Call_2208::
+GetPartySlot::
 	push bc
 	ld b, a
-	ld a, [$c86c]
+	ld a, [wLinkActive]
 	or a
 	jr z, jr_000_221a
 
-	ld a, [$c88a]
+	ld a, [wGameMode]
 	cp $02
 	jr nz, jr_000_221a
 
@@ -5998,7 +8437,7 @@ Call_2208::
 jr_000_221a:
 	ld a, b
 	pop bc
-	ld hl, $ca8e
+	ld hl, wParty
 	and $7f
 	add l
 	ld l, a
@@ -6009,14 +8448,14 @@ jr_000_221a:
 	ret
 
 
-Call_2229::
+PartyMonsterField::
 	push af
 	push bc
 	push de
 	push hl
-	call Call_2208
+	call GetPartySlot
 	ld c, $95
-	call Call_1DBE
+	call Multiply
 	pop bc
 	add hl, bc
 	pop de
@@ -6025,13 +8464,13 @@ Call_2229::
 	ret
 
 
-Call_223B::
+MonsterField::
 	push bc
 	push de
 	push hl
 	ld c, $95
 	and $7f
-	call Call_1DBE
+	call Multiply
 	pop bc
 	add hl, bc
 	pop de
@@ -6039,14 +8478,14 @@ Call_223B::
 	ret
 
 
-Call_224A::
-	call Call_2229
+GetPartyMonsterByte::
+	call PartyMonsterField
 	ld a, [hl]
 	ret
 
 
-Call_224F::
-	call Call_2229
+GetPartyMonsterWord::
+	call PartyMonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
@@ -6055,9 +8494,9 @@ Call_224F::
 
 	db $c5, $cd, $29, $22, $c1, $71, $c9
 
-Call_225D::
+SetPartyMonsterWord::
 	push bc
-	call Call_2229
+	call PartyMonsterField
 	pop bc
 	ld a, c
 	ld [hli], a
@@ -6065,13 +8504,13 @@ Call_225D::
 	ret
 
 
-Call_2266::
+CurMonsterField::
 	push af
 	push bc
 	push de
 	push hl
-	ld hl, $ca8e
-	ld a, [$cac0]
+	ld hl, wParty
+	ld a, [wCurPartyMember]
 	and $7f
 	add l
 	ld l, a
@@ -6080,7 +8519,7 @@ Call_2266::
 	ld h, a
 	ld a, [hl]
 	ld c, $95
-	call Call_1DBE
+	call Multiply
 	pop bc
 	add hl, bc
 	pop de
@@ -6089,14 +8528,14 @@ Call_2266::
 	ret
 
 
-Call_2284::
-	call Call_2266
+GetCurMonsterByte::
+	call CurMonsterField
 	ld a, [hl]
 	ret
 
 
-Call_2289::
-	call Call_2266
+GetCurMonsterWord::
+	call CurMonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
@@ -6105,338 +8544,338 @@ Call_2289::
 
 	db $c5, $cd, $66, $22, $c1, $71, $c9, $c5, $cd, $66, $22, $c1, $79, $22, $70, $c9
 
-Call_22A0::
+HealPartyHP::
 	push hl
-	call Call_2208
+	call GetPartySlot
 	pop hl
 	push hl
 	push af
-	ld hl, $cb13
-	call Call_223B
+	ld hl, wMonMaxHP
+	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	pop af
 	push hl
-	ld hl, $cb11
-	call Call_223B
+	ld hl, wMonHP
+	call MonsterField
 	pop bc
 	pop de
-	call Call_2482
+	call AddWordCapped
 	ret
 
 
-Call_22BE::
+DamagePartyHP::
 	push hl
-	call Call_2208
+	call GetPartySlot
 	pop hl
 	push hl
-	ld hl, $cb11
-	call Call_223B
+	ld hl, wMonHP
+	call MonsterField
 	pop de
 	ld bc, $0000
-	call Call_2496
+	call SubWordFloored
 	ret
 
 
-Call_22D2::
+RestorePartyMP::
 	push hl
-	call Call_2208
+	call GetPartySlot
 	pop hl
 	push hl
 	push af
-	ld hl, $cb17
-	call Call_223B
+	ld hl, wMonMaxMP
+	call MonsterField
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	pop af
 	push hl
-	ld hl, $cb15
-	call Call_223B
+	ld hl, wMonMP
+	call MonsterField
 	pop bc
 	pop de
-	call Call_2482
+	call AddWordCapped
 	ret
 
 
 	db $e5, $cd, $08, $22, $e1, $e5, $21, $15, $cb, $cd, $3b, $22, $d1, $01, $00, $00
 	db $cd, $96, $24, $c9
 
-Call_2304::
-	call Call_2442
+RaisePartyAttack::
+	call GetPartySlotForRaise
 
-Call_2307::
-	ld de, $cb19
+RaiseMonsterAttack::
+	ld de, wMonAttack
 	ld bc, $03e7
-	call Call_2448
+	call RaiseMonsterWord
 	ret
 
 
 	db $cd, $62, $24
 
-Call_2314::
-	ld de, $cb19
+LowerMonsterAttack::
+	ld de, wMonAttack
 	ld bc, $0001
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
-Call_231E::
-	call Call_2442
+RaisePartyDefense::
+	call GetPartySlotForRaise
 
-Call_2321::
-	ld de, $cb1b
+RaiseMonsterDefense::
+	ld de, wMonDefense
 	ld bc, $03e7
-	call Call_2448
+	call RaiseMonsterWord
 	ret
 
 
 	db $cd, $62, $24
 
-Call_232E::
-	ld de, $cb1b
+LowerMonsterDefense::
+	ld de, wMonDefense
 	ld bc, $0001
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
-Call_2338::
-	call Call_2442
+RaisePartyAgility::
+	call GetPartySlotForRaise
 
-Call_233B::
-	ld de, $cb1d
+RaiseMonsterAgility::
+	ld de, wMonAgility
 	ld bc, $01ff
-	call Call_2448
+	call RaiseMonsterWord
 	ret
 
 
 	db $cd, $62, $24
 
-Call_2348::
-	ld de, $cb1d
+LowerMonsterAgility::
+	ld de, wMonAgility
 	ld bc, $0001
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
-Call_2352::
-	call Call_2442
+RaisePartyIntelligence::
+	call GetPartySlotForRaise
 
-Call_2355::
-	ld de, $cb1f
+RaiseMonsterIntelligence::
+	ld de, wMonIntelligence
 	ld bc, $00ff
-	call Call_2448
+	call RaiseMonsterWord
 	ret
 
 
 	db $cd, $62, $24
 
-Call_2362::
-	ld de, $cb1f
+LowerMonsterIntelligence::
+	ld de, wMonIntelligence
 	ld bc, $0001
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
 	db $cd, $42, $24, $11, $21, $cb, $01, $ff, $00, $cd, $48, $24, $c9
 
-Call_2379::
-	call Call_2462
-	ld de, $cb21
+LowerPartyWildness::
+	call GetPartySlotForLower
+	ld de, wMonWildness
 	ld bc, $0000
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
-Call_2386::
-	call Call_2442
-	ld de, $cb25
+RaisePartyStat64::
+	call GetPartySlotForRaise
+	ld de, wMonStat64
 	ld c, $ff
-	call Call_2455
+	call RaiseMonsterByte
 	ret
 
 
-Call_2392::
-	call Call_2462
-	ld de, $cb25
+LowerPartyStat64::
+	call GetPartySlotForLower
+	ld de, wMonStat64
 	ld c, $00
-	call Call_2475
+	call LowerMonsterByte
 	ret
 
 
-Call_239E::
-	call Call_2442
-	ld de, $cb28
+RaisePartyStat67::
+	call GetPartySlotForRaise
+	ld de, wMonStat67
 	ld c, $ff
-	call Call_2455
+	call RaiseMonsterByte
 	ret
 
 
-Call_23AA::
-	call Call_2462
-	ld de, $cb28
+LowerPartyStat67::
+	call GetPartySlotForLower
+	ld de, wMonStat67
 	ld c, $00
-	call Call_2475
+	call LowerMonsterByte
 	ret
 
 
 	db $cd, $42, $24, $11, $27, $cb, $0e, $ff, $cd, $55, $24, $c9, $cd, $62, $24, $11
 	db $27, $cb, $0e, $00, $cd, $75, $24, $c9
 
-Call_23CE::
-	call Call_2442
-	ld de, $cb26
+RaisePartyStat65::
+	call GetPartySlotForRaise
+	ld de, wMonStat65
 	ld c, $ff
-	call Call_2455
+	call RaiseMonsterByte
 	ret
 
 
-Call_23DA::
-	call Call_2462
-	ld de, $cb26
+LowerPartyStat65::
+	call GetPartySlotForLower
+	ld de, wMonStat65
 	ld c, $00
-	call Call_2475
+	call LowerMonsterByte
 	ret
 
 
-Call_23E6::
-	call Call_2442
+RaisePartyMaxHP::
+	call GetPartySlotForRaise
 
-Call_23E9::
-	ld de, $cb13
+RaiseMonsterMaxHP::
+	ld de, wMonMaxHP
 	ld bc, $03e7
-	call Call_2448
+	call RaiseMonsterWord
 	ret
 
 
 	db $cd, $62, $24
 
-Call_23F6::
-	ld de, $cb13
+LowerMonsterMaxHP::
+	ld de, wMonMaxHP
 	ld bc, $0001
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
-Call_2400::
-	call Call_2442
+RaisePartyMaxMP::
+	call GetPartySlotForRaise
 
-Call_2403::
-	ld de, $cb17
+RaiseMonsterMaxMP::
+	ld de, wMonMaxMP
 	ld bc, $03e7
-	call Call_2448
+	call RaiseMonsterWord
 	ret
 
 
 	db $cd, $62, $24
 
-Call_2410::
-	ld de, $cb17
+LowerMonsterMaxMP::
+	ld de, wMonMaxMP
 	ld bc, $0001
-	call Call_2468
+	call LowerMonsterWord
 	ret
 
 
-Call_241A::
+AddGold::
 	ld c, e
 	ld d, h
 	ld e, l
-	ld hl, $ca4b
-	call Call_24C3
+	ld hl, wGold
+	call AddGoldCapped
 	ret
 
 
-Call_2424::
+SpendGold::
 	ld c, e
 	ld d, h
 	ld e, l
-	ld hl, $ca4b
-	call Call_2500
+	ld hl, wGold
+	call Sub24Floored
 	ret
 
 
-Call_242E::
+AddBankGold::
 	ld c, e
 	ld d, h
 	ld e, l
-	ld hl, $ca4e
-	call Call_24E4
+	ld hl, wBankedGold
+	call AddBankGoldCapped
 	ret
 
 
-Call_2438::
+TakeBankGold::
 	ld c, e
 	ld d, h
 	ld e, l
-	ld hl, $ca4e
-	call Call_2500
+	ld hl, wBankedGold
+	call Sub24Floored
 	ret
 
 
-Call_2442::
+GetPartySlotForRaise::
 	push hl
-	call Call_2208
+	call GetPartySlot
 	pop hl
 	ret
 
 
-Call_2448::
+RaiseMonsterWord::
 	push bc
 	push hl
 	ld l, e
 	ld h, d
-	call Call_223B
+	call MonsterField
 	pop de
 	pop bc
-	call Call_2482
+	call AddWordCapped
 	ret
 
 
-Call_2455::
+RaiseMonsterByte::
 	push bc
 	push hl
 	ld l, e
 	ld h, d
-	call Call_223B
+	call MonsterField
 	pop de
 	pop bc
-	call Call_24AF
+	call AddByteCapped
 	ret
 
 
-Call_2462::
+GetPartySlotForLower::
 	push hl
-	call Call_2208
+	call GetPartySlot
 	pop hl
 	ret
 
 
-Call_2468::
+LowerMonsterWord::
 	push bc
 	push hl
 	ld l, e
 	ld h, d
-	call Call_223B
+	call MonsterField
 	pop de
 	pop bc
-	call Call_2496
+	call SubWordFloored
 	ret
 
 
-Call_2475::
+LowerMonsterByte::
 	push bc
 	push hl
 	ld l, e
 	ld h, d
-	call Call_223B
+	call MonsterField
 	pop de
 	pop bc
-	call Call_24B9
+	call SubByteFloored
 	ret
 
 
-Call_2482::
+AddWordCapped::
 	push hl
 	ld a, [hli]
 	ld h, [hl]
@@ -6462,7 +8901,7 @@ jr_000_2491:
 	ret
 
 
-Call_2496::
+SubWordFloored::
 	push hl
 	ld a, [hli]
 	ld h, [hl]
@@ -6492,7 +8931,7 @@ jr_000_24aa:
 	ret
 
 
-Call_24AF::
+AddByteCapped::
 	ld a, [hl]
 	add e
 	jr c, jr_000_24b6
@@ -6508,7 +8947,7 @@ jr_000_24b7:
 	ret
 
 
-Call_24B9::
+SubByteFloored::
 	ld a, [hl]
 	sub e
 	jr c, jr_000_24c0
@@ -6524,7 +8963,7 @@ jr_000_24c1:
 	ret
 
 
-Call_24C3::
+AddGoldCapped::
 	push hl
 	ld a, [hli]
 	add e
@@ -6556,7 +8995,7 @@ jr_000_24dd:
 	ret
 
 
-Call_24E4::
+AddBankGoldCapped::
 	push hl
 	ld a, [hli]
 	add e
@@ -6579,7 +9018,7 @@ Call_24E4::
 	ld c, $0f
 	jr jr_000_24dd
 
-Call_2500::
+Sub24Floored::
 	push hl
 	ld a, [hli]
 	sub e
@@ -6605,55 +9044,55 @@ jr_000_2511:
 	ret
 
 
-Call_2518::
-	ld a, [$ca8d]
+BuildStatusBar::
+	ld a, [wPartyCount]
 	or a
 	jr nz, jr_000_252a
 
-	ld hl, $c1c0
+	ld hl, wPartyBarTiles
 	ld bc, $0040
 	ld a, $dc
-	call Call_12C7
+	call FillMemory
 	ret
 
 
 jr_000_252a:
-	ld hl, $c1c0
+	ld hl, wPartyBarTiles
 	ld bc, $0040
 	ld a, $e0
-	call Call_12C7
-	ld a, [$ca8d]
+	call FillMemory
+	ld a, [wPartyCount]
 	or a
 	ret z
 
-	ld hl, $c1c0
+	ld hl, wPartyBarTiles
 	ld a, $00
-	call Call_255F
-	ld a, [$ca8d]
+	call BuildStatusBarEntry
+	ld a, [wPartyCount]
 	cp $01
 	ret z
 
 	ld hl, $c1c7
 	ld a, $01
-	call Call_255F
-	ld a, [$ca8d]
+	call BuildStatusBarEntry
+	ld a, [wPartyCount]
 	cp $02
 	ret z
 
 	ld hl, $c1ce
 	ld a, $02
-	call Call_255F
+	call BuildStatusBarEntry
 	ret
 
 
-Call_255F::
-	ldh [$ffd5], a
-	ld a, [$ca3f]
+BuildStatusBarEntry::
+	ldh [hNumber], a
+	ld a, [wStatusBarMode]
 	or a
 	jr nz, jr_000_25a0
 
 	push hl
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $da
 	ld [hli], a
 	ld a, $e1
@@ -6661,11 +9100,11 @@ Call_255F::
 	ld a, $e3
 	ld [hli], a
 	push hl
-	ld hl, $cb11
-	ldh a, [$ffd5]
-	call Call_224F
+	ld hl, wMonHP
+	ldh a, [hNumber]
+	call GetPartyMonsterWord
 	pop hl
-	call Call_2071
+	call PrintNumber3
 	pop hl
 	ld a, l
 	add $20
@@ -6680,17 +9119,17 @@ Call_255F::
 	ld a, $e3
 	ld [hli], a
 	push hl
-	ld hl, $cb15
-	ldh a, [$ffd5]
-	call Call_224F
+	ld hl, wMonMP
+	ldh a, [hNumber]
+	call GetPartyMonsterWord
 	pop hl
-	call Call_2071
+	call PrintNumber3
 	ret
 
 
 jr_000_25a0:
 	push hl
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $da
 	ld [hli], a
 	ld a, $de
@@ -6700,13 +9139,13 @@ jr_000_25a0:
 	ld a, $e4
 	ld [hli], a
 	push hl
-	ld hl, $cb0c
-	ldh a, [$ffd5]
-	call Call_224A
+	ld hl, wMonLevel
+	ldh a, [hNumber]
+	call GetPartyMonsterByte
 	pop hl
 	ld c, a
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	pop hl
 	ld a, l
 	add $21
@@ -6715,9 +9154,9 @@ jr_000_25a0:
 	adc $00
 	ld h, a
 	push hl
-	ld hl, $cb0b
-	ldh a, [$ffd5]
-	call Call_224A
+	ld hl, wMonStatus
+	ldh a, [hNumber]
+	call GetPartyMonsterByte
 	ld b, a
 	pop hl
 	bit 0, b
@@ -6749,8 +9188,8 @@ jr_000_25ef:
 	ret
 
 
-Call_25F1::
-	ldh a, [$ffbb]
+DrawStatusBar::
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -6761,7 +9200,7 @@ Call_25F1::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -6778,7 +9217,7 @@ Call_25F1::
 	adc $02
 	ld h, a
 	res 2, h
-	ld de, $c1c0
+	ld de, wPartyBarTiles
 	ld c, $02
 
 jr_000_261d:
@@ -6787,9 +9226,9 @@ jr_000_261d:
 
 jr_000_2620:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, $07
-	call Call_1AC5
+	call WriteVRAMAttr
 	ld a, l
 	and $e0
 	push af
@@ -6825,19 +9264,19 @@ jr_000_2620:
 	ret
 
 
-Call_2652::
-	ld a, [$c969]
+IsInGateWorld::
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_000_266c
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $5d
 	jr z, jr_000_266a
 
 	cp $5e
 	jr z, jr_000_266a
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $30
 	jr nc, jr_000_266c
 
@@ -6852,8 +9291,8 @@ jr_000_266c:
 	ret
 
 
-Call_2670::
-	call Call_2683
+SetFlag::
+	call FlagMask
 	or [hl]
 	ld [hl], a
 	ret
@@ -6861,13 +9300,13 @@ Call_2670::
 
 	db $cd, $83, $26, $ee, $ff, $a6, $77, $c9
 
-Call_267E::
-	call Call_2683
+TestFlag::
+	call FlagMask
 	and [hl]
 	ret
 
 
-Call_2683::
+FlagMask::
 	push af
 	srl a
 	srl a
@@ -6891,28 +9330,28 @@ Call_2683::
 	ret
 
 
-Call_26A0::
-	call Call_26B3
+SetEventFlag::
+	call EventFlagMask
 	or [hl]
 	ld [hl], a
 	ret
 
 
-Call_26A6::
-	call Call_26B3
+ClearEventFlag::
+	call EventFlagMask
 	xor $ff
 	and [hl]
 	ld [hl], a
 	ret
 
 
-Call_26AE::
-	call Call_26B3
+TestEventFlag::
+	call EventFlagMask
 	and [hl]
 	ret
 
 
-Call_26B3::
+EventFlagMask::
 	push bc
 	srl b
 	rr c
@@ -6920,7 +9359,7 @@ Call_26B3::
 	rr c
 	srl b
 	rr c
-	ld hl, $d99b
+	ld hl, wEventFlags
 	add hl, bc
 	pop bc
 	push hl
@@ -6937,7 +9376,11 @@ Call_26B3::
 	ret
 
 
-	db $80, $40, $20, $10, $08, $04, $02, $01, $00, $2a, $40, $01, $00, $01, $57, $00
+BitMasks::
+	db $80, $40, $20, $10, $08, $04, $02, $01
+
+MapInfo::
+	db $00, $2a, $40, $01, $00, $01, $57, $00
 	db $08, $2a, $40, $01, $00, $02, $50, $00, $14, $2a, $e0, $01, $00, $01, $49, $00
 	db $21, $2a, $40, $01, $00, $01, $30, $00, $01, $29, $e0, $01, $00, $01, $3a, $00
 	db $09, $29, $e0, $01, $80, $00, $50, $00, $0e, $29, $e0, $01, $80, $00, $5a, $00
@@ -7072,7 +9515,7 @@ Jump_000_2edd:
 	push bc
 	push de
 	push hl
-	ld hl, far_Call_03_4013
+	ld hl, far_SerialInterruptHandler
 	rst $10
 	pop hl
 	pop de
@@ -7081,31 +9524,31 @@ Jump_000_2edd:
 	reti
 
 
-Jump_000_2eea:
+LCDInterruptHandler::
 	push af
 	push bc
 	push de
 	push hl
-	ld a, [$c892]
+	ld a, [wLCDEffect]
 	rst $00
 
-JumpTable_2EF2::
-	dw Jump_2F40
-	dw Jump_2EFA
-	dw Jump_2F08
-	dw Jump_2F24
+LCDEffectTable::
+	dw LCDInterruptReturn
+	dw LCDEffectHideSprites
+	dw LCDEffectWaveX
+	dw LCDEffectWaveY
 
-Jump_2EFA::
+LCDEffectHideSprites::
 	ldh a, [rSTAT]
 	and $03
-	jr nz, Jump_2EFA
+	jr nz, LCDEffectHideSprites
 
 	ldh a, [rLCDC]
 	res 1, a
 	ldh [rLCDC], a
-	jr Jump_2F40
+	jr LCDInterruptReturn
 
-Jump_2F08::
+LCDEffectWaveX::
 	ldh a, [rLY]
 	ld l, a
 	ld h, $c1
@@ -7115,15 +9558,15 @@ Jump_2F08::
 	add $02
 	ldh [rLYC], a
 	cp $80
-	jr c, Jump_2F40
+	jr c, LCDInterruptReturn
 
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	ldh [rSCX], a
 	ld a, $01
 	ldh [rLYC], a
-	jr Jump_2F40
+	jr LCDInterruptReturn
 
-Jump_2F24::
+LCDEffectWaveY::
 	ldh a, [rLY]
 	ld l, a
 	ld h, $c1
@@ -7133,15 +9576,15 @@ Jump_2F24::
 	add $02
 	ldh [rLYC], a
 	cp $81
-	jr c, Jump_2F40
+	jr c, LCDInterruptReturn
 
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ldh [rSCY], a
 	ld a, $00
 	ldh [rLYC], a
-	jr Jump_2F40
+	jr LCDInterruptReturn
 
-Jump_2F40::
+LCDInterruptReturn::
 	pop hl
 	pop de
 	pop bc
@@ -7149,7 +9592,7 @@ Jump_2F40::
 	reti
 
 
-Call_2F45::
+CompareHLBC::
 	ld a, h
 	cp b
 	ret nz
@@ -7159,7 +9602,7 @@ Call_2F45::
 	ret
 
 
-Call_2F4B::
+DivideHLBC::
 	ld de, $0000
 	ld a, b
 	or a
@@ -7179,7 +9622,7 @@ jr_000_2f52:
 
 jr_000_2f5d:
 	ld a, c
-	call Call_1E0D
+	call Divide16
 	ld c, a
 	ld b, $00
 	jr jr_000_2f6b
@@ -7195,7 +9638,7 @@ jr_000_2f6b:
 	ret
 
 
-Call_2F6C::
+AddEightTimes::
 	add a
 	add a
 	add a
@@ -7207,15 +9650,15 @@ Call_2F6C::
 	ret
 
 
-Call_2F76::
+CheckBattlerCanAct::
 	push hl
 	push bc
 	ld c, a
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr c, jr_000_2fa1
 
 	ld a, c
-	ld hl, $db02
+	ld hl, wBattlerStatus
 	add a
 	add a
 	add a
@@ -7252,14 +9695,14 @@ jr_000_2fa1:
 	ret
 
 
-Call_2FA5::
+CheckBattlerPresent::
 	push hl
 	push bc
 	ld c, a
 	cp $08
 	jr nc, jr_000_2fc0
 
-	ld hl, $dd1b
+	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
@@ -7291,43 +9734,43 @@ jr_000_2fc8:
 	ret
 
 
-Call_2FCC::
-	ld hl, $dbe3
-	call Call_2FF6
+GetBattlerAttack::
+	ld hl, wBattlerAttack
+	call GetWordFromTable
 	ret
 
 
-Call_2FD3::
-	ld hl, $dbf3
-	call Call_2FF6
+GetBattlerDefense::
+	ld hl, wBattlerDefense
+	call GetWordFromTable
 	ret
 
 
-Call_2FDA::
-	ld hl, $dbb3
-	call Call_2FF6
+GetBattlerMaxHP::
+	ld hl, wBattlerMaxHP
+	call GetWordFromTable
 	ret
 
 
-Call_2FE1::
-	ld hl, $dbd3
-	call Call_2FF6
+GetBattlerMaxMP::
+	ld hl, wBattlerMaxMP
+	call GetWordFromTable
 	ret
 
 
-Call_2FE8::
-	ld hl, $dba3
-	call Call_2FF6
+GetBattlerHP::
+	ld hl, wBattlerHP
+	call GetWordFromTable
 	ret
 
 
-Call_2FEF::
-	ld hl, $dbc3
-	call Call_2FF6
+GetBattlerMP::
+	ld hl, wBattlerMP
+	call GetWordFromTable
 	ret
 
 
-Call_2FF6::
+GetWordFromTable::
 	add a
 	add l
 	ld l, a
@@ -7340,27 +9783,27 @@ Call_2FF6::
 	ret
 
 
-Call_3001::
-	ld a, [$da80]
+UpdateSkillAnimation::
+	ld a, [wSkillAnimActive]
 	or a
 	ret z
 
-	ld a, [$c863]
+	ld a, [wLinkFlags]
 	and $02
 	sla a
 	ld b, a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	xor b
 	cp $04
 	jr nc, jr_000_3029
 
-	ld a, [$db89]
+	ld a, [wSkillTarget]
 	xor b
 	cp $04
 	jr nc, jr_000_3029
 
 	ld a, $00
-	ld [$dd60], a
+	ld [wSkillAnimSprites], a
 	ld a, $00
 	ld [$dd62], a
 	ret
@@ -7369,7 +9812,7 @@ Call_3001::
 jr_000_3029:
 	ld hl, far_Call_5F_5630
 	rst $10
-	ld a, [$da81]
+	ld a, [wSkillAnim]
 	cp $ff
 	ret z
 
@@ -7385,52 +9828,52 @@ jr_000_3029:
 	cp $2c
 	jr z, jr_000_3059
 
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
 jr_000_3048:
-	ld hl, far_Call_5C_4005
+	ld hl, far_DrawSkillAnimSprite_5C
 	rst $10
 	ret
 
 
 jr_000_304d:
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
 jr_000_3052:
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	cp $c5
 	jr nz, jr_000_304d
 
 jr_000_3059:
-	ld a, [$db75]
+	ld a, [wEnemyCount]
 	cp $01
 	jr z, jr_000_30b4
 
 	cp $02
 	jr z, jr_000_30ce
 
-	ld a, [$dd1f]
+	ld a, [wEnemyDown]
 	or a
 	jr nz, jr_000_307f
 
 	ld a, $20
-	ldh [$ffc3], a
-	ld a, [$da81]
+	ldh [hSpriteX], a
+	ld a, [wSkillAnim]
 	cp $15
 	jr nz, jr_000_307b
 
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	jr jr_000_307f
 
 jr_000_307b:
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 
 jr_000_307f:
@@ -7439,17 +9882,17 @@ jr_000_307f:
 	jr nz, jr_000_309a
 
 	ld a, $50
-	ldh [$ffc3], a
-	ld a, [$da81]
+	ldh [hSpriteX], a
+	ld a, [wSkillAnim]
 	cp $15
 	jr nz, jr_000_3096
 
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	jr jr_000_309a
 
 jr_000_3096:
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 
 jr_000_309a:
@@ -7458,61 +9901,61 @@ jr_000_309a:
 	ret nz
 
 	ld a, $80
-	ldh [$ffc3], a
-	ld a, [$da81]
+	ldh [hSpriteX], a
+	ld a, [wSkillAnim]
 	cp $15
 	jr nz, jr_000_30af
 
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
 jr_000_30af:
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
 jr_000_30b4:
-	ld a, [$dd1f]
+	ld a, [wEnemyDown]
 	or a
 	ret nz
 
 	ld a, $50
-	ldh [$ffc3], a
-	ld a, [$da81]
+	ldh [hSpriteX], a
+	ld a, [wSkillAnim]
 	cp $15
 	jr nz, jr_000_30c9
 
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
 jr_000_30c9:
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
 jr_000_30ce:
-	ld a, [$dd1f]
+	ld a, [wEnemyDown]
 	or a
 	jr nz, jr_000_30e9
 
 	ld a, $38
-	ldh [$ffc3], a
-	ld a, [$da81]
+	ldh [hSpriteX], a
+	ld a, [wSkillAnim]
 	cp $15
 	jr nz, jr_000_30e5
 
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	jr jr_000_30e9
 
 jr_000_30e5:
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 
 jr_000_30e9:
@@ -7521,18 +9964,18 @@ jr_000_30e9:
 	ret nz
 
 	ld a, $68
-	ldh [$ffc3], a
-	ld a, [$da81]
+	ldh [hSpriteX], a
+	ld a, [wSkillAnim]
 	cp $15
 	jr nz, jr_000_30fe
 
-	ld hl, far_Call_5D_4005
+	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
 jr_000_30fe:
-	ld hl, far_Call_5E_4005
+	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
@@ -7573,17 +10016,17 @@ jr_000_30fe:
 	db $90, $70, $50, $30, $10, $51, $40, $30, $20, $15, $15, $15, $05, $09, $18, $28
 	db $38, $48, $58, $68, $78, $88, $98, $a8, $b8, $c8, $d8, $e8, $f5, $c9
 
-Call_3331::
+InitSound::
 	ld bc, $0000
-	call Call_336D
+	call SetSyncedBankSwitch
 	ld a, $80
 	ldh [rNR52], a
 	xor a
 	ldh [rNR51], a
-	ld [$de1d], a
+	ld [wSoundPanning], a
 	ld a, $77
 	ldh [rNR50], a
-	ld hl, $dd80
+	ld hl, wSoundChannels
 	ld b, $06
 	ld a, $ff
 
@@ -7598,24 +10041,24 @@ jr_000_334c:
 	jr nz, jr_000_334c
 
 	xor a
-	ld [$de29], a
+	ld [wSoundFirstChannel], a
 	ret
 
 
 	db $af, $ea, $29, $de, $c9, $3e, $04, $ea, $29, $de, $af, $ea, $1d, $de, $c9
 
-Call_336D::
+SetSyncedBankSwitch::
 	ld a, b
-	ld [$de26], a
+	ld [wSyncSwitchChannels], a
 	ld a, c
-	ld [$de27], a
+	ld [wSyncSwitchBank], a
 	xor a
-	ld [$de28], a
+	ld [wSyncNoteEnds], a
 	ret
 
 
-Call_337A::
-	ld a, [$de23]
+MarkNoteEnd::
+	ld a, [wSoundCurChannel]
 	inc a
 	ld b, a
 	ld a, $01
@@ -7629,28 +10072,28 @@ jr_000_3381:
 
 jr_000_3387:
 	ld b, a
-	ld a, [$de28]
+	ld a, [wSyncNoteEnds]
 	or b
-	ld [$de28], a
+	ld [wSyncNoteEnds], a
 	ret
 
 
-Call_3390::
-	ld a, [$de28]
-	ld hl, $de26
+ApplySyncedBankSwitch::
+	ld a, [wSyncNoteEnds]
+	ld hl, wSyncSwitchChannels
 	and [hl]
 	cp [hl]
 	jr nz, jr_000_33c4
 
 	ld hl, $dd84
-	ld a, [$de27]
+	ld a, [wSyncSwitchBank]
 	and $0f
 	ld b, a
-	ld a, [$de26]
+	ld a, [wSyncSwitchChannels]
 
 jr_000_33a6:
 	srl a
-	ld [$de28], a
+	ld [wSyncNoteEnds], a
 	jr nc, jr_000_33b2
 
 	ld a, [hl]
@@ -7665,33 +10108,33 @@ jr_000_33b2:
 	ld a, h
 	adc $00
 	ld h, a
-	ld a, [$de28]
+	ld a, [wSyncNoteEnds]
 	and a
 	jr nz, jr_000_33a6
 
 	xor a
-	ld [$de26], a
+	ld [wSyncSwitchChannels], a
 
 jr_000_33c4:
 	xor a
-	ld [$de28], a
+	ld [wSyncNoteEnds], a
 	ret
 
 
-Call_33C9::
-	call Call_33D2
+StartSounds4::
+	call StartSoundChannel
 
-Call_33CC::
-	call Call_33D2
+StartSounds3::
+	call StartSoundChannel
 
-Call_33CF::
-	call Call_33D2
+StartSounds2::
+	call StartSoundChannel
 
-Call_33D2::
+StartSoundChannel::
 	push bc
 	push de
 	push hl
-	ld a, [$de24]
+	ld a, [wSoundID]
 	ld hl, $3466
 
 jr_000_33db:
@@ -7718,7 +10161,7 @@ jr_000_33e4:
 	ld d, a
 	ld a, [hld]
 	ld e, a
-	ld a, [$de24]
+	ld a, [wSoundID]
 	sub [hl]
 	ld l, a
 	ld h, $00
@@ -7731,7 +10174,7 @@ jr_000_33e4:
 	inc de
 	ld c, a
 	ld b, $00
-	ld hl, $dd80
+	ld hl, wSoundChannels
 	add hl, bc
 	ld a, [hl]
 	cp $ff
@@ -7754,9 +10197,9 @@ jr_000_33e4:
 	ld b, $77
 
 jr_000_3429:
-	ld a, [$de1d]
+	ld a, [wSoundPanning]
 	and b
-	ld [$de1d], a
+	ld [wSoundPanning], a
 
 jr_000_3430:
 	xor a
@@ -7791,9 +10234,9 @@ jr_000_3430:
 	rra
 	and $03
 	ld [$4100], a
-	ld a, [$de24]
+	ld a, [wSoundID]
 	inc a
-	ld [$de24], a
+	ld [wSoundID], a
 	pop hl
 	pop de
 	pop bc
@@ -7802,20 +10245,20 @@ jr_000_3430:
 
 	db $00, $01, $40, $1c, $21, $01, $40, $1d, $37, $01, $40, $1e, $ff
 
-Call_3473::
+UpdateSound::
 	ld a, [$4000]
 	push af
-	ld a, [$de29]
-	ld [$de23], a
+	ld a, [wSoundFirstChannel]
+	ld [wSoundCurChannel], a
 	xor a
-	ld [$de1c], a
-	ld hl, $de22
+	ld [wSoundClaimed], a
+	ld hl, wSoundFrame
 	inc [hl]
-	ld hl, $dd80
+	ld hl, wSoundChannels
 
 Jump_000_3488:
 	push hl
-	ld de, $ffe4
+	ld de, hChanPos
 	ld b, $03
 
 jr_000_348e:
@@ -7851,14 +10294,14 @@ jr_000_348e:
 	inc e
 	ld a, [hl]
 	ld [de], a
-	ldh a, [$ffe5]
+	ldh a, [hChanConfig]
 	and $03
-	ld [$de1e], a
+	ld [wSoundHWChannel], a
 	ld b, a
 	add a
 	add a
 	add b
-	ld [$de21], a
+	ld [wSoundRegOffset], a
 	inc b
 	ld a, $88
 
@@ -7867,31 +10310,31 @@ jr_000_34bf:
 	dec b
 	jr nz, jr_000_34bf
 
-	ld [$de1f], a
-	ld [$de20], a
-	ldh a, [$ffe4]
+	ld [wSoundChannelBits], a
+	ld [wSoundChannelBits2], a
+	ldh a, [hChanPos]
 	ld b, a
-	ldh a, [$fffd]
+	ldh a, [hChanPosHi]
 	and b
 	cp $ff
 	jp z, Jump_000_3559
 
-	ldh a, [$ffe8]
+	ldh a, [hChanBank]
 	ld [$2100], a
 	swap a
 	rra
 	and $03
 	ld [$4100], a
-	ldh a, [$fffd]
+	ldh a, [hChanPosHi]
 	or b
 	and a
 	jp z, Jump_000_357f
 
-	call Call_3905
-	call Call_3974
-	ldh a, [$fff1]
+	call UpdateVibrato
+	call UpdateInstrument
+	ldh a, [hChanInstLength]
 	ld b, a
-	ldh a, [$fff2]
+	ldh a, [hChanInstStep]
 	inc a
 	cp b
 	jr c, jr_000_34f8
@@ -7899,9 +10342,9 @@ jr_000_34bf:
 	ld a, b
 
 jr_000_34f8:
-	ldh [$fff2], a
-	ld hl, $ffea
-	ldh a, [$ffe9]
+	ldh [hChanInstStep], a
+	ld hl, hChanTempo
+	ldh a, [hChanDuty]
 	and $0f
 	add [hl]
 	cp $10
@@ -7913,35 +10356,35 @@ jr_000_34f8:
 
 jr_000_350b:
 	ld [hl], a
-	call Call_38C6
-	ldh a, [$fffb]
+	call UpdateVolumeSlide
+	ldh a, [hChanVibTimer]
 	and a
 	jr z, jr_000_3517
 
 	dec a
-	ldh [$fffb], a
+	ldh [hChanVibTimer], a
 
 jr_000_3517:
-	ld hl, $ffec
+	ld hl, hChanNoteTimer
 	dec [hl]
 	jr nz, jr_000_3527
 
-	call Call_337A
+	call MarkNoteEnd
 
 Jump_000_3520:
-	ldh a, [$fffa]
-	ldh [$fffb], a
-	call Call_35EA
+	ldh a, [hChanVibDelay]
+	ldh [hChanVibTimer], a
+	call ReadChannelEvents
 
 jr_000_3527:
-	ld a, [$de1f]
+	ld a, [wSoundChannelBits]
 	ld b, a
-	ld a, [$de1c]
+	ld a, [wSoundClaimed]
 	or b
-	ld [$de1c], a
+	ld [wSoundClaimed], a
 	pop hl
 	push hl
-	ld de, $ffe4
+	ld de, hChanPos
 	ld b, $03
 
 jr_000_3539:
@@ -7982,13 +10425,13 @@ Jump_000_3559:
 	pop hl
 	ld de, $001a
 	add hl, de
-	ld a, [$de23]
+	ld a, [wSoundCurChannel]
 	inc a
-	ld [$de23], a
+	ld [wSoundCurChannel], a
 	cp $06
 	jp c, Jump_000_3488
 
-	ld a, [$de1d]
+	ld a, [wSoundPanning]
 	ldh [rNR51], a
 	pop af
 	ld [$2100], a
@@ -7996,21 +10439,21 @@ Jump_000_3559:
 	rra
 	and $03
 	ld [$4100], a
-	call Call_3390
+	call ApplySyncedBankSwitch
 	ret
 
 
 Jump_000_357f:
-	ldh a, [$ffe6]
+	ldh a, [hChanData]
 	ld l, a
 	ldh a, [$ffe7]
 	ld h, a
 	xor a
-	ldh [$ffea], a
+	ldh [hChanTempo], a
 	ld a, [hli]
 	and $0f
 	ld d, a
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_35bf
 
@@ -8021,34 +10464,34 @@ Jump_000_357f:
 	or d
 
 jr_000_3599:
-	ldh [$ffe9], a
+	ldh [hChanDuty], a
 	ld a, [hli]
 	swap a
-	ldh [$ffeb], a
-	ld a, [$de1e]
+	ldh [hChanEnvelope], a
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_35c5
 
 	ld a, [hli]
-	ldh [$ffed], a
+	ldh [hChanSweep], a
 
 jr_000_35aa:
 	xor a
-	ldh [$ffee], a
-	ldh [$ffef], a
+	ldh [hChanLoop1], a
+	ldh [hChanLoop2], a
 	ldh [$fff0], a
-	ldh [$fff3], a
-	ldh [$fffd], a
+	ldh [hChanVolSlide], a
+	ldh [hChanPosHi], a
 	dec a
-	ldh [$fff9], a
+	ldh [hChanPan], a
 	ld a, $02
-	ldh [$ffe4], a
+	ldh [hChanPos], a
 	jp Jump_000_3520
 
 
 jr_000_35bf:
 	ld a, [hli]
-	ldh [$fff1], a
+	ldh [hChanInstLength], a
 	ld a, d
 	jr jr_000_3599
 
@@ -8056,17 +10499,17 @@ jr_000_35c5:
 	xor a
 	ldh [rNR30], a
 	ld d, a
-	ldh a, [$ffed]
+	ldh a, [hChanSweep]
 	ld e, a
 	cp $ff
 	jr nz, jr_000_35d4
 
 	ld e, [hl]
 	ld a, e
-	ldh [$ffed], a
+	ldh [hChanSweep], a
 
 jr_000_35d4:
-	ld [$de2b], a
+	ld [wSoundWave], a
 	swap e
 	ld hl, $316e
 	add hl, de
@@ -8082,13 +10525,13 @@ jr_000_35e2:
 
 	jr jr_000_35aa
 
-Call_35EA::
-	ldh a, [$ffe4]
+ReadChannelEvents::
+	ldh a, [hChanPos]
 	ld l, a
-	ldh a, [$fffd]
+	ldh a, [hChanPosHi]
 	ld h, a
 	add hl, hl
-	ldh a, [$ffe6]
+	ldh a, [hChanData]
 	ld e, a
 	ldh a, [$ffe7]
 	ld d, a
@@ -8096,12 +10539,12 @@ Call_35EA::
 
 Jump_000_35f8:
 jr_000_35f8:
-	ldh a, [$ffe4]
+	ldh a, [hChanPos]
 	add $01
-	ldh [$ffe4], a
-	ldh a, [$fffd]
+	ldh [hChanPos], a
+	ldh a, [hChanPosHi]
 	adc $00
-	ldh [$fffd], a
+	ldh [hChanPosHi], a
 	ld a, [hli]
 	cp $d0
 	jr nc, jr_000_3630
@@ -8119,9 +10562,9 @@ jr_000_3615:
 	cp $fd
 	jr nz, jr_000_3624
 
-	ldh a, [$ffe4]
-	ldh [$fff8], a
-	ldh a, [$fffd]
+	ldh a, [hChanPos]
+	ldh [hChanLoopPos], a
+	ldh a, [hChanPosHi]
 	ldh [$fffe], a
 
 jr_000_3621:
@@ -8132,9 +10575,9 @@ jr_000_3624:
 	cp $ff
 	jr nz, jr_000_3621
 
-	ldh [$ffe4], a
-	ldh [$fffd], a
-	call Call_3A38
+	ldh [hChanPos], a
+	ldh [hChanPosHi], a
+	call StopChannelOutput
 	ret
 
 
@@ -8155,15 +10598,15 @@ jr_000_363c:
 
 jr_000_3640:
 	ld b, a
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_3650
 
 	ld a, b
-	ldh [$fff3], a
+	ldh [hChanVolSlide], a
 	ld a, [hl]
-	ldh [$fff4], a
-	ldh [$fff5], a
+	ldh [hChanVolSlideRate], a
+	ldh [hChanVolSlideTimer], a
 
 jr_000_3650:
 	inc hl
@@ -8172,16 +10615,16 @@ jr_000_3650:
 jr_000_3653:
 	and $0f
 	ld b, a
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_366b
 
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 	and $0f
 	jr nz, jr_000_366b
 
 	ld a, [hl]
-	ldh [$fff1], a
+	ldh [hChanInstLength], a
 	ld a, b
 	swap a
 	ldh [$fff0], a
@@ -8202,60 +10645,60 @@ jr_000_366e:
 	and a
 	jr nz, jr_000_368b
 
-	ldh a, [$ffee]
+	ldh a, [hChanLoop1]
 	dec a
-	ldh [$ffee], a
+	ldh [hChanLoop1], a
 	jr z, jr_000_36b0
 
 	bit 7, a
 	jr z, jr_000_3699
 
 	ld a, e
-	ldh [$ffee], a
+	ldh [hChanLoop1], a
 	jr jr_000_3699
 
 jr_000_368b:
-	ldh a, [$ffef]
+	ldh a, [hChanLoop2]
 	dec a
-	ldh [$ffef], a
+	ldh [hChanLoop2], a
 	jr z, jr_000_36c2
 
 	bit 7, a
 	jr z, jr_000_3699
 
 	ld a, e
-	ldh [$ffef], a
+	ldh [hChanLoop2], a
 
 jr_000_3699:
 	ld a, [hl]
 	cp $fc
 	jr z, jr_000_36a9
 
-	ldh a, [$fff8]
-	ldh [$ffe4], a
+	ldh a, [hChanLoopPos]
+	ldh [hChanPos], a
 	ldh a, [$fffe]
-	ldh [$fffd], a
-	jp Call_35EA
+	ldh [hChanPosHi], a
+	jp ReadChannelEvents
 
 
 jr_000_36a9:
 	inc hl
 	ld a, [hli]
-	ldh [$ffe4], a
+	ldh [hChanPos], a
 	ld a, [hl]
-	ldh [$fffd], a
+	ldh [hChanPosHi], a
 
 jr_000_36b0:
-	jp Call_35EA
+	jp ReadChannelEvents
 
 
 	db $f0, $e4, $c6, $01, $e0, $e4, $f0, $fd, $ce, $00, $e0, $fd, $c3, $ea, $35
 
 jr_000_36c2:
-	ldh a, [$ffe4]
+	ldh a, [hChanPos]
 	add $01
-	ldh [$ffe4], a
-	jp Call_35EA
+	ldh [hChanPos], a
+	jp ReadChannelEvents
 
 
 Jump_000_36cb:
@@ -8264,14 +10707,14 @@ Jump_000_36cb:
 
 	ld a, [hli]
 	swap a
-	ldh [$ffeb], a
-	ld a, [$de1f]
+	ldh [hChanEnvelope], a
+	ld a, [wSoundChannelBits]
 	ld b, a
-	ld a, [$de1c]
+	ld a, [wSoundClaimed]
 	and b
 	jp nz, Jump_000_35f8
 
-	call Call_393C
+	call SetChannelEnvelope
 	jp Jump_000_35f8
 
 
@@ -8279,12 +10722,12 @@ jr_000_36e5:
 	cp $a1
 	jr nz, jr_000_3725
 
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_36f6
 
 	ld a, [hli]
-	ldh [$ffed], a
+	ldh [hChanSweep], a
 	jp Jump_000_35f8
 
 
@@ -8294,10 +10737,10 @@ jr_000_36f6:
 	ld d, a
 	ld a, [hli]
 	ld e, a
-	ldh [$ffed], a
-	ld a, [$de1f]
+	ldh [hChanSweep], a
+	ld a, [wSoundChannelBits]
 	ld b, a
-	ld a, [$de1c]
+	ld a, [wSoundClaimed]
 	and b
 	jr z, jr_000_370b
 
@@ -8307,7 +10750,7 @@ jr_000_36f6:
 jr_000_370b:
 	push hl
 	ld a, e
-	ld [$de2b], a
+	ld [wSoundWave], a
 	swap e
 	ld hl, $316e
 	add hl, de
@@ -8329,7 +10772,7 @@ jr_000_3725:
 	cp $a2
 	jr nz, jr_000_3746
 
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_3740
 
@@ -8338,16 +10781,16 @@ jr_000_3725:
 	rrca
 	and $c0
 	ld d, a
-	ldh a, [$ffe9]
+	ldh a, [hChanDuty]
 	and $3f
 	or d
-	ldh [$ffe9], a
+	ldh [hChanDuty], a
 	jp Jump_000_35f8
 
 
 jr_000_3740:
 	ld a, [hli]
-	ldh [$fff1], a
+	ldh [hChanInstLength], a
 	jp Jump_000_35f8
 
 
@@ -8362,23 +10805,23 @@ jr_000_3746:
 	ld b, a
 	and $0f
 	add a
-	ldh [$fffa], a
-	ldh [$fffb], a
+	ldh [hChanVibDelay], a
+	ldh [hChanVibTimer], a
 	ld a, b
 	and $70
 	ld e, a
-	ldh a, [$ffe5]
+	ldh a, [hChanConfig]
 	and $0f
 	or e
 	or $80
 
 jr_000_3762:
-	ldh [$ffe5], a
+	ldh [hChanConfig], a
 	jp Jump_000_35f8
 
 
 jr_000_3767:
-	ldh a, [$ffe5]
+	ldh a, [hChanConfig]
 	and $0f
 	jr jr_000_3762
 
@@ -8390,11 +10833,11 @@ jr_000_376d:
 	cp $01
 	jr nz, jr_000_377a
 
-	ldh a, [$fff9]
+	ldh a, [hChanPan]
 	swap a
 
 jr_000_377a:
-	ldh [$fff9], a
+	ldh [hChanPan], a
 	jp Jump_000_35f8
 
 
@@ -8412,7 +10855,7 @@ jr_000_3789:
 	jr nz, jr_000_3793
 
 	ld a, [hl]
-	ldh [$ffec], a
+	ldh [hChanNoteTimer], a
 	jp Jump_000_38a5
 
 
@@ -8421,7 +10864,7 @@ jr_000_3793:
 	jr nz, jr_000_379d
 
 	ld a, [hli]
-	ldh [$fffc], a
+	ldh [hChanInstrument], a
 	jp Jump_000_35f8
 
 
@@ -8432,10 +10875,10 @@ jr_000_379d:
 	ld a, [hli]
 	and $10
 	ld b, a
-	ldh a, [$ffe9]
+	ldh a, [hChanDuty]
 	and $ef
 	or b
-	ldh [$ffe9], a
+	ldh [hChanDuty], a
 	jp Jump_000_35f8
 
 
@@ -8446,10 +10889,10 @@ jr_000_37af:
 	ld a, [hli]
 	and $0f
 	ld b, a
-	ldh a, [$ffe9]
+	ldh a, [hChanDuty]
 	and $f0
 	or b
-	ldh [$ffe9], a
+	ldh [hChanDuty], a
 	jp Jump_000_35f8
 
 
@@ -8462,19 +10905,19 @@ jr_000_37c1:
 
 jr_000_37d5:
 	xor a
-	ldh [$fff6], a
+	ldh [hChanFreq], a
 	ld a, $80
 	ldh [$fff7], a
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_37e7
 
-	call Call_3A30
+	call SilenceChannel
 	ret
 
 
 jr_000_37e7:
-	call Call_3A48
+	call SkipIfChannelClaimed
 	xor a
 	ldh [rNR30], a
 	ret
@@ -8483,8 +10926,8 @@ jr_000_37e7:
 Jump_000_37ee:
 	ld b, a
 	ld a, [hl]
-	ldh [$ffec], a
-	ld a, [$de1e]
+	ldh [hChanNoteTimer], a
+	ld a, [wSoundHWChannel]
 	cp $03
 	jr nz, jr_000_3815
 
@@ -8518,7 +10961,7 @@ jr_000_3815:
 
 	add a
 	ld e, a
-	ldh a, [$ffe9]
+	ldh a, [hChanDuty]
 	and $10
 	jr z, jr_000_3828
 
@@ -8556,28 +10999,28 @@ jr_000_3840:
 
 jr_000_3848:
 	xor a
-	ldh [$fff2], a
-	call Call_3A48
-	ld a, [$de1e]
+	ldh [hChanInstStep], a
+	call SkipIfChannelClaimed
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr nz, jr_000_385c
 
-	call Call_3C03
+	call LoadWavePattern
 	ld a, $80
 	ldh [rNR30], a
 
 jr_000_385c:
 	push hl
-	call Call_392E
+	call UpdateChannelVolume
 	pop hl
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	and a
-	ldh a, [$ffed]
+	ldh a, [hChanSweep]
 	ld c, $10
-	call z, Call_3954
+	call z, WriteChannelReg
 	ld a, l
 	ld c, $13
-	call Call_3954
+	call WriteChannelReg
 	ld a, l
 	cp $02
 	jr c, jr_000_387f
@@ -8592,19 +11035,19 @@ jr_000_387f:
 	ld a, $02
 
 jr_000_3881:
-	ldh [$fff6], a
-	ld a, [$de1e]
+	ldh [hChanFreq], a
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_38b8
 
 	cp $02
 	jr nc, jr_000_3899
 
-	ldh a, [$ffe9]
+	ldh a, [hChanDuty]
 	and $c0
 	or $3f
 	ld c, $11
-	call Call_3954
+	call WriteChannelReg
 
 jr_000_3899:
 	ld a, h
@@ -8614,20 +11057,20 @@ jr_000_3899:
 jr_000_389e:
 	ldh [$fff7], a
 	ld c, $14
-	call Call_3954
+	call WriteChannelReg
 
 Jump_000_38a5:
-	ld a, [$de20]
+	ld a, [wSoundChannelBits2]
 	ld b, a
 	cpl
 	ld c, a
-	ldh a, [$fff9]
+	ldh a, [hChanPan]
 	and b
 	ld b, a
-	ld a, [$de1d]
+	ld a, [wSoundPanning]
 	and c
 	or b
-	ld [$de1d], a
+	ld [wSoundPanning], a
 	ret
 
 
@@ -8642,29 +11085,29 @@ jr_000_38b8:
 	and $07
 	jr jr_000_389e
 
-Call_38C6::
-	ld a, [$de1e]
+UpdateVolumeSlide::
+	ld a, [wSoundHWChannel]
 	cp $02
 	ret z
 
-	ldh a, [$fff3]
+	ldh a, [hChanVolSlide]
 	and a
 	ret z
 
-	ld hl, $fff5
+	ld hl, hChanVolSlideTimer
 	dec [hl]
 	ret nz
 
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 	swap a
 	cp $10
 	ret nc
 
 	and $0f
 	ld b, a
-	ldh a, [$fff4]
-	ldh [$fff5], a
-	ld hl, $fff3
+	ldh a, [hChanVolSlideRate]
+	ldh [hChanVolSlideTimer], a
+	ld hl, hChanVolSlide
 	ld a, [hl]
 	bit 7, a
 	jr nz, jr_000_38f9
@@ -8674,10 +11117,10 @@ Call_38C6::
 	cp $0f
 	ret z
 
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 	add $10
-	ldh [$ffeb], a
-	jp Call_393C
+	ldh [hChanEnvelope], a
+	jp SetChannelEnvelope
 
 
 jr_000_38f9:
@@ -8686,41 +11129,41 @@ jr_000_38f9:
 	and a
 	ret z
 
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 	sub $10
-	ldh [$ffeb], a
-	jr Call_393C
+	ldh [hChanEnvelope], a
+	jr SetChannelEnvelope
 
-Call_3905::
-	call Call_3A48
-	ld a, [$de1e]
+UpdateVibrato::
+	call SkipIfChannelClaimed
+	ld a, [wSoundHWChannel]
 	cp $03
 	ret z
 
-	ldh a, [$fffb]
+	ldh a, [hChanVibTimer]
 	and a
 	ret nz
 
-	ldh a, [$ffe5]
+	ldh a, [hChanConfig]
 	bit 7, a
 	ret z
 
 	and $70
 	ld b, a
-	ld a, [$de22]
+	ld a, [wSoundFrame]
 	and $0f
 	or b
 	ld e, a
 	ld d, $00
 	ld hl, $3b83
 	add hl, de
-	ldh a, [$fff6]
+	ldh a, [hChanFreq]
 	add [hl]
 	ld c, $13
-	jr Call_3954
+	jr WriteChannelReg
 
-Call_392E::
-	ld a, [$de1e]
+UpdateChannelVolume::
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_395d
 
@@ -8728,9 +11171,9 @@ Call_392E::
 	and a
 	jr nz, jr_000_398e
 
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 
-Call_393C::
+SetChannelEnvelope::
 	ld b, a
 	and $07
 	jr nz, jr_000_3945
@@ -8740,7 +11183,7 @@ Call_393C::
 	ld b, a
 
 jr_000_3945:
-	ld a, [$de21]
+	ld a, [wSoundRegOffset]
 	add $12
 	ld c, a
 	ldh a, [c]
@@ -8752,9 +11195,9 @@ jr_000_3945:
 	ldh a, [$fff7]
 	ld c, $14
 
-Call_3954::
+WriteChannelReg::
 	ld b, a
-	ld a, [$de21]
+	ld a, [wSoundRegOffset]
 	add c
 	ld c, a
 	ld a, b
@@ -8763,16 +11206,16 @@ Call_3954::
 
 
 jr_000_395d:
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 	ld c, $12
-	jr Call_3954
+	jr WriteChannelReg
 
 jr_000_3963:
 	ld a, e
 	srl a
 	add $02
 	swap a
-	ld hl, $ffeb
+	ld hl, hChanEnvelope
 	cp [hl]
 	ret c
 
@@ -8781,18 +11224,18 @@ jr_000_3963:
 	ret
 
 
-Call_3974::
-	call Call_3A48
-	ldh a, [$fff6]
+UpdateInstrument::
+	call SkipIfChannelClaimed
+	ldh a, [hChanFreq]
 	and a
 	jr nz, jr_000_3983
 
 	ldh a, [$fff7]
 	and $7f
-	jp z, Call_3A30
+	jp z, SilenceChannel
 
 jr_000_3983:
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_398e
 
@@ -8801,13 +11244,13 @@ jr_000_3983:
 	ret z
 
 jr_000_398e:
-	ldh a, [$fff1]
+	ldh a, [hChanInstLength]
 	and a
 	ret z
 
 	ld e, $00
 	ld c, a
-	ldh a, [$fff2]
+	ldh a, [hChanInstStep]
 	ld b, $04
 
 jr_000_3999:
@@ -8823,7 +11266,7 @@ jr_000_399e:
 	dec b
 	jr nz, jr_000_3999
 
-	ld a, [$de1e]
+	ld a, [wSoundHWChannel]
 	cp $02
 	jr z, jr_000_3963
 
@@ -8832,7 +11275,7 @@ jr_000_399e:
 	ld e, a
 	ld d, $00
 	push de
-	ldh a, [$fffc]
+	ldh a, [hChanInstrument]
 	ld de, $326e
 	sla a
 	add e
@@ -8853,7 +11296,7 @@ jr_000_399e:
 	sbc $00
 	ld h, a
 	add hl, de
-	ldh a, [$ffeb]
+	ldh a, [hChanEnvelope]
 	swap a
 	ld e, a
 	ld a, [hl]
@@ -8911,12 +11354,12 @@ jr_000_3a05:
 	add hl, de
 	ld a, [hl]
 	or b
-	jp Call_393C
+	jp SetChannelEnvelope
 
 
 jr_000_3a17:
 	ld c, $12
-	ld a, [$de21]
+	ld a, [wSoundRegOffset]
 	add c
 	ld c, a
 	ldh a, [c]
@@ -8931,30 +11374,30 @@ jr_000_3a17:
 	add hl, de
 	ld a, [hl]
 	or b
-	jp Call_393C
+	jp SetChannelEnvelope
 
 
-Call_3A30::
-	call Call_3A48
+SilenceChannel::
+	call SkipIfChannelClaimed
 	ld a, $00
-	jp Call_393C
+	jp SetChannelEnvelope
 
 
-Call_3A38::
-	call Call_3A48
-	ld a, [$de1f]
+StopChannelOutput::
+	call SkipIfChannelClaimed
+	ld a, [wSoundChannelBits]
 	cpl
 	ld b, a
-	ld a, [$de1d]
+	ld a, [wSoundPanning]
 	and b
-	ld [$de1d], a
+	ld [wSoundPanning], a
 	ret
 
 
-Call_3A48::
-	ld a, [$de1f]
+SkipIfChannelClaimed::
+	ld a, [wSoundChannelBits]
 	ld b, a
-	ld a, [$de1c]
+	ld a, [wSoundClaimed]
 	and b
 	ret z
 
@@ -8990,14 +11433,14 @@ Call_3A48::
 	db $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01, $01
 	db $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02, $02
 
-Call_3C03::
-	ld a, [$de2b]
+LoadWavePattern::
+	ld a, [wSoundWave]
 	ld b, a
-	ldh a, [$ffed]
+	ldh a, [hChanSweep]
 	cp b
 	ret z
 
-	ld [$de2b], a
+	ld [wSoundWave], a
 	ld e, a
 	swap e
 	xor a

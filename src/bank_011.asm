@@ -8,28 +8,28 @@ BankNumber_11::
 	db $11
 
 FarTable_11::
-	dw Call_11_4005
-	dw Call_11_400F
+	dw DrawFieldSprite_11
+	dw DrawFieldSpriteOnScreen_11
 
-Call_11_4005::
-	call Call_11_406E
+DrawFieldSprite_11::
+	call ApplySpriteSetPalette_11
 	ld de, $407f
-	call Call_0D91
+	call DrawMetasprite
 	ret
 
 
-Call_11_400F::
-	call Call_11_406E
+DrawFieldSpriteOnScreen_11::
+	call ApplySpriteSetPalette_11
 	ld de, $407f
 	push af
 	push bc
 	push de
 	push hl
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	cp $28
 	jr nc, jr_011_4069
 
-	ldh a, [$ffc7]
+	ldh a, [hSpriteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -37,7 +37,7 @@ Call_11_400F::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ffc8]
+	ldh a, [hSpriteFrame]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -45,7 +45,7 @@ Call_11_400F::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	sla a
 	sla a
 	ld l, a
@@ -58,18 +58,18 @@ jr_011_403c:
 	jr z, jr_011_4069
 
 	ld b, a
-	ldh a, [$ffc5]
+	ldh a, [hSpriteY]
 	add b
 	add $10
 	ld [hli], a
 	ld a, [de]
 	inc de
 	ld b, a
-	ldh a, [$ffc3]
+	ldh a, [hSpriteX]
 	add b
 	add $08
 	ld [hli], a
-	ldh a, [$ffc9]
+	ldh a, [hSpriteTileBase]
 	ld b, a
 	ld a, [de]
 	inc de
@@ -78,12 +78,12 @@ jr_011_403c:
 	ld a, [de]
 	inc de
 	ld b, a
-	ldh a, [$ffca]
+	ldh a, [hSpriteAttr]
 	xor b
 	ld [hli], a
-	ldh a, [$ffcb]
+	ldh a, [hOAMCount]
 	inc a
-	ldh [$ffcb], a
+	ldh [hOAMCount], a
 	cp $28
 	jr c, jr_011_403c
 
@@ -95,17 +95,17 @@ jr_011_4069:
 	ret
 
 
-Call_11_406E::
-	ldh a, [$ffc7]
+ApplySpriteSetPalette_11::
+	ldh a, [hSpriteSet]
 	ld hl, $412d
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ldh a, [$ffca]
+	ldh a, [hSpriteAttr]
 	or [hl]
-	ldh [$ffca], a
+	ldh [hSpriteAttr], a
 	ret
 
 

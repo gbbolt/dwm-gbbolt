@@ -8,32 +8,32 @@ BankNumber_17::
 	db $17
 
 FarTable_17::
-	dw Call_17_401D
-	dw Call_17_409E
-	dw Call_17_41C0
+	dw LoadMapPalettes
+	dw LoadMapAttrBuffer
+	dw LoadFieldObjPalettes
 	dw $4272
-	dw Call_17_4410
+	dw StartCGBFade
 	dw $4478
-	dw Call_17_41D0
+	dw LoadMonPicPalette
 	dw $41f2
-	dw Call_17_46DD
-	dw Call_17_4102
-	dw Call_17_4192
-	dw Call_17_4712
+	dw UploadCGBPalettes
+	dw SetSharedBGColors
+	dw ClearAttrMap
+	dw LoadPaletteSet
 	dw $4733
-	dw Call_17_4751
+	dw LoadObjPaletteB
 
-Call_17_401D::
-	ld a, [$c81d]
+LoadMapPalettes::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jp nz, Jump_017_4064
 
 	ld hl, $476f
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -43,7 +43,7 @@ Call_17_401D::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
@@ -74,8 +74,8 @@ Call_17_401D::
 	ld l, a
 	ld c, $00
 	ld b, $04
-	call Call_17_46A1
-	jp Call_17_4102
+	call CopyBGPalettes
+	jp SetSharedBGColors
 
 
 Jump_017_4064:
@@ -87,7 +87,7 @@ Jump_017_4064:
 	ld de, $5415
 
 jr_017_4071:
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld hl, $c940
 	add l
 	ld l, a
@@ -102,7 +102,7 @@ jr_017_4071:
 	ld d, [hl]
 	ld e, a
 	ld hl, $51f5
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -114,16 +114,16 @@ jr_017_4071:
 	ld l, a
 	ld c, $00
 	ld b, $04
-	call Call_17_46A1
-	jr Call_17_4102
+	call CopyBGPalettes
+	jr SetSharedBGColors
 
-Call_17_409E::
-	ld a, [$c969]
+LoadMapAttrBuffer::
+	ld a, [wOnGateFloor]
 	or a
 	jp nz, Jump_017_40da
 
 	ld hl, $476f
-	ld a, [$c968]
+	ld a, [wMapId]
 	add a
 	add l
 	ld l, a
@@ -133,7 +133,7 @@ Call_17_409E::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add l
 	ld l, a
@@ -159,8 +159,8 @@ Call_17_409E::
 	inc hl
 	ld d, [hl]
 	inc hl
-	ld hl, $c200
-	call Call_14CF
+	ld hl, wScreenMap
+	call Decompress
 	ret
 
 
@@ -173,7 +173,7 @@ Jump_017_40da:
 	ld de, $5415
 
 jr_017_40e7:
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	ld hl, $c940
 	add l
 	ld l, a
@@ -187,20 +187,20 @@ jr_017_40e7:
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	ld hl, $c200
-	call Call_14CF
+	ld hl, wScreenMap
+	call Decompress
 	ret
 
 
-Call_17_4102::
-	ld a, [$c81d]
+SetSharedBGColors::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	ld hl, $5655
 	ld c, $07
 	ld b, $01
-	call Call_17_46A1
+	call CopyBGPalettes
 	ld a, [$c7d1]
 	ld l, a
 	ld a, [$c7d2]
@@ -268,13 +268,13 @@ Call_17_4102::
 	ret
 
 
-Call_17_4192::
-	ld a, [$c81d]
+ClearAttrMap::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
@@ -283,39 +283,39 @@ Call_17_4192::
 
 jr_017_41a5:
 	ld a, $07
-	call Call_1AB9
-	call Call_1AB9
-	call Call_1AB9
-	call Call_1AB9
+	call WriteVRAMInc
+	call WriteVRAMInc
+	call WriteVRAMInc
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_017_41a5
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
 	ret
 
 
-Call_17_41C0::
-	ld a, [$c81d]
+LoadFieldObjPalettes::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	ld hl, $5615
 	ld c, $00
 	ld b, $08
-	call Call_17_46BF
+	call CopyObjPalettes
 	ret
 
 
-Call_17_41D0::
-	ld a, [$c81d]
+LoadMonPicPalette::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld a, [$c81e]
+	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -330,13 +330,13 @@ Call_17_41D0::
 	ld a, [$c81f]
 	ld c, a
 	ld b, $01
-	call Call_17_46A1
-	call Call_17_4102
-	ld a, [$c81d]
+	call CopyBGPalettes
+	call SetSharedBGColors
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -347,7 +347,7 @@ Call_17_41D0::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -371,12 +371,12 @@ Call_17_41D0::
 	ld b, a
 
 jr_017_4229:
-	call Call_17_4265
+	call NextMapColumn_17
 	dec b
 	jr nz, jr_017_4229
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
@@ -388,8 +388,8 @@ jr_017_423a:
 
 jr_017_423d:
 	ld a, [$c81f]
-	call Call_1AAD
-	call Call_17_4265
+	call WriteVRAM
+	call NextMapColumn_17
 	dec b
 	jr nz, jr_017_423d
 
@@ -408,14 +408,14 @@ jr_017_423d:
 	jr nz, jr_017_423a
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
 	ret
 
 
-Call_17_4265::
+NextMapColumn_17::
 	ld a, l
 	and $e0
 	push af
@@ -429,35 +429,35 @@ Call_17_4265::
 	ret
 
 
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld hl, $c89e
-	ld a, [$c89b]
+	ld hl, wDefaultPalettes
+	ld a, [wBGP]
 	cp [hl]
 	jp z, Jump_017_4341
 
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
-	ld hl, $c797
-	call Call_17_42AC
-	call Call_17_42AC
-	call Call_17_42AC
-	call Call_17_42AC
-	call Call_17_42AC
-	call Call_17_42AC
-	call Call_17_42AC
-	call Call_17_42AC
-	ld a, [$c89b]
-	ld [$c89e], a
+	ld hl, wCGBBGPalettes
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	call WriteBGPaletteDMG
+	ld a, [wBGP]
+	ld [wDefaultPalettes], a
 	jp Jump_017_4341
 
 
-Call_17_42AC::
+WriteBGPaletteDMG::
 	push hl
-	ld a, [$c89b]
+	ld a, [wBGP]
 	and $03
 	ld de, $440c
 	add e
@@ -471,14 +471,14 @@ Call_17_42AC::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
 	ld a, [hl]
 	ldh [rBCPD], a
 	pop hl
 	push hl
-	ld a, [$c89b]
+	ld a, [wBGP]
 	srl a
 	srl a
 	and $03
@@ -494,14 +494,14 @@ Call_17_42AC::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
 	ld a, [hl]
 	ldh [rBCPD], a
 	pop hl
 	push hl
-	ld a, [$c89b]
+	ld a, [wBGP]
 	swap a
 	and $03
 	ld de, $440c
@@ -516,14 +516,14 @@ Call_17_42AC::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
 	ld a, [hl]
 	ldh [rBCPD], a
 	pop hl
 	push hl
-	ld a, [$c89b]
+	ld a, [wBGP]
 	swap a
 	srl a
 	srl a
@@ -540,7 +540,7 @@ Call_17_42AC::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
 	ld a, [hl]
@@ -557,30 +557,30 @@ Call_17_42AC::
 
 Jump_017_4341:
 	ld hl, $c89f
-	ld a, [$c89c]
+	ld a, [wOBP0]
 	cp [hl]
 	jp z, Jump_017_440b
 
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
-	ld hl, $c7d7
-	call Call_17_4376
-	call Call_17_4376
-	call Call_17_4376
-	call Call_17_4376
-	call Call_17_4376
-	call Call_17_4376
-	call Call_17_4376
-	call Call_17_4376
-	ld a, [$c89c]
+	ld hl, wSGBPalettes
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	call WriteObjPaletteDMG
+	ld a, [wOBP0]
 	ld [$c89f], a
 	jp Jump_017_440b
 
 
-Call_17_4376::
+WriteObjPaletteDMG::
 	push hl
-	ld a, [$c89c]
+	ld a, [wOBP0]
 	and $03
 	ld de, $440c
 	add e
@@ -594,14 +594,14 @@ Call_17_4376::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
 	ld a, [hl]
 	ldh [rOCPD], a
 	pop hl
 	push hl
-	ld a, [$c89c]
+	ld a, [wOBP0]
 	srl a
 	srl a
 	and $03
@@ -617,14 +617,14 @@ Call_17_4376::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
 	ld a, [hl]
 	ldh [rOCPD], a
 	pop hl
 	push hl
-	ld a, [$c89c]
+	ld a, [wOBP0]
 	swap a
 	and $03
 	ld de, $440c
@@ -639,14 +639,14 @@ Call_17_4376::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
 	ld a, [hl]
 	ldh [rOCPD], a
 	pop hl
 	push hl
-	ld a, [$c89c]
+	ld a, [wOBP0]
 	swap a
 	srl a
 	srl a
@@ -663,7 +663,7 @@ Call_17_4376::
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
 	ld a, [hl]
@@ -684,34 +684,34 @@ Jump_017_440b:
 
 	db $02, $04, $00, $06
 
-Call_17_4410::
-	ld a, [$c850]
+StartCGBFade::
+	ld a, [wFadeState]
 	ld b, a
 	bit 7, b
 	jr nz, jr_017_442e
 
 	ld a, $00
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+	ld a, [wFadeState]
 	srl a
 	srl a
-	ld [$c857], a
-	ld [$c858], a
-	call Call_1BD5
+	ld [wFadeSpeed], a
+	ld [wFadeTimer], a
+	call StartMusicFadeOut
 	ret
 
 
 jr_017_442e:
 	ld a, $20
-	ld [$c856], a
-	ld a, [$c850]
+	ld [wFadeLevel], a
+	ld a, [wFadeState]
 	cpl
 	srl a
 	srl a
-	ld [$c857], a
-	ld [$c858], a
+	ld [wFadeSpeed], a
+	ld [wFadeTimer], a
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
@@ -719,7 +719,7 @@ jr_017_442e:
 
 jr_017_444c:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $ff
 	ldh [rBCPD], a
 	ld a, $7f
@@ -729,7 +729,7 @@ jr_017_444c:
 	jr nz, jr_017_444c
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
@@ -737,7 +737,7 @@ jr_017_444c:
 
 jr_017_4467:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $ff
 	ldh [rOCPD], a
 	ld a, $7f
@@ -749,21 +749,21 @@ jr_017_4467:
 	ret
 
 
-	ld a, [$c850]
+	ld a, [wFadeState]
 	bit 7, a
 	jr nz, jr_017_44aa
 
-	ld a, [$c858]
+	ld a, [wFadeTimer]
 	or a
 	jr z, jr_017_448a
 
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
 jr_017_448a:
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	add $05
 	cp $1f
 	jr c, jr_017_4495
@@ -771,11 +771,11 @@ jr_017_448a:
 	ld a, $1f
 
 jr_017_4495:
-	ld [$c856], a
-	call Call_17_44D8
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+	ld [wFadeLevel], a
+	call WriteFadeOutPalettes
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+	ld a, [wFadeLevel]
 	cp $1f
 	jp z, Jump_017_44d3
 
@@ -783,17 +783,17 @@ jr_017_4495:
 
 
 jr_017_44aa:
-	ld a, [$c858]
+	ld a, [wFadeTimer]
 	or a
 	jr z, jr_017_44b5
 
 	dec a
-	ld [$c858], a
+	ld [wFadeTimer], a
 	ret
 
 
 jr_017_44b5:
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	sub $05
 	bit 7, a
 	jr z, jr_017_44bf
@@ -801,11 +801,11 @@ jr_017_44b5:
 	xor a
 
 jr_017_44bf:
-	ld [$c856], a
-	call Call_17_45BB
-	ld a, [$c857]
-	ld [$c858], a
-	ld a, [$c856]
+	ld [wFadeLevel], a
+	call WriteFadeInPalettes
+	ld a, [wFadeSpeed]
+	ld [wFadeTimer], a
+	ld a, [wFadeLevel]
 	or a
 	jp z, Jump_017_44d3
 
@@ -814,64 +814,64 @@ jr_017_44bf:
 
 Jump_017_44d3:
 	xor a
-	ld [$c850], a
+	ld [wFadeState], a
 	ret
 
 
-Call_17_44D8::
+WriteFadeOutPalettes::
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
-	ld hl, $c797
-	call Call_17_4552
-	call Call_17_4552
-	call Call_17_4552
-	call Call_17_4552
-	call Call_17_4552
-	call Call_17_4552
-	call Call_17_4552
-	call Call_17_4552
+	ld hl, wCGBBGPalettes
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
+	call WriteFadeOutBGPalette
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
-	ld hl, $c7d7
-	call Call_17_4521
-	call Call_17_4521
-	call Call_17_4521
-	call Call_17_4521
-	call Call_17_4521
-	call Call_17_4521
-	call Call_17_4521
-	call Call_17_4521
+	ld hl, wSGBPalettes
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
+	call WriteFadeOutObjPalette
 	ret
 
 
-Call_17_4521::
-	call Call_17_452A
-	call Call_17_452A
-	call Call_17_452A
+WriteFadeOutObjPalette::
+	call WriteFadeOutObjColor
+	call WriteFadeOutObjColor
+	call WriteFadeOutObjColor
 
-Call_17_452A::
-	ld a, [$c856]
+WriteFadeOutObjColor::
+	ld a, [wFadeLevel]
 	ld d, a
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
 	ld de, $0000
-	call Call_17_457F
-	call Call_17_457F
-	call Call_17_457F
+	call FadeOutComponent
+	call FadeOutComponent
+	call FadeOutComponent
 	rr b
 	rr c
 	rr d
 	rr e
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, e
 	ldh [rOCPD], a
 	ld a, d
@@ -880,26 +880,26 @@ Call_17_452A::
 	ret
 
 
-Call_17_4552::
-	call Call_17_455B
-	call Call_17_455B
-	call Call_17_455B
+WriteFadeOutBGPalette::
+	call WriteFadeOutBGColor
+	call WriteFadeOutBGColor
+	call WriteFadeOutBGColor
 
-Call_17_455B::
+WriteFadeOutBGColor::
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
 	ld de, $0000
-	call Call_17_457F
-	call Call_17_457F
-	call Call_17_457F
+	call FadeOutComponent
+	call FadeOutComponent
+	call FadeOutComponent
 	rr b
 	rr c
 	rr d
 	rr e
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, e
 	ldh [rBCPD], a
 	ld a, d
@@ -908,12 +908,12 @@ Call_17_455B::
 	ret
 
 
-Call_17_457F::
+FadeOutComponent::
 	push de
 	ld a, c
 	and $1f
 	ld d, a
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	cp d
 	jr nc, jr_017_458b
 
@@ -949,60 +949,60 @@ jr_017_458b:
 	ret
 
 
-Call_17_45BB::
+WriteFadeInPalettes::
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
-	ld hl, $c797
-	call Call_17_4635
-	call Call_17_4635
-	call Call_17_4635
-	call Call_17_4635
-	call Call_17_4635
-	call Call_17_4635
-	call Call_17_4635
-	call Call_17_4635
+	ld hl, wCGBBGPalettes
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
+	call WriteFadeInBGPalette
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
-	ld hl, $c7d7
-	call Call_17_4604
-	call Call_17_4604
-	call Call_17_4604
-	call Call_17_4604
-	call Call_17_4604
-	call Call_17_4604
-	call Call_17_4604
-	call Call_17_4604
+	ld hl, wSGBPalettes
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
+	call WriteFadeInObjPalette
 	ret
 
 
-Call_17_4604::
-	call Call_17_460D
-	call Call_17_460D
-	call Call_17_460D
+WriteFadeInObjPalette::
+	call WriteFadeInObjColor
+	call WriteFadeInObjColor
+	call WriteFadeInObjColor
 
-Call_17_460D::
-	ld a, [$c856]
+WriteFadeInObjColor::
+	ld a, [wFadeLevel]
 	ld d, a
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
 	ld de, $0000
-	call Call_17_4662
-	call Call_17_4662
-	call Call_17_4662
+	call FadeInComponent
+	call FadeInComponent
+	call FadeInComponent
 	rr b
 	rr c
 	rr d
 	rr e
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, e
 	ldh [rOCPD], a
 	ld a, d
@@ -1011,26 +1011,26 @@ Call_17_460D::
 	ret
 
 
-Call_17_4635::
-	call Call_17_463E
-	call Call_17_463E
-	call Call_17_463E
+WriteFadeInBGPalette::
+	call WriteFadeInBGColor
+	call WriteFadeInBGColor
+	call WriteFadeInBGColor
 
-Call_17_463E::
+WriteFadeInBGColor::
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	inc hl
 	ld de, $0000
-	call Call_17_4662
-	call Call_17_4662
-	call Call_17_4662
+	call FadeInComponent
+	call FadeInComponent
+	call FadeInComponent
 	rr b
 	rr c
 	rr d
 	rr e
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, e
 	ldh [rBCPD], a
 	ld a, d
@@ -1039,12 +1039,12 @@ Call_17_463E::
 	ret
 
 
-Call_17_4662::
+FadeInComponent::
 	push de
 	ld a, c
 	and $1f
 	ld d, a
-	ld a, [$c856]
+	ld a, [wFadeLevel]
 	add d
 	cp $1f
 	jr c, jr_017_4671
@@ -1081,8 +1081,8 @@ jr_017_4671:
 	ret
 
 
-Call_17_46A1::
-	ld a, [$c81d]
+CopyBGPalettes::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
@@ -1095,7 +1095,7 @@ Call_17_46A1::
 	add a
 	add a
 	add a
-	ld de, $c797
+	ld de, wCGBBGPalettes
 	add e
 	ld e, a
 	ld a, $00
@@ -1112,8 +1112,8 @@ jr_017_46b8:
 	ret
 
 
-Call_17_46BF::
-	ld a, [$c81d]
+CopyObjPalettes::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
@@ -1126,7 +1126,7 @@ Call_17_46BF::
 	add a
 	add a
 	add a
-	ld de, $c7d7
+	ld de, wSGBPalettes
 	add e
 	ld e, a
 	ld a, $00
@@ -1143,22 +1143,22 @@ jr_017_46d6:
 	ret
 
 
-Call_17_46DD::
-	ld a, [$c81d]
+UploadCGBPalettes::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rBCPS], a
 	ei
-	ld hl, $c797
+	ld hl, wCGBBGPalettes
 	ld b, $40
 
 jr_017_46f0:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rBCPD], a
 	ei
@@ -1166,7 +1166,7 @@ jr_017_46f0:
 	jr nz, jr_017_46f0
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $80
 	ldh [rOCPS], a
 	ei
@@ -1174,7 +1174,7 @@ jr_017_46f0:
 
 jr_017_4706:
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, [hli]
 	ldh [rOCPD], a
 	ei
@@ -1184,12 +1184,12 @@ jr_017_4706:
 	ret
 
 
-Call_17_4712::
-	ld a, [$c81d]
+LoadPaletteSet::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld a, [$c81e]
+	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1206,15 +1206,15 @@ Call_17_4712::
 	ld h, a
 	ld c, $00
 	ld b, $08
-	call Call_17_46A1
+	call CopyBGPalettes
 	ret
 
 
-	ld a, [$c81d]
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld a, [$c81e]
+	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1228,16 +1228,16 @@ Call_17_4712::
 	ld h, a
 	ld c, $00
 	ld b, $01
-	call Call_17_46BF
+	call CopyObjPalettes
 	ret
 
 
-Call_17_4751::
-	ld a, [$c81d]
+LoadObjPaletteB::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
-	ld a, [$c81e]
+	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1251,7 +1251,7 @@ Call_17_4751::
 	ld h, a
 	ld c, $00
 	ld b, $01
-	call Call_17_46BF
+	call CopyObjPalettes
 	ret
 
 

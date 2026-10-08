@@ -8,246 +8,246 @@ BankNumber_14::
 	db $14
 
 FarTable_14::
-	dw Call_14_400F
-	dw Call_14_4016
-	dw Call_14_40B4
-	dw Call_14_401D
-	dw Call_14_7BAC
-	dw Call_14_7D12
-	dw Call_14_4869
+	dw LoadMonTemplate
+	dw LoadMonTemplate2
+	dw CreateMonster
+	dw CreateMonsterUnlisted
+	dw CheckFieldItemUse
+	dw UseFieldItem
+	dw RemapMonId
 
-Call_14_400F::
-	ld de, $da18
-	call Call_14_4849
+LoadMonTemplate::
+	ld de, wNewMonNameText
+	call LoadMonTemplateTo
 	ret
 
 
-Call_14_4016::
-	ld de, $da18
-	call Call_14_4849
+LoadMonTemplate2::
+	ld de, wNewMonNameText
+	call LoadMonTemplateTo
 	ret
 
 
-Call_14_401D::
-	ld hl, $cac1
-	ld a, [$da14]
-	call Call_223B
+CreateMonsterUnlisted::
+	ld hl, wMonsters
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld bc, $0095
 	xor a
-	call Call_12C7
-	ld hl, $cad6
-	ld a, [$da14]
-	call Call_223B
+	call FillMemory
+	ld hl, wMonParent1
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld a, $ff
 	ld [hli], a
 	ld [hli], a
-	ld hl, $caea
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonSkills
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld bc, $0008
 	ld a, $ff
-	call Call_12C7
-	ld hl, $caf2
-	ld a, [$da14]
-	call Call_223B
+	call FillMemory
+	ld hl, wMonSkillList
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld bc, $0019
 	ld a, $ff
-	call Call_12C7
-	ld hl, $cb44
+	call FillMemory
+	ld hl, wMonParent1Name
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cad8
+	call CopyToNewMon
+	ld hl, wMonParent1Master
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cb4d
+	call CopyToNewMon
+	ld hl, wMonParent2Name
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cae1
+	call CopyToNewMon
+	ld hl, wMonParent2Master
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac1
-	ld a, [$da14]
-	call Call_223B
+	call CopyToNewMon
+	ld hl, wMonsters
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld [hl], $01
-	ld hl, $cacd
-	ld de, $ca42
+	ld hl, wMonMaster
+	ld de, wPlayerName
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ld hl, $cad5
-	ld a, [$da14]
-	call Call_223B
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld a, [$ca4a]
 	ld [hl], a
-	ld de, $da18
-	call Call_14_4849
-	jp Jump_014_4158
+	ld de, wNewMonNameText
+	call LoadMonTemplateTo
+	jp CreateMonsterFromTemplate
 
 
-Call_14_40B4::
-	ld hl, $cac1
-	ld a, [$da14]
-	call Call_223B
+CreateMonster::
+	ld hl, wMonsters
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld bc, $0095
 	xor a
-	call Call_12C7
-	ld hl, $cad6
-	ld a, [$da14]
-	call Call_223B
+	call FillMemory
+	ld hl, wMonParent1
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld a, $ff
 	ld [hli], a
 	ld [hli], a
-	ld hl, $caea
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonSkills
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld bc, $0008
 	ld a, $ff
-	call Call_12C7
-	ld hl, $caf2
-	ld a, [$da14]
-	call Call_223B
+	call FillMemory
+	ld hl, wMonSkillList
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld bc, $0019
 	ld a, $ff
-	call Call_12C7
-	ld hl, $cb44
+	call FillMemory
+	ld hl, wMonParent1Name
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cad8
+	call CopyToNewMon
+	ld hl, wMonParent1Master
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cb4d
+	call CopyToNewMon
+	ld hl, wMonParent2Name
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cae1
+	call CopyToNewMon
+	ld hl, wMonParent2Master
 	ld de, $477a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac1
-	ld a, [$da14]
-	call Call_223B
+	call CopyToNewMon
+	ld hl, wMonsters
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld [hl], $01
-	ld hl, $cacd
-	ld de, $ca42
+	ld hl, wMonMaster
+	ld de, wPlayerName
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ld hl, $cad5
-	ld a, [$da14]
-	call Call_223B
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld a, [$ca4a]
 	ld [hl], a
-	ld de, $da18
-	call Call_14_4849
-	ld a, [$da14]
+	ld de, wNewMonNameText
+	call LoadMonTemplateTo
+	ld a, [wNewMonSlot]
 	cp $15
 	jr z, jr_014_4158
 
-	ld a, [$da18]
-	ld hl, $ca94
-	call Call_2670
+	ld a, [wNewMonNameText]
+	ld hl, wLibraryFlags
+	call SetFlag
 
-Jump_014_4158:
+CreateMonsterFromTemplate:
 jr_014_4158:
-	ld hl, $caca
-	ld de, $da18
-	call Call_14_4793
-	ld hl, $caea
+	ld hl, wMonRecSpecies
+	ld de, wNewMonNameText
+	call SetNewMonByte
+	ld hl, wMonSkills
 	ld de, $da2d
-	call Call_14_47A8
-	ld hl, $cb0c
+	call CopyToNewMon4
+	ld hl, wMonLevel
 	ld de, $da1c
-	call Call_14_4793
-	ld hl, $cb13
+	call SetNewMonByte
+	ld hl, wMonMaxHP
 	ld de, $da1d
-	call Call_14_479E
-	ld hl, $cb13
-	call Call_14_4821
-	ld hl, $cb13
-	ld a, [$da14]
-	call Call_223B
+	call CopyToNewMonWord
+	ld hl, wMonMaxHP
+	call RandomizeNewMonWord
+	ld hl, wMonMaxHP
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	push bc
-	ld hl, $cb11
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonHP
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop bc
 	ld [hl], c
 	inc hl
 	ld [hl], b
-	ld hl, $cb17
+	ld hl, wMonMaxMP
 	ld de, $da1f
-	call Call_14_479E
-	ld hl, $cb17
-	call Call_14_4821
-	ld hl, $cb17
-	ld a, [$da14]
-	call Call_223B
+	call CopyToNewMonWord
+	ld hl, wMonMaxMP
+	call RandomizeNewMonWord
+	ld hl, wMonMaxMP
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
 	push bc
-	ld hl, $cb15
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonMP
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop bc
 	ld [hl], c
 	inc hl
 	ld [hl], b
-	ld hl, $cb19
+	ld hl, wMonAttack
 	ld de, $da21
-	call Call_14_479E
-	ld hl, $cb19
-	call Call_14_4821
-	ld hl, $cb1b
+	call CopyToNewMonWord
+	ld hl, wMonAttack
+	call RandomizeNewMonWord
+	ld hl, wMonDefense
 	ld de, $da23
-	call Call_14_479E
-	ld hl, $cb1b
-	call Call_14_4821
-	ld hl, $cb1d
+	call CopyToNewMonWord
+	ld hl, wMonDefense
+	call RandomizeNewMonWord
+	ld hl, wMonAgility
 	ld de, $da25
-	call Call_14_479E
-	ld hl, $cb1f
+	call CopyToNewMonWord
+	ld hl, wMonIntelligence
 	ld de, $da27
-	call Call_14_479E
-	ld hl, $cb1f
-	call Call_14_4821
-	ld hl, $cb25
+	call CopyToNewMonWord
+	ld hl, wMonIntelligence
+	call RandomizeNewMonWord
+	ld hl, wMonStat64
 	ld de, $da29
-	call Call_14_4793
-	ld hl, $cb25
-	call Call_14_47FD
-	ld hl, $cb26
+	call SetNewMonByte
+	ld hl, wMonStat64
+	call RandomizeNewMonByte
+	ld hl, wMonStat65
 	ld de, $da2a
-	call Call_14_4793
-	ld hl, $cb26
-	call Call_14_47FD
-	ld hl, $cb27
+	call SetNewMonByte
+	ld hl, wMonStat65
+	call RandomizeNewMonByte
+	ld hl, wMonStat66
 	ld de, $da2c
-	call Call_14_4793
-	ld hl, $cb27
-	call Call_14_47FD
-	ld hl, $cb28
+	call SetNewMonByte
+	ld hl, wMonStat66
+	call RandomizeNewMonByte
+	ld hl, wMonStat67
 	ld de, $da2b
-	call Call_14_4793
-	ld hl, $cb28
-	call Call_14_47FD
-	ld hl, $cb0c
-	ld a, [$da14]
-	call Call_223B
+	call SetNewMonByte
+	ld hl, wMonStat67
+	call RandomizeNewMonByte
+	ld hl, wMonLevel
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld a, [hl]
 	ld bc, $0005
-	call Call_1DE6
+	call Multiply24
 	push hl
-	ld a, [$cab4]
+	ld a, [wScriptBossIndex]
 	ld bc, $000a
-	call Call_1DE6
+	call Multiply24
 	pop bc
 	ld a, c
 	sub l
@@ -268,46 +268,46 @@ jr_014_425d:
 
 jr_014_4264:
 	push bc
-	ld hl, $cb21
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonWildness
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop bc
 	ld [hl], c
-	ld a, [$da18]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld a, [wNewMonNameText]
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld hl, $cacb
-	ld de, $da33
-	call Call_14_4793
-	call Call_12D0
-	ld a, [$c899]
+	ld hl, wMonFamily
+	ld de, wMonStats
+	call SetNewMonByte
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $05
-	call Call_1DFB
+	call Divide8
 	sub $02
 	ld b, a
 	ld a, [$da34]
 	add b
 	push af
-	ld hl, $cb0d
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonMaxLevel
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop af
 	ld [hl], a
 	ld hl, $cb29
-	ld de, $da42
+	ld de, wMonResistances
 	ld b, $1b
-	call Call_14_4782
-	ld hl, $caf2
+	call CopyToNewMon
+	ld hl, wMonSkillList
 	ld de, $da39
 	ld b, $03
-	call Call_14_4782
-	call Call_14_47AD
-	ld hl, $cacc
-	ld a, [$da14]
-	call Call_223B
-	ld a, [$da12]
+	call CopyToNewMon
+	call DropSupersededSkills
+	ld hl, wMonGender
+	ld a, [wNewMonSlot]
+	call MonsterField
+	ld a, [wNewMonId]
 	ld e, a
 	ld a, [$da13]
 	ld d, a
@@ -323,7 +323,7 @@ jr_014_4264:
 	jr nz, jr_014_42fe
 
 	ld [hl], $00
-	call Call_12D0
+	call Random
 	ld hl, $459e
 	ld a, [$da36]
 	add l
@@ -331,27 +331,27 @@ jr_014_4264:
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	cp [hl]
 	jr z, jr_014_42fe
 
 	jr nc, jr_014_42fe
 
-	ld hl, $cacc
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonGender
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld [hl], $01
 
 jr_014_42fe:
-	ld a, [$da14]
-	ld [$cac0], a
-	ld hl, far_Call_13_4050
+	ld a, [wNewMonSlot]
+	ld [wCurPartyMember], a
+	ld hl, far_SetExpForLevel
 	rst $10
 	ld a, [$da13]
 	or a
 	jp nz, Jump_014_4413
 
-	ld a, [$da12]
+	ld a, [wNewMonId]
 	cp $01
 	ld de, $45a2
 	jp z, Jump_014_4469
@@ -484,7 +484,7 @@ jr_014_42fe:
 
 
 Jump_014_4413:
-	ld a, [$da12]
+	ld a, [wNewMonId]
 	cp $31
 	jr z, jr_014_4472
 
@@ -540,169 +540,169 @@ Jump_014_4413:
 
 Jump_014_4469:
 jr_014_4469:
-	ld hl, $cac2
+	ld hl, wMonName
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 jr_014_4472:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $46ba
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $46c2
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 jr_014_4489:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $46ca
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $46d2
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_44a0:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $46da
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $46e2
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_44b7:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $46ea
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $46f2
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_44ce:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $46fa
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4702
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_44e5:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $470a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4712
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_44fc:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $471a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4722
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_4513:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $472a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4732
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_452a:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $473a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4742
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_4541:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $474a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4752
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_4558:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $475a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4762
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_456f:
-	ld hl, $cacd
+	ld hl, wMonMaster
 	ld de, $476a
 	ld b, $08
-	call Call_14_4782
-	ld hl, $cac2
+	call CopyToNewMon
+	ld hl, wMonName
 	ld de, $4772
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
 Jump_014_4586:
-	ld hl, $cb24
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonEgg
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld [hl], $01
 	ret
 
 
 Jump_014_4592:
-	ld hl, $cac2
+	ld hl, wMonName
 	ld de, $46b2
 	ld b, $08
-	call Call_14_4782
+	call CopyToNewMon
 	ret
 
 
@@ -738,11 +738,11 @@ Jump_014_4592:
 	db $f0, $f0, $f0, $f0, $2e, $3e, $46, $f0, $f0, $f0, $f0, $f0, $64, $64, $64, $f0
 	db $f0, $f0, $f0, $f0
 
-Call_14_4782::
+CopyToNewMon::
 	push bc
 	push de
-	ld a, [$da14]
-	call Call_223B
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop de
 	pop bc
 
@@ -756,32 +756,32 @@ jr_014_478c:
 	ret
 
 
-Call_14_4793::
+SetNewMonByte::
 	push de
-	ld a, [$da14]
-	call Call_223B
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop de
 	ld a, [de]
 	ld [hl], a
 	ret
 
 
-Call_14_479E::
+CopyToNewMonWord::
 	ld b, $02
-	jp Call_14_4782
+	jp CopyToNewMon
 
 
 	db $06, $03, $c3, $82, $47
 
-Call_14_47A8::
+CopyToNewMon4::
 	ld b, $04
-	jp Call_14_4782
+	jp CopyToNewMon
 
 
-Call_14_47AD::
-	ld hl, $caea
-	ld a, [$da14]
-	call Call_223B
+DropSupersededSkills::
+	ld hl, wMonSkills
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld e, l
 	ld d, h
 	ld b, $08
@@ -790,7 +790,7 @@ jr_014_47ba:
 	ld a, [de]
 	push bc
 	push de
-	call Call_14_47C7
+	call DropSupersededSkill
 	pop de
 	pop bc
 	inc de
@@ -800,7 +800,7 @@ jr_014_47ba:
 	ret
 
 
-Call_14_47C7::
+DropSupersededSkill::
 	cp $ff
 	ret z
 
@@ -824,9 +824,9 @@ jr_014_47d2:
 	ret z
 
 	push af
-	ld hl, $caf2
-	ld a, [$da14]
-	call Call_223B
+	ld hl, wMonSkillList
+	ld a, [wNewMonSlot]
+	call MonsterField
 	pop af
 	ld b, $19
 	ld c, a
@@ -851,52 +851,52 @@ jr_014_47f8:
 	ret
 
 
-Call_14_47FD::
+RandomizeNewMonByte::
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $34
-	call Call_1DFB
+	call Divide8
 	add $cd
 	pop hl
 	ret z
 
 	push af
-	ld a, [$da14]
-	call Call_223B
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld c, [hl]
 	ld b, $00
 	pop af
 	push hl
-	call Call_1DE6
+	call Multiply24
 	ld c, h
 	pop hl
 	ld [hl], c
 	ret
 
 
-Call_14_4821::
+RandomizeNewMonWord::
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $34
-	call Call_1DFB
+	call Divide8
 	add $cd
 	pop hl
 	ret z
 
 	push af
-	ld a, [$da14]
-	call Call_223B
+	ld a, [wNewMonSlot]
+	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	pop af
 	dec hl
 	push hl
-	call Call_1DE6
+	call Multiply24
 	ld c, h
 	ld b, e
 	pop hl
@@ -906,14 +906,14 @@ Call_14_4821::
 	ret
 
 
-Call_14_4849::
+LoadMonTemplateTo::
 	push de
-	ld a, [$da12]
+	ld a, [wNewMonId]
 	ld c, a
 	ld a, [$da13]
 	ld b, a
 	ld a, $19
-	call Call_1DE6
+	call Multiply24
 	ld a, l
 	add $1d
 	ld l, a
@@ -933,8 +933,8 @@ jr_014_4862:
 	ret
 
 
-Call_14_4869::
-	ld a, [$da12]
+RemapMonId::
+	ld a, [wNewMonId]
 	ld c, a
 	ld a, [$da13]
 	ld b, a
@@ -962,7 +962,7 @@ jr_014_487e:
 	jr nz, jr_014_488f
 
 	ld a, [hli]
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, [hli]
 	ld [$da13], a
 	ret
@@ -1792,8 +1792,8 @@ jr_014_488f:
 	db $4e, $04, $00, $01, $01, $0e, $00, $14, $00, $0c, $00, $04, $00, $0c, $00, $0e
 	db $00, $c8, $00, $00, $c8, $33, $ff, $ff, $ff
 
-Call_14_7BAC::
-	ld a, [$da5e]
+CheckFieldItemUse::
+	ld a, [wItemId]
 	cp $ff
 	ret z
 
@@ -1834,21 +1834,21 @@ Call_14_7BAC::
 	jp z, Jump_014_7cf5
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7bf4:
-	call Call_14_7D00
+	call CheckItemTargetAlive
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1861,26 +1861,26 @@ Jump_014_7bf4:
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7c1b:
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	or a
 	jr z, jr_014_7c95
 
 	ld a, $00
-	call Call_14_7D03
+	call CheckMonAlive
 	jr nz, jr_014_7c4a
 
 	ld a, $00
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $00
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1892,22 +1892,22 @@ Jump_014_7c1b:
 	or l
 	ret nz
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $01
 	jr z, jr_014_7c95
 
 jr_014_7c4a:
 	ld a, $01
-	call Call_14_7D03
+	call CheckMonAlive
 	jr nz, jr_014_7c73
 
 	ld a, $01
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $01
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1919,22 +1919,22 @@ jr_014_7c4a:
 	or l
 	ret nz
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $02
 	jr z, jr_014_7c95
 
 jr_014_7c73:
 	ld a, $02
-	call Call_14_7D03
+	call CheckMonAlive
 	jr nz, jr_014_7c95
 
 	ld a, $02
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $02
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -1948,65 +1948,65 @@ jr_014_7c73:
 
 jr_014_7c95:
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7c9b:
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7cad:
-	call Call_14_7D00
+	call CheckItemTargetAlive
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 2, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7cc3:
-	call Call_14_7D00
+	call CheckItemTargetAlive
 	ret nz
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_224A
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 0, a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7cd9:
-	ld a, [$c93e]
+	ld a, [wWorldFlags]
 	bit 0, a
 	ret z
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7ce5:
 	ld b, $10
-	ld hl, $c950
+	ld hl, wFloorsSeen
 
 jr_014_7cea:
 	ld a, [hli]
@@ -2016,36 +2016,36 @@ jr_014_7cea:
 	jr nz, jr_014_7cea
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
 Jump_014_7cf5:
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	ret nz
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Call_14_7D00::
-	ld a, [$da60]
+CheckItemTargetAlive::
+	ld a, [wItemTarget]
 
-Call_14_7D03::
-	ld hl, $cb0b
-	call Call_224A
+CheckMonAlive::
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	ret z
 
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	ret
 
 
-Call_14_7D12::
-	ld a, [$da5e]
+UseFieldItem::
+	ld a, [wItemId]
 	cp $ff
 	ret z
 
@@ -2089,198 +2089,198 @@ Call_14_7D12::
 
 
 Jump_014_7d55:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $0b
-	call Call_1DFB
+	call Divide8
 	add $1e
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_22A0
+	ld a, [wItemTarget]
+	call HealPartyHP
 	ret
 
 
 Jump_014_7d6d:
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $10
-	call Call_1DFB
+	call Divide8
 	add $4b
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_22A0
+	ld a, [wItemTarget]
+	call HealPartyHP
 	ret
 
 
 Jump_014_7d85:
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_225D
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 	ret
 
 
 Jump_014_7d98:
 	ld a, $00
-	ld [$da60], a
+	ld [wItemTarget], a
 	ld a, $00
-	call Call_14_7DB7
+	call HealMonSomewhat
 	ld a, $01
-	ld [$da60], a
+	ld [wItemTarget], a
 	ld a, $01
-	call Call_14_7DB7
+	call HealMonSomewhat
 	ld a, $02
-	ld [$da60], a
+	ld [wItemTarget], a
 	ld a, $02
-	call Call_14_7DB7
+	call HealMonSomewhat
 	ret
 
 
-Call_14_7DB7::
-	ld hl, $cb0b
-	call Call_224A
+HealMonSomewhat::
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	bit 7, a
 	ret nz
 
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $1f
-	call Call_1DFB
+	call Divide8
 	add $5a
 	ld l, a
 	ld h, $00
-	ld a, [$da60]
-	call Call_22A0
+	ld a, [wItemTarget]
+	call HealPartyHP
 	ret
 
 
 Jump_014_7dd8:
 	ld a, $00
-	call Call_14_7D03
+	call CheckMonAlive
 	jr nz, jr_014_7def
 
 	ld a, $00
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	ld a, $00
-	ld hl, $cb11
-	call Call_225D
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 
 jr_014_7def:
 	ld a, $01
-	call Call_14_7D03
+	call CheckMonAlive
 	jr nz, jr_014_7e06
 
 	ld a, $01
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	ld a, $01
-	ld hl, $cb11
-	call Call_225D
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 
 jr_014_7e06:
 	ld a, $02
-	call Call_14_7D03
+	call CheckMonAlive
 	jr nz, jr_014_7e1d
 
 	ld a, $02
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	ld a, $02
-	ld hl, $cb11
-	call Call_225D
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 
 jr_014_7e1d:
 	ret
 
 
 Jump_014_7e1e:
-	ld a, [$c899]
+	ld a, [wRandomHigh]
 	bit 0, a
 	jr nz, jr_014_7e47
 
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	ld [hl], $00
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	srl b
 	rr c
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_225D
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 	ret
 
 
 jr_014_7e47:
 	ld hl, $0e05
-	call Call_096D
+	call PrintSystemText
 	ret
 
 
 Jump_014_7e4e:
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	ld [hl], $00
-	ld a, [$da60]
-	ld hl, $cb13
-	call Call_224F
-	ld a, [$da60]
-	ld hl, $cb11
-	call Call_225D
+	ld a, [wItemTarget]
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
+	ld a, [wItemTarget]
+	ld hl, wMonHP
+	call SetPartyMonsterWord
 	ret
 
 
 Jump_014_7e6c:
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 2, [hl]
 	ret
 
 
 Jump_014_7e78:
-	ld a, [$da60]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wItemTarget]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	res 0, [hl]
 	ret
 
 
 Jump_014_7e84:
-	ld hl, $c93e
+	ld hl, wWorldFlags
 	set 0, [hl]
 	ret
 
 
 Jump_014_7e8a:
-	ld hl, $c950
+	ld hl, wFloorsSeen
 	ld bc, $0010
 	ld a, $01
-	call Call_12C7
+	call FillMemory
 	ret
 
 
 Jump_014_7e96:
-	ld hl, far_Call_01_683E
+	ld hl, far_RollEncounterGroup
 	rst $10
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	set 6, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ld a, $00
-	ld [$da09], a
-	ld hl, $c90d
+	ld [wBattleKind], a
+	ld hl, wStatusViewVars
 	inc [hl]
 	ret
 

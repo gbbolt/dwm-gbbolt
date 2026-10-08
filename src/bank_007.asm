@@ -8,164 +8,164 @@ BankNumber_07::
 	db $07
 
 FarTable_07::
-	dw Call_07_4009
-	dw Call_07_6456
-	dw Call_07_6468
-	dw Call_07_56E8
+	dw FieldMenu
+	dw ShowMonsterStatus
+	dw UpdateMonsterStatus
+	dw GetSkillMPCost
 
-Call_07_4009::
-	ld a, [$c90d]
+FieldMenu::
+	ld a, [wStatusViewVars]
 	rst $00
 
-JumpTable_07_400D::
-	dw Jump_07_6AAF
-	dw Jump_07_4017
-	dw Jump_07_43C8
-	dw Jump_07_44A8
-	dw Jump_07_6B04
+FieldMenuStates::
+	dw FieldMenuOpen
+	dw FieldMenuDraw
+	dw FieldMenuInput
+	dw FieldMenuRunOption
+	dw FieldMenuClose
 
-Jump_07_4017::
-	ld hl, $c90d
+FieldMenuDraw::
+	ld hl, wStatusViewVars
 	inc [hl]
-	call Call_07_6A8F
-	call Call_07_402B
-	call Call_07_690D
-	call Call_07_405C
-	call Call_07_690D
+	call MenuClearBuffer
+	call DrawMainMenuWindows
+	call MenuShowBuffer
+	call DrawPartyPanel
+	call MenuShowBuffer
 	ret
 
 
-Call_07_402B::
+DrawMainMenuWindows::
 	ld de, $704d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7090
-	call Call_07_68DC
-	ld a, [$ca4b]
-	ldh [$ffd5], a
+	call DrawWindow
+	ld a, [wGold]
+	ldh [hNumber], a
 	ld a, [$ca4c]
 	ldh [$ffd6], a
 	ld a, [$ca4d]
 	ldh [$ffd7], a
 	ld hl, $002e
-	call Call_07_6880
-	call Call_1FB9
-	call Call_07_6C8F
+	call BufferAddress
+	call PrintNumber5
+	call MenuResetBlink
 	ld de, $44b4
-	ld a, [$c8da]
-	call Call_07_6D4E
+	ld a, [wLinkChoice]
+	call MenuDrawCursorAt
 	ret
 
 
-Call_07_405C::
-	ld a, [$ca8d]
+DrawPartyPanel::
+	ld a, [wPartyCount]
 	or a
 	jr z, jr_007_40c4
 
 	ld a, $00
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $95c0
-	call Call_07_43AB
+	call LoadMonsterPicture
 	ld a, $00
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $8500
-	call Call_07_66B1
-	ld a, [$ca8d]
+	call LoadMonsterSprite
+	ld a, [wPartyCount]
 	cp $01
 	jr z, jr_007_40c4
 
 	ld a, $01
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $8800
-	call Call_07_43AB
+	call LoadMonsterPicture
 	ld a, $01
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $8600
-	call Call_07_66B1
-	ld a, [$ca8d]
+	call LoadMonsterSprite
+	ld a, [wPartyCount]
 	cp $02
 	jr z, jr_007_40c4
 
 	ld a, $02
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $8a40
-	call Call_07_43AB
+	call LoadMonsterPicture
 	ld a, $02
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	ld hl, $8700
-	call Call_07_66B1
+	call LoadMonsterSprite
 
 jr_007_40c4:
-	call Call_07_4469
-	call Call_07_4226
-	ld a, [$ca8d]
+	call MenuLoadPartyNames
+	call DrawInfoPage
+	ld a, [wPartyCount]
 	or a
 	ret z
 
 	ld a, $5c
 	ld hl, $00e1
-	call Call_07_4154
+	call DrawPicTiles
 	ld a, $20
 	ld hl, $01c1
-	call Call_07_4173
+	call DrawNameTileRow
 	ld hl, $00e1
 	ld a, $00
-	call Call_07_4181
+	call SetPartyPicPalette
 	ld a, $00
 	ld hl, $9590
-	call Call_07_41AA
+	call LoadPartySexMark
 	ld hl, $01e1
 	ld a, $00
-	call Call_07_41B7
-	ld a, [$ca8d]
+	call DrawPartyMemberStats
+	ld a, [wPartyCount]
 	cp $01
 	ret z
 
 	ld a, $80
 	ld hl, $00e7
-	call Call_07_4154
+	call DrawPicTiles
 	ld a, $24
 	ld hl, $01c7
-	call Call_07_4173
+	call DrawNameTileRow
 	ld hl, $00e7
 	ld a, $01
-	call Call_07_4181
+	call SetPartyPicPalette
 	ld a, $01
 	ld hl, $95a0
-	call Call_07_41AA
+	call LoadPartySexMark
 	ld hl, $01e7
 	ld a, $01
-	call Call_07_41B7
-	ld a, [$ca8d]
+	call DrawPartyMemberStats
+	ld a, [wPartyCount]
 	cp $02
 	ret z
 
 	ld a, $a4
 	ld hl, $00ed
-	call Call_07_4154
+	call DrawPicTiles
 	ld a, $28
 	ld hl, $01cd
-	call Call_07_4173
+	call DrawNameTileRow
 	ld hl, $00ed
 	ld a, $02
-	call Call_07_4181
+	call SetPartyPicPalette
 	ld a, $02
 	ld hl, $95b0
-	call Call_07_41AA
+	call LoadPartySexMark
 	ld hl, $01ed
 	ld a, $02
-	call Call_07_41B7
+	call DrawPartyMemberStats
 	ret
 
 
-Call_07_4154::
+DrawPicTiles::
 	ld c, a
-	ld a, [$c92f]
+	ld a, [wMenuInfoPage]
 	or a
 	ret nz
 
@@ -175,7 +175,7 @@ Call_07_4154::
 jr_007_415d:
 	push hl
 	push af
-	call Call_07_6880
+	call BufferAddress
 	pop af
 	ld b, $06
 
@@ -194,9 +194,9 @@ jr_007_4165:
 	ret
 
 
-Call_07_4173::
+DrawNameTileRow::
 	push af
-	call Call_07_6880
+	call BufferAddress
 	pop af
 	ld [hli], a
 	inc a
@@ -209,7 +209,7 @@ Call_07_4173::
 	ret
 
 
-Call_07_4181::
+SetPartyPicPalette::
 	push af
 	ld a, l
 	ld [$c820], a
@@ -217,58 +217,58 @@ Call_07_4181::
 	ld [$c821], a
 	pop af
 	push af
-	ld hl, $caca
-	call Call_2229
+	ld hl, wMonRecSpecies
+	call PartyMonsterField
 	ld a, [hl]
-	ld [$c81e], a
+	ld [wPaletteSet], a
 	pop af
 	add $04
 	ld [$c81f], a
-	ld a, [$c92f]
+	ld a, [wMenuInfoPage]
 	or a
 	ret nz
 
-	ld hl, far_Call_17_41D0
+	ld hl, far_LoadMonPicPalette
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
 	ret
 
 
-Call_07_41AA::
+LoadPartySexMark::
 	push hl
-	ld hl, $cacc
-	call Call_2229
+	ld hl, wMonGender
+	call PartyMonsterField
 	ld a, [hl]
 	pop hl
-	call Call_07_6A3D
+	call DrawSexMark
 	ret
 
 
-Call_07_41B7::
+DrawPartyMemberStats::
 	push hl
-	ldh [$ffd5], a
-	call Call_07_6880
+	ldh [hNumber], a
+	call BufferAddress
 	ld a, $de
 	ld [hli], a
 	ld a, $df
 	ld [hli], a
 	ld a, $e4
 	ld [hli], a
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	add $59
 	inc hl
 	inc hl
 	ld [hld], a
 	dec hl
 	push hl
-	ld hl, $cb0c
-	ldh a, [$ffd5]
-	call Call_224A
+	ld hl, wMonLevel
+	ldh a, [hNumber]
+	call GetPartyMonsterByte
 	pop hl
 	ld c, a
 	ld b, $00
-	call Call_07_7007
+	call DrawNumber2
 	pop hl
 	ld a, l
 	add $20
@@ -277,7 +277,7 @@ Call_07_41B7::
 	adc $00
 	ld h, a
 	push hl
-	call Call_07_6880
+	call BufferAddress
 	ld a, $e0
 	ld [hli], a
 	ld a, $e1
@@ -285,11 +285,11 @@ Call_07_41B7::
 	ld a, $e4
 	ld [hli], a
 	push hl
-	ld hl, $cb11
-	ldh a, [$ffd5]
-	call Call_224F
+	ld hl, wMonHP
+	ldh a, [hNumber]
+	call GetPartyMonsterWord
 	pop hl
-	call Call_07_6FE2
+	call DrawNumber3
 	pop hl
 	ld a, l
 	add $20
@@ -298,7 +298,7 @@ Call_07_41B7::
 	adc $00
 	ld h, a
 	push hl
-	call Call_07_6880
+	call BufferAddress
 	ld a, $e0
 	ld [hli], a
 	ld a, $e2
@@ -306,40 +306,40 @@ Call_07_41B7::
 	ld a, $e4
 	ld [hli], a
 	push hl
-	ld hl, $cb15
-	ldh a, [$ffd5]
-	call Call_224F
+	ld hl, wMonMP
+	ldh a, [hNumber]
+	call GetPartyMonsterWord
 	pop hl
-	call Call_07_6FE2
+	call DrawNumber3
 	pop hl
 	ret
 
 
-Call_07_4226::
-	ld a, [$c92f]
+DrawInfoPage::
+	ld a, [wMenuInfoPage]
 	or a
 	ret z
 
 	ld a, $59
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $95c0
 	ld de, $1401
-	call Call_07_69B6
-	ld de, $ca42
+	call MenuDrawTextTiles
+	ld de, wPlayerName
 	ld hl, $93c0
-	call Call_07_69EF
+	call MenuDrawNameTiles
 	ld de, $7cee
-	call Call_07_68DC
+	call DrawWindow
 	ld b, $00
 	ld c, $00
 
 jr_007_4251:
 	push bc
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld a, b
-	call Call_267E
+	call TestFlag
 	pop bc
 	jr z, jr_007_425d
 
@@ -353,60 +353,60 @@ jr_007_425d:
 
 	ld b, $00
 	ld hl, $0110
-	call Call_07_6880
-	call Call_2071
-	ld a, [$cab8]
+	call BufferAddress
+	call PrintNumber3
+	ld a, [wPlayHours]
 	ld c, a
 	ld b, $00
 	ld hl, $00ae
-	call Call_07_6880
-	call Call_20AD
-	ld a, [$cab7]
+	call BufferAddress
+	call PrintNumber2Zeros
+	ld a, [wPlayMinutes]
 	ld c, a
 	ld b, $00
 	ld hl, $00b1
-	call Call_07_6880
-	call Call_20AD
-	call Call_07_42B4
+	call BufferAddress
+	call PrintNumber2Zeros
+	call DrawMonsterCounts
 	ret
 
 
-Call_07_4290::
-	ld a, [$c92f]
+UpdateInfoPlayTime::
+	ld a, [wMenuInfoPage]
 	or a
 	ret z
 
-	ld a, [$cab8]
+	ld a, [wPlayHours]
 	ld c, a
 	ld b, $00
 	ld hl, $00ae
-	call Call_07_6889
-	call Call_20AD
-	ld a, [$cab7]
+	call MenuMapAddress
+	call PrintNumber2Zeros
+	ld a, [wPlayMinutes]
 	ld c, a
 	ld b, $00
 	ld hl, $00b1
-	call Call_07_6889
-	call Call_20AD
+	call MenuMapAddress
+	call PrintNumber2Zeros
 	ret
 
 
-Call_07_42B4::
+DrawMonsterCounts::
 	ld hl, HeaderOldLicenseeCode
-	call Call_07_42CD
+	call CountFarmMonstersMenu
 	ld hl, $0151
-	call Call_07_4301
+	call CountEggs
 	ld hl, $016b
-	call Call_07_4331
+	call CountFarm2Monsters
 	ld hl, $0171
-	call Call_07_436E
+	call CountFarm2Eggs
 	ret
 
 
-Call_07_42CD::
-	call Call_07_6880
+CountFarmMonstersMenu::
+	call BufferAddress
 	push hl
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -444,14 +444,14 @@ jr_007_42ee:
 
 	pop hl
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_07_4301::
-	call Call_07_6880
+CountEggs::
+	call BufferAddress
 	push hl
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -486,25 +486,25 @@ jr_007_431e:
 
 	pop hl
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_07_4331::
-	call Call_07_6880
+CountFarm2Monsters::
+	call BufferAddress
 	ld c, $00
-	ld a, [$ca41]
+	ld a, [wFarm2Flags]
 	bit 7, a
 	jr z, jr_007_4368
 
 	push hl
-	ld hl, $b124
+	ld hl, sFarm2
 	ld b, $14
 	ld c, $00
 
 jr_007_4345:
 	push hl
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_007_435b
 
@@ -514,7 +514,7 @@ jr_007_4345:
 	ld a, h
 	adc $00
 	ld h, a
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr nz, jr_007_435b
 
@@ -535,25 +535,25 @@ jr_007_435b:
 
 jr_007_4368:
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_07_436E::
-	call Call_07_6880
+CountFarm2Eggs::
+	call BufferAddress
 	ld c, $00
-	ld a, [$ca41]
+	ld a, [wFarm2Flags]
 	bit 7, a
 	jr z, jr_007_43a5
 
 	push hl
-	ld hl, $b124
+	ld hl, sFarm2
 	ld b, $14
 	ld c, $00
 
 jr_007_4382:
 	push hl
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_007_4398
 
@@ -563,7 +563,7 @@ jr_007_4382:
 	ld a, h
 	adc $00
 	ld h, a
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_007_4398
 
@@ -584,11 +584,11 @@ jr_007_4398:
 
 jr_007_43a5:
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_07_43AB::
+LoadMonsterPicture::
 	cp $ff
 	ret z
 
@@ -606,115 +606,115 @@ Call_07_43AB::
 	inc hl
 	ld d, [hl]
 	pop hl
-	ld a, [$c92f]
+	ld a, [wMenuInfoPage]
 	or a
 	ret nz
 
-	call Call_1577
+	call DecompressVRAM
 	ret
 
 
-Jump_07_43C8::
-	call Call_07_4290
-	ld hl, $c8da
+FieldMenuInput::
+	call UpdateInfoPlayTime
+	ld hl, wLinkChoice
 	res 7, [hl]
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $30
 	jr z, jr_007_43e1
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	xor $01
-	ld [$c8da], a
+	ld [wLinkChoice], a
 	jr jr_007_43f0
 
 jr_007_43e1:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $c0
 	jr z, jr_007_43f6
 
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	xor $02
-	ld [$c8da], a
+	ld [wLinkChoice], a
 
 jr_007_43f0:
 	xor a
-	ld [$c914], a
+	ld [wMenuBlink], a
 	jr jr_007_445c
 
 jr_007_43f6:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $08
 	jr z, jr_007_441b
 
-	ld a, [$c92f]
+	ld a, [wMenuInfoPage]
 	xor $01
-	ld [$c92f], a
+	ld [wMenuInfoPage], a
 	ld hl, $c5a0
 	ld bc, $0100
 	ld a, $e0
-	call Call_12C7
-	call Call_07_690D
-	call Call_07_405C
-	call Call_07_690D
+	call FillMemory
+	call MenuShowBuffer
+	call DrawPartyPanel
+	call MenuShowBuffer
 	jr jr_007_445c
 
 jr_007_441b:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	and $06
 	jr z, jr_007_442c
 
-	ld hl, $c90d
+	ld hl, wStatusViewVars
 	inc [hl]
-	ld hl, $c90d
+	ld hl, wStatusViewVars
 	inc [hl]
 	jr jr_007_445c
 
 jr_007_442c:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_007_445c
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90d
+	call QueueSound
+	ld hl, wStatusViewVars
 	inc [hl]
-	call Call_07_6A8F
-	call Call_07_402B
-	call Call_07_690D
+	call MenuClearBuffer
+	call DrawMainMenuWindows
+	call MenuShowBuffer
 	xor a
-	ld [$c90e], a
-	ld hl, $c8da
+	ld [wFieldMenuStep], a
+	ld hl, wLinkChoice
 	set 7, [hl]
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
-	call Call_12C7
-	call Call_07_4469
+	call FillMemory
+	call MenuLoadPartyNames
 
 jr_007_445c:
 	ld de, $44b4
-	ld a, [$c8da]
-	call Call_07_6C94
-	call Call_07_6779
+	ld a, [wLinkChoice]
+	call BlinkMenuCursor
+	call DrawPartySprites
 	ret
 
 
-Call_07_4469::
+MenuLoadPartyNames::
 	ld hl, $9200
 	ld a, $01
-	call Call_07_4482
+	call LoadPartyNameTile
 	ld hl, $9240
 	ld a, $02
-	call Call_07_4482
+	call LoadPartyNameTile
 	ld hl, $9280
 	ld a, $03
-	call Call_07_4482
+	call LoadPartyNameTile
 	ret
 
 
-Call_07_4482::
+LoadPartyNameTile::
 	ld b, a
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp b
 	jr nc, jr_007_4498
 
@@ -722,9 +722,9 @@ Call_07_4482::
 
 jr_007_448b:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_007_448b
 
@@ -735,95 +735,95 @@ jr_007_4498:
 	push hl
 	ld a, b
 	dec a
-	ld hl, $cac2
-	call Call_2229
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
-	call Call_07_69EF
+	call MenuDrawNameTiles
 	ret
 
 
-Jump_07_44A8::
-	ld a, [$c8da]
+FieldMenuRunOption::
+	ld a, [wLinkChoice]
 	rst $00
 
-JumpTable_07_44AC::
-	dw Jump_07_44BE
-	dw Jump_07_4A8A
-	dw Jump_07_5362
-	dw Jump_07_5C94
+FieldMenuOptions::
+	dw StatusMenu
+	dw ItemMenu
+	dw SkillMenu
+	dw OptionMenu
 	dw $0021
 	dw $0026
 	dw $0061
 	dw $0066
 	dw $ffff
 
-Jump_07_44BE::
-	ld a, [$c90e]
+StatusMenu::
+	ld a, [wFieldMenuStep]
 	rst $00
 
-JumpTable_07_44C2::
-	dw Jump_07_44E0
-	dw Jump_07_45FB
-	dw Call_07_4655
-	dw Jump_07_46AB
-	dw Jump_07_46B0
-	dw Jump_07_46B9
-	dw Call_07_46CA
-	dw Jump_07_47FE
-	dw Jump_07_4830
-	dw Jump_07_48AB
-	dw Call_07_48E6
-	dw Jump_07_4A12
-	dw Jump_07_4A5A
-	dw Jump_07_4A66
-	dw Jump_07_4A78
+StatusMenuSteps::
+	dw StatusMenuOpen
+	dw StatusPage1Input
+	dw StatusShowPicture
+	dw StatusStepNext
+	dw StatusStepSkip
+	dw StatusStepBack4
+	dw StatusShowPage2
+	dw StatusPage2Input
+	dw StatusShowSkills
+	dw StatusSkillsInput
+	dw StatusShowPedigree
+	dw StatusPedigreeInput
+	dw StatusClose
+	dw StatusRedrawPage2
+	dw StatusRedrawPedigree
 
-Jump_07_44E0::
-	call Call_07_4469
+StatusMenuOpen::
+	call MenuLoadPartyNames
 
-Call_07_44E3::
+StatusDrawPage1::
 	ld de, $70ad
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $70f7
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $71af
-	call Call_07_68DC
-	ld a, [$c8db]
-	ld [$cac0], a
-	call Call_07_466D
-	call Call_07_4689
+	call DrawWindow
+	ld a, [wMenuChoice2]
+	ld [wCurPartyMember], a
+	call LoadStatusPicture
+	call SetStatusPicPalette
 	ld de, $724f
-	call Call_07_68DC
-	call Call_07_451E
-	call Call_07_6C8F
+	call DrawWindow
+	call DrawStatusStats
+	call MenuResetBlink
 	ld de, $4632
-	ld a, [$c8db]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wMenuChoice2]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_451E::
-	call Call_07_45EE
-	ld hl, $cac2
-	call Call_07_6DA8
+DrawStatusStats::
+	call SyncStatusMonster
+	ld hl, wMonName
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $93c0
-	call Call_07_69EF
-	ld hl, $cacc
-	call Call_07_6DBA
+	call MenuDrawNameTiles
+	ld hl, wMonGender
+	call GetViewedMonsterByte
 	ld hl, $9300
-	call Call_07_6A3D
-	ld hl, $cb0c
-	call Call_07_6DBA
+	call DrawSexMark
+	ld hl, wMonLevel
+	call GetViewedMonsterByte
 	push af
-	ld hl, $cb0d
-	call Call_07_6DA8
+	ld hl, wMonMaxLevel
+	call GetViewedMonsterField
 	pop af
 	cp [hl]
 	ld a, $90
@@ -833,46 +833,46 @@ Call_07_451E::
 
 jr_007_4550:
 	ld hl, $8800
-	call Call_07_6A41
-	ld hl, $cb0c
-	call Call_07_6DBA
+	call MenuDrawCharTile
+	ld hl, wMonLevel
+	call GetViewedMonsterByte
 	ld c, a
 	ld b, $00
 	ld hl, $0031
-	call Call_07_6880
-	call Call_2082
-	ld hl, $cb19
+	call BufferAddress
+	call PrintNumber2
+	ld hl, wMonAttack
 	ld de, $0070
-	call Call_07_45E2
-	ld hl, $cb1b
+	call DrawStatValue
+	ld hl, wMonDefense
 	ld de, $00b0
-	call Call_07_45E2
-	ld hl, $cb1d
+	call DrawStatValue
+	ld hl, wMonAgility
 	ld de, $00f0
-	call Call_07_45E2
-	ld hl, $cb1f
+	call DrawStatValue
+	ld hl, wMonIntelligence
 	ld de, $0130
-	call Call_07_45E2
-	ld hl, $cb21
+	call DrawStatValue
+	ld hl, wMonWildness
 	ld de, $0170
-	call Call_07_45E2
-	ld hl, $cb11
+	call DrawStatValue
+	ld hl, wMonHP
 	ld de, $01cc
-	call Call_07_45E2
-	ld hl, $cb13
+	call DrawStatValue
+	ld hl, wMonMaxHP
 	ld de, $01d0
-	call Call_07_45E2
-	ld hl, $cb15
+	call DrawStatValue
+	ld hl, wMonMP
 	ld de, $020c
-	call Call_07_45E2
-	ld hl, $cb17
+	call DrawStatValue
+	ld hl, wMonMaxMP
 	ld de, $0210
-	call Call_07_45E2
-	ld hl, $cb0b
-	call Call_07_6DBA
+	call DrawStatValue
+	ld hl, wMonStatus
+	call GetViewedMonsterByte
 	ld b, a
 	ld hl, $01f0
-	call Call_07_6880
+	call BufferAddress
 	bit 0, b
 	ld a, $e0
 	jr z, jr_007_45ce
@@ -900,53 +900,53 @@ jr_007_45e0:
 	ret
 
 
-Call_07_45E2::
+DrawStatValue::
 	push de
-	call Call_07_6DCD
+	call GetViewedMonsterWord
 	pop hl
-	call Call_07_6880
-	call Call_2071
+	call BufferAddress
+	call PrintNumber3
 	ret
 
 
-Call_07_45EE::
-	ld a, [$c8eb]
+SyncStatusMonster::
+	ld a, [wFieldFlags]
 	bit 1, a
 	ret z
 
-	ld a, [$c8db]
-	ld [$cac0], a
+	ld a, [wMenuChoice2]
+	ld [wCurPartyMember], a
 	ret
 
 
-Jump_07_45FB::
-	call Call_07_463A
+StatusPage1Input::
+	call MoveStatusMonCursor
 	jr z, jr_007_460f
 
-	call Call_07_45EE
-	call Call_07_451E
-	call Call_07_690D
-	call Call_07_466D
-	call Call_07_4689
+	call SyncStatusMonster
+	call DrawStatusStats
+	call MenuShowBuffer
+	call LoadStatusPicture
+	call SetStatusPicPalette
 
 jr_007_460f:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_4620
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	jr jr_007_4631
 
 jr_007_4620:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_4631
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_4631:
@@ -954,18 +954,19 @@ jr_007_4631:
 	ret
 
 
+StatusMonCursorPos::
 	db $61, $00, $a1, $00, $e1, $00, $ff, $ff
 
-Call_07_463A::
+MoveStatusMonCursor::
 	ld de, $4632
-	ld hl, $c8db
-	ld a, [$ca8d]
+	ld hl, wMenuChoice2
+	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
-	call Call_07_6C3F
+	call MoveMenuCursorNoSelect
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	and $7f
 	ld b, a
 	ld a, [hl]
@@ -974,22 +975,22 @@ Call_07_463A::
 	ret
 
 
-Call_07_4655::
-	call Call_07_466D
-	call Call_07_4689
+StatusShowPicture::
+	call LoadStatusPicture
+	call SetStatusPicPalette
 	ld de, $724f
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	xor a
-	ld [$c90f], a
+	ld [wMenuCount], a
 	ret
 
 
-Call_07_466D::
-	ld hl, $caca
-	call Call_07_6DBA
+LoadStatusPicture::
+	ld hl, wMonRecSpecies
+	call GetViewedMonsterByte
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1003,78 +1004,78 @@ Call_07_466D::
 	inc hl
 	ld d, [hl]
 	ld hl, $8b00
-	call Call_1577
+	call DecompressVRAM
 	ret
 
 
-Call_07_4689::
+SetStatusPicPalette::
 	ld hl, $0141
 	ld a, l
 	ld [$c820], a
 	ld a, h
 	ld [$c821], a
-	ld hl, $caca
-	call Call_07_6DBA
-	ld [$c81e], a
+	ld hl, wMonRecSpecies
+	call GetViewedMonsterByte
+	ld [wPaletteSet], a
 	ld a, $04
 	ld [$c81f], a
-	ld hl, far_Call_17_41D0
+	ld hl, far_LoadMonPicPalette
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
 	ret
 
 
-Jump_07_46AB::
-	ld hl, $c90e
+StatusStepNext::
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_46B0::
-	ld hl, $c90e
+StatusStepSkip::
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
-	inc [hl]
-	ret
-
-
-Jump_07_46B9::
-	ld hl, $c90e
-	dec [hl]
-	ld hl, $c90e
-	dec [hl]
-	ld hl, $c90e
-	dec [hl]
-	ld hl, $c90e
-	dec [hl]
-	ret
-
-
-Call_07_46CA::
-	call Call_07_46D2
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_46D2::
-	call Call_07_45EE
-	ld hl, $cac2
-	call Call_07_6DA8
+StatusStepBack4::
+	ld hl, wFieldMenuStep
+	dec [hl]
+	ld hl, wFieldMenuStep
+	dec [hl]
+	ld hl, wFieldMenuStep
+	dec [hl]
+	ld hl, wFieldMenuStep
+	dec [hl]
+	ret
+
+
+StatusShowPage2::
+	call DrawStatusPage2
+	ld hl, wFieldMenuStep
+	inc [hl]
+	ret
+
+
+DrawStatusPage2::
+	call SyncStatusMonster
+	ld hl, wMonName
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $93c0
-	call Call_07_69EF
-	ld hl, $cacc
-	call Call_07_6DBA
+	call MenuDrawNameTiles
+	ld hl, wMonGender
+	call GetViewedMonsterByte
 	ld hl, $9300
-	call Call_07_6A3D
-	ld hl, $cb0c
-	call Call_07_6DBA
+	call DrawSexMark
+	ld hl, wMonLevel
+	call GetViewedMonsterByte
 	push af
-	ld hl, $cb0d
-	call Call_07_6DA8
+	ld hl, wMonMaxLevel
+	call GetViewedMonsterField
 	pop af
 	cp [hl]
 	ld a, $90
@@ -1084,101 +1085,101 @@ Call_07_46D2::
 
 jr_007_4704:
 	ld hl, $8800
-	call Call_07_6A41
-	call Call_07_6D8B
+	call MenuDrawCharTile
+	call GetViewedMonster
 	ld d, a
-	ld hl, far_Call_01_4C58
+	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $0a
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $9330
 	ld de, $0901
-	call Call_07_69B6
-	ld hl, $cacb
-	call Call_07_6DBA
+	call MenuDrawTextTiles
+	ld hl, wMonFamily
+	call GetViewedMonsterByte
 	ld c, a
 	push bc
-	ld hl, $cb23
-	call Call_07_6DBA
+	ld hl, wMonPlus
+	call GetViewedMonsterByte
 	ld hl, $95b0
 	pop bc
-	call Call_07_6942
-	ld hl, $caca
-	call Call_07_6DBA
-	ld [$c823], a
+	call DrawFamilyPlus
+	ld hl, wMonRecSpecies
+	call GetViewedMonsterByte
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $94c0
 	ld de, $0901
-	call Call_07_69B6
-	ld hl, $cacd
-	call Call_07_6DA8
+	call MenuDrawTextTiles
+	ld hl, wMonMaster
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9550
-	call Call_07_69EF
+	call MenuDrawNameTiles
 	ld de, $727b
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7333
-	call Call_07_68DC
-	ld hl, $cb0c
-	call Call_07_6DBA
+	call DrawWindow
+	ld hl, wMonLevel
+	call GetViewedMonsterByte
 	ld c, a
 	ld b, $00
 	ld hl, $0031
-	call Call_07_6880
-	call Call_2082
-	ld hl, $cb0e
-	call Call_07_6DA8
+	call BufferAddress
+	call PrintNumber2
+	ld hl, wMonExp
+	call GetViewedMonsterField
 	ld a, [hli]
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, [hli]
 	ldh [$ffd6], a
 	ld a, [hl]
 	ldh [$ffd7], a
 	ld hl, $016b
-	call Call_07_6880
-	call Call_1F90
-	ld hl, $cb0e
-	call Call_07_6DA8
+	call BufferAddress
+	call PrintNumber7
+	ld hl, wMonExp
+	call GetViewedMonsterField
 	ld a, [hli]
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, [hli]
 	ldh [$ffd6], a
 	ld a, [hl]
 	ldh [$ffd7], a
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	push af
-	call Call_07_6D8B
-	ld [$cac0], a
-	ld hl, $cb0c
-	call Call_223B
+	call GetViewedMonster
+	ld [wCurPartyMember], a
+	ld hl, wMonLevel
+	call MonsterField
 	ld a, [hl]
 	cp $63
 	jr z, jr_007_47ca
 
 	push af
-	ld a, [$cac0]
-	ld hl, $cb0d
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonMaxLevel
+	call MonsterField
 	pop af
 	cp [hl]
 	jr z, jr_007_47ca
 
-	ld hl, far_Call_13_4009
+	ld hl, far_GetExpForNextLevel
 	rst $10
 
 jr_007_47ca:
 	pop af
-	ld [$cac0], a
-	ld hl, $cb0e
-	call Call_07_6DA8
-	ldh a, [$ffd5]
+	ld [wCurPartyMember], a
+	ld hl, wMonExp
+	call GetViewedMonsterField
+	ldh a, [hNumber]
 	sub [hl]
 	inc hl
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ldh a, [$ffd6]
 	sbc [hl]
 	inc hl
@@ -1187,60 +1188,60 @@ jr_007_47ca:
 	sbc [hl]
 	ldh [$ffd7], a
 	ld hl, $020b
-	call Call_07_6880
-	call Call_1F90
-	call Call_07_690D
-	ld hl, $caca
-	call Call_07_6DBA
+	call BufferAddress
+	call PrintNumber7
+	call MenuShowBuffer
+	ld hl, wMonRecSpecies
+	call GetViewedMonsterByte
 	ld hl, $8500
-	call Call_07_66B1
+	call LoadMonsterSprite
 	ret
 
 
-Jump_07_47FE::
-	call Call_07_463A
+StatusPage2Input::
+	call MoveStatusMonCursor
 	jr z, jr_007_480a
 
 	ld a, $0d
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_482f
 
 jr_007_480a:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_481b
 
-	call Call_07_44E3
+	call StatusDrawPage1
 	ld a, $01
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_482f
 
 jr_007_481b:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_482c
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_482c:
-	call Call_07_66C8
+	call DrawStatusSprite
 
 jr_007_482f:
 	ret
 
 
-Jump_07_4830::
+StatusShowSkills::
 	ld de, $71f7
-	call Call_07_68A0
-	call Call_07_486B
+	call DrawWindowToMap
+	call DrawMonSkillNames
 	ld de, $737b
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $caca
-	call Call_07_6DBA
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wMonRecSpecies
+	call GetViewedMonsterByte
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1254,39 +1255,39 @@ Jump_07_4830::
 	inc hl
 	ld d, [hl]
 	ld hl, $8b00
-	call Call_1577
+	call DecompressVRAM
 	ld de, $724f
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_486B::
-	ld hl, $caea
-	call Call_07_6DA8
+DrawMonSkillNames::
+	ld hl, wMonSkills
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9650
-	call Call_07_488E
-	call Call_07_488E
-	call Call_07_488E
+	call DrawSkillName
+	call DrawSkillName
+	call DrawSkillName
 	ld hl, $8830
-	call Call_07_488E
-	call Call_07_488E
-	call Call_07_488E
-	call Call_07_488E
+	call DrawSkillName
+	call DrawSkillName
+	call DrawSkillName
+	call DrawSkillName
 
-Call_07_488E::
+DrawSkillName::
 	push de
 	push hl
 	ld a, [de]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $06
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0901
-	call Call_07_69B6
+	call MenuDrawTextTiles
 	pop hl
 	ld a, l
 	add $90
@@ -1299,37 +1300,37 @@ Call_07_488E::
 	ret
 
 
-Jump_07_48AB::
-	call Call_07_463A
-	jr z, Call_07_48BF
+StatusSkillsInput::
+	call MoveStatusMonCursor
+	jr z, StatusSkillsButtons
 
-	call Call_07_45EE
-	call Call_07_486B
-	call Call_07_690D
-	call Call_07_466D
-	call Call_07_4689
+	call SyncStatusMonster
+	call DrawMonSkillNames
+	call MenuShowBuffer
+	call LoadStatusPicture
+	call SetStatusPicPalette
 
-Call_07_48BF::
-	ld a, [$c846]
+StatusSkillsButtons::
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_48d4
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_48e5
 
 jr_007_48d4:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_48e5
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_48e5:
@@ -1337,106 +1338,106 @@ jr_007_48e5:
 	ret
 
 
-Call_07_48E6::
+StatusShowPedigree::
 	ld de, $746b
-	call Call_07_68DC
-	call Call_07_690D
-	call Call_07_48F7
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	call DrawPedigree
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_48F7::
-	ld hl, $cb44
-	call Call_07_6DA8
+DrawPedigree::
+	ld hl, wMonParent1Name
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $88c0
-	call Call_07_69EF
-	ld hl, $cad8
-	call Call_07_6DA8
+	call MenuDrawNameTiles
+	ld hl, wMonParent1Master
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $8900
-	call Call_07_69EF
-	ld hl, $cad6
-	call Call_07_6DBA
+	call MenuDrawNameTiles
+	ld hl, wMonParent1
+	call GetViewedMonsterByte
 	cp $ff
 	jr z, jr_007_4927
 
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 
 jr_007_4927:
 	ld c, a
 	push bc
-	ld hl, $cb4c
-	call Call_07_6DBA
+	ld hl, wMonParent1Plus
+	call GetViewedMonsterByte
 	ld hl, $95e0
 	pop bc
-	call Call_07_6942
-	ld hl, $cad6
-	call Call_07_6DBA
-	ld [$c823], a
+	call DrawFamilyPlus
+	ld hl, wMonParent1
+	call GetViewedMonsterByte
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $94c0
 	ld de, $0901
-	call Call_07_69A5
-	ld hl, $cb4d
-	call Call_07_6DA8
+	call DrawTextOrBlank
+	ld hl, wMonParent2Name
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $8940
-	call Call_07_69EF
-	ld hl, $cae1
-	call Call_07_6DA8
+	call MenuDrawNameTiles
+	ld hl, wMonParent2Master
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $8980
-	call Call_07_69EF
-	ld hl, $cad7
-	call Call_07_6DBA
+	call MenuDrawNameTiles
+	ld hl, wMonParent2
+	call GetViewedMonsterByte
 	cp $ff
 	jr z, jr_007_497d
 
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
-	ld a, [$da33]
+	ld a, [wMonStats]
 
 jr_007_497d:
 	ld c, a
 	push bc
-	ld hl, $cb55
-	call Call_07_6DBA
+	ld hl, wMonParent2Plus
+	call GetViewedMonsterByte
 	ld hl, $9660
 	pop bc
-	call Call_07_6942
-	ld hl, $cad7
-	call Call_07_6DBA
-	ld [$c823], a
+	call DrawFamilyPlus
+	ld hl, wMonParent2
+	call GetViewedMonsterByte
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $9550
 	ld de, $0901
-	call Call_07_69A5
+	call DrawTextOrBlank
 	ld de, $755b
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $75db
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $cad7
-	call Call_07_6DBA
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wMonParent2
+	call GetViewedMonsterByte
 	cp $ff
 	jr nz, jr_007_49c6
 
 	ld de, $7223
-	call Call_07_68DC
-	call Call_07_690D
+	call DrawWindow
+	call MenuShowBuffer
 	ret
 
 
@@ -1454,12 +1455,12 @@ jr_007_49c6:
 	inc hl
 	ld d, [hl]
 	ld de, $724f
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $765b
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $cad6
-	call Call_07_6DBA
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wMonParent1
+	call GetViewedMonsterByte
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -1472,166 +1473,166 @@ jr_007_49c6:
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-	ld hl, $cad6
-	call Call_07_6DBA
+	ld hl, wMonParent1
+	call GetViewedMonsterByte
 	ld hl, $8600
-	call Call_07_66B1
-	ld hl, $cad7
-	call Call_07_6DBA
+	call LoadMonsterSprite
+	ld hl, wMonParent2
+	call GetViewedMonsterByte
 	ld hl, $8700
-	call Call_07_66B1
+	call LoadMonsterSprite
 	ret
 
 
-Jump_07_4A12::
-	call Call_07_463A
-	jr z, Call_07_4A1E
+StatusPedigreeInput::
+	call MoveStatusMonCursor
+	jr z, StatusPedigreeButtons
 
 	ld a, $0e
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_4a59
 
-Call_07_4A1E::
-	ld a, [$c846]
+StatusPedigreeButtons::
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_4a45
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	ld de, $71f7
-	call Call_07_68DC
-	call Call_07_690D
+	call DrawWindow
+	call MenuShowBuffer
 	ld de, $746b
-	call Call_07_68DC
-	call Call_07_690D
+	call DrawWindow
+	call MenuShowBuffer
 	jr jr_007_4a59
 
 jr_007_4a45:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_4a56
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_4a56:
-	call Call_07_670E
+	call DrawPedigreeSprites
 
 jr_007_4a59:
 	ret
 
 
-Jump_07_4A5A::
-	call Call_07_6A8F
-	call Call_07_690D
+StatusClose::
+	call MenuClearBuffer
+	call MenuShowBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_4A66::
-	call Call_07_45EE
-	call Call_07_46D2
-	call Call_07_466D
-	call Call_07_4689
+StatusRedrawPage2::
+	call SyncStatusMonster
+	call DrawStatusPage2
+	call LoadStatusPicture
+	call SetStatusPicPalette
 	ld a, $07
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Jump_07_4A78::
-	call Call_07_45EE
-	call Call_07_48F7
-	call Call_07_466D
-	call Call_07_4689
+StatusRedrawPedigree::
+	call SyncStatusMonster
+	call DrawPedigree
+	call LoadStatusPicture
+	call SetStatusPicPalette
 	ld a, $0b
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Jump_07_4A8A::
-	ld a, [$c90e]
+ItemMenu::
+	ld a, [wFieldMenuStep]
 	rst $00
 
-JumpTable_07_4A8E::
-	dw Jump_07_4AB0
-	dw Jump_07_4AC8
-	dw Jump_07_4BB2
-	dw Jump_07_4C61
-	dw Jump_07_4CCF
-	dw Jump_07_4D51
-	dw Jump_07_4EAC
-	dw Jump_07_4EFD
-	dw Jump_07_4F81
-	dw Jump_07_4FA7
-	dw Jump_07_5205
-	dw Jump_07_5213
-	dw Jump_07_5214
-	dw Jump_07_5265
-	dw Jump_07_527A
-	dw Jump_07_52C5
-	dw Jump_07_5337
+ItemMenuSteps::
+	dw ItemMenuOpen
+	dw ItemMenuDraw
+	dw ItemListInput
+	dw ItemShowUseDiscard
+	dw ItemUseDiscardInput
+	dw ItemShowTargets
+	dw ItemTargetInput
+	dw ItemStartUse
+	dw ItemShowMessage
+	dw ItemApply
+	dw ItemCloseAfterText
+	dw ItemStepIdle
+	dw ItemMenuEmpty
+	dw ItemEmptyInput
+	dw ItemAskDiscard
+	dw ItemDiscardInput
+	dw ItemDiscard
 
-Jump_07_4AB0::
-	call Call_07_4B69
-	call Call_07_4B21
-	ld hl, $c90e
+ItemMenuOpen::
+	call DrawItemDescription
+	call DrawBagPage
+	ld hl, wFieldMenuStep
 	inc [hl]
-	call Call_07_4B99
-	ld a, [$c90f]
+	call CountBagItems
+	ld a, [wMenuCount]
 	or a
 	ret nz
 
 	ld a, $0c
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Jump_07_4AC8::
-	call Call_07_4B99
-	call Call_07_6A8F
+ItemMenuDraw::
+	call CountBagItems
+	call MenuClearBuffer
 	ld de, $704d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7090
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7748
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $77d9
-	call Call_07_68DC
-	ld a, [$ca4b]
-	ldh [$ffd5], a
+	call DrawWindow
+	ld a, [wGold]
+	ldh [hNumber], a
 	ld a, [$ca4c]
 	ldh [$ffd6], a
 	ld a, [$ca4d]
 	ldh [$ffd7], a
 	ld hl, $002e
-	call Call_07_6880
-	call Call_1FB9
-	call Call_07_6C8F
+	call BufferAddress
+	call PrintNumber5
+	call MenuResetBlink
 	ld de, $44b4
-	ld a, [$c8da]
-	call Call_07_6D4E
+	ld a, [wLinkChoice]
+	call MenuDrawCursorAt
 	ld de, $4c53
 	ld b, $05
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	ld c, a
-	ld hl, $c8db
-	call Call_07_6D2C
-	call Call_07_690D
-	ld hl, $c90e
+	ld hl, wMenuChoice2
+	call DrawListMarks
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_4B21::
-	ld de, $ca51
-	ld a, [$c8dc]
+DrawBagPage::
+	ld de, wBagItems
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
@@ -1642,14 +1643,14 @@ Call_07_4B21::
 	adc d
 	ld d, a
 	ld hl, $9700
-	call Call_07_4B46
+	call DrawItemName
 	ld hl, $8800
-	call Call_07_4B46
-	call Call_07_4B46
-	call Call_07_4B46
-	call Call_07_4B46
+	call DrawItemName
+	call DrawItemName
+	call DrawItemName
+	call DrawItemName
 
-Call_07_4B46::
+DrawItemName::
 	push de
 	push hl
 	ld a, [de]
@@ -1659,11 +1660,11 @@ Call_07_4B46::
 	ld a, $00
 
 jr_007_4b4f:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $08
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0901
-	call Call_07_69B6
+	call MenuDrawTextTiles
 	pop hl
 	ld a, l
 	add $90
@@ -1676,15 +1677,15 @@ jr_007_4b4f:
 	ret
 
 
-Call_07_4B69::
-	ld hl, $ca51
-	ld a, [$c8dc]
+DrawItemDescription::
+	ld hl, wBagItems
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
 	add l
@@ -1699,17 +1700,17 @@ Call_07_4B69::
 	ld a, $00
 
 jr_007_4b87:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $09
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $94c0
 	ld de, $1202
-	call Call_07_69B6
+	call MenuDrawTextTiles
 	ret
 
 
-Call_07_4B99::
-	ld hl, $ca51
+CountBagItems::
+	ld hl, wBagItems
 	ld b, $14
 	ld c, $00
 
@@ -1727,14 +1728,14 @@ jr_007_4ba0:
 
 jr_007_4bad:
 	ld a, c
-	ld [$c90f], a
+	ld [wMenuCount], a
 	ret
 
 
-Jump_07_4BB2::
+ItemListInput::
 	ld de, $4c53
-	ld hl, $c8db
-	ld a, [$c90f]
+	ld hl, wMenuChoice2
+	ld a, [wMenuCount]
 	ld c, a
 	ld b, $05
 	inc hl
@@ -1742,9 +1743,9 @@ Jump_07_4BB2::
 	push af
 	ld a, [hl]
 	push af
-	call Call_07_6B7F
+	call MoveListCursor
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	and $7f
 	ld b, a
 	ld a, [hl]
@@ -1752,52 +1753,52 @@ Jump_07_4BB2::
 	cp b
 	jr z, jr_007_4bd6
 
-	call Call_07_4B69
+	call DrawItemDescription
 
 jr_007_4bd6:
 	pop af
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	cp [hl]
 	jr z, jr_007_4be3
 
-	call Call_07_4B21
-	call Call_07_4B69
+	call DrawBagPage
+	call DrawItemDescription
 
 jr_007_4be3:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_4bf4
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	jr jr_007_4c27
 
 jr_007_4bf4:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_4c07
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 	jr jr_007_4c27
 
 Jump_007_4c07:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 2, a
 	jp z, Jump_007_4c27
 
 	ld a, $59
-	call Call_1B2C
-	call Call_07_4C28
+	call QueueSound
+	call SortBag
 	xor a
-	ld [$c8db], a
-	ld [$c8dc], a
-	ld hl, $c90e
+	ld [wMenuChoice2], a
+	ld [wConfirmChoice], a
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	ret
 
@@ -1807,8 +1808,8 @@ jr_007_4c27:
 	ret
 
 
-Call_07_4C28::
-	ld hl, $ca51
+SortBag::
+	ld hl, wBagItems
 	ld b, $14
 
 jr_007_4c2d:
@@ -1826,7 +1827,7 @@ jr_007_4c33:
 	ld c, $14
 
 jr_007_4c39:
-	ld hl, $ca51
+	ld hl, wBagItems
 	ld de, $ca52
 	ld b, $13
 
@@ -1853,81 +1854,82 @@ jr_007_4c4a:
 	ret
 
 
+ItemListCursorPos::
 	db $91, $01, $69, $00, $a9, $00, $e9, $00, $29, $01, $69, $01, $ff, $ff
 
-Jump_07_4C61::
-	call Call_07_6A8F
-	call Call_07_6C8F
+ItemShowUseDiscard::
+	call MenuClearBuffer
+	call MenuResetBlink
 	ld de, $704d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $44b4
-	ld a, [$c8da]
-	call Call_07_6D4E
+	ld a, [wLinkChoice]
+	call MenuDrawCursorAt
 	ld de, $7090
-	call Call_07_68DC
-	ld a, [$ca4b]
-	ldh [$ffd5], a
+	call DrawWindow
+	ld a, [wGold]
+	ldh [hNumber], a
 	ld a, [$ca4c]
 	ldh [$ffd6], a
 	ld a, [$ca4d]
 	ldh [$ffd7], a
 	ld hl, $002e
-	call Call_07_6880
-	call Call_1FB9
+	call BufferAddress
+	call PrintNumber5
 	ld de, $7748
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $4c53
 	ld b, $05
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	ld c, a
-	ld hl, $c8db
-	call Call_07_6D2C
+	ld hl, wMenuChoice2
+	call DrawListMarks
 	ld de, $77d9
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $798b
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $4d4b
-	ld a, [$c8dd]
-	call Call_07_6D4E
-	call Call_07_690D
+	ld a, [wConfirmChoice2]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
 	ld de, $560b
 	ld hl, $8e50
-	call Call_1577
-	ld hl, $c90e
+	call DecompressVRAM
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_4CCF::
+ItemUseDiscardInput::
 	ld de, $4d4b
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_07_6C08
-	ld a, [$c846]
+	call MoveMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_4cef
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_4d4a
 
 jr_007_4cef:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_4d4a
 
-	ld hl, $ca51
-	ld a, [$c8dc]
+	ld hl, wBagItems
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
 	add l
@@ -1936,34 +1938,34 @@ jr_007_4cef:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$da5e], a
-	ld hl, far_Call_03_6980
+	ld [wItemId], a
+	ld hl, far_GetItemData
 	rst $10
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	cp $80
 	jr z, jr_007_4d4a
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_4d4a:
@@ -1971,9 +1973,10 @@ jr_007_4d4a:
 	ret
 
 
+UseDiscardCursorPos::
 	db $61, $00, $a1, $00, $ff, $ff
 
-Jump_07_4D51::
+ItemShowTargets::
 	ld a, [$da66]
 	cp $02
 	jr z, jr_007_4d6b
@@ -1992,53 +1995,53 @@ Jump_07_4D51::
 	jr z, jr_007_4d74
 
 jr_007_4d6b:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
 jr_007_4d74:
 	ld de, $7748
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $4c53
 	ld b, $05
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	ld c, a
-	ld hl, $c8db
-	call Call_07_6D2C
+	ld hl, wMenuChoice2
+	call DrawListMarks
 	ld de, $79be
-	call Call_07_68DC
-	call Call_07_4DA6
-	call Call_07_6C8F
+	call DrawWindow
+	call DrawItemTargetStats
+	call MenuResetBlink
 	ld de, $4ef5
-	ld a, [$c8de]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wMenuChoice3]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_4DA6::
-	ld a, [$c8dc]
+DrawItemTargetStats::
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld hl, $ca51
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$da5e], a
+	ld [wItemId], a
 	cp $05
 	jp z, Jump_007_4e56
 
@@ -2103,44 +2106,44 @@ Call_07_4DA6::
 	jp z, Jump_007_4eab
 
 	ld de, $7957
-	call Call_07_68DC
-	ld hl, $cb11
-	ld a, [$c8de]
-	call Call_224F
+	call DrawWindow
+	ld hl, wMonHP
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterWord
 	ld hl, $0201
-	call Call_07_6880
-	call Call_2071
-	ld hl, $cb13
-	ld a, [$c8de]
-	call Call_224F
+	call BufferAddress
+	call PrintNumber3
+	ld hl, wMonMaxHP
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterWord
 	ld hl, $0205
-	call Call_07_6880
-	call Call_2071
+	call BufferAddress
+	call PrintNumber3
 	jr jr_007_4e80
 
 Jump_007_4e56:
 	ld de, $7a08
-	call Call_07_68DC
-	ld hl, $cb15
-	ld a, [$c8de]
-	call Call_224F
+	call DrawWindow
+	ld hl, wMonMP
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterWord
 	ld hl, $0201
-	call Call_07_6880
-	call Call_2071
-	ld hl, $cb17
-	ld a, [$c8de]
-	call Call_224F
+	call BufferAddress
+	call PrintNumber3
+	ld hl, wMonMaxMP
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterWord
 	ld hl, $0205
-	call Call_07_6880
-	call Call_2071
+	call BufferAddress
+	call PrintNumber3
 
 jr_007_4e80:
-	ld hl, $cb0b
-	ld a, [$c8de]
-	call Call_224A
+	ld hl, wMonStatus
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterByte
 	ld b, a
 	ld hl, $01c5
-	call Call_07_6880
+	call BufferAddress
 	bit 0, b
 	ld a, $e0
 	jr z, jr_007_4e98
@@ -2170,16 +2173,16 @@ Jump_007_4eab:
 	ret
 
 
-Jump_07_4EAC::
+ItemTargetInput::
 	ld de, $4ef5
-	ld hl, $c8de
-	ld a, [$ca8d]
+	ld hl, wMenuChoice3
+	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
-	call Call_07_6C08
+	call MoveMenuCursor
 	pop af
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	and $7f
 	ld b, a
 	ld a, [hl]
@@ -2187,30 +2190,30 @@ Jump_07_4EAC::
 	cp b
 	jr z, jr_007_4ece
 
-	call Call_07_4DA6
-	call Call_07_690D
+	call DrawItemTargetStats
+	call MenuShowBuffer
 
 jr_007_4ece:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_4ee3
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_4ef4
 
 jr_007_4ee3:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_4ef4
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_4ef4:
@@ -2218,40 +2221,41 @@ jr_007_4ef4:
 	ret
 
 
+ItemTargetCursorPos::
 	db $e1, $00, $21, $01, $61, $01, $ff, $ff
 
-Jump_07_4EFD::
-	ld de, $ca42
-	ld hl, $c180
-	call Call_0C80
-	ld hl, $cac2
-	ld a, [$c8de]
-	call Call_2229
+ItemStartUse::
+	ld de, wPlayerName
+	ld hl, wTextArg0
+	call CopyName
+	ld hl, wMonName
+	ld a, [wMenuChoice3]
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
-	ld a, [$c8dc]
+	ld hl, wTextArg1
+	call CopyName
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld hl, $ca51
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$da5e], a
+	ld [wItemId], a
 	ld l, a
 	ld h, $08
-	ld de, $c1a0
-	call Call_097A
+	ld de, wTextArg2
+	call CopySystemText
 	ld a, [$da66]
 	cp $00
 	jr z, jr_007_4f55
@@ -2262,129 +2266,129 @@ Jump_07_4EFD::
 	ld h, $0d
 	ld a, $01
 	ld l, a
-	call Call_096D
+	call PrintSystemText
 	ld a, $ff
-	ld [$da5e], a
+	ld [wItemId], a
 	jr jr_007_4f68
 
 jr_007_4f55:
 	ld h, $0d
 	ld a, [$da69]
 	ld l, a
-	call Call_096D
-	ld a, [$c8de]
-	ld [$da60], a
-	ld hl, far_Call_03_69A2
+	call PrintSystemText
+	ld a, [wMenuChoice3]
+	ld [wItemTarget], a
+	ld hl, far_CheckItemUsable
 	rst $10
 
 jr_007_4f68:
 	ld de, $2e07
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $1d
 	ret nz
 
 	ld a, $57
-	call Call_1B2C
+	call QueueSound
 	ret
 
 
-Jump_07_4F81::
-	ld a, [$c825]
+ItemShowMessage::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld h, $0d
-	ld a, [$da6a]
+	ld a, [wItemMessage]
 	ld l, a
 	or a
 	jr nz, jr_007_4f96
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $ff
 	jr nz, jr_007_4fa2
 
 jr_007_4f96:
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $ff
 	jr nz, jr_007_4f9f
 
 	ld l, $02
 
 jr_007_4f9f:
-	call Call_096D
+	call PrintSystemText
 
 jr_007_4fa2:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_4FA7::
-	ld a, [$c825]
+ItemApply::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $1d
 	jr z, jr_007_5012
 
 	cp $27
 	jp z, Jump_007_5077
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $ff
 	jr z, jr_007_5002
 
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld [$da5f], a
-	ld a, [$c8de]
-	ld [$da60], a
-	ld hl, far_Call_03_6E24
+	ld [wItemBagSlot], a
+	ld a, [wMenuChoice3]
+	ld [wItemTarget], a
+	ld hl, far_UseItem
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	call Call_2518
-	ld a, [$c825]
+	call BuildStatusBar
+	ld a, [wTextState]
 	or a
 	jr nz, jr_007_4ffc
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $ff
 	jr nz, jr_007_5002
 
-	ld a, [$da65]
+	ld a, [wItemUseUpChance]
 	cp $64
 	jr z, jr_007_5002
 
 	ld h, $0d
 	ld l, $00
-	call Call_096D
+	call PrintSystemText
 
 jr_007_4ffc:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	jr jr_007_5011
 
 jr_007_5002:
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	bit 6, a
 	ret nz
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
@@ -2393,89 +2397,89 @@ jr_007_5011:
 
 
 jr_007_5012:
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld [$da5f], a
-	ld a, [$c8de]
-	ld [$da60], a
-	ld hl, far_Call_03_6E24
+	ld [wItemBagSlot], a
+	ld a, [wMenuChoice3]
+	ld [wItemTarget], a
+	ld hl, far_UseItem
 	rst $10
-	call Call_2518
+	call BuildStatusBar
 	ld a, $06
 	ld [$d92b], a
 	ld hl, $0000
 	ld a, l
-	ld [$c96d], a
+	ld [wWarpMap], a
 	ld a, h
-	ld [$c96e], a
+	ld [wWarpOnGateFloor], a
 	ld hl, $00e8
 	ld a, l
-	ld [$c96f], a
+	ld [wWarpX], a
 	ld a, h
 	ld [$c970], a
 	ld hl, $0058
 	ld a, l
-	ld [$c971], a
+	ld [wWarpY], a
 	ld a, h
 	ld [$c972], a
 	ld a, $01
-	ld [$c96c], a
-	ld hl, $c8eb
+	ld [wWarpPending], a
+	ld hl, wFieldFlags
 	res 1, [hl]
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
-	call Call_2652
+	call IsInGateWorld
 	ret z
 
-	ld hl, far_Call_01_4BC1
+	ld hl, far_HealAllMonsters
 	rst $10
 	ret
 
 
 Jump_007_5077:
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld [$da5f], a
-	ld a, [$c8de]
-	ld [$da60], a
-	ld hl, far_Call_03_6E24
+	ld [wItemBagSlot], a
+	ld a, [wMenuChoice3]
+	ld [wItemTarget], a
+	ld hl, far_UseItem
 	rst $10
-	call Call_2518
-	ldh a, [$ffb7]
+	call BuildStatusBar
+	ldh a, [hScrollX]
 	ld l, a
 	ldh a, [$ffb8]
 	ld h, a
 	push hl
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	ld l, a
 	ldh a, [$ffbc]
 	ld h, a
 	push hl
 	ld a, [$c960]
-	ld [$c925], a
+	ld [wMapScreen], a
 	ld hl, far_Call_0B_4239
 	rst $10
-	ld hl, $c300
-	call Call_14CF
-	ld de, $c300
+	ld hl, wSavedTilemap
+	call Decompress
+	ld de, wSavedTilemap
 	ld a, [$c962]
 	ld l, a
 	ld a, [$c963]
@@ -2495,18 +2499,18 @@ Jump_007_5077:
 	ld [hli], a
 	inc a
 	ld [hl], a
-	ld hl, far_Call_17_409E
+	ld hl, far_LoadMapAttrBuffer
 	rst $10
 	xor a
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ldh [$ffb8], a
 	xor a
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ldh [$ffbc], a
 
 jr_007_50df:
-	call Call_07_5160
-	ld a, [$c925]
+	call PickRandomFloorSpot
+	ld a, [wMapScreen]
 	add a
 	add a
 	ld hl, $2da7
@@ -2516,47 +2520,47 @@ jr_007_50df:
 	adc h
 	ld h, a
 	ld a, [hli]
-	ldh [$ff92], a
+	ldh [hPlayerX], a
 	ld a, [hli]
 	ldh [$ff93], a
 	ld a, [hli]
-	ldh [$ff95], a
+	ldh [hPlayerY], a
 	ld a, [hli]
 	ldh [$ff96], a
-	ld hl, $ff92
-	ldh a, [$ffa5]
+	ld hl, hPlayerX
+	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa6]
 	adc [hl]
 	ld [hl], a
-	ld hl, $ff95
-	ldh a, [$ffa7]
+	ld hl, hPlayerY
+	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
 	ldh a, [$ffa8]
 	adc [hl]
 	ld [hl], a
-	call Call_07_51B1
+	call CheckPlayerOnFloorObject
 	jr z, jr_007_50df
 
 	pop hl
 	ld a, l
-	ldh [$ffbb], a
+	ldh [hScrollY], a
 	ld a, h
 	ldh [$ffbc], a
 	pop hl
 	ld a, l
-	ldh [$ffb7], a
+	ldh [hScrollX], a
 	ld a, h
 	ldh [$ffb8], a
 	ld b, $31
-	ld hl, $c973
+	ld hl, wPlayerTrail
 
 jr_007_512a:
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld [hli], a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld [hli], a
 	ldh a, [$ff93]
 	swap a
@@ -2564,35 +2568,35 @@ jr_007_512a:
 	ldh a, [$ff96]
 	or c
 	ld [hli], a
-	ldh a, [$ff8b]
+	ldh a, [hPlayerFrame]
 	ld c, a
-	ldh a, [$ff8d]
+	ldh a, [hPlayerAttr]
 	or c
 	ld [hli], a
 	dec b
 	jr nz, jr_007_512a
 
 	xor a
-	ld [$ca37], a
+	ld [wTrailPos], a
 	ld a, $01
-	ld [$c8ec], a
-	ld hl, $c8ea
+	ld [wMenuOverlay], a
+	ld hl, wGameStarted
 	set 7, [hl]
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 1, [hl]
 	ld a, $03
-	call Call_1688
-	ld hl, $c88f
+	call StartFade
+	ld hl, wMapLoadState
 	inc [hl]
 	ret
 
 
-Call_07_5160::
-	call Call_12D0
-	ld a, [$c899]
+PickRandomFloorSpot::
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $08
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -2603,14 +2607,14 @@ Call_07_5160::
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa5], a
+	ldh [hTestX], a
 	ld a, h
 	ldh [$ffa6], a
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $06
-	call Call_1DFB
+	call Divide8
 	add $01
 	swap a
 	ld h, a
@@ -2621,11 +2625,11 @@ Call_07_5160::
 	and $0f
 	ld h, a
 	ld a, l
-	ldh [$ffa7], a
+	ldh [hTestY], a
 	ld a, h
 	ldh [$ffa8], a
-	call Call_1E31
-	ldh a, [$ffaa]
+	call GetCollisionAt
+	ldh a, [hTestTile]
 	srl a
 	srl a
 	cp $0c
@@ -2634,10 +2638,10 @@ Call_07_5160::
 	cp $0d
 	ret z
 
-	jr Call_07_5160
+	jr PickRandomFloorSpot
 
-Call_07_51B1::
-	ld hl, $d793
+CheckPlayerOnFloorObject::
+	ld hl, wFloorObjects
 
 jr_007_51b4:
 	ld a, [hl]
@@ -2653,7 +2657,7 @@ jr_007_51bb:
 	jr nz, jr_007_51c5
 
 	push hl
-	call Call_07_51CB
+	call IsPlayerAtObject
 	pop hl
 	ret z
 
@@ -2664,7 +2668,7 @@ jr_007_51c5:
 	inc hl
 	jr jr_007_51b4
 
-Call_07_51CB::
+IsPlayerAtObject::
 	inc hl
 	inc hl
 	ld a, [hli]
@@ -2676,7 +2680,7 @@ Call_07_51CB::
 	ld a, b
 	and $0f
 	ld b, a
-	ldh a, [$ff92]
+	ldh a, [hPlayerX]
 	ld e, a
 	ldh a, [$ff93]
 	ld d, a
@@ -2699,7 +2703,7 @@ Call_07_51CB::
 	ld a, b
 	and $0f
 	ld b, a
-	ldh a, [$ff95]
+	ldh a, [hPlayerY]
 	ld e, a
 	ldh a, [$ff96]
 	ld d, a
@@ -2714,80 +2718,80 @@ Call_07_51CB::
 	ret
 
 
-Jump_07_5205::
-	ld a, [$c825]
+ItemCloseAfterText::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_5213::
+ItemStepIdle::
 	ret
 
 
-Jump_07_5214::
+ItemMenuEmpty::
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $0d
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9700
 	ld de, $0901
-	call Call_07_69B6
+	call MenuDrawTextTiles
 	ld de, $704d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7090
-	call Call_07_68DC
-	ld a, [$ca4b]
-	ldh [$ffd5], a
+	call DrawWindow
+	ld a, [wGold]
+	ldh [hNumber], a
 	ld a, [$ca4c]
 	ldh [$ffd6], a
 	ld a, [$ca4d]
 	ldh [$ffd7], a
 	ld hl, $002e
-	call Call_07_6880
-	call Call_1FB9
-	call Call_07_6C8F
+	call BufferAddress
+	call PrintNumber5
+	call MenuResetBlink
 	ld de, $7748
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $44b4
-	ld a, [$c8da]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wLinkChoice]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5265::
-	ld a, [$c846]
+ItemEmptyInput::
+	ld a, [wJoyPressed]
 	and $03
 	jr z, jr_007_5279
 
 	ld a, $59
-	call Call_1B2C
-	call Call_07_6A8F
+	call QueueSound
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 
 jr_007_5279:
 	ret
 
 
-Jump_07_527A::
-	ld a, [$c8dc]
+ItemAskDiscard::
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld hl, $ca51
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
@@ -2795,189 +2799,190 @@ Jump_07_527A::
 	ld h, a
 	ld l, [hl]
 	ld h, $08
-	ld de, $c190
-	call Call_097A
+	ld de, wTextArg1
+	call CopySystemText
 	ld hl, $0201
-	call Call_096D
+	call PrintSystemText
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	ld de, $2e07
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7a3c
-	call Call_07_68DC
-	call Call_07_6C8F
+	call DrawWindow
+	call MenuResetBlink
 	ld de, $5331
-	ld a, [$c8df]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wLinkRefused]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_52C5::
+ItemDiscardInput::
 	ld de, $5331
-	ld hl, $c8df
+	ld hl, wLinkRefused
 	ld b, $02
-	call Call_07_6C08
-	ld a, [$c846]
+	call MoveMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_5309
 
 jr_007_52d7:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_5330
 
 jr_007_5309:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_5330
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8df]
+	call QueueSound
+	ld a, [wLinkRefused]
 	cp $81
 	jr z, jr_007_52d7
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld de, $ca42
-	ld hl, $c180
-	call Call_0C80
+	ld de, wPlayerName
+	ld hl, wTextArg0
+	call CopyName
 	ld hl, $0202
-	call Call_096D
+	call PrintSystemText
 
 Jump_007_5330:
 jr_007_5330:
 	ret
 
 
+DiscardCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_07_5337::
-	ld a, [$c825]
+ItemDiscard::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
-	ld hl, $ca51
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $ff
-	ld hl, far_Call_03_7160
+	ld hl, far_CompactBag
 	rst $10
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_5362::
-	ld a, [$c90e]
+SkillMenu::
+	ld a, [wFieldMenuStep]
 	rst $00
 
-JumpTable_07_5366::
-	dw Jump_07_5386
-	dw Jump_07_5397
-	dw Jump_07_53E1
-	dw Jump_07_54C3
-	dw Jump_07_55DE
-	dw Jump_07_58CC
-	dw Jump_07_597F
-	dw Jump_07_5A2E
-	dw Jump_07_5A6E
-	dw Jump_07_5B6A
-	dw Jump_07_5B78
-	dw Jump_07_5B86
-	dw Jump_07_5B94
-	dw Jump_07_5BE5
-	dw Jump_07_5C34
-	dw Jump_07_5C83
+SkillMenuSteps::
+	dw SkillMenuOpen
+	dw SkillMenuDraw
+	dw SkillMonInput
+	dw SkillListShow
+	dw SkillListInput
+	dw SkillShowTargets
+	dw SkillTargetInput
+	dw SkillStartUse
+	dw SkillApply
+	dw SkillCloseAfterText
+	dw SkillShowTextWindow
+	dw SkillCloseAfterText2
+	dw SkillHealAllReport0
+	dw SkillHealAllReport1
+	dw SkillHealAllReport2
+	dw SkillHealAllApply
 
-Jump_07_5386::
-	ld a, [$c8db]
-	ld [$cac0], a
-	call Call_07_5572
-	call Call_07_5456
-	ld hl, $c90e
+SkillMenuOpen::
+	ld a, [wMenuChoice2]
+	ld [wCurPartyMember], a
+	call CountMonSkills
+	call DrawSkillListPage
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5397::
-	call Call_07_6A8F
+SkillMenuDraw::
+	call MenuClearBuffer
 	ld de, $704d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7090
-	call Call_07_68DC
-	ld a, [$ca4b]
-	ldh [$ffd5], a
+	call DrawWindow
+	ld a, [wGold]
+	ldh [hNumber], a
 	ld a, [$ca4c]
 	ldh [$ffd6], a
 	ld a, [$ca4d]
 	ldh [$ffd7], a
 	ld hl, $002e
-	call Call_07_6880
-	call Call_1FB9
+	call BufferAddress
+	call PrintNumber5
 	ld de, $76d1
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7687
-	call Call_07_68DC
-	call Call_07_6C8F
+	call DrawWindow
+	call MenuResetBlink
 	ld de, $544e
-	ld a, [$c8db]
-	call Call_07_6D4E
-	call Call_07_690D
-	call Call_07_5456
-	ld hl, $c90e
+	ld a, [wMenuChoice2]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	call DrawSkillListPage
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_53E1::
+SkillMonInput::
 	ld de, $544e
-	ld hl, $c8db
-	ld a, [$ca8d]
+	ld hl, wMenuChoice2
+	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
-	call Call_07_6C08
+	call MoveMenuCursor
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	and $7f
 	ld b, a
 	ld a, [hl]
@@ -2985,41 +2990,41 @@ Jump_07_53E1::
 	cp b
 	jr z, jr_007_5409
 
-	ld a, [$c8db]
-	ld [$cac0], a
-	call Call_07_5572
-	call Call_07_5456
+	ld a, [wMenuChoice2]
+	ld [wCurPartyMember], a
+	call CountMonSkills
+	call DrawSkillListPage
 
 jr_007_5409:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_541a
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	jr jr_007_5441
 
 jr_007_541a:
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	or a
 	jr z, jr_007_5441
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_007_5441
 
-	ld hl, $cb0b
-	ld a, [$c8db]
-	call Call_2229
+	ld hl, wMonStatus
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
 	bit 7, [hl]
 	jr nz, jr_007_5442
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8dc], a
-	ld hl, $c90e
+	ld [wConfirmChoice], a
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 jr_007_5441:
@@ -3028,54 +3033,55 @@ jr_007_5441:
 
 jr_007_5442:
 	ld hl, $0e0b
-	call Call_096D
+	call PrintSystemText
 	ld a, $0a
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
+SkillMonCursorPos::
 	db $a1, $00, $e1, $00, $21, $01, $ff, $ff
 
-Call_07_5456::
-	ld a, [$c90f]
+DrawSkillListPage::
+	ld a, [wMenuCount]
 	or a
-	jr nz, Call_07_549F
+	jr nz, DrawSkillPage
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $0d
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8800
 	ld de, $0901
-	call Call_07_69B6
+	call MenuDrawTextTiles
 	ld hl, $8890
 	ld b, $48
-	call Call_07_5492
+	call ClearTextTiles
 	ld b, $48
-	call Call_07_5492
+	call ClearTextTiles
 	ld b, $48
-	call Call_07_5492
+	call ClearTextTiles
 	ld b, $48
-	call Call_07_5492
+	call ClearTextTiles
 	ld b, $48
-	call Call_07_5492
+	call ClearTextTiles
 	ld b, $48
-	call Call_07_5492
+	call ClearTextTiles
 	ld b, $48
 
-Call_07_5492::
+ClearTextTiles::
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
-	jr nz, Call_07_5492
+	jr nz, ClearTextTiles
 
 	ret
 
 
-Call_07_549F::
-	ld a, [$c8dd]
+DrawSkillPage::
+	ld a, [wConfirmChoice2]
 	cp $00
 	jr z, jr_007_54ab
 
@@ -3083,49 +3089,49 @@ Call_07_549F::
 	jr jr_007_54ae
 
 jr_007_54ab:
-	ld hl, $caea
+	ld hl, wMonSkills
 
 jr_007_54ae:
-	call Call_07_6DA8
+	call GetViewedMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $8800
-	call Call_07_488E
-	call Call_07_488E
-	call Call_07_488E
-	call Call_07_488E
+	call DrawSkillName
+	call DrawSkillName
+	call DrawSkillName
+	call DrawSkillName
 	ret
 
 
-Jump_07_54C3::
-	call Call_07_5504
+SkillListShow::
+	call DrawSkillDescription
 	ld de, $7844
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $78d9
-	call Call_07_68DC
-	call Call_07_558D
-	ld hl, $cb15
-	ld a, [$c8db]
-	call Call_224F
+	call DrawWindow
+	call DrawSkillMPCost
+	ld hl, wMonMP
+	ld a, [wMenuChoice2]
+	call GetPartyMonsterWord
 	ld hl, $0125
-	call Call_07_6880
-	call Call_2071
-	call Call_07_6C8F
+	call BufferAddress
+	call PrintNumber3
+	call MenuResetBlink
 	ld de, $56a4
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	ld b, $04
-	ld hl, $c8dc
-	ld a, [$c90f]
+	ld hl, wConfirmChoice
+	ld a, [wMenuCount]
 	ld c, a
-	call Call_07_6D2C
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawListMarks
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_5504::
-	ld a, [$c8dd]
+DrawSkillDescription::
+	ld a, [wConfirmChoice2]
 	cp $00
 	jr z, jr_007_5510
 
@@ -3133,12 +3139,12 @@ Call_07_5504::
 	jr jr_007_5513
 
 jr_007_5510:
-	ld hl, $caea
+	ld hl, wMonSkills
 
 jr_007_5513:
-	ld a, [$c8db]
-	call Call_2229
-	ld a, [$c8dc]
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
+	ld a, [wConfirmChoice]
 	and $7f
 	add l
 	ld l, a
@@ -3152,48 +3158,48 @@ jr_007_5513:
 	ld a, $0f
 
 jr_007_552b:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $01
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $94a0
 	ld de, $1203
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld hl, far_Call_56_490F
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_07_5572::
-	ld hl, $caea
-	ld a, [$c8db]
-	call Call_2229
+CountMonSkills::
+	ld hl, wMonSkills
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
 	ld b, $08
 	ld c, $00
 
@@ -3208,12 +3214,12 @@ jr_007_557f:
 
 jr_007_5588:
 	ld a, c
-	ld [$c90f], a
+	ld [wMenuCount], a
 	ret
 
 
-Call_07_558D::
-	ld a, [$c8dd]
+DrawSkillMPCost::
+	ld a, [wConfirmChoice2]
 	cp $00
 	jr z, jr_007_5599
 
@@ -3221,12 +3227,12 @@ Call_07_558D::
 	jr jr_007_559c
 
 jr_007_5599:
-	ld hl, $caea
+	ld hl, wMonSkills
 
 jr_007_559c:
-	ld a, [$c8db]
-	call Call_2229
-	ld a, [$c8dc]
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
+	ld a, [wConfirmChoice]
 	and $7f
 	add l
 	ld l, a
@@ -3235,7 +3241,7 @@ jr_007_559c:
 	ld h, a
 	ld e, [hl]
 	ld d, $00
-	call Call_07_56E8
+	call GetSkillMPCost
 	ld c, e
 	ld b, d
 	ld a, e
@@ -3249,25 +3255,25 @@ jr_007_559c:
 	jr z, jr_007_55cb
 
 	ld hl, $0121
-	call Call_07_6880
-	call Call_2071
+	call BufferAddress
+	call PrintNumber3
 	ret
 
 
 jr_007_55cb:
-	ld hl, $cb15
-	ld a, [$c8db]
-	call Call_224F
+	ld hl, wMonMP
+	ld a, [wMenuChoice2]
+	call GetPartyMonsterWord
 	ld hl, $0121
-	call Call_07_6880
-	call Call_2071
+	call BufferAddress
+	call PrintNumber3
 	ret
 
 
-Jump_07_55DE::
+SkillListInput::
 	ld de, $56a4
-	ld hl, $c8dc
-	ld a, [$c90f]
+	ld hl, wConfirmChoice
+	ld a, [wMenuCount]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -3275,9 +3281,9 @@ Jump_07_55DE::
 	push af
 	ld a, [hl]
 	push af
-	call Call_07_6B7F
+	call MoveListCursor
 	pop af
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	and $7f
 	ld b, a
 	ld a, [hl]
@@ -3285,55 +3291,55 @@ Jump_07_55DE::
 	cp b
 	jr z, jr_007_5608
 
-	call Call_07_558D
-	call Call_07_690D
-	call Call_07_5504
+	call DrawSkillMPCost
+	call MenuShowBuffer
+	call DrawSkillDescription
 
 jr_007_5608:
 	pop af
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	cp [hl]
 	jr z, jr_007_561b
 
-	call Call_07_549F
-	call Call_07_558D
-	call Call_07_690D
-	call Call_07_5504
+	call DrawSkillPage
+	call DrawSkillMPCost
+	call MenuShowBuffer
+	call DrawSkillDescription
 
 jr_007_561b:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_5635
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	xor a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	jp Jump_007_56a3
 
 
 jr_007_5635:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_56a3
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $caea
-	ld a, [$c8db]
-	call Call_2229
-	ld a, [$c8dd]
+	ld hl, wMonSkills
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
+	ld a, [wConfirmChoice2]
 	and $7f
 	add a
 	add a
 	ld b, a
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	and $7f
 	add b
 	add l
@@ -3342,7 +3348,7 @@ jr_007_5635:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$da5e], a
+	ld [wItemId], a
 	cp $2b
 	jr z, jr_007_56a3
 
@@ -3380,9 +3386,9 @@ jr_007_5635:
 	jr z, jr_007_56a3
 
 	ld hl, $0e0a
-	call Call_096D
+	call PrintSystemText
 	ld a, $0a
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
@@ -3391,19 +3397,23 @@ jr_007_56a3:
 	ret
 
 
-	db $51, $01, $69, $00, $a9, $00, $e9, $00, $29, $01, $ff, $ff, $21, $50, $01, $cd
+SkillListCursorPos::
+	db $51, $01, $69, $00, $a9, $00, $e9, $00, $29, $01, $ff, $ff
+
+UnusedDrawSkillPageMark::
+	db $21, $50, $01, $cd
 	db $89, $68, $fa, $dd, $c8, $e6, $01, $c6, $f1, $cd, $ad, $1a, $f5, $21, $50, $01
 	db $7d, $c6, $00, $6f, $7c, $ce, $c5, $67, $f1, $77, $21, $51, $01, $cd, $89, $68
 	db $3e, $e7, $cd, $ad, $1a, $f5, $21, $51, $01, $7d, $c6, $00, $6f, $7c, $ce, $c5
 	db $67, $f1, $77, $c9
 
-Call_07_56E8::
+GetSkillMPCost::
 	ld a, e
 	cp $70
 	jr nz, jr_007_56fd
 
-	ld hl, $cacc
-	call Call_07_6DBA
+	ld hl, wMonGender
+	call GetViewedMonsterByte
 	and $01
 	cp $00
 	jr nz, jr_007_56fd
@@ -3429,6 +3439,7 @@ jr_007_56fd:
 	ret
 
 
+SkillMPCosts::
 	db $02, $00, $04, $00, $0a, $00, $04, $00, $06, $00, $0a, $00, $05, $00, $08, $00
 	db $0f, $00, $02, $00, $04, $00, $08, $00, $03, $00, $05, $00, $0c, $00, $05, $00
 	db $0a, $00, $0f, $00, $04, $00, $07, $00, $01, $00, $03, $00, $05, $00, $03, $00
@@ -3458,8 +3469,8 @@ jr_007_56fd:
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $09, $00, $03, $00, $03, $00
 	db $03, $00, $14, $00, $05, $00, $00, $00, $02, $00, $02, $00, $00, $00, $00, $00
 
-Jump_07_58CC::
-	ld a, [$da5e]
+SkillShowTargets::
+	ld a, [wItemId]
 	cp $2b
 	jr z, jr_007_58f4
 
@@ -3481,94 +3492,95 @@ Jump_07_58CC::
 	cp $36
 	jr z, jr_007_58f4
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
 jr_007_58f4:
 	ld de, $76d1
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $790d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7957
-	call Call_07_68DC
-	call Call_07_59DE
-	call Call_07_6C8F
+	call DrawWindow
+	call DrawSkillTargetHP
+	call MenuResetBlink
 	ld de, $544e
-	ld a, [$c8dd]
-	call Call_07_6D4E
+	ld a, [wConfirmChoice2]
+	call MenuDrawCursorAt
 	ld de, $56a4
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	ld b, $04
-	ld hl, $c8dc
-	ld a, [$c90f]
+	ld hl, wConfirmChoice
+	ld a, [wMenuCount]
 	ld c, a
-	call Call_07_6D2C
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawListMarks
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
+UnusedDrawTargetHP::
 	db $21, $11, $cb, $fa, $dd, $c8, $cd, $4f, $22, $21, $01, $02, $cd, $80, $68, $cd
 	db $71, $20, $21, $13, $cb, $fa, $dd, $c8, $cd, $4f, $22, $21, $05, $02, $cd, $80
 	db $68, $cd, $71, $20, $21, $0b, $cb, $fa, $dd, $c8, $cd, $4a, $22, $47, $21, $c5
 	db $01, $cd, $80, $68, $cb, $40, $3e, $e0, $28, $02, $3e, $d7, $22, $cb, $50, $3e
 	db $e0, $28, $02, $3e, $d8, $22, $cb, $78, $3e, $e0, $28, $02, $3e, $d9, $77, $c9
 
-Jump_07_597F::
+SkillTargetInput::
 	ld de, $544e
-	ld hl, $c8de
-	ld a, [$ca8d]
+	ld hl, wMenuChoice3
+	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
-	call Call_07_6C08
+	call MoveMenuCursor
 	pop af
 	and $7f
 	ld b, a
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld a, [hl]
 	and $7f
 	cp b
 	jr z, jr_007_59a1
 
-	call Call_07_59DE
-	call Call_07_690D
+	call DrawSkillTargetHP
+	call MenuShowBuffer
 
 jr_007_59a1:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_59b6
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_59dd
 
 jr_007_59b6:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_59dd
 
-	ld a, [$c8de]
+	ld a, [wMenuChoice3]
 	and $7f
-	ld [$da60], a
-	ld hl, $cac2
-	call Call_2229
+	ld [wItemTarget], a
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_59dd:
@@ -3576,25 +3588,25 @@ jr_007_59dd:
 	ret
 
 
-Call_07_59DE::
-	ld hl, $cb11
-	ld a, [$c8de]
-	call Call_224F
+DrawSkillTargetHP::
+	ld hl, wMonHP
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterWord
 	ld hl, $0201
-	call Call_07_6880
-	call Call_2071
-	ld hl, $cb13
-	ld a, [$c8de]
-	call Call_224F
+	call BufferAddress
+	call PrintNumber3
+	ld hl, wMonMaxHP
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterWord
 	ld hl, $0205
-	call Call_07_6880
-	call Call_2071
-	ld hl, $cb0b
-	ld a, [$c8de]
-	call Call_224A
+	call BufferAddress
+	call PrintNumber3
+	ld hl, wMonStatus
+	ld a, [wMenuChoice3]
+	call GetPartyMonsterByte
 	ld b, a
 	ld hl, $01c5
-	call Call_07_6880
+	call BufferAddress
 	bit 0, b
 	ld a, $e0
 	jr z, jr_007_5a1a
@@ -3622,44 +3634,44 @@ jr_007_5a2c:
 	ret
 
 
-Jump_07_5A2E::
-	ld hl, $cac2
-	ld a, [$c8db]
-	call Call_2229
+SkillStartUse::
+	ld hl, wMonName
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	ld a, [$da5e]
+	ld hl, wTextArg0
+	call CopyName
+	ld a, [wItemId]
 	ld l, a
 	ld h, $06
-	ld de, $c1a0
-	call Call_097A
+	ld de, wTextArg2
+	call CopySystemText
 	ld hl, $0e00
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $7e
 	jr nz, jr_007_5a58
 
 	ld hl, $0e09
 
 jr_007_5a58:
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ld a, $65
-	call Call_1B2C
+	call QueueSound
 	ret
 
 
-Jump_07_5A6E::
-	ld a, [$c825]
+SkillApply::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	cp $00
 	jr z, jr_007_5a7f
 
@@ -3667,12 +3679,12 @@ Jump_07_5A6E::
 	jr jr_007_5a82
 
 jr_007_5a7f:
-	ld hl, $caea
+	ld hl, wMonSkills
 
 jr_007_5a82:
-	ld a, [$c8db]
-	call Call_2229
-	ld a, [$c8dc]
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
+	ld a, [wConfirmChoice]
 	and $7f
 	add l
 	ld l, a
@@ -3692,9 +3704,9 @@ jr_007_5a82:
 	inc hl
 	ld b, [hl]
 	push bc
-	ld hl, $cb15
-	ld a, [$c8db]
-	call Call_2229
+	ld hl, wMonMP
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
 	pop bc
 	ld a, [hli]
 	sub c
@@ -3703,17 +3715,17 @@ jr_007_5a82:
 	ld hl, $0e02
 	jp c, Jump_007_5b16
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	push af
-	ld hl, far_Call_14_7BAC
+	ld hl, far_CheckFieldItemUse
 	rst $10
 	pop bc
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $ff
 	ld a, b
 	jr z, jr_007_5b0c
 
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $2e
 	jr z, jr_007_5b06
 
@@ -3747,18 +3759,18 @@ jr_007_5a82:
 	ld hl, $0e03
 
 jr_007_5afb:
-	call Call_096D
+	call PrintSystemText
 
 jr_007_5afe:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
-	call Call_07_5B1E
+	call PaySkillMP
 	ret
 
 
 jr_007_5b06:
 	ld a, $0c
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
@@ -3771,19 +3783,19 @@ jr_007_5b0c:
 
 Jump_007_5b16:
 jr_007_5b16:
-	call Call_096D
-	ld hl, $c90e
+	call PrintSystemText
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_5B1E::
-	ld hl, far_Call_14_7D12
+PaySkillMP::
+	ld hl, far_UseFieldItem
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	call Call_2518
-	ld a, [$c8dd]
+	call BuildStatusBar
+	ld a, [wConfirmChoice2]
 	cp $00
 	jr z, jr_007_5b35
 
@@ -3791,12 +3803,12 @@ Call_07_5B1E::
 	jr jr_007_5b38
 
 jr_007_5b35:
-	ld hl, $caea
+	ld hl, wMonSkills
 
 jr_007_5b38:
-	ld a, [$c8db]
-	call Call_2229
-	ld a, [$c8dc]
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
+	ld a, [wConfirmChoice]
 	and $7f
 	add l
 	ld l, a
@@ -3816,9 +3828,9 @@ jr_007_5b38:
 	inc hl
 	ld b, [hl]
 	push bc
-	ld hl, $cb15
-	ld a, [$c8db]
-	call Call_2229
+	ld hl, wMonMP
+	ld a, [wMenuChoice2]
+	call PartyMonsterField
 	pop bc
 	ld a, [hl]
 	sub c
@@ -3829,55 +3841,55 @@ jr_007_5b38:
 	ret
 
 
-Jump_07_5B6A::
-	ld a, [$c825]
+SkillCloseAfterText::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_5B78::
+SkillShowTextWindow::
 	ld de, $2e07
-	call Call_07_68DC
-	call Call_07_690D
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5B86::
-	ld a, [$c825]
+SkillCloseAfterText2::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_5B94::
-	ld a, [$c825]
+SkillHealAllReport0::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $cb0b
+	ld hl, wMonStatus
 	ld a, $00
-	call Call_2229
+	call PartyMonsterField
 	bit 7, [hl]
 	jr nz, jr_007_5be0
 
 	ld a, $00
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $00
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -3889,27 +3901,27 @@ Jump_07_5B94::
 	or l
 	jr z, jr_007_5be0
 
-	ld hl, $cac2
+	ld hl, wMonName
 	ld a, $00
-	call Call_2229
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	ld hl, $0e03
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
-	call Call_07_68DC
-	call Call_07_690D
+	call DrawWindow
+	call MenuShowBuffer
 
 jr_007_5be0:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5BE5::
-	ld a, [$c825]
+SkillHealAllReport1::
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -3917,19 +3929,19 @@ Jump_07_5BE5::
 	cp $ff
 	jr z, jr_007_5c2f
 
-	ld hl, $cb0b
+	ld hl, wMonStatus
 	ld a, $01
-	call Call_2229
+	call PartyMonsterField
 	bit 7, [hl]
 	jr nz, jr_007_5c2f
 
 	ld a, $01
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $01
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -3941,24 +3953,24 @@ Jump_07_5BE5::
 	or l
 	jr z, jr_007_5c2f
 
-	ld hl, $cac2
+	ld hl, wMonName
 	ld a, $01
-	call Call_2229
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	ld hl, $0e03
-	call Call_096D
+	call PrintSystemText
 
 jr_007_5c2f:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5C34::
-	ld a, [$c825]
+SkillHealAllReport2::
+	ld a, [wTextState]
 	or a
 	ret nz
 
@@ -3966,19 +3978,19 @@ Jump_07_5C34::
 	cp $ff
 	jr z, jr_007_5c7e
 
-	ld hl, $cb0b
+	ld hl, wMonStatus
 	ld a, $02
-	call Call_2229
+	call PartyMonsterField
 	bit 7, [hl]
 	jr nz, jr_007_5c7e
 
 	ld a, $02
-	ld hl, $cb13
-	call Call_224F
+	ld hl, wMonMaxHP
+	call GetPartyMonsterWord
 	push bc
 	ld a, $02
-	ld hl, $cb11
-	call Call_224F
+	ld hl, wMonHP
+	call GetPartyMonsterWord
 	pop hl
 	ld a, l
 	sub c
@@ -3990,105 +4002,105 @@ Jump_07_5C34::
 	or l
 	jr z, jr_007_5c7e
 
-	ld hl, $cac2
+	ld hl, wMonName
 	ld a, $02
-	call Call_2229
+	call PartyMonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	ld hl, $0e03
-	call Call_096D
+	call PrintSystemText
 
 jr_007_5c7e:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5C83::
-	ld a, [$c825]
+SkillHealAllApply::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_07_5B1E
-	call Call_07_6A8F
+	call PaySkillMP
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_5C94::
-	ld a, [$c90e]
+OptionMenu::
+	ld a, [wFieldMenuStep]
 	rst $00
 
-JumpTable_07_5C98::
-	dw Jump_07_5CB0
-	dw Jump_07_5CFA
-	dw Jump_07_5D4D
-	dw Jump_07_5D6D
-	dw Jump_07_5DBD
-	dw Jump_07_5EDD
-	dw Jump_07_605B
-	dw Jump_07_62DB
-	dw Jump_07_6336
-	dw Jump_07_6341
-	dw Jump_07_634F
-	dw Jump_07_63C3
+OptionMenuSteps::
+	dw OptionMenuDraw
+	dw OptionMenuInput
+	dw MessageSpeedShow
+	dw MessageSpeedInput
+	dw LineUpShow
+	dw LineUpInput
+	dw SaveShow
+	dw SaveInput
+	dw SaveDone
+	dw OptionCloseAfterText
+	dw TacticsStart
+	dw TacticsInput
 
-Jump_07_5CB0::
+OptionMenuDraw::
 	ld de, $2e0d
 	ld hl, $9000
-	call Call_1577
-	call Call_07_6A8F
+	call DecompressVRAM
+	call MenuClearBuffer
 	ld de, $704d
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7090
-	call Call_07_68DC
-	ld a, [$ca4b]
-	ldh [$ffd5], a
+	call DrawWindow
+	ld a, [wGold]
+	ldh [hNumber], a
 	ld a, [$ca4c]
 	ldh [$ffd6], a
 	ld a, [$ca4d]
 	ldh [$ffd7], a
 	ld hl, $002e
-	call Call_07_6880
-	call Call_1FB9
+	call BufferAddress
+	call PrintNumber5
 	ld de, $7a61
-	call Call_07_68DC
-	call Call_07_6C8F
+	call DrawWindow
+	call MenuResetBlink
 	ld de, $5d43
-	ld a, [$c8db]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wMenuChoice2]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5CFA::
+OptionMenuInput::
 	ld de, $5d43
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	ld b, $04
-	call Call_07_6C08
-	ld a, [$c846]
+	call MoveMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_5d16
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	jr jr_007_5d42
 
 jr_007_5d16:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_5d42
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	ld b, $02
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	cp $80
 	jr z, jr_007_5d3e
 
@@ -4101,65 +4113,66 @@ jr_007_5d16:
 	jr z, jr_007_5d3e
 
 	xor a
-	ld [$c8e0], a
+	ld [wLinkPartnerChoice], a
 	ld b, $0a
 
 jr_007_5d3e:
 	ld a, b
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 
 Jump_007_5d42:
 jr_007_5d42:
 	ret
 
 
+OptionCursorPos::
 	db $66, $00, $a6, $00, $e6, $00, $26, $01, $ff, $ff
 
-Jump_07_5D4D::
+MessageSpeedShow::
 	ld de, $7ae7
-	call Call_07_68DC
-	call Call_07_6C8F
+	call DrawWindow
+	call MenuResetBlink
 	ld de, $5dab
 	ld a, [$c8ee]
-	ld [$c8dc], a
-	ld a, [$c8dc]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld [wConfirmChoice], a
+	ld a, [wConfirmChoice]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_5D6D::
+MessageSpeedInput::
 	ld de, $5dab
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $08
-	call Call_07_6C6D
-	ld a, [$c846]
+	call MoveMenuCursorSideways
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_5d8d
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_5daa
 
 jr_007_5d8d:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_5daa
 
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	and $7f
 	ld [$c8ee], a
 	ld a, $59
-	call Call_1B2C
-	call Call_07_6A8F
+	call QueueSound
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 
 Jump_007_5daa:
 jr_007_5daa:
@@ -4169,13 +4182,13 @@ jr_007_5daa:
 	db $c3, $01, $c5, $01, $c7, $01, $c9, $01, $cb, $01, $cd, $01, $cf, $01, $d1, $01
 	db $ff, $ff
 
-Jump_07_5DBD::
-	call Call_07_4469
+LineUpShow::
+	call MenuLoadPartyNames
 	ld b, $00
 	ld a, $00
 	push bc
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	pop bc
 	bit 7, a
 	jr nz, jr_007_5dd1
@@ -4183,14 +4196,14 @@ Jump_07_5DBD::
 	inc b
 
 jr_007_5dd1:
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $01
 	jr z, jr_007_5dfd
 
 	ld a, $01
 	push bc
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	pop bc
 	bit 7, a
 	jr nz, jr_007_5de7
@@ -4198,14 +4211,14 @@ jr_007_5dd1:
 	inc b
 
 jr_007_5de7:
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $02
 	jr z, jr_007_5dfd
 
 	ld a, $02
 	push bc
-	ld hl, $cb0b
-	call Call_224A
+	ld hl, wMonStatus
+	call GetPartyMonsterByte
 	pop bc
 	bit 7, a
 	jr nz, jr_007_5dfd
@@ -4214,12 +4227,12 @@ jr_007_5de7:
 
 jr_007_5dfd:
 	ld a, b
-	ld [$c90f], a
-	ld hl, $c0a0
+	ld [wMenuCount], a
+	ld hl, wNumberBackup
 	ld a, $00
 	ld [hli], a
 	ld b, $ff
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	cp $02
 	jr c, jr_007_5e12
 
@@ -4229,7 +4242,7 @@ jr_007_5e12:
 	ld [hl], b
 	inc hl
 	ld b, $ff
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	cp $03
 	jr c, jr_007_5e1f
 
@@ -4245,24 +4258,24 @@ jr_007_5e1f:
 	ld a, $ff
 	ld [hli], a
 	xor a
-	ld [$c913], a
+	ld [wLineUpPlaced], a
 	ld de, $7b48
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7b89
-	call Call_07_68DC
-	call Call_07_5E51
-	call Call_07_6C8F
+	call DrawWindow
+	call DrawLineUp
+	call MenuResetBlink
 	ld de, $6045
-	ld a, [$c8dd]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wConfirmChoice2]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_5E51::
-	ld a, [$c0a0]
+DrawLineUp::
+	ld a, [wNumberBackup]
 	cp $ff
 	jr z, jr_007_5e61
 
@@ -4274,7 +4287,7 @@ Call_07_5E51::
 
 jr_007_5e61:
 	ld a, [$c0a1]
-	ld [$c0a0], a
+	ld [wNumberBackup], a
 
 jr_007_5e67:
 	ld a, [$c0a2]
@@ -4284,39 +4297,39 @@ jr_007_5e67:
 
 jr_007_5e72:
 	ld hl, $c685
-	ld a, [$c0a0]
+	ld a, [wNumberBackup]
 	add $f1
 	ld b, a
-	ld a, [$c0a0]
-	call Call_07_5EC1
+	ld a, [wNumberBackup]
+	call DrawLineUpEntry
 	ld hl, $c6c5
 	ld a, [$c0a1]
 	add $f1
 	ld b, a
 	ld a, [$c0a1]
-	call Call_07_5EC1
+	call DrawLineUpEntry
 	ld hl, $c705
 	ld a, [$c0a2]
 	add $f1
 	ld b, a
 	ld a, [$c0a2]
-	call Call_07_5EC1
+	call DrawLineUpEntry
 	ld hl, $c68d
 	ld b, $f1
-	ld a, [$c0a3]
-	call Call_07_5EC1
+	ld a, [wLineUpOrder]
+	call DrawLineUpEntry
 	ld hl, $c6cd
 	ld b, $f2
 	ld a, [$c0a4]
-	call Call_07_5EC1
+	call DrawLineUpEntry
 	ld hl, $c70d
 	ld b, $f3
 	ld a, [$c0a5]
-	call Call_07_5EC1
+	call DrawLineUpEntry
 	ret
 
 
-Call_07_5EC1::
+DrawLineUpEntry::
 	cp $ff
 	jr z, jr_007_5ed4
 
@@ -4347,36 +4360,36 @@ jr_007_5ed4:
 	ret
 
 
-Jump_07_5EDD::
-	ld a, [$c90f]
+LineUpInput::
+	ld a, [wMenuCount]
 	ld c, a
-	ld a, [$c913]
+	ld a, [wLineUpPlaced]
 	cp c
 	jr z, jr_007_5ef7
 
 	ld de, $6045
-	ld hl, $c8dd
-	ld a, [$c913]
+	ld hl, wConfirmChoice2
+	ld a, [wLineUpPlaced]
 	ld b, a
 	ld a, c
 	sub b
 	ld b, a
-	call Call_07_6C08
+	call MoveMenuCursor
 
 jr_007_5ef7:
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	and $7f
-	ld [$c8dd], a
-	ld a, [$c846]
+	ld [wConfirmChoice2], a
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_5f64
 
-	ld a, [$c913]
+	ld a, [wLineUpPlaced]
 	cp $00
 	jr z, jr_007_5f4d
 
 	dec a
-	ld hl, $c0a3
+	ld hl, wLineUpOrder
 	add l
 	ld l, a
 	ld a, $00
@@ -4385,23 +4398,23 @@ jr_007_5ef7:
 	ld a, [hl]
 	ld [hl], $ff
 	ld [$c0a2], a
-	ld hl, $c0a0
-	call Call_07_5F45
-	call Call_07_5F45
-	ld hl, $c0a0
-	call Call_07_5F45
-	call Call_07_5F45
-	ld hl, $c0a0
-	call Call_07_5F45
-	call Call_07_5F45
-	call Call_07_5E51
-	call Call_07_690D
-	ld hl, $c913
+	ld hl, wNumberBackup
+	call SortStep
+	call SortStep
+	ld hl, wNumberBackup
+	call SortStep
+	call SortStep
+	ld hl, wNumberBackup
+	call SortStep
+	call SortStep
+	call DrawLineUp
+	call MenuShowBuffer
+	ld hl, wLineUpPlaced
 	dec [hl]
 	jp Jump_007_6044
 
 
-Call_07_5F45::
+SortStep::
 	ld a, [hli]
 	ld b, [hl]
 	cp b
@@ -4414,40 +4427,40 @@ Call_07_5F45::
 
 
 jr_007_5f4d:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jp Jump_007_6044
 
 
 jr_007_5f64:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_6044
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c90f]
+	call QueueSound
+	ld a, [wMenuCount]
 	ld c, a
-	ld a, [$c913]
+	ld a, [wLineUpPlaced]
 	cp c
 	jr z, jr_007_5fc9
 
-	ld hl, $c0a3
+	ld hl, wLineUpOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c8dd]
-	ld de, $c0a0
+	ld a, [wConfirmChoice2]
+	ld de, wNumberBackup
 	add e
 	ld e, a
 	ld a, $00
@@ -4457,15 +4470,15 @@ jr_007_5f64:
 	ld [hl], a
 	ld a, $ff
 	ld [de], a
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	ld c, a
 	dec c
-	ld a, [$c913]
+	ld a, [wLineUpPlaced]
 	cp c
 	jr nz, jr_007_5fa8
 
 	ld de, $7b48
-	call Call_07_68DC
+	call DrawWindow
 	jr jr_007_5fbc
 
 jr_007_5fa8:
@@ -4473,42 +4486,42 @@ jr_007_5fa8:
 	ld a, c
 	sub b
 	ld b, a
-	ld a, [$c8dd]
+	ld a, [wConfirmChoice2]
 	cp b
 	jr c, jr_007_5fbc
 
 	dec a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ld de, $6045
-	call Call_07_6CA9
+	call MenuDrawCursorMarks
 
 jr_007_5fbc:
-	call Call_07_5E51
-	call Call_07_690D
-	ld hl, $c913
+	call DrawLineUp
+	call MenuShowBuffer
+	ld hl, wLineUpPlaced
 	inc [hl]
 	jp Jump_007_6044
 
 
 jr_007_5fc9:
-	ld a, [$c0a3]
-	call Call_07_604D
-	ld [$c0a0], a
+	ld a, [wLineUpOrder]
+	call LineUpGetSlot
+	ld [wNumberBackup], a
 	ld a, [$c0a4]
-	call Call_07_604D
+	call LineUpGetSlot
 	ld [$c0a1], a
 	ld a, [$c0a5]
-	call Call_07_604D
+	call LineUpGetSlot
 	ld [$c0a2], a
-	ld a, [$c0a0]
-	ld [$ca8e], a
-	ld a, [$c90f]
+	ld a, [wNumberBackup]
+	ld [wParty], a
+	ld a, [wMenuCount]
 	cp $01
 	jr z, jr_007_6004
 
 	ld a, [$c0a1]
 	ld [$ca8f], a
-	ld a, [$c90f]
+	ld a, [wMenuCount]
 	cp $02
 	jr z, jr_007_6004
 
@@ -4516,21 +4529,21 @@ jr_007_5fc9:
 	ld [$ca90], a
 
 jr_007_6004:
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
-	ld a, [$c969]
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_007_6039
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $06
 	jr nz, jr_007_6039
 
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	or a
 	jr nz, jr_007_6039
 
-	ld a, [$ca91]
+	ld a, [wPartyGfx]
 	cp $ff
 	jr z, jr_007_6022
 
@@ -4550,10 +4563,10 @@ jr_007_6036:
 	ld [$d843], a
 
 jr_007_6039:
-	call Call_2518
-	call Call_07_6A8F
+	call BuildStatusBar
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 
 Jump_007_6044:
 	ret
@@ -4561,11 +4574,11 @@ Jump_007_6044:
 
 	db $86, $01, $c6, $01, $06, $02, $ff, $ff
 
-Call_07_604D::
+LineUpGetSlot::
 	cp $ff
 	ret z
 
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -4575,12 +4588,12 @@ Call_07_604D::
 	ret
 
 
-Jump_07_605B::
-	ld a, [$c969]
+SaveShow::
+	ld a, [wOnGateFloor]
 	or a
 	jr nz, jr_007_6090
 
-	ld a, [$c968]
+	ld a, [wMapId]
 	cp $60
 	jr z, jr_007_6090
 
@@ -4616,51 +4629,51 @@ Jump_07_605B::
 
 jr_007_6090:
 	ld hl, $0243
-	call Call_096D
+	call PrintSystemText
 	ld de, $2e07
-	call Call_07_68DC
-	call Call_07_690D
+	call DrawWindow
+	call MenuShowBuffer
 	ld a, $09
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
 jr_007_60a5:
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	ld de, $7bca
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7c44
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $2e07
-	call Call_07_68DC
-	ld hl, $a002
-	call Call_20EE
+	call DrawWindow
+	ld hl, sSaveValid
+	call ReadSRAMByte
 	or a
 	jr nz, jr_007_6122
 
 	ld hl, $0021
-	call Call_07_6880
+	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
-	call Call_12C7
+	call FillMemory
 	ld hl, $0041
-	call Call_07_6880
+	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
-	call Call_12C7
+	call FillMemory
 	ld hl, $0061
-	call Call_07_6880
+	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
-	call Call_12C7
+	call FillMemory
 	ld hl, $0081
-	call Call_07_6880
+	call BufferAddress
 	ld bc, $0011
 	ld a, $e0
-	call Call_12C7
+	call FillMemory
 	ld hl, $0044
-	call Call_07_6880
+	call BufferAddress
 	ld b, $0a
 	ld a, $40
 
@@ -4671,12 +4684,12 @@ jr_007_6107:
 	jr nz, jr_007_6107
 
 	ld a, $31
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $9400
 	ld de, $0a01
-	call Call_07_69B6
+	call MenuDrawTextTiles
 	jp Jump_007_61de
 
 
@@ -4684,183 +4697,183 @@ jr_007_6122:
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld de, $a17c
+	ld de, sPlayerName
 	ld hl, $93c0
-	call Call_07_69EF
+	call MenuDrawNameTiles
 	ei
-	call Call_07_61FD
-	ld hl, $a1c7
-	call Call_20EE
+	call DrawSaveParty
+	ld hl, sPartyCount
+	call ReadSRAMByte
 	or a
 	jr z, jr_007_61a8
 
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a246
-	ld a, [$a1c8]
-	call Call_223B
+	ld hl, sSavedMonLevel
+	ld a, [sParty]
+	call MonsterField
 	ld c, [hl]
 	ei
 	ld b, $00
 	ld hl, $0084
-	call Call_07_6880
-	call Call_2082
-	ld hl, $a1c7
-	call Call_20EE
+	call BufferAddress
+	call PrintNumber2
+	ld hl, sPartyCount
+	call ReadSRAMByte
 	cp $01
 	jr z, jr_007_61ae
 
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a246
+	ld hl, sSavedMonLevel
 	ld a, [$a1c9]
-	call Call_223B
+	call MonsterField
 	ld c, [hl]
 	ei
 	ld b, $00
 	ld hl, $008a
-	call Call_07_6880
-	call Call_2082
-	ld hl, $a1c7
-	call Call_20EE
+	call BufferAddress
+	call PrintNumber2
+	ld hl, sPartyCount
+	call ReadSRAMByte
 	cp $02
 	jr z, jr_007_61b4
 
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a246
+	ld hl, sSavedMonLevel
 	ld a, [$a1ca]
-	call Call_223B
+	call MonsterField
 	ld c, [hl]
 	ei
 	ld b, $00
 	ld hl, $0090
-	call Call_07_6880
-	call Call_2082
+	call BufferAddress
+	call PrintNumber2
 	jr jr_007_61ba
 
 jr_007_61a8:
 	ld hl, $0061
-	call Call_07_62BF
+	call ClearSaveMemberLevel
 
 jr_007_61ae:
 	ld hl, $0067
-	call Call_07_62BF
+	call ClearSaveMemberLevel
 
 jr_007_61b4:
 	ld hl, $006d
-	call Call_07_62BF
+	call ClearSaveMemberLevel
 
 jr_007_61ba:
-	ld hl, $a1f2
-	call Call_20EE
+	ld hl, sPlayHours
+	call ReadSRAMByte
 	ld c, a
 	ld b, $00
 	ld hl, $002d
-	call Call_07_6880
-	call Call_20AD
-	ld hl, $a1f1
-	call Call_20EE
+	call BufferAddress
+	call PrintNumber2Zeros
+	ld hl, sPlayMinutes
+	call ReadSRAMByte
 	ld c, a
 	ld b, $00
 	ld hl, $0030
-	call Call_07_6880
-	call Call_20AD
+	call BufferAddress
+	call PrintNumber2Zeros
 
 Jump_007_61de:
 	ld a, $00
 	ld [$0100], a
 	ld hl, $0207
-	call Call_096D
-	call Call_07_6C8F
+	call PrintSystemText
+	call MenuResetBlink
 	ld de, $6330
-	ld a, [$c8de]
-	call Call_07_6D4E
-	call Call_07_690D
-	ld hl, $c90e
+	ld a, [wMenuChoice3]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Call_07_61FD::
+DrawSaveParty::
 	ld hl, $8da0
 	ld b, $18
-	call Call_07_6264
+	call ClearTextTiles2
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a1fc
-	ld a, [$a1c8]
-	call Call_223B
+	ld hl, sSavedMonName
+	ld a, [sParty]
+	call MonsterField
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $9400
 	ld a, $01
-	call Call_07_6254
+	call DrawSaveMember
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a1fc
+	ld hl, sSavedMonName
 	ld a, [$a1c9]
-	call Call_223B
+	call MonsterField
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $9440
 	ld a, $02
-	call Call_07_6254
+	call DrawSaveMember
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a1fc
+	ld hl, sSavedMonName
 	ld a, [$a1ca]
-	call Call_223B
+	call MonsterField
 	ei
 	ld e, l
 	ld d, h
 	ld hl, $9480
 	ld a, $03
-	call Call_07_6254
+	call DrawSaveMember
 	ret
 
 
-Call_07_6254::
+DrawSaveMember::
 	ld b, a
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld a, [$a1c7]
+	ld a, [sPartyCount]
 	cp b
 	ei
 	jr nc, jr_007_6271
 
 	ld b, $20
 
-Call_07_6264::
+ClearTextTiles2::
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
-	jr nz, Call_07_6264
+	jr nz, ClearTextTiles2
 
 	ret
 
 
 jr_007_6271:
 	push bc
-	call Call_07_69EF
+	call MenuDrawNameTiles
 	pop bc
 	dec b
 	push bc
 	di
 	ld a, $0a
 	ld [$0100], a
-	ld hl, $a1c8
+	ld hl, sParty
 	ld a, b
 	add l
 	ld l, a
@@ -4868,8 +4881,8 @@ jr_007_6271:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld hl, $a205
-	call Call_223B
+	ld hl, sSavedMonFamily
+	call MonsterField
 	ld a, [hl]
 	ei
 	add a
@@ -4888,16 +4901,16 @@ jr_007_6271:
 	add $a0
 	ld l, a
 	ld h, $8d
-	call Call_1577
+	call DecompressVRAM
 	ret
 
 
 	db $03, $2e, $04, $2e, $05, $2e, $06, $2e, $07, $2e, $08, $2e, $09, $2e, $0a, $2e
 	db $0b, $2e, $0c, $2e
 
-Call_07_62BF::
+ClearSaveMemberLevel::
 	push hl
-	call Call_07_6880
+	call BufferAddress
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
@@ -4911,59 +4924,59 @@ Call_07_62BF::
 	ld a, h
 	adc $00
 	ld h, a
-	call Call_07_6880
+	call BufferAddress
 	ld a, $e0
 	ld [hli], a
 	ld [hl], a
 	ret
 
 
-Jump_07_62DB::
+SaveInput::
 	ld de, $6330
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_07_6C08
-	ld a, [$c846]
+	call MoveMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_630b
 
 jr_007_62ed:
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_632f
 
 jr_007_630b:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_632f
 
-	ld a, [$c8de]
+	ld a, [wMenuChoice3]
 	cp $81
 	jr nz, jr_007_6321
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	jr jr_007_62ed
 
 jr_007_6321:
 	di
-	call Call_2128
+	call SaveGame
 	ei
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_632f:
@@ -4973,136 +4986,136 @@ jr_007_632f:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_07_6336::
+SaveDone::
 	ld hl, $0232
-	call Call_096D
-	ld hl, $c90e
+	call PrintSystemText
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_6341::
-	ld a, [$c825]
+OptionCloseAfterText::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $01
-	ld [$c90d], a
+	ld [wStatusViewVars], a
 	ret
 
 
-Jump_07_634F::
-	ld a, [$ca8d]
+TacticsStart::
+	ld a, [wPartyCount]
 	or a
 	jr z, jr_007_637c
 
-	ld hl, $cb0b
+	ld hl, wMonStatus
 
 jr_007_6358:
-	ld a, [$c8e0]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wLinkPartnerChoice]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	bit 7, [hl]
 	jr z, jr_007_6374
 
-	ld hl, $c8e0
+	ld hl, wLinkPartnerChoice
 	inc [hl]
-	ld a, [$c8e0]
-	ld hl, $ca8d
+	ld a, [wLinkPartnerChoice]
+	ld hl, wPartyCount
 	cp [hl]
 	jr nz, jr_007_6358
 
 	jr jr_007_637c
 
 jr_007_6374:
-	call Call_07_6385
-	ld hl, $c90e
+	call TacticsShow
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
 jr_007_637c:
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $00
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Call_07_6385::
-	ld hl, $cac2
-	ld a, [$c8e0]
-	call Call_2229
+TacticsShow::
+	ld hl, wMonName
+	ld a, [wLinkPartnerChoice]
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $93c0
-	call Call_07_69EF
+	call MenuDrawNameTiles
 	ld de, $7c69
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $7cd7
-	call Call_07_68DC
-	ld hl, $cacc
-	ld a, [$c8e0]
-	call Call_2229
+	call DrawWindow
+	ld hl, wMonGender
+	ld a, [wLinkPartnerChoice]
+	call PartyMonsterField
 	ld a, [hl]
 	swap a
 	and $03
-	ld [$c8df], a
-	call Call_07_6C8F
+	ld [wLinkRefused], a
+	call MenuResetBlink
 	ld de, $644c
-	ld a, [$c8df]
-	call Call_07_6D4E
-	call Call_07_690D
+	ld a, [wLinkRefused]
+	call MenuDrawCursorAt
+	call MenuShowBuffer
 	ret
 
 
-Jump_07_63C3::
+TacticsInput::
 	ld de, $644c
-	ld hl, $c8df
+	ld hl, wLinkRefused
 	ld b, $04
-	call Call_07_6C08
-	ld a, [$c846]
+	call MoveMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_63fc
 
 jr_007_63d5:
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	or a
 	jr z, jr_007_63f2
 
-	ld hl, $c8e0
+	ld hl, wLinkPartnerChoice
 	dec [hl]
-	ld a, [$c8e0]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wLinkPartnerChoice]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	bit 7, [hl]
 	jr nz, jr_007_63d5
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_644b
 
 jr_007_63f2:
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $00
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_644b
 
 jr_007_63fc:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_007_644b
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8df]
+	call QueueSound
+	ld a, [wLinkRefused]
 	and $03
 	swap a
 	ld b, a
 	push bc
-	ld hl, $cacc
-	ld a, [$c8e0]
-	call Call_2229
+	ld hl, wMonGender
+	ld a, [wLinkPartnerChoice]
+	call PartyMonsterField
 	ld a, [hl]
 	and $cf
 	pop bc
@@ -5110,28 +5123,28 @@ jr_007_63fc:
 	ld [hl], a
 
 jr_007_6420:
-	ld hl, $c8e0
+	ld hl, wLinkPartnerChoice
 	inc [hl]
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	ld b, a
-	ld a, [$c8e0]
+	ld a, [wLinkPartnerChoice]
 	cp b
 	jr z, jr_007_6441
 
-	ld a, [$c8e0]
-	ld hl, $cb0b
-	call Call_2229
+	ld a, [wLinkPartnerChoice]
+	ld hl, wMonStatus
+	call PartyMonsterField
 	bit 7, [hl]
 	jr nz, jr_007_6420
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_644b
 
 jr_007_6441:
-	call Call_07_6A8F
+	call MenuClearBuffer
 	ld a, $00
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_644b
 
 jr_007_644b:
@@ -5140,128 +5153,128 @@ jr_007_644b:
 
 	db $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
 
-Call_07_6456::
-	ld hl, $cac0
+ShowMonsterStatus::
+	ld hl, wCurPartyMember
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
 	xor a
-	ld [$c932], a
-	ld [$c933], a
+	ld [wViewIndex], a
+	ld [wViewCount], a
 
-Call_07_6468::
-	ld a, [$c90e]
+UpdateMonsterStatus::
+	ld a, [wFieldMenuStep]
 	rst $00
 
-JumpTable_07_646C::
-	dw Jump_07_6488
-	dw Jump_07_64AD
-	dw Call_07_64C9
-	dw Jump_07_64DC
-	dw Jump_07_654E
-	dw Jump_07_6552
-	dw Call_07_6588
-	dw Jump_07_65AC
-	dw Jump_07_65BC
-	dw Jump_07_65C0
-	dw Jump_07_65D0
-	dw Jump_07_65F9
-	dw Jump_07_65D5
-	dw Jump_07_65E7
+MonsterStatusSteps::
+	dw ViewerStart
+	dw ViewerOpen
+	dw ViewerDrawPage1
+	dw ViewerPage1Input
+	dw ViewerShowPage2
+	dw ViewerPage2Input
+	dw ViewerShowSkills
+	dw ViewerSkillsInput
+	dw ViewerShowPedigree
+	dw ViewerPedigreeInput
+	dw ViewerStepNext
+	dw ViewerClose
+	dw ViewerRedrawPage2
+	dw ViewerRedrawPedigree
 
-Jump_07_6488::
+ViewerStart::
 	ld a, $01
-	ld [$c8ec], a
-	ld a, [$c932]
-	ld [$c934], a
-	ld a, [$c930]
+	ld [wMenuOverlay], a
+	ld a, [wViewIndex]
+	ld [wViewResult], a
+	ld a, [wViewList]
 	ld l, a
 	ld a, [$c931]
 	ld h, a
-	ld a, [$c932]
+	ld a, [wViewIndex]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
-	ld hl, $c90e
+	ld [wCurPartyMember], a
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_64AD::
-	call Call_07_6ABA
-	ld hl, $c90e
+ViewerOpen::
+	call SetUpMenuScreen
+	ld hl, wFieldMenuStep
 	inc [hl]
-	ld a, [$cac0]
-	ld hl, $cb24
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonEgg
+	call MonsterField
 	ld a, [hl]
 	or a
 	ret z
 
-	call Call_07_4655
+	call StatusShowPicture
 	ld a, $08
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Call_07_64C9::
+ViewerDrawPage1::
 	ld de, $70f7
-	call Call_07_68DC
+	call DrawWindow
 	ld de, $71af
-	call Call_07_68DC
-	call Call_07_451E
-	call Call_07_4655
+	call DrawWindow
+	call DrawStatusStats
+	call StatusShowPicture
 	ret
 
 
-Jump_07_64DC::
-	call Call_07_6504
+ViewerPage1Input::
+	call ViewerChangeMonster
 	jr z, jr_007_64e8
 
-	call Call_07_64C9
-	ld hl, $c90e
+	call ViewerDrawPage1
+	ld hl, wFieldMenuStep
 	dec [hl]
 
 jr_007_64e8:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_64f2
 
-	jp Jump_07_65F9
+	jp ViewerClose
 
 
 jr_007_64f2:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_6503
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_6503:
 	ret
 
 
-Call_07_6504::
-	ld a, [$c934]
+ViewerChangeMonster::
+	ld a, [wViewResult]
 	push af
-	ld a, [$c933]
+	ld a, [wViewCount]
 	ld b, a
 	or a
 	jr z, jr_007_654b
 
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_007_6521
 
-	ld a, [$c934]
+	ld a, [wViewResult]
 	dec a
 	cp b
 	jr c, jr_007_6531
@@ -5271,11 +5284,11 @@ Call_07_6504::
 	jr jr_007_6531
 
 jr_007_6521:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_007_654b
 
-	ld a, [$c934]
+	ld a, [wViewResult]
 	inc a
 	cp b
 	jr c, jr_007_6531
@@ -5283,9 +5296,9 @@ jr_007_6521:
 	ld a, $00
 
 jr_007_6531:
-	ld [$c934], a
+	ld [wViewResult], a
 	ld b, a
-	ld a, [$c930]
+	ld a, [wViewList]
 	ld l, a
 	ld a, [$c931]
 	ld h, a
@@ -5296,7 +5309,7 @@ jr_007_6531:
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	pop af
 	cp b
 	ret
@@ -5308,164 +5321,164 @@ jr_007_654b:
 	ret
 
 
-Jump_07_654E::
-	call Call_07_46CA
+ViewerShowPage2::
+	call StatusShowPage2
 	ret
 
 
-Jump_07_6552::
-	call Call_07_6504
+ViewerPage2Input::
+	call ViewerChangeMonster
 	jr z, jr_007_655e
 
 	ld a, $0c
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_6587
 
 jr_007_655e:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_007_6573
 
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
-	ld hl, $c90e
+	ld hl, wFieldMenuStep
 	dec [hl]
 	jr jr_007_6587
 
 jr_007_6573:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_007_6584
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c90e
+	call QueueSound
+	ld hl, wFieldMenuStep
 	inc [hl]
 
 Jump_007_6584:
-	call Call_07_66C8
+	call DrawStatusSprite
 
 jr_007_6587:
 	ret
 
 
-Call_07_6588::
-	ld a, [$cac0]
-	ld hl, $cb24
-	call Call_223B
+ViewerShowSkills::
+	ld a, [wCurPartyMember]
+	ld hl, wMonEgg
+	call MonsterField
 	ld a, [hl]
 	or a
-	jr nz, Jump_07_65F9
+	jr nz, ViewerClose
 
-	call Call_07_486B
+	call DrawMonSkillNames
 	ld de, $737b
-	call Call_07_68DC
-	call Call_07_690D
-	call Call_07_466D
-	call Call_07_4689
-	ld hl, $c90e
+	call DrawWindow
+	call MenuShowBuffer
+	call LoadStatusPicture
+	call SetStatusPicPalette
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_65AC::
-	call Call_07_6504
+ViewerSkillsInput::
+	call ViewerChangeMonster
 	jr z, jr_007_65b8
 
-	call Call_07_6588
-	ld hl, $c90e
+	call ViewerShowSkills
+	ld hl, wFieldMenuStep
 	dec [hl]
 
 jr_007_65b8:
-	call Call_07_48BF
+	call StatusSkillsButtons
 	ret
 
 
-Jump_07_65BC::
-	call Call_07_48E6
+ViewerShowPedigree::
+	call StatusShowPedigree
 	ret
 
 
-Jump_07_65C0::
-	call Call_07_6504
+ViewerPedigreeInput::
+	call ViewerChangeMonster
 	jr z, jr_007_65cc
 
 	ld a, $0d
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	jr jr_007_65cf
 
 jr_007_65cc:
-	call Call_07_4A1E
+	call StatusPedigreeButtons
 
 jr_007_65cf:
 	ret
 
 
-Jump_07_65D0::
-	ld hl, $c90e
+ViewerStepNext::
+	ld hl, wFieldMenuStep
 	inc [hl]
 	ret
 
 
-Jump_07_65D5::
-	call Call_07_45EE
-	call Call_07_46D2
-	call Call_07_466D
-	call Call_07_4689
+ViewerRedrawPage2::
+	call SyncStatusMonster
+	call DrawStatusPage2
+	call LoadStatusPicture
+	call SetStatusPicPalette
 	ld a, $05
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Jump_07_65E7::
-	call Call_07_45EE
-	call Call_07_48F7
-	call Call_07_466D
-	call Call_07_4689
+ViewerRedrawPedigree::
+	call SyncStatusMonster
+	call DrawPedigree
+	call LoadStatusPicture
+	call SetStatusPicPalette
 	ld a, $09
-	ld [$c90e], a
+	ld [wFieldMenuStep], a
 	ret
 
 
-Jump_07_65F9::
-	call Call_07_6A8F
-	call Call_07_690D
-	call Call_07_6A9E
-	ld a, [$c88a]
+ViewerClose::
+	call MenuClearBuffer
+	call MenuShowBuffer
+	call ClearMenuBgMap
+	ld a, [wGameMode]
 	or a
 	jr z, jr_007_661b
 
 	ld hl, far_Call_0B_4088
 	rst $10
-	ld hl, far_Call_17_401D
+	ld hl, far_LoadMapPalettes
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
-	call Call_07_6625
+	call RestoreFieldAttrMap
 	ld hl, far_Call_06_4D5A
 	rst $10
 
 jr_007_661b:
 	ld a, $00
-	ld [$c8ec], a
-	ld hl, $c906
+	ld [wMenuOverlay], a
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_07_6625::
-	ld a, [$c81d]
+RestoreFieldAttrMap::
+	ld a, [wOnCGB]
 	or a
 	ret z
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $01
 	ldh [rVBK], a
 	ei
-	ldh a, [$ffbb]
+	ldh a, [hScrollY]
 	and $f8
 	ld l, a
 	xor a
@@ -5476,7 +5489,7 @@ Call_07_6625::
 	ld h, $98
 	add h
 	ld h, a
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -5486,7 +5499,7 @@ Call_07_6625::
 	ld a, $00
 	adc h
 	ld h, a
-	ld de, $c200
+	ld de, wScreenMap
 	ld c, $10
 
 jr_007_6655:
@@ -5497,7 +5510,7 @@ jr_007_6658:
 	ld a, [de]
 	swap a
 	and $0f
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -5510,7 +5523,7 @@ jr_007_6658:
 	ld l, a
 	ld a, [de]
 	and $0f
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -5544,14 +5557,14 @@ jr_007_6658:
 	jr nz, jr_007_6655
 
 	di
-	call Call_1AA6
+	call WaitVRAMAccess
 	ld a, $00
 	ldh [rVBK], a
 	ei
 	ret
 
 
-Call_07_66A4::
+AlignScrollToTile::
 	ld a, [hl]
 	add $04
 	ld [hli], a
@@ -5564,7 +5577,7 @@ Call_07_66A4::
 	ret
 
 
-Call_07_66B1::
+LoadMonsterSprite::
 	push hl
 	add $10
 	ld l, a
@@ -5580,19 +5593,19 @@ Call_07_66B1::
 	inc hl
 	ld d, [hl]
 	pop hl
-	call Call_1577
+	call DecompressVRAM
 	ret
 
 
-Call_07_66C8::
-	ld a, [$c88a]
+DrawStatusSprite::
+	ld a, [wGameMode]
 	or a
 	ret z
 
-	ld hl, $caca
-	call Call_07_6DBA
+	ld hl, wMonRecSpecies
+	call GetViewedMonsterByte
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -5607,15 +5620,15 @@ Call_07_66C8::
 	ld b, $00
 	push bc
 	push hl
-	ld hl, $cb0b
-	call Call_07_6DBA
+	ld hl, wMonStatus
+	call GetViewedMonsterByte
 	ld a, [hl]
 	pop hl
 	pop bc
 	bit 7, a
 	jr nz, jr_007_6701
 
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_007_6701
 
@@ -5628,23 +5641,23 @@ jr_007_6701:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Call_07_670E::
-	ld a, [$c88a]
+DrawPedigreeSprites::
+	ld a, [wGameMode]
 	or a
 	ret z
 
-	ld hl, $cad6
-	call Call_07_6DBA
+	ld hl, wMonParent1
+	call GetViewedMonsterByte
 	cp $ff
 	ret z
 
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -5657,7 +5670,7 @@ Call_07_670E::
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_007_673b
 
@@ -5670,12 +5683,12 @@ jr_007_673b:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-	ld hl, $cad7
-	call Call_07_6DBA
+	ld hl, wMonParent2
+	call GetViewedMonsterByte
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $90
 	ld [hli], a
 	ld a, $00
@@ -5688,7 +5701,7 @@ jr_007_673b:
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_007_676c
 
@@ -5701,25 +5714,25 @@ jr_007_676c:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Call_07_6779::
-	ld a, [$c90d]
+DrawPartySprites::
+	ld a, [wStatusViewVars]
 	cp $02
 	ret nz
 
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	or a
 	ret z
 
 	ld a, $00
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $2f
 	ld [hli], a
 	ld a, $00
@@ -5734,16 +5747,16 @@ Call_07_6779::
 	ld b, $00
 	push bc
 	push hl
-	ld hl, $cb0b
+	ld hl, wMonStatus
 	ld a, $00
-	call Call_224A
+	call GetPartyMonsterByte
 	ld a, [hl]
 	pop hl
 	pop bc
 	bit 7, a
 	jr nz, jr_007_67bc
 
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_007_67bc
 
@@ -5756,17 +5769,17 @@ jr_007_67bc:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $01
 	ret z
 
 	ld a, $01
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $5f
 	ld [hli], a
 	ld a, $00
@@ -5781,16 +5794,16 @@ jr_007_67bc:
 	ld b, $00
 	push bc
 	push hl
-	ld hl, $cb0b
+	ld hl, wMonStatus
 	ld a, $01
-	call Call_224A
+	call GetPartyMonsterByte
 	ld a, [hl]
 	pop hl
 	pop bc
 	bit 7, a
 	jr nz, jr_007_6806
 
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_007_6806
 
@@ -5803,17 +5816,17 @@ jr_007_6806:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $02
 	ret z
 
 	ld a, $02
-	ld hl, $caca
-	call Call_224A
+	ld hl, wMonRecSpecies
+	call GetPartyMonsterByte
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $8f
 	ld [hli], a
 	ld a, $00
@@ -5828,16 +5841,16 @@ jr_007_6806:
 	ld b, $00
 	push bc
 	push hl
-	ld hl, $cb0b
+	ld hl, wMonStatus
 	ld a, $02
-	call Call_224A
+	call GetPartyMonsterByte
 	ld a, [hl]
 	pop hl
 	pop bc
 	bit 7, a
 	jr nz, jr_007_6850
 
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_007_6850
 
@@ -5850,12 +5863,12 @@ jr_007_6850:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Call_07_685D::
+NextMapColumn::
 	push af
 	ld a, l
 	and $e0
@@ -5871,8 +5884,8 @@ Call_07_685D::
 	ret
 
 
-Call_07_686C::
-	ld a, [$c911]
+AddMenuBgMap::
+	ld a, [wMenuBgMap]
 	add l
 	ld l, a
 	ld a, [$c912]
@@ -5886,7 +5899,7 @@ Call_07_686C::
 	ret
 
 
-Call_07_6880::
+BufferAddress::
 	ld a, l
 	add $00
 	ld l, a
@@ -5896,13 +5909,13 @@ Call_07_6880::
 	ret
 
 
-Call_07_6889::
+MenuMapAddress::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_07_686C
+	call AddMenuBgMap
 	ld a, b
 	and $1f
 	jr z, jr_007_689e
@@ -5910,7 +5923,7 @@ Call_07_6889::
 	ld b, a
 
 jr_007_6898:
-	call Call_07_685D
+	call NextMapColumn
 	dec b
 	jr nz, jr_007_6898
 
@@ -5919,16 +5932,16 @@ jr_007_689e:
 	ret
 
 
-Call_07_68A0::
+DrawWindowToMap::
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_07_6889
+	call MenuMapAddress
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 
@@ -5941,7 +5954,7 @@ jr_007_68af:
 	cp $d8
 	jr nz, jr_007_68d4
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -5956,26 +5969,26 @@ jr_007_68af:
 	or $98
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	jr jr_007_68af
 
 jr_007_68d4:
-	call Call_1AAD
-	call Call_07_685D
+	call WriteVRAM
+	call NextMapColumn
 	jr jr_007_68af
 
-Call_07_68DC::
+DrawWindow::
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_07_6880
+	call BufferAddress
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 
@@ -5988,7 +6001,7 @@ jr_007_68eb:
 	cp $d8
 	jr nz, jr_007_690a
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -5999,7 +6012,7 @@ jr_007_68eb:
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	jr jr_007_68eb
@@ -6008,12 +6021,12 @@ jr_007_690a:
 	ld [hli], a
 	jr jr_007_68eb
 
-Call_07_690D::
-	ld a, [$c911]
+MenuShowBuffer::
+	ld a, [wMenuBgMap]
 	ld l, a
 	ld a, [$c912]
 	ld h, a
-	ld de, $c500
+	ld de, wTilemapBuffer
 	ld c, $12
 
 jr_007_691a:
@@ -6022,7 +6035,7 @@ jr_007_691a:
 
 jr_007_691d:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -6052,198 +6065,198 @@ jr_007_691d:
 	ret
 
 
-Call_07_6942::
+DrawFamilyPlus::
 	ld b, a
 	ld de, $0801
 	ld a, c
 	cp $ff
-	jr z, jr_007_69ac
+	jr z, DrawBlankEntryText
 
 	ld a, b
 	push hl
 	push af
 	ld l, c
 	ld h, $04
-	ld de, $c180
-	call Call_097A
+	ld de, wTextArg0
+	call CopySystemText
 	pop af
-	ld de, $c180
-	call Call_07_6DE2
+	ld de, wTextArg0
+	call MenuAppendPlus
 	pop hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0801
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_07_69A5::
-	ld a, [$c823]
+DrawTextOrBlank::
+	ld a, [wTextIndex]
 	cp $ff
-	jr nz, Call_07_69B6
+	jr nz, MenuDrawTextTiles
 
-jr_007_69ac:
+DrawBlankEntryText:
 	ld a, $0a
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $04
-	ld [$c822], a
+	ld [wTextGroup], a
 
-Call_07_69B6::
-	ld a, [$c827]
+MenuDrawTextTiles::
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextBoxHeight], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_07_69EF::
+MenuDrawNameTiles::
 	push hl
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	pop hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_07_6A3D::
+DrawSexMark::
 	and $01
 	add $a7
 
-Call_07_6A41::
-	ld [$c180], a
+MenuDrawCharTile::
+	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_07_6A8F::
-	ld hl, $c500
+MenuClearBuffer::
+	ld hl, wTilemapBuffer
 	ld bc, $0240
 
 jr_007_6a95:
@@ -6257,13 +6270,13 @@ jr_007_6a95:
 	ret
 
 
-Call_07_6A9E::
+ClearMenuBgMap::
 	ld hl, $9800
 	ld bc, $0400
 
 jr_007_6aa4:
 	ld a, $e0
-	call Call_1AB9
+	call WriteVRAMInc
 	dec bc
 	ld a, b
 	or c
@@ -6272,23 +6285,23 @@ jr_007_6aa4:
 	ret
 
 
-Jump_07_6AAF::
-	ld hl, $c8da
+FieldMenuOpen::
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 
-Call_07_6ABA::
-	ld hl, $ffb7
-	call Call_07_66A4
-	ld hl, $ffbb
-	call Call_07_66A4
-	ldh a, [$ffbb]
+SetUpMenuScreen::
+	ld hl, hScrollX
+	call AlignScrollToTile
+	ld hl, hScrollY
+	call AlignScrollToTile
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -6302,85 +6315,85 @@ Call_07_6ABA::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$c911], a
+	ld [wMenuBgMap], a
 	ld a, h
 	ld [$c912], a
-	call Call_07_6A8F
-	call Call_07_690D
-	call Call_07_6A9E
+	call MenuClearBuffer
+	call MenuShowBuffer
+	call ClearMenuBgMap
 	ld de, $2e0d
 	ld hl, $9000
-	call Call_1577
-	call Call_07_6C8F
-	ld hl, far_Call_17_4192
+	call DecompressVRAM
+	call MenuResetBlink
+	ld hl, far_ClearAttrMap
 	rst $10
-	ld hl, $c90d
+	ld hl, wStatusViewVars
 	inc [hl]
 	ret
 
 
-Jump_07_6B04::
-	call Call_07_6A8F
-	call Call_07_690D
-	ld hl, far_Call_17_4192
+FieldMenuClose::
+	call MenuClearBuffer
+	call MenuShowBuffer
+	ld hl, far_ClearAttrMap
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, far_Call_0B_4088
 	rst $10
 	ld hl, far_Call_0B_40CE
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
-	call Call_2518
-	call Call_25F1
+	call BuildStatusBar
+	call DrawStatusBar
 	ld hl, far_Call_06_4D5A
 	rst $10
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 1, [hl]
 	xor a
-	ld [$c90d], a
-	ld a, [$c969]
+	ld [wStatusViewVars], a
+	ld a, [wOnGateFloor]
 	or a
 	ret z
 
 	ld de, $2e15
 	ld hl, $8500
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e16
 	ld hl, $8540
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e17
 	ld hl, $8580
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e18
 	ld hl, $85c0
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e19
 	ld hl, $8600
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1a
 	ld hl, $8640
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1b
 	ld hl, $8680
-	call Call_1577
+	call DecompressVRAM
 	ld de, $2e1c
 	ld hl, $86c0
-	call Call_1577
+	call DecompressVRAM
 	ret
 
 
-Call_07_6B7F::
+MoveListCursor::
 	ld a, c
-	ld [$c8e1], a
+	ld [wListLastRows], a
 	inc de
 	inc de
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	jp nz, Jump_007_6be6
 
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 5, a
 	jr z, jr_007_6bac
 
@@ -6393,7 +6406,7 @@ Call_07_6B7F::
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -6408,7 +6421,7 @@ Call_07_6B7F::
 	jr jr_007_6bca
 
 jr_007_6bac:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, jr_007_6be6
 
@@ -6421,7 +6434,7 @@ jr_007_6bac:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -6439,13 +6452,13 @@ jr_007_6bca:
 	cp c
 	jr nz, jr_007_6c29
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
-	call Call_1DFB
+	call Divide8
 	pop bc
 	pop de
 	or a
@@ -6463,7 +6476,7 @@ jr_007_6be6:
 	push bc
 	push de
 	push hl
-	call Call_07_6CF3
+	call DrawListPageDigit
 	pop hl
 	pop de
 	pop bc
@@ -6472,8 +6485,8 @@ jr_007_6be6:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
-	ld [$c8e1], a
+	call Divide8
+	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
@@ -6481,52 +6494,52 @@ jr_007_6be6:
 	inc hl
 	ld a, [hld]
 	cp c
-	jr nz, Call_07_6C08
+	jr nz, MoveMenuCursor
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
-Call_07_6C08::
+MoveMenuCursor::
 	res 7, [hl]
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_007_6c1a
 
 	ld a, [hl]
 	dec a
 	cp b
-	jr c, jr_007_6c28
+	jr c, MenuCursorStore
 
 	dec b
 	ld a, b
-	jr jr_007_6c28
+	jr MenuCursorStore
 
 jr_007_6c1a:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_007_6c31
+	jr z, MenuCursorDone
 
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_007_6c28
+	jr c, MenuCursorStore
 
 	ld a, $00
 
-jr_007_6c28:
+MenuCursorStore:
 	ld [hl], a
 
 jr_007_6c29:
 	xor a
-	ld [$c914], a
+	ld [wMenuBlink], a
 	push hl
 	push de
 	pop de
 	pop hl
 
-jr_007_6c31:
-	ld a, [$c846]
+MenuCursorDone:
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_007_6c3a
 
@@ -6534,13 +6547,13 @@ jr_007_6c31:
 
 jr_007_6c3a:
 	ld a, [hl]
-	call Call_07_6C94
+	call BlinkMenuCursor
 	ret
 
 
-Call_07_6C3F::
+MoveMenuCursorNoSelect::
 	res 7, [hl]
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_007_6c51
 
@@ -6554,7 +6567,7 @@ Call_07_6C3F::
 	jr jr_007_6c5f
 
 jr_007_6c51:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_007_6c68
 
@@ -6568,7 +6581,7 @@ jr_007_6c51:
 jr_007_6c5f:
 	ld [hl], a
 	xor a
-	ld [$c914], a
+	ld [wMenuBlink], a
 	push hl
 	push de
 	pop de
@@ -6576,60 +6589,60 @@ jr_007_6c5f:
 
 jr_007_6c68:
 	ld a, [hl]
-	call Call_07_6C94
+	call BlinkMenuCursor
 	ret
 
 
-Call_07_6C6D::
+MoveMenuCursorSideways::
 	res 7, [hl]
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 5, a
 	jr z, jr_007_6c7f
 
 	ld a, [hl]
 	dec a
 	cp b
-	jr c, jr_007_6c28
+	jr c, MenuCursorStore
 
 	dec b
 	ld a, b
-	jr jr_007_6c28
+	jr MenuCursorStore
 
 jr_007_6c7f:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_007_6c31
+	jr z, MenuCursorDone
 
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_007_6c28
+	jr c, MenuCursorStore
 
 	ld a, $00
-	jr jr_007_6c28
+	jr MenuCursorStore
 
-Call_07_6C8F::
+MenuResetBlink::
 	xor a
-	ld [$c914], a
+	ld [wMenuBlink], a
 	ret
 
 
-Call_07_6C94::
+BlinkMenuCursor::
 	ld c, a
 	bit 7, a
-	jr nz, Call_07_6CA9
+	jr nz, MenuDrawCursorMarks
 
-	ld a, [$c914]
+	ld a, [wMenuBlink]
 	and $0f
 	push af
-	ld a, [$c914]
+	ld a, [wMenuBlink]
 	inc a
-	ld [$c914], a
+	ld [wMenuBlink], a
 	pop af
 	ld a, c
 	ret nz
 
-Call_07_6CA9::
+MenuDrawCursorMarks::
 	ld c, a
 	ld b, $00
 
@@ -6645,12 +6658,12 @@ jr_007_6cac:
 	ret z
 
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_07_6889
+	call MenuMapAddress
 	pop bc
 	pop de
 	ld a, c
@@ -6663,7 +6676,7 @@ jr_007_6cac:
 	bit 7, c
 	jr nz, jr_007_6cdc
 
-	ld a, [$c914]
+	ld a, [wMenuBlink]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_007_6cdc
@@ -6671,9 +6684,9 @@ jr_007_6cac:
 	ld a, $e8
 
 jr_007_6cdc:
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -6688,7 +6701,7 @@ jr_007_6cdc:
 	inc b
 	jr jr_007_6cac
 
-Call_07_6CF3::
+DrawListPageDigit::
 	ld a, b
 	cp c
 	ret nc
@@ -6709,20 +6722,20 @@ Call_07_6CF3::
 
 	dec hl
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_07_6889
+	call MenuMapAddress
 	pop bc
 	pop de
 	ld a, c
 	and $7f
 	add $f1
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -6737,7 +6750,7 @@ Call_07_6CF3::
 	ret
 
 
-Call_07_6D2C::
+DrawListMarks::
 	ld a, [hli]
 	push af
 	push hl
@@ -6772,7 +6785,7 @@ jr_007_6d45:
 jr_007_6d4d:
 	pop af
 
-Call_07_6D4E::
+MenuDrawCursorAt::
 	ld c, a
 	add a
 	add e
@@ -6786,19 +6799,19 @@ Call_07_6D4E::
 	ld a, [de]
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_07_6889
+	call MenuMapAddress
 	pop bc
 	pop de
 	ld a, $e9
 	bit 7, c
 	jr nz, jr_007_6d79
 
-	ld a, [$c914]
+	ld a, [wMenuBlink]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_007_6d79
@@ -6807,7 +6820,7 @@ Call_07_6D4E::
 
 jr_007_6d79:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -6822,14 +6835,14 @@ jr_007_6d79:
 	ret
 
 
-Call_07_6D8B::
-	ld a, [$c8eb]
+GetViewedMonster::
+	ld a, [wFieldFlags]
 	bit 1, a
 	jr z, jr_007_6da2
 
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -6840,61 +6853,61 @@ Call_07_6D8B::
 
 
 jr_007_6da2:
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 	and $7f
 	ret
 
 
-Call_07_6DA8::
-	ld a, [$c8eb]
+GetViewedMonsterField::
+	ld a, [wFieldFlags]
 	bit 1, a
 	jr z, jr_007_6db3
 
-	call Call_2266
+	call CurMonsterField
 	ret
 
 
 jr_007_6db3:
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ret
 
 
-Call_07_6DBA::
-	ld a, [$c8eb]
+GetViewedMonsterByte::
+	ld a, [wFieldFlags]
 	bit 1, a
 	jr z, jr_007_6dc5
 
-	call Call_2284
+	call GetCurMonsterByte
 	ret
 
 
 jr_007_6dc5:
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hl]
 	ret
 
 
-Call_07_6DCD::
-	ld a, [$c8eb]
+GetViewedMonsterWord::
+	ld a, [wFieldFlags]
 	bit 1, a
 	jr z, jr_007_6dd8
 
-	call Call_2289
+	call GetCurMonsterWord
 	ret
 
 
 jr_007_6dd8:
-	ld a, [$cac0]
-	call Call_223B
+	ld a, [wCurPartyMember]
+	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ret
 
 
-Call_07_6DE2::
+MenuAppendPlus::
 	push af
 
 jr_007_6de3:
@@ -6913,7 +6926,7 @@ jr_007_6de3:
 	inc de
 	ld l, e
 	ld h, d
-	call Call_09A4
+	call ByteToDecimal
 	ret
 
 
@@ -6971,44 +6984,44 @@ jr_007_6df8:
 	db $28, $3a, $29, $3a, $2a, $3a, $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a
 	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
 
-Call_07_6FE2::
+DrawNumber3::
 	ld de, $0064
 	push bc
-	call Call_07_7023
+	call DivideDigit
 	pop bc
 	or a
-	jr z, Call_07_7007
+	jr z, DrawNumber2
 
 	ld de, $0064
-	call Call_07_7023
-	call Call_07_7038
-	call Call_07_703E
+	call DivideDigit
+	call MenuDrawDigit
+	call NextMapColumn2
 	ld de, $000a
-	call Call_07_7023
-	call Call_07_7038
-	call Call_07_703E
+	call DivideDigit
+	call MenuDrawDigit
+	call NextMapColumn2
 	jr jr_007_701e
 
-Call_07_7007::
+DrawNumber2::
 	ld de, $000a
 	push bc
-	call Call_07_7023
+	call DivideDigit
 	pop bc
 	or a
 	jr z, jr_007_701e
 
 	ld de, $000a
-	call Call_07_7023
-	call Call_07_7038
-	call Call_07_703E
+	call DivideDigit
+	call MenuDrawDigit
+	call NextMapColumn2
 
 jr_007_701e:
 	ld a, c
-	call Call_07_7038
+	call MenuDrawDigit
 	ret
 
 
-Call_07_7023::
+DivideDigit::
 	push hl
 	ld h, $ff
 
@@ -7033,13 +7046,13 @@ jr_007_7026:
 	ret
 
 
-Call_07_7038::
+MenuDrawDigit::
 	add $f0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
-Call_07_703E::
+NextMapColumn2::
 	push af
 	ld a, l
 	and $e0

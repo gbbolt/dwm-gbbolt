@@ -4,34 +4,38 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $012", ROMX[$4000], BANK[$12]
 
-	db $12, $03, $40
+BankNumber_12::
+	db $12
 
-	ld a, [$c8ef]
+FarTable_12::
+	db $03, $40
+
+	ld a, [wScriptMenu]
 	rst $00
 
-JumpTable_12_4007::
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_442D
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_6061
-	dw Jump_12_6842
-	dw Jump_12_6AFE
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_4027
-	dw Jump_12_4027
+ScriptMenuTable::
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw FarmKeeperMenu
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw LibraryMenu
+	dw ChooseMonsterMenu
+	dw CollectorMenu
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw ScriptMenuNone
+	dw ScriptMenuNone
 
-Jump_12_4027::
+ScriptMenuNone::
 	ret
 
 
-Call_12_4028::
+SnapToTile::
 	ld a, [hl]
 	add $04
 	ld [hli], a
@@ -44,7 +48,7 @@ Call_12_4028::
 	ret
 
 
-Call_12_4035::
+NextBgColumn::
 	push af
 	ld a, l
 	and $e0
@@ -60,8 +64,8 @@ Call_12_4035::
 	ret
 
 
-Call_12_4044::
-	ld a, [$c909]
+WindowBgAddr::
+	ld a, [wWindowBgMap]
 	add l
 	ld l, a
 	ld a, [$c90a]
@@ -75,7 +79,7 @@ Call_12_4044::
 	ret
 
 
-Call_12_4058::
+TilemapBufferAddr::
 	ld a, l
 	add $00
 	ld l, a
@@ -85,13 +89,13 @@ Call_12_4058::
 	ret
 
 
-Call_12_4061::
+WindowBgAddrWrapped::
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
-	call Call_12_4044
+	call WindowBgAddr
 	ld a, b
 	and $1f
 	jr z, jr_012_4076
@@ -99,7 +103,7 @@ Call_12_4061::
 	ld b, a
 
 jr_012_4070:
-	call Call_12_4035
+	call NextBgColumn
 	dec b
 	jr nz, jr_012_4070
 
@@ -108,21 +112,22 @@ jr_012_4076:
 	ret
 
 
+DrawLayoutToVram::
 	db $1a, $6f, $13, $1a, $67, $13, $cd, $61, $40, $7d, $e0, $d5, $7c, $e0, $d6, $1a
 	db $13, $fe, $d9, $c8, $fe, $d8, $20, $1c, $f0, $d5, $6f, $f0, $d6, $67, $7d, $c6
 	db $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67, $7d, $e0, $d5, $7c
 	db $e0, $d6, $18, $db, $cd, $ad, $1a, $cd, $35, $40, $18, $d3
 
-Call_12_40B4::
+DrawWindowLayout::
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
-	call Call_12_4058
+	call TilemapBufferAddr
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 
@@ -135,7 +140,7 @@ jr_012_40c3:
 	cp $d8
 	jr nz, jr_012_40e2
 
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -146,7 +151,7 @@ jr_012_40c3:
 	adc $00
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	jr jr_012_40c3
@@ -155,12 +160,12 @@ jr_012_40e2:
 	ld [hli], a
 	jr jr_012_40c3
 
-Call_12_40E5::
-	ld a, [$c909]
+CopyTilemapBufferToVram::
+	ld a, [wWindowBgMap]
 	ld l, a
 	ld a, [$c90a]
 	ld h, a
-	ld de, $c500
+	ld de, wTilemapBuffer
 	ld c, $12
 
 jr_012_40f2:
@@ -169,7 +174,7 @@ jr_012_40f2:
 
 jr_012_40f5:
 	ld a, [de]
-	call Call_1AAD
+	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
@@ -199,92 +204,93 @@ jr_012_40f5:
 	ret
 
 
-Call_12_411A::
-	ld a, [$c827]
+DrawTextTiles::
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextBoxHeight], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_12_4153::
+DrawNameTiles::
 	push hl
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	pop hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0401
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
+DrawCharTile::
 	db $ea, $80, $c1, $3e, $f0, $ea, $81, $c1, $fa, $27, $c8, $4f, $fa, $28, $c8, $47
 	db $c5, $fa, $29, $c8, $4f, $fa, $2a, $c8, $47, $c5, $7d, $ea, $27, $c8, $7c, $ea
 	db $28, $c8, $11, $01, $01, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $3e, $02, $ea
 	db $22, $c8, $3e, $00, $ea, $23, $c8, $21, $02, $41, $d7, $d1, $e1, $7d, $ea, $27
 	db $c8, $7c, $ea, $28, $c8, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $c9
 
-Call_12_41EF::
-	ld hl, $c500
-	ld de, $c300
+RestoreTilemapBuffer::
+	ld hl, wTilemapBuffer
+	ld de, wSavedTilemap
 	ld bc, $0200
 
 jr_012_41f8:
@@ -296,7 +302,7 @@ jr_012_41f8:
 	or c
 	jr nz, jr_012_41f8
 
-	ld de, $c1c0
+	ld de, wPartyBarTiles
 	ld c, $02
 
 jr_012_4205:
@@ -327,8 +333,8 @@ jr_012_4207:
 	ret
 
 
-Call_12_4221::
-	ld hl, $c500
+ClearTilemapBuffer::
+	ld hl, wTilemapBuffer
 	ld bc, $0240
 
 jr_012_4227:
@@ -342,19 +348,20 @@ jr_012_4227:
 	ret
 
 
+ClearBgMap::
 	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
 	db $c9
 
-Call_12_4241::
+UpdatePagedList::
 	ld a, c
-	ld [$c8e1], a
+	ld [wListLastRows], a
 	inc de
 	inc de
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	jp nz, Jump_012_42a8
 
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 5, a
 	jr z, jr_012_426e
 
@@ -367,7 +374,7 @@ Call_12_4241::
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -382,7 +389,7 @@ Call_12_4241::
 	jr jr_012_428c
 
 jr_012_426e:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 4, a
 	jr z, jr_012_42a8
 
@@ -395,7 +402,7 @@ jr_012_426e:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
+	call Divide8
 	ld a, b
 	inc a
 	pop bc
@@ -411,33 +418,33 @@ jr_012_428c:
 	ld [hld], a
 	dec c
 	cp c
-	jr nz, jr_012_42eb
+	jr nz, MenuCursorMoved
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
-	call Call_1DFB
+	call Divide8
 	pop bc
 	pop de
 	or a
-	jr z, jr_012_42eb
+	jr z, MenuCursorMoved
 
 	dec a
 	cp [hl]
-	jr nc, jr_012_42eb
+	jr nc, MenuCursorMoved
 
 	ld [hl], a
-	jr jr_012_42eb
+	jr MenuCursorMoved
 
 Jump_012_42a8:
 jr_012_42a8:
 	push bc
 	push de
 	push hl
-	call Call_12_4387
+	call DrawPageNumber
 	pop hl
 	pop de
 	pop bc
@@ -446,8 +453,8 @@ jr_012_42a8:
 	ld a, b
 	ld b, c
 	dec b
-	call Call_1DFB
-	ld [$c8e1], a
+	call Divide8
+	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
@@ -455,15 +462,15 @@ jr_012_42a8:
 	inc hl
 	ld a, [hld]
 	cp c
-	jr nz, Call_12_42CA
+	jr nz, UpdateMenuCursor
 
-	ld a, [$c8e1]
+	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
-Call_12_42CA::
+UpdateMenuCursor::
 	res 7, [hl]
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 6, a
 	jr z, jr_012_42dc
 
@@ -477,9 +484,9 @@ Call_12_42CA::
 	jr jr_012_42ea
 
 jr_012_42dc:
-	ld a, [$c847]
+	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_012_42f3
+	jr z, MenuCursorCheckA
 
 	ld a, [hl]
 	inc a
@@ -491,16 +498,16 @@ jr_012_42dc:
 jr_012_42ea:
 	ld [hl], a
 
-jr_012_42eb:
+MenuCursorMoved::
 	xor a
-	ld [$c90c], a
+	ld [wCursorBlink], a
 	push hl
 	push de
 	pop de
 	pop hl
 
-jr_012_42f3:
-	ld a, [$c846]
+MenuCursorCheckA::
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_012_42fc
 
@@ -508,31 +515,32 @@ jr_012_42f3:
 
 jr_012_42fc:
 	ld a, [hl]
-	call Call_12_4328
+	call DrawMenuCursor
 	ret
 
 
+UpdateMenuCursorLeftRight::
 	db $cb, $be, $fa, $47, $c8, $cb, $6f, $28, $09, $7e, $3d, $b8, $38, $db, $05, $78
 	db $18, $d7, $fa, $47, $c8, $cb, $67, $28, $d9, $7e, $3c, $b8, $38, $cb, $3e, $00
 	db $18, $c7
 
-Call_12_4323::
+ResetCursorBlink::
 	xor a
-	ld [$c90c], a
+	ld [wCursorBlink], a
 	ret
 
 
-Call_12_4328::
+DrawMenuCursor::
 	ld c, a
 	bit 7, a
 	jr nz, jr_012_433d
 
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	and $0f
 	push af
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	inc a
-	ld [$c90c], a
+	ld [wCursorBlink], a
 	pop af
 	ld a, c
 	ret nz
@@ -553,12 +561,12 @@ jr_012_4340:
 	ret z
 
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_12_4061
+	call WindowBgAddrWrapped
 	pop bc
 	pop de
 	ld a, c
@@ -571,7 +579,7 @@ jr_012_4340:
 	bit 7, c
 	jr nz, jr_012_4370
 
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_012_4370
@@ -579,9 +587,9 @@ jr_012_4340:
 	ld a, $e8
 
 jr_012_4370:
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -596,7 +604,7 @@ jr_012_4370:
 	inc b
 	jr jr_012_4340
 
-Call_12_4387::
+DrawPageNumber::
 	ld a, b
 	cp c
 	ret nc
@@ -617,20 +625,20 @@ Call_12_4387::
 
 	dec hl
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_12_4061
+	call WindowBgAddrWrapped
 	pop bc
 	pop de
 	ld a, c
 	and $7f
 	add $f1
-	call Call_1AAD
+	call WriteVRAM
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -645,7 +653,7 @@ Call_12_4387::
 	ret
 
 
-Call_12_43C0::
+DrawListFrame::
 	ld a, [hli]
 	push af
 	push hl
@@ -680,7 +688,7 @@ jr_012_43d9:
 jr_012_43e1:
 	pop af
 
-Call_12_43E2::
+DrawCursorAt::
 	ld c, a
 	add a
 	add e
@@ -694,19 +702,19 @@ Call_12_43E2::
 	ld a, [de]
 	ld h, a
 	ld a, l
-	ldh [$ffd5], a
+	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
 	push de
 	push bc
-	call Call_12_4061
+	call WindowBgAddrWrapped
 	pop bc
 	pop de
 	ld a, $e9
 	bit 7, c
 	jr nz, jr_012_440d
 
-	ld a, [$c90c]
+	ld a, [wCursorBlink]
 	bit 4, a
 	ld a, $e0
 	jr nz, jr_012_440d
@@ -715,7 +723,7 @@ Call_12_43E2::
 
 jr_012_440d:
 	push af
-	ldh a, [$ffd5]
+	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
@@ -730,43 +738,43 @@ jr_012_440d:
 	ret
 
 
-Call_12_441F::
-	ld a, [$c8f0]
+PrintMenuText::
+	ld a, [wScriptMenuText]
 	add l
 	ld l, a
 	ld a, [$c8f1]
 	adc h
 	ld h, a
-	call Call_0AD9
+	call PrintMessage
 	ret
 
 
-Jump_12_442D::
-	ld a, [$c905]
+FarmKeeperMenu::
+	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_12_4431::
-	dw Jump_12_443B
-	dw Jump_12_44B4
-	dw Jump_12_44E4
-	dw Jump_12_4540
-	dw Jump_12_4550
+FarmKeeperSteps::
+	dw FarmKeeperInit
+	dw FarmKeeperOpenMenu
+	dw FarmMainMenuInput
+	dw FarmRunOption
+	dw FarmKeeperClose
 
-Jump_12_443B::
-	ld hl, $ffb7
-	call Call_12_4028
-	ld hl, $ffbb
-	call Call_12_4028
-	ld hl, $c8da
+FarmKeeperInit::
+	ld hl, hScrollX
+	call SnapToTile
+	ld hl, hScrollY
+	call SnapToTile
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -780,142 +788,143 @@ Jump_12_443B::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
-	call Call_12_41EF
+	call RestoreTilemapBuffer
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_4323
+	call DrawTextTiles
+	call ResetCursorBlink
 	ld a, $60
-	ldh [$ffd4], a
-	ld hl, far_Call_01_46F6
+	ldh [hSpriteBGTile], a
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_44B4::
-	ld a, [$c825]
+FarmKeeperOpenMenu::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c8ec], a
-	call Call_12_41EF
-	call Call_12_44CB
-	call Call_12_40E5
+	ld [wMenuOverlay], a
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_44CB::
+DrawFarmMainMenu::
 	ld de, $710c
-	call Call_12_40B4
+	call DrawWindowLayout
 	ld de, $2e07
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $4532
-	ld a, [$c8da]
-	call Call_12_43E2
+	ld a, [wLinkChoice]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_44E4::
+FarmMainMenuInput::
 	ld de, $4532
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld b, $06
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	and $0a
 	jr z, jr_012_4500
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	jr jr_012_4531
 
 jr_012_4500:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, jr_012_4531
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c905
+	call QueueSound
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c906], a
-	ld hl, $c8da
+	ld [wMenuSubStep], a
+	ld hl, wLinkChoice
 	set 7, [hl]
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
-	call Call_12C7
-	ld hl, $c8e2
+	call FillMemory
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	jr jr_012_4531
 
 jr_012_4531:
 	ret
 
 
+FarmMainMenuCursorPos::
 	db $21, $00, $61, $00, $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
 
-Jump_12_4540::
-	ld a, [$c8da]
+FarmRunOption::
+	ld a, [wLinkChoice]
 	rst $00
 
-JumpTable_12_4544::
-	dw Jump_12_4588
-	dw Jump_12_4C2B
-	dw Jump_12_54AF
-	dw Jump_12_59C6
-	dw Jump_12_5DEC
-	dw Jump_12_4550
+FarmOptionTable::
+	dw FarmDepositOption
+	dw FarmWithdrawOption
+	dw FarmViewOption
+	dw FarmReleaseOption
+	dw FarmSwitchOption
+	dw FarmKeeperClose
 
-Jump_12_4550::
-	call Call_12_41EF
+FarmKeeperClose::
+	call RestoreTilemapBuffer
 	ld de, $2e07
-	call Call_12_40B4
-	call Call_12_40E5
-	call Call_2518
+	call DrawWindowLayout
+	call CopyTilemapBufferToVram
+	call BuildStatusBar
 	ld hl, $c13c
-	ld de, $c1c0
-	call Call_12_457F
+	ld de, wPartyBarTiles
+	call CopyPartyBarRow
 	ld hl, $c150
 	ld de, $c1e0
-	call Call_12_457F
+	call CopyPartyBarRow
 	ld a, $80
-	ldh [$ffd3], a
-	ld hl, $c8eb
+	ldh [hSpriteClip], a
+	ld hl, wFieldFlags
 	res 4, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Call_12_457F::
+CopyPartyBarRow::
 	ld b, $14
 
 jr_012_4581:
@@ -928,37 +937,37 @@ jr_012_4581:
 	ret
 
 
-Jump_12_4588::
-	ld a, [$c906]
+FarmDepositOption::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_458C::
-	dw Jump_12_45BA
-	dw Jump_12_460B
-	dw Jump_12_4748
-	dw Jump_12_47B7
-	dw Jump_12_47C2
-	dw Jump_12_47EA
-	dw Jump_12_4841
-	dw Jump_12_4864
-	dw Jump_12_4888
-	dw Jump_12_48AB
-	dw Jump_12_490A
-	dw Jump_12_491A
-	dw Jump_12_4942
-	dw Jump_12_4993
-	dw Jump_12_49A4
-	dw Jump_12_4A19
-	dw Jump_12_4A8F
-	dw Jump_12_4A9A
-	dw Jump_12_4AC2
-	dw Jump_12_4B1E
-	dw Jump_12_4B6B
-	dw Jump_12_4B8F
-	dw Jump_12_4BBA
+FarmDepositSteps::
+	dw FarmDepositStart
+	dw FarmDepositShowParty
+	dw FarmDepositPartyInput
+	dw FarmDepositAskConfirm
+	dw FarmDepositShowChoice
+	dw FarmDepositChoiceInput
+	dw FarmDepositDoIt
+	dw FarmDepositDone
+	dw FarmDepositViewStatus
+	dw FarmDepositStatusReturn
+	dw FarmSwapAsk
+	dw FarmSwapShowYesNo
+	dw FarmSwapYesNoInput
+	dw FarmSwapBuildList
+	dw FarmSwapShowList
+	dw FarmSwapListInput
+	dw FarmSwapAskConfirm
+	dw FarmSwapShowChoice
+	dw FarmSwapChoiceInput
+	dw FarmSwapDoIt
+	dw FarmSwapDone
+	dw FarmSwapViewStatus
+	dw FarmSwapStatusReturn
 
-Jump_12_45BA::
-	ld a, [$ca8d]
+FarmDepositStart::
+	ld a, [wPartyCount]
 	cp $00
 	jr z, jr_012_45ec
 
@@ -966,93 +975,93 @@ Jump_12_45BA::
 	jr nz, jr_012_45e1
 
 	ld hl, $0004
-	call Call_12_441F
-	call Call_12_4CB7
+	call PrintMenuText
+	call CountFarmMonsters
 	or a
 	jr nz, jr_012_45d7
 
 	ld a, $07
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 jr_012_45d7:
 	xor a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ld a, $0a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 jr_012_45e1:
 	ld hl, $0003
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_012_45ec:
+FarmNoMonsters::
 jr_012_45ec:
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $06e1
-	call Call_0AD9
+	call PrintMessage
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_460B::
-	ld a, [$c825]
+FarmDepositShowParty::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_4682
-	call Call_12_4643
-	call Call_12_4621
-	call Call_12_40E5
-	ld hl, $c906
+	call ShowSelectedPartyMonster
+	call LoadPartyNameTiles
+	call DrawFarmPartyWindow
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_4621::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmPartyWindow::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $71aa
-	call Call_12_40B4
+	call DrawWindowLayout
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_46FD
-	call Call_12_4323
+	call DrawWindowLayout
+	call DrawSelectedPartyLevel
+	call ResetCursorBlink
 	ld de, $47af
-	ld a, [$c8db]
-	call Call_12_43E2
+	ld a, [wMenuChoice2]
+	call DrawCursorAt
 	ret
 
 
-Call_12_4643::
+LoadPartyNameTiles::
 	ld hl, $8800
 	ld a, $01
-	call Call_12_465C
+	call LoadPartyNameSlot
 	ld hl, $8840
 	ld a, $02
-	call Call_12_465C
+	call LoadPartyNameSlot
 	ld hl, $8880
 	ld a, $03
-	call Call_12_465C
+	call LoadPartyNameSlot
 	ret
 
 
-Call_12_465C::
+LoadPartyNameSlot::
 	ld b, a
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp b
 	jr nc, jr_012_4672
 
@@ -1060,9 +1069,9 @@ Call_12_465C::
 
 jr_012_4665:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_012_4665
 
@@ -1073,19 +1082,19 @@ jr_012_4672:
 	push hl
 	ld a, b
 	dec a
-	ld hl, $cac2
-	call Call_2229
+	ld hl, wMonName
+	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
-	call Call_12_4153
+	call DrawNameTiles
 	ret
 
 
-Call_12_4682::
-	ld a, [$c8db]
+ShowSelectedPartyMonster::
+	ld a, [wMenuChoice2]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -1093,66 +1102,66 @@ Call_12_4682::
 	ld h, a
 	ld a, [hl]
 
-Call_12_4691::
+DrawMonsterNameAndSex::
 	push af
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	ld hl, $9650
-	call Call_12_4153
+	call DrawNameTiles
 	pop af
-	ld hl, $cacc
-	call Call_223B
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [hl]
 	ld hl, $9690
 	and $01
 	add $a7
-	ld [$c180], a
+	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_12_46FD::
-	ld a, [$c8db]
+DrawSelectedPartyLevel::
+	ld a, [wMenuChoice2]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -1160,30 +1169,30 @@ Call_12_46FD::
 	ld h, a
 	ld a, [hl]
 
-Call_12_470C::
+DrawMonsterLevel::
 	push af
-	ld hl, $cb0c
-	call Call_223B
+	ld hl, wMonLevel
+	call MonsterField
 	ld c, [hl]
 	ld b, $00
 	ld hl, $016a
-	call Call_12_4058
+	call TilemapBufferAddr
 	ld a, $de
 	ld [hli], a
 	ld a, $e0
 	ld [hli], a
 	ld a, $e0
 	ld [hld], a
-	call Call_12_601B
+	call DrawTwoDigits
 	pop af
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	cp $02
 	jr nz, jr_012_473e
 
 	ld hl, $0172
-	call Call_12_4058
+	call TilemapBufferAddr
 	ld a, $e3
 	ld [hl], a
 	ret
@@ -1191,63 +1200,63 @@ Call_12_470C::
 
 jr_012_473e:
 	ld hl, $0172
-	call Call_12_4058
+	call TilemapBufferAddr
 	ld a, $e0
 	ld [hl], a
 	ret
 
 
-Jump_12_4748::
-	ld a, [$c825]
+FarmDepositPartyInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $47af
-	ld hl, $c8db
-	ld a, [$ca8d]
+	ld hl, wMenuChoice2
+	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
-	call Call_12_42CA
+	call UpdateMenuCursor
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	cp [hl]
 	jr z, jr_012_4772
 
-	call Call_12_4682
+	call ShowSelectedPartyMonster
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_46FD
-	call Call_12_40E5
+	call DrawWindowLayout
+	call DrawSelectedPartyLevel
+	call CopyTilemapBufferToVram
 
 jr_012_4772:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4799
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_47ae
 
 jr_012_4799:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_47ae
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8dc], a
-	ld hl, $c906
+	ld [wConfirmChoice], a
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_47ae:
@@ -1255,80 +1264,81 @@ jr_012_47ae:
 	ret
 
 
+PartyListCursorPos::
 	db $6e, $00, $ae, $00, $ee, $00, $ff, $ff
 
-Jump_12_47B7::
+FarmDepositAskConfirm::
 	ld hl, $0005
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_47C2::
-	ld a, [$c825]
+FarmDepositShowChoice::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_47D7
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawDepositChoice
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_47D7::
+DrawDepositChoice::
 	ld de, $7b42
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $483b
-	ld a, [$c8dc]
-	call Call_12_43E2
+	ld a, [wConfirmChoice]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_47EA::
+FarmDepositChoiceInput::
 	ld de, $483b
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4813
 
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_4621
-	call Call_12_40E5
+	call DrawFarmPartyWindow
+	call CopyTilemapBufferToVram
 	ld hl, $0003
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $02
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_483a
 
 jr_012_4813:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_483a
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_4836
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld a, $08
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jp Jump_012_483a
 
 
 jr_012_4836:
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_483a:
@@ -1336,177 +1346,178 @@ jr_012_483a:
 	ret
 
 
+DepositChoiceCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_4841::
-	ld a, [$c8db]
+FarmDepositDoIt::
+	ld a, [wMenuChoice2]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $ff
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, $0006
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_4864::
-	ld a, [$c825]
+FarmDepositDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_4888::
-	ld hl, $ca8e
+FarmDepositViewStatus::
+	ld hl, wParty
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
-	ld [$c932], a
-	ld a, [$ca8d]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wPartyCount]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_48AB::
-	ld a, [$c8db]
+FarmDepositStatusReturn::
+	ld a, [wMenuChoice2]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	or b
-	ld [$c8db], a
+	ld [wMenuChoice2], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_4682
-	call Call_12_4643
+	call DrawTextTiles
+	call ShowSelectedPartyMonster
+	call LoadPartyNameTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_4621
-	call Call_12_47D7
-	call Call_12_40E5
+	call DrawFarmPartyWindow
+	call DrawDepositChoice
+	call CopyTilemapBufferToVram
 	ld hl, $0005
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $05
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_490A::
-	ld a, [$c825]
+FarmSwapAsk::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0007
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_491A::
-	ld a, [$c825]
+FarmSwapShowYesNo::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_492F
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawSwapYesNo
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_492F::
+DrawSwapYesNo::
 	ld de, $6f54
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $498d
-	ld a, [$c8dd]
-	call Call_12_43E2
+	ld a, [wConfirmChoice2]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_4942::
+FarmSwapYesNoInput::
 	ld de, $498d
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4974
 
 jr_012_4954:
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_498c
 
 jr_012_4974:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_498c
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dd]
+	call QueueSound
+	ld a, [wConfirmChoice2]
 	cp $81
 	jr z, jr_012_4954
 
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_498c:
@@ -1514,97 +1525,98 @@ jr_012_498c:
 	ret
 
 
+SwapYesNoCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_4993::
-	call Call_12_4CB7
-	call Call_12_4CE5
+FarmSwapBuildList::
+	call CountFarmMonsters
+	call ListFarmMonsters
 	ld hl, $0008
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_49A4::
-	ld a, [$c825]
+FarmSwapShowList::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_49E5
-	call Call_12_4D5D
-	call Call_12_49BA
-	call Call_12_40E5
-	ld hl, $c906
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
+	call DrawFarmSwapList
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_49BA::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmSwapList::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_49FF
+	call DrawWindowLayout
+	call DrawSelectedFarmLevel
 	ld de, $71f4
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $4e26
 	ld b, $04
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
-	call Call_12_492F
+	ld hl, wListCursor
+	call DrawListFrame
+	call DrawSwapYesNo
 	ret
 
 
-Call_12_49E5::
-	ld a, [$c8e3]
+ShowSelectedFarmMonster::
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	call Call_12_4691
+	call DrawMonsterNameAndSex
 	ret
 
 
-Call_12_49FF::
-	ld a, [$c8e3]
+DrawSelectedFarmLevel::
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	call Call_12_470C
+	call DrawMonsterLevel
 	ret
 
 
-Jump_12_4A19::
-	ld a, [$c825]
+FarmSwapListInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $4e26
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -1612,134 +1624,134 @@ Jump_12_4A19::
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
-	ld hl, $c8e2
+	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_012_4a42
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_4a42:
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_4a55
 
-	call Call_12_4D5D
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call LoadFarmListNameTiles
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_4a55:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4a79
 
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_41EF
-	call Call_12_44CB
-	call Call_12_492F
-	call Call_12_40E5
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
+	call DrawSwapYesNo
+	call CopyTilemapBufferToVram
 	ld hl, $0007
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $0c
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_4a8e
 
 jr_012_4a79:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_4a8e
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 	xor a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 
 Jump_012_4a8e:
 jr_012_4a8e:
 	ret
 
 
-Jump_12_4A8F::
+FarmSwapAskConfirm::
 	ld hl, $0009
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_4A9A::
-	ld a, [$c825]
+FarmSwapShowChoice::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_4AAF
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawSwapChoice
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_4AAF::
+DrawSwapChoice::
 	ld de, $7b42
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $4b18
-	ld a, [$c8dc]
-	call Call_12_43E2
+	ld a, [wConfirmChoice]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_4AC2::
+FarmSwapChoiceInput::
 	ld de, $4b18
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4af1
 
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_49E5
-	call Call_12_4D5D
-	call Call_12_49BA
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
+	call DrawFarmSwapList
+	call CopyTilemapBufferToVram
 	ld hl, $0008
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $0f
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_4b17
 
 jr_012_4af1:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_4b17
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_4b13
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld a, $15
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_4b17
 
 jr_012_4b13:
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_4b17:
@@ -1747,24 +1759,25 @@ jr_012_4b17:
 	ret
 
 
+SwapChoiceCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_4B1E::
-	ld a, [$ca8e]
-	ld hl, $cac2
-	call Call_223B
+FarmSwapDoIt::
+	ld a, [wParty]
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	ld a, [$c8e3]
+	ld hl, wTextArg0
+	call CopyName
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -1772,196 +1785,196 @@ Jump_12_4B1E::
 	ld h, a
 	ld a, [hl]
 	push af
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
+	ld hl, wTextArg1
+	call CopyName
 	pop af
-	ld [$ca8e], a
-	ld hl, far_Call_01_46F6
+	ld [wParty], a
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, $000a
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_4B6B::
-	ld a, [$c825]
+FarmSwapDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_4B8F::
-	ld hl, $c0d8
+FarmSwapViewStatus::
+	ld hl, wSceneObjects
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
 	ld a, a
-	ld [$c932], a
-	ld a, [$c8e9]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wListLength]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_4BBA::
-	ld a, [$c8e2]
+FarmSwapStatusReturn::
+	ld a, [wListCursor]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	and $03
 	or b
-	ld [$c8e2], a
-	ld a, [$c934]
+	ld [wListCursor], a
+	ld a, [wViewResult]
 	srl a
 	srl a
-	ld [$c8e3], a
+	ld [wListPage], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_4CB7
-	call Call_12_4CE5
-	call Call_12_4D5D
+	call DrawTextTiles
+	call CountFarmMonsters
+	call ListFarmMonsters
+	call LoadFarmListNameTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_49E5
-	call Call_12_49BA
-	call Call_12_4AAF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawFarmSwapList
+	call DrawSwapChoice
+	call CopyTilemapBufferToVram
 	ld hl, $0009
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $12
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_4C2B::
-	ld a, [$c906]
+FarmWithdrawOption::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_4C2F::
-	dw Jump_12_4C6D
-	dw Jump_12_4D1F
-	dw Jump_12_4DB1
-	dw Jump_12_4E32
-	dw Jump_12_4E3D
-	dw Jump_12_4E65
-	dw Jump_12_4EBC
-	dw Jump_12_4F1B
-	dw Jump_12_4F3F
-	dw Jump_12_4F6A
-	dw Jump_12_4FD5
-	dw Jump_12_4FE5
-	dw Jump_12_500D
-	dw Jump_12_505F
-	dw Jump_12_506D
-	dw Jump_12_50AE
-	dw Jump_12_5120
-	dw Jump_12_512B
-	dw Jump_12_5153
-	dw Jump_12_51AB
-	dw Jump_12_5210
-	dw Jump_12_5234
-	dw Jump_12_525F
-	dw Jump_12_52CD
-	dw Jump_12_52D8
-	dw Jump_12_5339
-	dw Jump_12_53A1
-	dw Jump_12_53AC
-	dw Jump_12_53D4
-	dw Jump_12_542D
-	dw Jump_12_5450
+FarmWithdrawSteps::
+	dw FarmWithdrawStart
+	dw FarmWithdrawShowList
+	dw FarmWithdrawListInput
+	dw FarmWithdrawAskConfirm
+	dw FarmWithdrawShowChoice
+	dw FarmWithdrawChoiceInput
+	dw FarmWithdrawDoIt
+	dw FarmWithdrawDone
+	dw FarmWithdrawViewStatus
+	dw FarmWithdrawStatusReturn
+	dw FarmPartyFullAsk
+	dw FarmPartyFullShowYesNo
+	dw FarmPartyFullYesNoInput
+	dw FarmExchangeBuildList
+	dw FarmExchangeShowList
+	dw FarmExchangeListInput
+	dw FarmExchangeAskConfirm
+	dw FarmExchangeShowChoice
+	dw FarmExchangeChoiceInput
+	dw FarmExchangeDoIt
+	dw FarmExchangeDone
+	dw FarmExchangeViewStatus
+	dw FarmExchangeStatusReturn
+	dw FarmExchangeAskPartySlot
+	dw FarmExchangeShowParty
+	dw FarmExchangePartyInput
+	dw FarmExchangeAskPartyConfirm
+	dw FarmExchangeShowPartyChoice
+	dw FarmExchangePartyChoiceInput
+	dw FarmExchangeViewPartyStatus
+	dw FarmExchangePartyStatusReturn
 
-Jump_12_4C6D::
+FarmWithdrawStart::
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_4CB7
+	call DrawTextTiles
+	call CountFarmMonsters
 	or a
 	jr nz, jr_012_4c92
 
 	ld hl, $000c
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $07
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 jr_012_4c92:
-	ld a, [$ca8d]
+	ld a, [wPartyCount]
 	cp $03
 	jr nz, jr_012_4ca9
 
 	ld hl, $000d
-	call Call_12_441F
+	call PrintMenuText
 	xor a
-	ld [$c8dd], a
+	ld [wConfirmChoice2], a
 	ld a, $0a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 jr_012_4ca9:
-	call Call_12_4CE5
+	call ListFarmMonsters
 	ld hl, $000b
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_4CB7::
-	ld de, $cac1
+CountFarmMonsters::
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -1998,17 +2011,17 @@ jr_012_4cd4:
 	jr nz, jr_012_4cbe
 
 	ld a, c
-	ld [$c8e9], a
+	ld [wListLength], a
 	ret
 
 
-Call_12_4CE5::
-	ld hl, $c0d8
+ListFarmMonsters::
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -2049,67 +2062,67 @@ jr_012_4d11:
 	ret
 
 
-Jump_12_4D1F::
-	ld a, [$c825]
+FarmWithdrawShowList::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_49E5
-	call Call_12_4D5D
-	call Call_12_4D32
-	ld hl, $c906
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
+	call DrawFarmWithdrawList
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_4D32::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmWithdrawList::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_49FF
+	call DrawWindowLayout
+	call DrawSelectedFarmLevel
 	ld de, $71f4
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $4e26
 	ld b, $04
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
-	call Call_12_40E5
+	ld hl, wListCursor
+	call DrawListFrame
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_4D5D::
-	ld a, [$c8e3]
+LoadFarmListNameTiles::
+	ld a, [wListPage]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld hl, $8800
-	call Call_12_4D77
-	call Call_12_4D77
-	call Call_12_4D77
+	call LoadListNameSlot
+	call LoadListNameSlot
+	call LoadListNameSlot
 
-Call_12_4D77::
+LoadListNameSlot::
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
 	jr z, jr_012_4d97
 
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
 	push hl
-	call Call_12_4153
+	call DrawNameTiles
 	pop hl
 	ld a, l
 	add $40
@@ -2127,9 +2140,9 @@ jr_012_4d97:
 
 jr_012_4d99:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_012_4d99
 
@@ -2145,14 +2158,14 @@ jr_012_4d99:
 	ret
 
 
-Jump_12_4DB1::
-	ld a, [$c825]
+FarmWithdrawListInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $4e26
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -2160,53 +2173,53 @@ Jump_12_4DB1::
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
-	ld hl, $c8e2
+	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_012_4dda
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_4dda:
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_4ded
 
-	call Call_12_4D5D
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call LoadFarmListNameTiles
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_4ded:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4e14
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_4e25
 
 jr_012_4e14:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_4e25
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_4e25:
@@ -2214,80 +2227,81 @@ jr_012_4e25:
 	ret
 
 
+FarmListCursorPos::
 	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff
 
-Jump_12_4E32::
+FarmWithdrawAskConfirm::
 	ld hl, $000e
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_4E3D::
-	ld a, [$c825]
+FarmWithdrawShowChoice::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_4E52
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawWithdrawChoice
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_4E52::
+DrawWithdrawChoice::
 	ld de, $7b42
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $4eb6
-	ld a, [$c8dc]
-	call Call_12_43E2
+	ld a, [wConfirmChoice]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_4E65::
+FarmWithdrawChoiceInput::
 	ld de, $4eb6
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_4e8e
 
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_4D32
-	call Call_12_40E5
+	call DrawFarmWithdrawList
+	call CopyTilemapBufferToVram
 	ld hl, $000b
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $02
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_4eb5
 
 jr_012_4e8e:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_4eb5
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_4eb1
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld a, $08
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jp Jump_012_4eb5
 
 
 jr_012_4eb1:
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_4eb5:
@@ -2295,43 +2309,44 @@ jr_012_4eb5:
 	ret
 
 
+WithdrawChoiceCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_4EBC::
-	ld a, [$ca8d]
+FarmWithdrawDoIt::
+	ld a, [wPartyCount]
 	or a
 	jr nz, jr_012_4eef
 
 	xor a
-	ld [$ca8e], a
+	ld [wParty], a
 	ld a, $02
-	ld [$cac1], a
+	ld [wMonsters], a
 	ld a, $ff
 	ld [$ca8f], a
 	ld a, $ff
 	ld [$ca90], a
 	ld a, $01
-	ld [$ca8d], a
-	ld hl, far_Call_01_484E
+	ld [wPartyCount], a
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld bc, $0007
-	call Call_26A0
+	call SetEventFlag
 	ld hl, $000f
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
 jr_012_4eef:
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -2339,235 +2354,236 @@ jr_012_4eef:
 	ld h, a
 	ld a, [hl]
 	ld [$ca90], a
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, $000f
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_4F1B::
-	ld a, [$c825]
+FarmWithdrawDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_4F3F::
-	ld hl, $c0d8
+FarmWithdrawViewStatus::
+	ld hl, wSceneObjects
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
 	ld a, a
-	ld [$c932], a
-	ld a, [$c8e9]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wListLength]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_4F6A::
-	ld a, [$c8e2]
+FarmWithdrawStatusReturn::
+	ld a, [wListCursor]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	and $03
 	or b
-	ld [$c8e2], a
-	ld a, [$c934]
+	ld [wListCursor], a
+	ld a, [wViewResult]
 	srl a
 	srl a
-	ld [$c8e3], a
+	ld [wListPage], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_49E5
-	call Call_12_4D5D
+	call DrawTextTiles
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_4D32
-	call Call_12_4E52
-	call Call_12_40E5
+	call DrawFarmWithdrawList
+	call DrawWithdrawChoice
+	call CopyTilemapBufferToVram
 	ld hl, $000e
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $05
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_4FD5::
-	ld a, [$c825]
+FarmPartyFullAsk::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0010
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_4FE5::
-	ld a, [$c825]
+FarmPartyFullShowYesNo::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_4FFA
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawPartyFullYesNo
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_4FFA::
+DrawPartyFullYesNo::
 	ld de, $6f54
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $5059
-	ld a, [$c8dd]
-	call Call_12_43E2
+	ld a, [wConfirmChoice2]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_500D::
+FarmPartyFullYesNoInput::
 	ld de, $5059
-	ld hl, $c8dd
+	ld hl, wConfirmChoice2
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_503f
 
 jr_012_501f:
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_5058
 
 jr_012_503f:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5058
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dd]
+	call QueueSound
+	ld a, [wConfirmChoice2]
 	cp $81
 	jr z, jr_012_501f
 
 	ld a, $17
-	ld [$c906], a
+	ld [wMenuSubStep], a
 
 Jump_012_5058:
 jr_012_5058:
 	ret
 
 
+PartyFullYesNoCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_505F::
-	call Call_12_4CE5
+FarmExchangeBuildList::
+	call ListFarmMonsters
 	ld hl, $0013
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_506D::
-	ld a, [$c825]
+FarmExchangeShowList::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_49E5
-	call Call_12_4D5D
-	call Call_12_5083
-	call Call_12_40E5
-	ld hl, $c906
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
+	call DrawFarmExchangeList
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5083::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmExchangeList::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_49FF
+	call DrawWindowLayout
+	call DrawSelectedFarmLevel
 	ld de, $71f4
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $4e26
 	ld b, $04
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
-	call Call_12_4FFA
+	ld hl, wListCursor
+	call DrawListFrame
+	call DrawPartyFullYesNo
 	ret
 
 
-Jump_12_50AE::
-	ld a, [$c825]
+FarmExchangeListInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $4e26
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -2575,130 +2591,130 @@ Jump_12_50AE::
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
-	ld hl, $c8e2
+	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_012_50d7
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_50d7:
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_50ea
 
-	call Call_12_4D5D
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call LoadFarmListNameTiles
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_50ea:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_510a
 
-	call Call_12_5313
-	call Call_12_4643
-	call Call_12_52EE
+	call ShowExchangePartyMonster
+	call LoadPartyNameTiles
+	call DrawExchangePartyWindow
 	ld hl, $0011
-	call Call_12_441F
-	call Call_12_40E5
+	call PrintMenuText
+	call CopyTilemapBufferToVram
 	ld a, $19
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_511f
 
 jr_012_510a:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_511f
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 	xor a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 
 Jump_012_511f:
 jr_012_511f:
 	ret
 
 
-Jump_12_5120::
+FarmExchangeAskConfirm::
 	ld hl, $0014
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_512B::
-	ld a, [$c825]
+FarmExchangeShowChoice::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_5140
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawExchangeChoice
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5140::
+DrawExchangeChoice::
 	ld de, $7b42
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $51a5
-	ld a, [$c8dc]
-	call Call_12_43E2
+	ld a, [wConfirmChoice]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_5153::
+FarmExchangeChoiceInput::
 	ld de, $51a5
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_517e
 
-	call Call_12_49E5
-	call Call_12_4D5D
-	call Call_12_5083
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
+	call DrawFarmExchangeList
 	ld hl, $0013
-	call Call_12_441F
-	call Call_12_40E5
+	call PrintMenuText
+	call CopyTilemapBufferToVram
 	ld a, $0f
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_51a4
 
 jr_012_517e:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_51a4
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_51a0
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld a, $15
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_51a4
 
 jr_012_51a0:
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_51a4:
@@ -2706,32 +2722,33 @@ jr_012_51a4:
 	ret
 
 
+ExchangeChoiceCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_51AB::
-	ld a, [$c8de]
+FarmExchangeDoIt::
+	ld a, [wMenuChoice3]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
-	ld a, [$c8e3]
+	ld hl, wTextArg0
+	call CopyName
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -2739,15 +2756,15 @@ Jump_12_51AB::
 	ld h, a
 	ld a, [hl]
 	push af
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c190
-	call Call_0C80
-	ld a, [$c8de]
+	ld hl, wTextArg1
+	call CopyName
+	ld a, [wMenuChoice3]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
@@ -2755,435 +2772,437 @@ Jump_12_51AB::
 	ld h, a
 	pop af
 	ld [hl], a
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, $0015
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_5210::
-	ld a, [$c825]
+FarmExchangeDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_5234::
-	ld hl, $c0d8
+FarmExchangeViewStatus::
+	ld hl, wSceneObjects
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
 	ld a, a
-	ld [$c932], a
-	ld a, [$c8e9]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wListLength]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_525F::
-	ld a, [$c8e2]
+FarmExchangeStatusReturn::
+	ld a, [wListCursor]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	and $03
 	or b
-	ld [$c8e2], a
-	ld a, [$c934]
+	ld [wListCursor], a
+	ld a, [wViewResult]
 	srl a
 	srl a
-	ld [$c8e3], a
+	ld [wListPage], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_4CE5
-	call Call_12_49E5
-	call Call_12_4D5D
+	call DrawTextTiles
+	call ListFarmMonsters
+	call ShowSelectedFarmMonster
+	call LoadFarmListNameTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_5083
-	call Call_12_5140
-	call Call_12_40E5
+	call DrawFarmExchangeList
+	call DrawExchangeChoice
+	call CopyTilemapBufferToVram
 	ld hl, $0014
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $12
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_52CD::
+FarmExchangeAskPartySlot::
 	ld hl, $0011
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_52D8::
-	ld a, [$c825]
+FarmExchangeShowParty::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_5313
-	call Call_12_4643
-	call Call_12_52EE
-	call Call_12_40E5
-	ld hl, $c906
+	call ShowExchangePartyMonster
+	call LoadPartyNameTiles
+	call DrawExchangePartyWindow
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_52EE::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawExchangePartyWindow::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $71aa
-	call Call_12_40B4
+	call DrawWindowLayout
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_5326
-	call Call_12_4323
+	call DrawWindowLayout
+	call DrawExchangePartyLevel
+	call ResetCursorBlink
 	ld de, $5399
-	ld a, [$c8de]
-	call Call_12_43E2
-	call Call_12_4FFA
+	ld a, [wMenuChoice3]
+	call DrawCursorAt
+	call DrawPartyFullYesNo
 	ret
 
 
-Call_12_5313::
-	ld a, [$c8de]
+ShowExchangePartyMonster::
+	ld a, [wMenuChoice3]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	call Call_12_4691
+	call DrawMonsterNameAndSex
 	ret
 
 
-Call_12_5326::
-	ld a, [$c8de]
+DrawExchangePartyLevel::
+	ld a, [wMenuChoice3]
 	and $7f
-	ld hl, $ca8e
+	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	call Call_12_470C
+	call DrawMonsterLevel
 	ret
 
 
-Jump_12_5339::
-	ld a, [$c825]
+FarmExchangePartyInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $5399
-	ld hl, $c8de
-	ld a, [$ca8d]
+	ld hl, wMenuChoice3
+	ld a, [wPartyCount]
 	ld b, a
 	ld a, [hl]
 	push af
-	call Call_12_42CA
+	call UpdateMenuCursor
 	pop af
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	cp [hl]
 	jr z, jr_012_5363
 
-	call Call_12_5313
+	call ShowExchangePartyMonster
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_5326
-	call Call_12_40E5
+	call DrawWindowLayout
+	call DrawExchangePartyLevel
+	call CopyTilemapBufferToVram
 
 jr_012_5363:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_5383
 
-	call Call_12_41EF
-	call Call_12_44CB
-	call Call_12_4FFA
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
+	call DrawPartyFullYesNo
 	ld hl, $0010
-	call Call_12_441F
-	call Call_12_40E5
+	call PrintMenuText
+	call CopyTilemapBufferToVram
 	ld a, $0c
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_5398
 
 jr_012_5383:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5398
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 	xor a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 
 Jump_012_5398:
 jr_012_5398:
 	ret
 
 
+ExchangePartyCursorPos::
 	db $6e, $00, $ae, $00, $ee, $00, $ff, $ff
 
-Jump_12_53A1::
+FarmExchangeAskPartyConfirm::
 	ld hl, $0012
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_53AC::
-	ld a, [$c825]
+FarmExchangeShowPartyChoice::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_53C1
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawExchangePartyChoice
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_53C1::
+DrawExchangePartyChoice::
 	ld de, $7b42
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $5427
-	ld a, [$c8dc]
-	call Call_12_43E2
+	ld a, [wConfirmChoice]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_53D4::
+FarmExchangePartyChoiceInput::
 	ld de, $5427
-	ld hl, $c8dc
+	ld hl, wConfirmChoice
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_53ff
 
-	call Call_12_5313
-	call Call_12_4643
-	call Call_12_52EE
+	call ShowExchangePartyMonster
+	call LoadPartyNameTiles
+	call DrawExchangePartyWindow
 	ld hl, $0011
-	call Call_12_441F
-	call Call_12_40E5
+	call PrintMenuText
+	call CopyTilemapBufferToVram
 	ld a, $19
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_5426
 
 jr_012_53ff:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5426
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8dc]
+	call QueueSound
+	ld a, [wConfirmChoice]
 	cp $81
 	jr z, jr_012_5421
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld a, $1d
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_5426
 
 jr_012_5421:
 	ld a, $0d
-	ld [$c906], a
+	ld [wMenuSubStep], a
 
 Jump_012_5426:
 jr_012_5426:
 	ret
 
 
+ExchangePartyChoiceCursorPos::
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_542D::
-	ld hl, $ca8e
+FarmExchangeViewPartyStatus::
+	ld hl, wParty
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8de]
+	ld a, [wMenuChoice3]
 	and $7f
-	ld [$c932], a
-	ld a, [$ca8d]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wPartyCount]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_5450::
-	ld a, [$c8de]
+FarmExchangePartyStatusReturn::
+	ld a, [wMenuChoice3]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	or b
-	ld [$c8de], a
+	ld [wMenuChoice3], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
-	call Call_12_5313
-	call Call_12_4643
+	call DrawTextTiles
+	call ShowExchangePartyMonster
+	call LoadPartyNameTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_52EE
-	call Call_12_53C1
-	call Call_12_40E5
+	call DrawExchangePartyWindow
+	call DrawExchangePartyChoice
+	call CopyTilemapBufferToVram
 	ld hl, $0012
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $1c
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_54AF::
-	ld a, [$c906]
+FarmViewOption::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_54B3::
-	dw Jump_12_54C5
-	dw Jump_12_54D8
-	dw Jump_12_55FB
-	dw Jump_12_5650
-	dw Jump_12_56EA
-	dw Jump_12_5880
-	dw Jump_12_592B
-	dw Jump_12_5951
-	dw Jump_12_59A2
+FarmViewSteps::
+	dw FarmViewStart
+	dw FarmViewShowCounts
+	dw FarmViewKindInput
+	dw FarmViewBuildList
+	dw FarmViewShowList
+	dw FarmViewListInput
+	dw FarmViewStatus
+	dw FarmViewStatusReturn
+	dw FarmViewDone
 
-Jump_12_54C5::
-	ld a, [$ca8d]
+FarmViewStart::
+	ld a, [wPartyCount]
 	cp $00
-	jp z, Jump_012_45ec
+	jp z, FarmNoMonsters
 
 	ld hl, $0016
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_54D8::
-	ld a, [$c825]
+FarmViewShowCounts::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_54E5
-	ld hl, $c906
+	call DrawFarmCounts
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_54E5::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmCounts::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $7768
-	call Call_12_40B4
-	call Call_12_5504
-	call Call_12_4323
+	call DrawWindowLayout
+	call DrawFarmCountNumbers
+	call ResetCursorBlink
 	ld de, $564a
-	ld a, [$c8db]
-	call Call_12_43E2
-	call Call_12_40E5
+	ld a, [wMenuChoice2]
+	call DrawCursorAt
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_5504::
+DrawFarmCountNumbers::
 	ld hl, $00a6
-	call Call_12_551D
+	call DrawCountFarmMonsters
 	ld hl, $00e6
-	call Call_12_5551
+	call DrawCountFarmEggs
 	ld hl, $0126
-	call Call_12_5581
+	call DrawCountFarm2Monsters
 	ld hl, $0166
-	call Call_12_55BE
+	call DrawCountFarm2Eggs
 	ret
 
 
-Call_12_551D::
-	call Call_12_4058
+DrawCountFarmMonsters::
+	call TilemapBufferAddr
 	push hl
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3221,14 +3240,14 @@ jr_012_553e:
 
 	pop hl
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_12_5551::
-	call Call_12_4058
+DrawCountFarmEggs::
+	call TilemapBufferAddr
 	push hl
-	ld de, $cac1
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3263,25 +3282,25 @@ jr_012_556e:
 
 	pop hl
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_12_5581::
-	call Call_12_4058
+DrawCountFarm2Monsters::
+	call TilemapBufferAddr
 	ld c, $00
-	ld a, [$ca41]
+	ld a, [wFarm2Flags]
 	bit 7, a
 	jr z, jr_012_55b8
 
 	push hl
-	ld hl, $b124
+	ld hl, sFarm2
 	ld b, $14
 	ld c, $00
 
 jr_012_5595:
 	push hl
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_012_55ab
 
@@ -3291,7 +3310,7 @@ jr_012_5595:
 	ld a, h
 	adc $00
 	ld h, a
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr nz, jr_012_55ab
 
@@ -3312,25 +3331,25 @@ jr_012_55ab:
 
 jr_012_55b8:
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Call_12_55BE::
-	call Call_12_4058
+DrawCountFarm2Eggs::
+	call TilemapBufferAddr
 	ld c, $00
-	ld a, [$ca41]
+	ld a, [wFarm2Flags]
 	bit 7, a
 	jr z, jr_012_55f5
 
 	push hl
-	ld hl, $b124
+	ld hl, sFarm2
 	ld b, $14
 	ld c, $00
 
 jr_012_55d2:
 	push hl
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_012_55e8
 
@@ -3340,7 +3359,7 @@ jr_012_55d2:
 	ld a, h
 	adc $00
 	ld h, a
-	call Call_20EE
+	call ReadSRAMByte
 	or a
 	jr z, jr_012_55e8
 
@@ -3361,44 +3380,44 @@ jr_012_55e8:
 
 jr_012_55f5:
 	ld b, $00
-	call Call_2082
+	call PrintNumber2
 	ret
 
 
-Jump_12_55FB::
+FarmViewKindInput::
 	ld de, $564a
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_562d
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_5649
 
 jr_012_562d:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5649
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c8e2
+	call QueueSound
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ld hl, $c906
+	call FillMemory
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_5649:
@@ -3406,31 +3425,32 @@ jr_012_5649:
 	ret
 
 
+FarmViewKindCursorPos::
 	db $a1, $00, $e1, $00, $ff, $ff
 
-Jump_12_5650::
-	call Call_12_5670
+FarmViewBuildList::
+	call CountMonstersOfKind
 	or a
 	jr nz, jr_012_5662
 
 	ld hl, $0017
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $08
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 jr_012_5662:
-	call Call_12_56A6
+	call ListMonstersOfKind
 	ld hl, $0018
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5670::
-	ld de, $cac1
+CountMonstersOfKind::
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3446,7 +3466,7 @@ jr_012_5677:
 	ld a, d
 	adc $00
 	ld d, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	ld l, a
 	ld a, [de]
@@ -3471,17 +3491,17 @@ jr_012_5695:
 	jr nz, jr_012_5677
 
 	ld a, c
-	ld [$c8e9], a
+	ld [wListLength], a
 	ret
 
 
-Call_12_56A6::
-	ld hl, $c0d8
+ListMonstersOfKind::
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -3498,7 +3518,7 @@ jr_012_56bb:
 	adc $00
 	ld d, a
 	push hl
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	ld l, a
 	ld a, [de]
@@ -3528,44 +3548,44 @@ jr_012_56dc:
 	ret
 
 
-Jump_12_56EA::
-	ld a, [$c825]
+FarmViewShowList::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_49E5
-	call Call_12_5751
-	call Call_12_56FD
-	ld hl, $c906
+	call ShowSelectedFarmMonster
+	call LoadFarmViewListTiles
+	call DrawFarmViewList
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_56FD::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmViewList::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $7768
-	call Call_12_40B4
-	call Call_12_5504
-	call Call_12_4323
+	call DrawWindowLayout
+	call DrawFarmCountNumbers
+	call ResetCursorBlink
 	ld de, $564a
-	ld a, [$c8db]
-	call Call_12_43E2
+	ld a, [wMenuChoice2]
+	call DrawCursorAt
 	ld de, $77cd
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_572e
 
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_49FF
+	call DrawWindowLayout
+	call DrawSelectedFarmLevel
 	ld de, $71f4
 
 jr_012_572e:
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $5913
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr z, jr_012_5741
 
@@ -3573,64 +3593,64 @@ jr_012_572e:
 
 jr_012_5741:
 	ld b, $04
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
-	call Call_12_40E5
+	ld hl, wListCursor
+	call DrawListFrame
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_5751::
-	ld a, [$c8e3]
+LoadFarmViewListTiles::
+	ld a, [wListPage]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_5776
 
 	ld hl, $8800
-	call Call_12_4D77
-	call Call_12_4D77
-	call Call_12_4D77
-	call Call_12_4D77
+	call LoadListNameSlot
+	call LoadListNameSlot
+	call LoadListNameSlot
+	call LoadListNameSlot
 	ret
 
 
 jr_012_5776:
 	ld hl, $9650
-	call Call_12_578C
-	call Call_12_578C
-	call Call_12_578C
+	call LoadSpeciesNameSlot
+	call LoadSpeciesNameSlot
+	call LoadSpeciesNameSlot
 	ld hl, $8800
-	call Call_12_578C
-	call Call_12_57D0
+	call LoadSpeciesNameSlot
+	call LoadEggMarkTiles
 	ret
 
 
-Call_12_578C::
+LoadSpeciesNameSlot::
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
 	jr z, jr_012_57b6
 
-	ld hl, $caca
-	call Call_223B
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0901
 	pop hl
 	push hl
-	call Call_12_411A
+	call DrawTextTiles
 	pop hl
 	ld a, l
 	add $90
@@ -3648,9 +3668,9 @@ jr_012_57b6:
 
 jr_012_57b8:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_012_57b8
 
@@ -3666,30 +3686,30 @@ jr_012_57b8:
 	ret
 
 
-Call_12_57D0::
-	ld a, [$c8e3]
+LoadEggMarkTiles::
+	ld a, [wListPage]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld hl, $88c0
-	call Call_12_57EA
-	call Call_12_57EA
-	call Call_12_57EA
+	call LoadEggMarkSlot
+	call LoadEggMarkSlot
+	call LoadEggMarkSlot
 
-Call_12_57EA::
+LoadEggMarkSlot::
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
 	jr z, jr_012_5866
 
-	ld hl, $cb24
-	call Call_223B
+	ld hl, wMonEgg
+	call MonsterField
 	ld a, [hl]
 	cp $02
 	ld a, $98
@@ -3706,46 +3726,46 @@ Call_12_57EA::
 	add $a7
 
 jr_012_580b:
-	ld [$c180], a
+	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
 	pop hl
 	push hl
-	ld a, [$c827]
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld de, $0101
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_41_4AA1
+	ld [wTextIndex], a
+	ld hl, far_PrintText_41
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	pop hl
 	ld a, l
 	add $10
@@ -3763,9 +3783,9 @@ jr_012_5866:
 
 jr_012_5868:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_012_5868
 
@@ -3781,21 +3801,21 @@ jr_012_5868:
 	ret
 
 
-Jump_12_5880::
-	ld a, [$c825]
+FarmViewListInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $5913
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr z, jr_012_5892
 
 	ld de, $591f
 
 jr_012_5892:
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -3803,66 +3823,66 @@ jr_012_5892:
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
-	ld hl, $c8e2
+	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_012_58ba
 
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_58ba
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_58ba:
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_58d4
 
-	call Call_12_5751
-	ld a, [$c8db]
+	call LoadFarmViewListTiles
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_58d4
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_58d4:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_58fa
 
-	call Call_12_54E5
+	call DrawFarmCounts
 	ld hl, $0016
-	call Call_12_441F
+	call PrintMenuText
 	xor a
-	ld [$c8ec], a
-	ld hl, $c906
+	ld [wMenuOverlay], a
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
 	jr jr_012_5912
 
 jr_012_58fa:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5912
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
-	ld hl, $c906
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_5912:
@@ -3873,173 +3893,173 @@ jr_012_5912:
 	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff, $92, $01, $a8, $00
 	db $e8, $00, $28, $01, $68, $01, $ff, $ff
 
-Jump_12_592B::
-	ld hl, $c0d8
+FarmViewStatus::
+	ld hl, wSceneObjects
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
 	ld a, a
-	ld [$c932], a
-	ld a, [$c8e9]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wListLength]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ret
 
 
-Jump_12_5951::
-	ld a, [$c8e2]
+FarmViewStatusReturn::
+	ld a, [wListCursor]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	and $03
 	or b
-	ld [$c8e2], a
-	ld a, [$c934]
+	ld [wListCursor], a
+	ld a, [wViewResult]
 	srl a
 	srl a
-	ld [$c8e3], a
+	ld [wListPage], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_49E5
-	call Call_12_5751
-	call Call_12_56FD
+	call ShowSelectedFarmMonster
+	call LoadFarmViewListTiles
+	call DrawFarmViewList
 	ld hl, $0018
-	call Call_12_441F
-	call Call_0609
+	call PrintMenuText
+	call RunTextToEnd
 	ld a, $05
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
-Jump_12_59A2::
-	ld a, [$c825]
+FarmViewDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_59C6::
-	ld a, [$c906]
+FarmReleaseOption::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_59CA::
-	dw Jump_12_59E4
-	dw Jump_12_59F7
-	dw Jump_12_5A23
-	dw Jump_12_5A94
-	dw Jump_12_5B36
-	dw Jump_12_5B9D
-	dw Jump_12_5C48
-	dw Jump_12_5C53
-	dw Jump_12_5C85
-	dw Jump_12_5CDF
-	dw Jump_12_5D3F
-	dw Jump_12_5D63
-	dw Jump_12_5D8E
+FarmReleaseSteps::
+	dw FarmReleaseStart
+	dw FarmReleaseShowCounts
+	dw FarmReleaseKindInput
+	dw FarmReleaseBuildList
+	dw FarmReleaseShowList
+	dw FarmReleaseListInput
+	dw FarmReleaseAskConfirm
+	dw FarmReleaseShowChoice
+	dw FarmReleaseChoiceInput
+	dw FarmReleaseDoIt
+	dw FarmReleaseDone
+	dw FarmReleaseViewStatus
+	dw FarmReleaseStatusReturn
 
-Jump_12_59E4::
-	ld a, [$ca8d]
+FarmReleaseStart::
+	ld a, [wPartyCount]
 	cp $00
-	jp z, Jump_012_45ec
+	jp z, FarmNoMonsters
 
 	ld hl, $001a
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_59F7::
-	ld a, [$c825]
+FarmReleaseShowCounts::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_5A07
-	call Call_12_40E5
-	ld hl, $c906
+	call DrawReleaseCounts
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5A07::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawReleaseCounts::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $7768
-	call Call_12_40B4
-	call Call_12_5504
-	call Call_12_4323
+	call DrawWindowLayout
+	call DrawFarmCountNumbers
+	call ResetCursorBlink
 	ld de, $5a8e
-	ld a, [$c8db]
-	call Call_12_43E2
+	ld a, [wMenuChoice2]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_5A23::
+FarmReleaseKindInput::
 	ld de, $5a8e
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_5a55
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_5a74
 
 jr_012_5a55:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5a74
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c8e2
+	call QueueSound
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	call Call_12_5A75
-	ld hl, $c906
+	call FillMemory
+	call LoadReleaseMenuWords
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_5a74:
@@ -4047,44 +4067,44 @@ jr_012_5a74:
 	ret
 
 
-Call_12_5A75::
+LoadReleaseMenuWords::
 	ld a, $02
-	ld [$c822], a
-	ld a, [$c8db]
+	ld [wTextGroup], a
+	ld a, [wMenuChoice2]
 	and $01
 	add $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ret
 
 
 	db $a1, $00, $e1, $00, $ff, $ff
 
-Jump_12_5A94::
-	call Call_12_5AB4
+FarmReleaseBuildList::
+	call CountFarmOfKind
 	or a
 	jr nz, jr_012_5aa6
 
 	ld hl, $001b
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $0a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
 jr_012_5aa6:
-	call Call_12_5AEE
+	call ListFarmOfKind
 	ld hl, $001c
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5AB4::
-	ld de, $cac1
+CountFarmOfKind::
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -4103,7 +4123,7 @@ jr_012_5abb:
 	ld a, d
 	adc $00
 	ld d, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	ld l, a
 	ld a, [de]
@@ -4128,17 +4148,17 @@ jr_012_5add:
 	jr nz, jr_012_5abb
 
 	ld a, c
-	ld [$c8e9], a
+	ld [wListLength], a
 	ret
 
 
-Call_12_5AEE::
-	ld hl, $c0d8
+ListFarmOfKind::
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld hl, $c0d8
-	ld de, $cac1
+	call FillMemory
+	ld hl, wSceneObjects
+	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -4158,7 +4178,7 @@ jr_012_5b03:
 	adc $00
 	ld d, a
 	push hl
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	ld l, a
 	ld a, [de]
@@ -4188,45 +4208,45 @@ jr_012_5b28:
 	ret
 
 
-Jump_12_5B36::
-	ld a, [$c825]
+FarmReleaseShowList::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_49E5
-	call Call_12_5751
-	call Call_12_41EF
-	call Call_12_5B4F
-	call Call_12_40E5
-	ld hl, $c906
+	call ShowSelectedFarmMonster
+	call LoadFarmViewListTiles
+	call RestoreTilemapBuffer
+	call DrawFarmReleaseList
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5B4F::
-	call Call_12_44CB
+DrawFarmReleaseList::
+	call DrawFarmMainMenu
 	ld de, $7768
-	call Call_12_40B4
-	call Call_12_5504
-	call Call_12_4323
+	call DrawWindowLayout
+	call DrawFarmCountNumbers
+	call ResetCursorBlink
 	ld de, $5a8e
-	ld a, [$c8db]
-	call Call_12_43E2
+	ld a, [wMenuChoice2]
+	call DrawCursorAt
 	ld de, $77cd
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_5b7d
 
 	ld de, $759a
-	call Call_12_40B4
-	call Call_12_49FF
+	call DrawWindowLayout
+	call DrawSelectedFarmLevel
 	ld de, $71f4
 
 jr_012_5b7d:
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $5c30
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr z, jr_012_5b90
 
@@ -4234,28 +4254,28 @@ jr_012_5b7d:
 
 jr_012_5b90:
 	ld b, $04
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
+	ld hl, wListCursor
+	call DrawListFrame
 	ret
 
 
-Jump_12_5B9D::
-	ld a, [$c825]
+FarmReleaseListInput::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld de, $5c30
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr z, jr_012_5baf
 
 	ld de, $5c3c
 
 jr_012_5baf:
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
@@ -4263,66 +4283,66 @@ jr_012_5baf:
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
-	ld hl, $c8e2
+	ld hl, wListCursor
 	cp [hl]
 	jr z, jr_012_5bd7
 
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_5bd7
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_5bd7:
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_5bf1
 
-	call Call_12_5751
-	ld a, [$c8db]
+	call LoadFarmViewListTiles
+	ld a, [wMenuChoice2]
 	and $01
 	jr nz, jr_012_5bf1
 
-	call Call_12_49E5
-	call Call_12_49FF
-	call Call_12_40E5
+	call ShowSelectedFarmMonster
+	call DrawSelectedFarmLevel
+	call CopyTilemapBufferToVram
 
 jr_012_5bf1:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_5c1a
 
-	call Call_12_5A07
-	call Call_12_40E5
+	call DrawReleaseCounts
+	call CopyTilemapBufferToVram
 	ld hl, $001a
-	call Call_12_441F
+	call PrintMenuText
 	xor a
-	ld [$c8ec], a
-	ld hl, $c906
+	ld [wMenuOverlay], a
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
 	jr jr_012_5c2f
 
 jr_012_5c1a:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5c2f
 
 	ld a, $59
-	call Call_1B2C
+	call QueueSound
 	xor a
-	ld [$c8de], a
-	ld hl, $c906
+	ld [wMenuChoice3], a
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_5c2f:
@@ -4333,86 +4353,86 @@ jr_012_5c2f:
 	db $52, $01, $6e, $00, $ae, $00, $ee, $00, $2e, $01, $ff, $ff, $92, $01, $a8, $00
 	db $e8, $00, $28, $01, $68, $01, $ff, $ff
 
-Jump_12_5C48::
+FarmReleaseAskConfirm::
 	ld hl, $001d
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_5C53::
-	ld a, [$c825]
+FarmReleaseShowChoice::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
-	call Call_12_5C68
-	call Call_12_40E5
-	ld hl, $c906
+	call QueueSound
+	call DrawReleaseChoice
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5C68::
+DrawReleaseChoice::
 	ld de, $7b42
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $01
 	jr z, jr_012_5c75
 
 	ld de, $7b6c
 
 jr_012_5c75:
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $5cd9
-	ld a, [$c8de]
-	call Call_12_43E2
+	ld a, [wMenuChoice3]
+	call DrawCursorAt
 	ret
 
 
-Jump_12_5C85::
+FarmReleaseChoiceInput::
 	ld de, $5cd9
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_5cb1
 
 	xor a
-	ld [$c8ec], a
-	call Call_12_41EF
-	call Call_12_5B4F
+	ld [wMenuOverlay], a
+	call RestoreTilemapBuffer
+	call DrawFarmReleaseList
 	ld hl, $001c
-	call Call_12_441F
-	call Call_12_40E5
+	call PrintMenuText
+	call CopyTilemapBufferToVram
 	ld a, $05
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_5cd8
 
 jr_012_5cb1:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5cd8
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8de]
+	call QueueSound
+	ld a, [wMenuChoice3]
 	cp $81
 	jr z, jr_012_5cd4
 
 	xor a
-	ld [$c90d], a
-	ld [$c90e], a
+	ld [wStatusViewVars], a
+	ld [wFieldMenuStep], a
 	ld a, $0b
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jp Jump_012_5cd8
 
 
 jr_012_5cd4:
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_5cd8:
@@ -4422,15 +4442,15 @@ jr_012_5cd8:
 
 	db $21, $01, $61, $01, $ff, $ff
 
-Jump_12_5CDF::
-	ld a, [$c8e3]
+FarmReleaseDoIt::
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -4438,149 +4458,149 @@ Jump_12_5CDF::
 	ld h, a
 	ld a, [hl]
 	push af
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
-	ld hl, $c180
-	call Call_0C80
+	ld hl, wTextArg0
+	call CopyName
 	pop af
 	push af
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld [hl], $00
 	pop af
-	ld hl, $cb24
-	call Call_223B
+	ld hl, wMonEgg
+	call MonsterField
 	ld a, [hl]
 	or a
 	jr z, jr_012_5d2c
 
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, $0b1d
-	call Call_096D
-	ld hl, $c906
+	call PrintSystemText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
 jr_012_5d2c:
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld hl, far_Call_01_484E
+	ld hl, far_RefreshPartyGfx
 	rst $10
 	ld hl, $001e
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_5D3F::
-	ld a, [$c825]
+FarmReleaseDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_5D63::
-	ld hl, $c0d8
+FarmReleaseViewStatus::
+	ld hl, wSceneObjects
 	ld a, l
-	ld [$c930], a
+	ld [wViewList], a
 	ld a, h
 	ld [$c931], a
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
 	ld a, a
-	ld [$c932], a
-	ld a, [$c8e9]
-	ld [$c933], a
-	ld hl, far_Call_07_6468
+	ld [wViewIndex], a
+	ld a, [wListLength]
+	ld [wViewCount], a
+	ld hl, far_UpdateMonsterStatus
 	rst $10
 	ld a, $01
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_5D8E::
-	ld a, [$c8e2]
+FarmReleaseStatusReturn::
+	ld a, [wListCursor]
 	and $80
 	ld b, a
-	ld a, [$c934]
+	ld a, [wViewResult]
 	and $03
 	or b
-	ld [$c8e2], a
-	ld a, [$c934]
+	ld [wListCursor], a
+	ld a, [wViewResult]
 	srl a
 	srl a
-	ld [$c8e3], a
+	ld [wListPage], a
 	ld de, $2e10
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $44
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $9600
 	ld de, $0501
-	call Call_12_411A
-	call Call_12_5A75
-	call Call_12_49E5
-	call Call_12_5751
+	call DrawTextTiles
+	call LoadReleaseMenuWords
+	call ShowSelectedFarmMonster
+	call LoadFarmViewListTiles
 	ld hl, far_Call_56_4485
 	rst $10
-	call Call_12_41EF
-	call Call_12_5B4F
-	call Call_12_5C68
-	call Call_12_40E5
+	call RestoreTilemapBuffer
+	call DrawFarmReleaseList
+	call DrawReleaseChoice
+	call CopyTilemapBufferToVram
 	ld hl, $001d
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $08
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	ret
 
 
-Jump_12_5DEC::
-	ld a, [$c906]
+FarmSwitchOption::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_5DF0::
-	dw Jump_12_5DFE
-	dw Jump_12_5E58
-	dw Jump_12_5E81
-	dw Jump_12_5ED2
-	dw Jump_12_5F29
-	dw Jump_12_5F3D
-	dw Jump_12_5FF7
+FarmSwitchSteps::
+	dw FarmSwitchStart
+	dw FarmSwitchShowYesNo
+	dw FarmSwitchYesNoInput
+	dw FarmSwitchCheck
+	dw FarmSwitchAskAgain
+	dw FarmSwitchDoIt
+	dw FarmSwitchDone
 
-Jump_12_5DFE::
-	ld a, [$ca8d]
+FarmSwitchStart::
+	ld a, [wPartyCount]
 	cp $00
-	jp z, Jump_012_45ec
+	jp z, FarmNoMonsters
 
-	ld hl, $cac1
+	ld hl, wMonsters
 	ld b, $14
 
 jr_012_5e0b:
@@ -4597,17 +4617,17 @@ jr_012_5e0b:
 	dec b
 	jr nz, jr_012_5e0b
 
-	ld a, [$ca41]
+	ld a, [wFarm2Flags]
 	bit 7, a
 	jr z, jr_012_5e3c
 
-	ld hl, $b124
+	ld hl, sFarm2
 	ld b, $14
 
 jr_012_5e27:
 	push hl
 	push bc
-	call Call_20EE
+	call ReadSRAMByte
 	pop bc
 	pop hl
 	or a
@@ -4624,9 +4644,9 @@ jr_012_5e27:
 
 jr_012_5e3c:
 	ld hl, $06cc
-	call Call_0AD9
+	call PrintMessage
 	ld a, $06
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
@@ -4638,71 +4658,71 @@ jr_012_5e4d:
 	ld hl, $0022
 
 jr_012_5e50:
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_5E58::
-	ld a, [$c825]
+FarmSwitchShowYesNo::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_5E65
-	ld hl, $c906
+	call DrawFarmSwitchYesNo
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_5E65::
-	call Call_12_41EF
-	call Call_12_44CB
+DrawFarmSwitchYesNo::
+	call RestoreTilemapBuffer
+	call DrawFarmMainMenu
 	ld de, $78ab
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $5ecc
-	ld a, [$c8dc]
-	call Call_12_43E2
-	call Call_12_40E5
+	ld a, [wConfirmChoice]
+	call DrawCursorAt
+	call CopyTilemapBufferToVram
 	ret
 
 
-Jump_12_5E81::
+FarmSwitchYesNoInput::
 	ld de, $5ecc
-	ld hl, $c8e2
+	ld hl, wListCursor
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_5eb3
 
 jr_012_5e93:
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	jr jr_012_5ecb
 
 jr_012_5eb3:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_5ecb
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8e2]
+	call QueueSound
+	ld a, [wListCursor]
 	cp $81
 	jr z, jr_012_5e93
 
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_5ecb:
@@ -4712,13 +4732,13 @@ jr_012_5ecb:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_12_5ED2::
-	ld a, [$c825]
+FarmSwitchCheck::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_5FDE
-	ld hl, $cac1
+	call InitFarm2
+	ld hl, wMonsters
 	ld b, $14
 
 jr_012_5edf:
@@ -4739,17 +4759,17 @@ jr_012_5edf:
 	jr jr_012_5f1d
 
 jr_012_5ef4:
-	ld a, [$ca41]
+	ld a, [wFarm2Flags]
 	bit 7, a
 	jr z, jr_012_5f15
 
-	ld hl, $b124
+	ld hl, sFarm2
 	ld b, $14
 
 jr_012_5f00:
 	push hl
 	push bc
-	call Call_20EE
+	call ReadSRAMByte
 	pop bc
 	pop hl
 	or a
@@ -4772,51 +4792,51 @@ jr_012_5f1a:
 	ld hl, $0024
 
 jr_012_5f1d:
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_5F29::
-	ld a, [$c825]
+FarmSwitchAskAgain::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0022
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	dec [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	dec [hl]
 	ret
 
 
-Jump_12_5F3D::
-	ld a, [$c825]
+FarmSwitchDoIt::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld bc, $0000
 
 jr_012_5f58:
 	ld a, b
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	ld a, [hl]
 	cp $02
 	jr z, jr_012_5f68
 
-	call Call_12_5FB3
+	call SwapRecordWithFarm2
 	inc c
 
 jr_012_5f68:
@@ -4825,51 +4845,51 @@ jr_012_5f68:
 	cp $14
 	jr nz, jr_012_5f58
 
-	ld hl, far_Call_01_46F6
+	ld hl, far_CompactMonsters
 	rst $10
-	ld a, [$c8eb]
+	ld a, [wFieldFlags]
 	push af
 	xor a
-	ld [$c8eb], a
-	ld a, [$c905]
+	ld [wFieldFlags], a
+	ld a, [wMenuStep]
 	push af
 	xor a
-	ld [$c905], a
-	ld a, [$d8d7]
+	ld [wMenuStep], a
+	ld a, [wScriptRunning]
 	push af
 	xor a
-	ld [$d8d7], a
-	ld a, [$c8ec]
+	ld [wScriptRunning], a
+	ld a, [wMenuOverlay]
 	push af
 	xor a
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	di
-	call Call_2128
+	call SaveGame
 	ei
 	pop af
-	ld [$c8ec], a
+	ld [wMenuOverlay], a
 	pop af
-	ld [$d8d7], a
+	ld [wScriptRunning], a
 	pop af
-	ld [$c905], a
+	ld [wMenuStep], a
 	pop af
-	ld [$c8eb], a
+	ld [wFieldFlags], a
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Call_12_5FB3::
+SwapRecordWithFarm2::
 	push bc
 	ld a, b
-	ld hl, $cac1
-	call Call_223B
+	ld hl, wMonsters
+	call MonsterField
 	push hl
 	ld a, c
 	ld c, $95
-	call Call_1DBE
+	call Multiply
 	ld a, l
 	add $24
 	ld l, a
@@ -4882,10 +4902,10 @@ Call_12_5FB3::
 jr_012_5fcd:
 	ld a, [de]
 	push af
-	call Call_20EE
+	call ReadSRAMByte
 	ld [de], a
 	pop af
-	call Call_20FE
+	call WriteSRAMByte
 	inc de
 	inc hl
 	dec b
@@ -4895,18 +4915,18 @@ jr_012_5fcd:
 	ret
 
 
-Call_12_5FDE::
-	ld hl, $ca41
+InitFarm2::
+	ld hl, wFarm2Flags
 	bit 7, [hl]
 	ret nz
 
 	set 7, [hl]
-	ld hl, $b124
+	ld hl, sFarm2
 	ld bc, $0ba4
 
 jr_012_5fec:
 	xor a
-	call Call_20FE
+	call WriteSRAMByte
 	inc hl
 	dec bc
 	ld a, b
@@ -4916,45 +4936,45 @@ jr_012_5fec:
 	ret
 
 
-Jump_12_5FF7::
-	ld a, [$c825]
+FarmSwitchDone::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $02
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $33
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld hl, $8aa0
 	ld de, $0601
-	call Call_12_411A
+	call DrawTextTiles
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Call_12_601B::
+DrawTwoDigits::
 	ld de, $000a
 	push bc
-	call Call_12_6037
+	call DivideBcByDe
 	pop bc
 	or a
 	jr z, jr_012_6032
 
 	ld de, $000a
-	call Call_12_6037
-	call Call_12_604C
-	call Call_12_6052
+	call DivideBcByDe
+	call PutDigitTile
+	call NextBgColumn2
 
 jr_012_6032:
 	ld a, c
-	call Call_12_604C
+	call PutDigitTile
 	ret
 
 
-Call_12_6037::
+DivideBcByDe::
 	push hl
 	ld h, $ff
 
@@ -4979,13 +4999,13 @@ jr_012_603a:
 	ret
 
 
-Call_12_604C::
+PutDigitTile::
 	add $f0
-	call Call_1AAD
+	call WriteVRAM
 	ret
 
 
-Call_12_6052::
+NextBgColumn2::
 	push af
 	ld a, l
 	and $e0
@@ -5001,32 +5021,32 @@ Call_12_6052::
 	ret
 
 
-Jump_12_6061::
-	ld a, [$c905]
+LibraryMenu::
+	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_12_6065::
-	dw Jump_12_606F
-	dw Jump_12_60CC
-	dw Jump_12_60D1
-	dw Jump_12_60F0
-	dw Jump_12_60F3
+LibrarySteps::
+	dw LibraryInit
+	dw LibraryWait
+	dw LibraryResetCursors
+	dw LibraryRun
+	dw LibraryClose
 
-Jump_12_606F::
-	ld hl, $ffb7
-	call Call_12_4028
-	ld hl, $ffbb
-	call Call_12_4028
-	ld hl, $c8da
+LibraryInit::
+	ld hl, hScrollX
+	call SnapToTile
+	ld hl, hScrollY
+	call SnapToTile
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -5040,144 +5060,144 @@ Jump_12_606F::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
-	ld hl, far_Call_17_4192
+	ld hl, far_ClearAttrMap
 	rst $10
-	call Call_12_4221
+	call ClearTilemapBuffer
 	ld de, $2e07
-	call Call_12_40B4
-	call Call_12_40E5
+	call DrawWindowLayout
+	call CopyTilemapBufferToVram
 	ld de, $2e14
 	ld hl, $9000
-	call Call_1577
-	call Call_12_4323
+	call DecompressVRAM
+	call ResetCursorBlink
 	ld a, $01
-	ld [$c8ec], a
-	ld hl, $c905
+	ld [wMenuOverlay], a
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_60CC::
-	ld hl, $c905
+LibraryWait::
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_60D1::
-	ld hl, $c905
+LibraryResetCursors::
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c906], a
-	ld hl, $c8da
+	ld [wMenuSubStep], a
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ld hl, $c8e2
+	call FillMemory
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	ret
 
 
-Jump_12_60F0::
-	jp Jump_012_6119
+LibraryRun::
+	jp LibraryDispatch
 
 
-Jump_12_60F3::
-	call Call_12_4221
-	call Call_12_40E5
+LibraryClose::
+	call ClearTilemapBuffer
+	call CopyTilemapBufferToVram
 	ld hl, far_Call_0B_4088
 	rst $10
 	ld hl, far_Call_0B_40CE
 	rst $10
-	call Call_2518
-	call Call_25F1
+	call BuildStatusBar
+	call DrawStatusBar
 	ld hl, far_Call_06_4D5A
 	rst $10
 	xor a
-	ld [$c8ec], a
-	ld hl, $c8eb
+	ld [wMenuOverlay], a
+	ld hl, wFieldFlags
 	res 4, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_012_6119:
-	ld a, [$c906]
+LibraryDispatch::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_611D::
-	dw Jump_12_6133
-	dw Jump_12_6138
-	dw Jump_12_61B8
-	dw Jump_12_6234
-	dw Jump_12_629F
-	dw Jump_12_632A
-	dw Jump_12_63AC
-	dw Jump_12_64C9
-	dw Jump_12_6554
-	dw Jump_12_6569
-	dw Jump_12_657A
+LibrarySubSteps::
+	dw LibraryStart
+	dw LibraryShowFamilies
+	dw LibraryFamilyInput
+	dw LibraryEnterFamily
+	dw LibraryShowMonsters
+	dw LibraryMonsterInput
+	dw LibraryShowMonster
+	dw LibraryMonsterPageInput
+	dw LibraryBackToList
+	dw LibraryFamilyEmpty
+	dw LibraryTurnPage
 
-Jump_12_6133::
-	ld hl, $c906
+LibraryStart::
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_6138::
-	ld a, [$c825]
+LibraryShowFamilies::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_616E
-	call Call_12_614E
-	call Call_12_61A0
-	call Call_12_40E5
-	ld hl, $c906
+	call LoadFamilyNameTiles
+	call DrawLibraryWindows
+	call ShowFamilyMonsters
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_614E::
-	call Call_12_4221
+DrawLibraryWindows::
+	call ClearTilemapBuffer
 	ld de, $2e07
-	call Call_12_40B4
+	call DrawWindowLayout
 	ld de, $78d0
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $6226
 	ld b, $05
 	ld c, $0a
-	ld hl, $c8da
-	call Call_12_43C0
+	ld hl, wLinkChoice
+	call DrawListFrame
 	ret
 
 
-Call_12_616E::
-	ld a, [$c8db]
+LoadFamilyNameTiles::
+	ld a, [wMenuChoice2]
 	ld b, a
 	add a
 	add a
 	add b
 	ld hl, $9670
-	call Call_12_6184
-	call Call_12_6184
-	call Call_12_6184
-	call Call_12_6184
+	call LoadFamilyNameSlot
+	call LoadFamilyNameSlot
+	call LoadFamilyNameSlot
+	call LoadFamilyNameSlot
 
-Call_12_6184::
+LoadFamilyNameSlot::
 	push af
 	push hl
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $04
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0501
-	call Call_12_411A
+	call DrawTextTiles
 	pop hl
 	ld a, l
 	add $50
@@ -5190,79 +5210,79 @@ Call_12_6184::
 	ret
 
 
-Call_12_61A0::
-	ld hl, $c8e2
+ShowFamilyMonsters::
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	call Call_12_6242
-	call Call_12_62CE
+	call FillMemory
+	call BuildFamilyList
+	call LoadMonsterListNames
 	ld de, $7935
-	call Call_12_40B4
+	call DrawWindowLayout
 	ret
 
 
-Jump_12_61B8::
+LibraryFamilyInput::
 	ld de, $6226
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	ld c, $0a
 	ld b, $05
 	ld a, [hli]
 	push af
 	ld a, [hld]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
-	ld hl, $c8db
+	ld hl, wMenuChoice2
 	cp [hl]
 	jr z, jr_012_61d9
 
-	call Call_12_616E
-	call Call_12_61A0
-	call Call_12_40E5
+	call LoadFamilyNameTiles
+	call ShowFamilyMonsters
+	call CopyTilemapBufferToVram
 
 jr_012_61d9:
 	pop af
-	ld hl, $c8da
+	ld hl, wLinkChoice
 	cp [hl]
 	jr z, jr_012_61e6
 
-	call Call_12_61A0
-	call Call_12_40E5
+	call ShowFamilyMonsters
+	call CopyTilemapBufferToVram
 
 jr_012_61e6:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_6219
 
-	call Call_12_6242
-	ld a, [$c8e8]
+	call BuildFamilyList
+	ld a, [wListKnown]
 	or a
 	jr nz, jr_012_6205
 
 	ld hl, $0004
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $09
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jp Jump_012_6225
 
 
 jr_012_6205:
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c8e2
+	call QueueSound
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ld hl, $c906
+	call FillMemory
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_6219:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jp z, Jump_012_6225
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 
 Jump_012_6225:
@@ -5271,30 +5291,30 @@ Jump_012_6225:
 
 	db $46, $01, $21, $00, $61, $00, $a1, $00, $e1, $00, $21, $01, $ff, $ff
 
-Jump_12_6234::
-	call Call_12_6242
+LibraryEnterFamily::
+	call BuildFamilyList
 	ld hl, $0003
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_6242::
-	ld hl, $c0d8
+BuildFamilyList::
+	ld hl, wSceneObjects
 	ld bc, $0020
 	ld a, $ff
-	call Call_12C7
-	ld a, [$c8db]
+	call FillMemory
+	ld a, [wMenuChoice2]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8da]
+	ld a, [wLinkChoice]
 	and $7f
 	add b
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	ld hl, $6294
 	add l
 	ld l, a
@@ -5306,15 +5326,15 @@ Call_12_6242::
 	ld b, a
 	ld d, $00
 	ld e, $00
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 
 jr_012_6271:
 	push bc
 	push de
 	push hl
-	ld hl, $ca94
+	ld hl, wLibraryFlags
 	ld a, b
-	call Call_267E
+	call TestFlag
 	pop hl
 	pop de
 	pop bc
@@ -5333,73 +5353,73 @@ jr_012_6284:
 	jr nz, jr_012_6271
 
 	ld a, d
-	ld [$c8e9], a
+	ld [wListLength], a
 	ld a, e
-	ld [$c8e8], a
+	ld [wListKnown], a
 	ret
 
 
 	db $00, $14, $2d, $46, $5a, $6e, $82, $9b, $af, $c8, $d7
 
-Jump_12_629F::
-	ld a, [$c825]
+LibraryShowMonsters::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_62CE
-	call Call_12_62AF
-	ld hl, $c906
+	call LoadMonsterListNames
+	call DrawLibraryMonsterList
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_62AF::
-	call Call_12_614E
+DrawLibraryMonsterList::
+	call DrawLibraryWindows
 	ld de, $7935
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $639e
 	ld b, $05
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
-	call Call_12_40E5
+	ld hl, wListCursor
+	call DrawListFrame
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_62CE::
-	ld a, [$c8e3]
+LoadMonsterListNames::
+	ld a, [wListPage]
 	ld b, a
 	add a
 	add a
 	add b
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld hl, $8800
-	call Call_12_62ED
-	call Call_12_62ED
-	call Call_12_62ED
-	call Call_12_62ED
+	call LoadSpeciesNameSlot2
+	call LoadSpeciesNameSlot2
+	call LoadSpeciesNameSlot2
+	call LoadSpeciesNameSlot2
 
-Call_12_62ED::
+LoadSpeciesNameSlot2::
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
 	jr z, jr_012_6310
 
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0901
 	pop hl
 	push hl
-	call Call_12_411A
+	call DrawTextTiles
 	pop hl
 	ld a, l
 	add $90
@@ -5412,15 +5432,15 @@ Call_12_62ED::
 	ret
 
 
-Jump_012_6310:
+ClearNameSlot9::
 jr_012_6310:
 	ld b, $48
 
 jr_012_6312:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_012_6312
 
@@ -5436,10 +5456,10 @@ jr_012_6312:
 	ret
 
 
-Jump_12_632A::
+LibraryMonsterInput::
 	ld de, $639e
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $05
 	inc hl
@@ -5447,59 +5467,59 @@ Jump_12_632A::
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_6349
 
-	call Call_12_62CE
+	call LoadMonsterListNames
 
 jr_012_6349:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_6369
 
-	call Call_12_614E
+	call DrawLibraryWindows
 	ld de, $7935
-	call Call_12_40B4
-	call Call_12_40E5
+	call DrawWindowLayout
+	call CopyTilemapBufferToVram
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_639d
 
 jr_012_6369:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_639d
 
-	ld a, [$c8e3]
+	ld a, [wListPage]
 	ld b, a
 	add a
 	add a
 	add b
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld [$c8dc], a
-	ld hl, $c0d8
+	ld [wConfirmChoice], a
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
+	ld [wCurPartyMember], a
 	cp $e0
 	jp z, Jump_012_639d
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_639d:
@@ -5509,58 +5529,58 @@ jr_012_639d:
 
 	db $52, $01, $29, $00, $69, $00, $a9, $00, $e9, $00, $29, $01, $ff, $ff
 
-Jump_12_63AC::
-	call Call_12_4221
-	call Call_12_40E5
-	call Call_12_63D0
-	call Call_12_63BD
-	ld hl, $c906
+LibraryShowMonster::
+	call ClearTilemapBuffer
+	call CopyTilemapBufferToVram
+	call DrawMonsterPage
+	call DrawMonsterPageFrame
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_63BD::
+DrawMonsterPageFrame::
 	ld de, $2e26
 	ld hl, $8a50
-	call Call_1577
+	call DecompressVRAM
 	ld de, $79c6
-	call Call_12_40B4
-	call Call_12_40E5
+	call DrawWindowLayout
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_63D0::
-	ld a, [$cac0]
-	ld [$c823], a
+DrawMonsterPage::
+	ld a, [wCurPartyMember]
+	ld [wTextIndex], a
 	ld a, $05
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $9140
 	ld de, $0901
-	call Call_12_411A
-	ld hl, $ca94
-	ld a, [$cac0]
-	call Call_267E
+	call DrawTextTiles
+	ld hl, wLibraryFlags
+	ld a, [wCurPartyMember]
+	call TestFlag
 	ld a, $ff
 	jr z, jr_012_63f4
 
-	ld a, [$cac0]
+	ld a, [wCurPartyMember]
 
 jr_012_63f4:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $00
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $91d0
 	ld de, $1201
-	call Call_12_6456
-	ld a, [$cac0]
-	ld [$c823], a
+	call DrawLongTextTiles
+	ld a, [wCurPartyMember]
+	ld [wTextIndex], a
 	ld a, $01
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld hl, $94a0
 	ld de, $1203
-	call Call_12_6456
-	call Call_12_648F
-	ld a, [$cac0]
+	call DrawLongTextTiles
+	call LoadSkillNameTiles
+	ld a, [wCurPartyMember]
 	ld l, a
 	ld h, $00
 	add hl, hl
@@ -5574,82 +5594,82 @@ jr_012_63f4:
 	inc hl
 	ld d, [hl]
 	ld hl, $8800
-	call Call_1577
+	call DecompressVRAM
 	ld hl, $0021
 	ld a, l
 	ld [$c820], a
 	ld a, h
 	ld [$c821], a
-	ld a, [$cac0]
-	ld [$c81e], a
+	ld a, [wCurPartyMember]
+	ld [wPaletteSet], a
 	ld a, $04
 	ld [$c81f], a
-	ld hl, far_Call_17_41D0
+	ld hl, far_LoadMonPicPalette
 	rst $10
-	ld hl, far_Call_17_46DD
+	ld hl, far_UploadCGBPalettes
 	rst $10
-	call Call_12_65A8
+	call LoadBreedingIcons
 	ret
 
 
-Call_12_6456::
-	ld a, [$c827]
+DrawLongTextTiles::
+	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
-	ld a, [$c829]
+	ld a, [wTextBoxWidth]
 	ld c, a
-	ld a, [$c82a]
+	ld a, [wTextBoxHeight]
 	ld b, a
 	push bc
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
-	ld hl, far_Call_4D_43C7
+	ld [wTextBoxHeight], a
+	ld hl, far_PrintText_4D
 	rst $10
 	pop de
 	pop hl
 	ld a, l
-	ld [$c827], a
+	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
 	ld a, e
-	ld [$c829], a
+	ld [wTextBoxWidth], a
 	ld a, d
-	ld [$c82a], a
+	ld [wTextBoxHeight], a
 	ret
 
 
-Call_12_648F::
-	ld a, [$cac0]
-	ld [$da31], a
-	ld hl, far_Call_03_443F
+LoadSkillNameTiles::
+	ld a, [wCurPartyMember]
+	ld [wMonSpecies], a
+	ld hl, far_GetMonsterStats
 	rst $10
 	ld de, $da39
 	ld hl, $92f0
-	call Call_12_64A5
-	call Call_12_64A5
+	call LoadSkillNameSlot
+	call LoadSkillNameSlot
 
-Call_12_64A5::
+LoadSkillNameSlot::
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jp z, Jump_012_6310
+	jp z, ClearNameSlot9
 
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $06
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld de, $0901
 	pop hl
 	push hl
-	call Call_12_411A
+	call DrawTextTiles
 	pop hl
 	ld a, l
 	add $90
@@ -5662,96 +5682,96 @@ Call_12_64A5::
 	ret
 
 
-Jump_12_64C9::
-	ld a, [$c8e9]
+LibraryMonsterPageInput::
+	ld a, [wListLength]
 	or a
 	jr z, jr_012_6526
 
 	cp $01
 	jr z, jr_012_6526
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 5, a
 	jr z, jr_012_64fd
 
 jr_012_64da:
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
 	cp $01
 	jr z, jr_012_64fd
 
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	dec a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 	cp c
 	jr c, jr_012_64f1
 
 	dec c
 	ld a, c
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 
 jr_012_64f1:
-	call Call_12_6544
+	call IsListEntryUnknown
 	jr z, jr_012_64da
 
 	ld a, $0a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_6543
 
 jr_012_64fd:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 4, a
 	jr z, jr_012_6526
 
 jr_012_6504:
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
 	cp $01
 	jr z, jr_012_6526
 
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	inc a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 	cp c
 	jr c, jr_012_651a
 
 	xor a
-	ld [$c8dc], a
+	ld [wConfirmChoice], a
 
 jr_012_651a:
-	call Call_12_6544
+	call IsListEntryUnknown
 	jr z, jr_012_6504
 
 	ld a, $0a
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_6543
 
 jr_012_6526:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr nz, jr_012_6535
 
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_6540
 
 jr_012_6535:
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 	jr jr_012_6543
 
 Jump_012_6540:
-	call Call_12_67C0
+	call DrawBreedingIcons
 
 jr_012_6543:
 	ret
 
 
-Call_12_6544::
-	ld a, [$c8dc]
-	ld hl, $c0d8
+IsListEntryUnknown::
+	ld a, [wConfirmChoice]
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
@@ -5762,71 +5782,71 @@ Call_12_6544::
 	ret
 
 
-Jump_12_6554::
-	call Call_12_4221
-	call Call_12_40E5
-	call Call_12_616E
-	call Call_12_62CE
-	call Call_12_62AF
+LibraryBackToList::
+	call ClearTilemapBuffer
+	call CopyTilemapBufferToVram
+	call LoadFamilyNameTiles
+	call LoadMonsterListNames
+	call DrawLibraryMonsterList
 	ld a, $05
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
-Jump_12_6569::
-	ld a, [$c825]
+LibraryFamilyEmpty::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
-Jump_12_657A::
-	ld a, [$c8dc]
-	ld hl, $c0d8
+LibraryTurnPage::
+	ld a, [wConfirmChoice]
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
-	call Call_12_63D0
-	call Call_12_63BD
+	ld [wCurPartyMember], a
+	call DrawMonsterPage
+	call DrawMonsterPageFrame
 	ld a, $07
-	ld [$c906], a
-	ld a, [$c8dc]
+	ld [wMenuSubStep], a
+	ld a, [wConfirmChoice]
 	ld b, a
 	ld a, $05
-	call Call_1DFB
+	call Divide8
 	or $80
-	ld [$c8e2], a
+	ld [wListCursor], a
 	ld a, b
-	ld [$c8e3], a
+	ld [wListPage], a
 	ret
 
 
-Call_12_65A8::
-	ld a, [$cac0]
-	ld [$da6f], a
+LoadBreedingIcons::
+	ld a, [wCurPartyMember]
+	ld [wBreedQuery], a
 	ld hl, far_Call_16_485C
 	rst $10
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	ld hl, $8600
-	call Call_12_65CB
-	ld [$da71], a
+	call LoadBreedIconTiles
+	ld [wBreedPair], a
 	ld a, [$da72]
 	ld hl, $8700
-	call Call_12_65CB
+	call LoadBreedIconTiles
 	ld [$da72], a
 	ret
 
 
-Call_12_65CB::
+LoadBreedIconTiles::
 	cp $ff
 	ret z
 
@@ -5852,7 +5872,7 @@ Call_12_65CB::
 	inc hl
 	ld d, [hl]
 	pop hl
-	call Call_1577
+	call DecompressVRAM
 	pop af
 	ret
 
@@ -5892,13 +5912,13 @@ jr_012_65ef:
 	db $28, $3a, $29, $3a, $2a, $3a, $2b, $3a, $2c, $3a, $2d, $3a, $2e, $3a, $2f, $3a
 	db $30, $3a, $31, $3a, $32, $3a, $33, $3a, $34, $3a, $35, $3a, $36, $3a
 
-Call_12_67C0::
-	ld hl, $ca94
-	ld a, [$cac0]
-	call Call_267E
+DrawBreedingIcons::
+	ld hl, wLibraryFlags
+	ld a, [wCurPartyMember]
+	call TestFlag
 	ret z
 
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	jr z, jr_012_67d4
 
@@ -5914,12 +5934,12 @@ jr_012_67d4:
 	ret nc
 
 jr_012_67de:
-	ld a, [$da71]
+	ld a, [wBreedPair]
 	cp $ff
 	jr z, jr_012_6810
 
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $48
 	ld [hli], a
 	ld a, $00
@@ -5932,7 +5952,7 @@ jr_012_67de:
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_012_6804
 
@@ -5945,7 +5965,7 @@ jr_012_6804:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 
 jr_012_6810:
@@ -5954,7 +5974,7 @@ jr_012_6810:
 	ret z
 
 	push af
-	ld hl, $ffc3
+	ld hl, hSpriteX
 	ld a, $48
 	ld [hli], a
 	ld a, $00
@@ -5967,7 +5987,7 @@ jr_012_6810:
 	add $10
 	ld [hli], a
 	ld b, $00
-	ld a, [$c8a4]
+	ld a, [wFrameCounter]
 	bit 4, a
 	jr z, jr_012_6835
 
@@ -5980,39 +6000,39 @@ jr_012_6835:
 	ld [hli], a
 	ld a, $00
 	ld [hl], a
-	ld hl, far_Call_04_40A7
+	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
 	ret
 
 
-Jump_12_6842::
-	ld a, [$c905]
+ChooseMonsterMenu::
+	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_12_6846::
-	dw Jump_12_6850
-	dw Jump_12_68A0
-	dw Jump_12_68A5
-	dw Jump_12_68C4
-	dw Jump_12_68C6
+ChooseMonsterSteps::
+	dw ChooseMonsterInit
+	dw ChooseMonsterWait
+	dw ChooseMonsterResetCursors
+	dw ChooseMonsterRun
+	dw ChooseMonsterClose
 
-Jump_12_6850::
-	ld hl, $ffb7
-	call Call_12_4028
-	ld hl, $ffbb
-	call Call_12_4028
+ChooseMonsterInit::
+	ld hl, hScrollX
+	call SnapToTile
+	ld hl, hScrollY
+	call SnapToTile
 	ld a, $ff
-	ld [$c8f4], a
-	ld hl, $c8da
+	ld [wChosenMonPic], a
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ldh a, [$ffbb]
+	call FillMemory
+	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-	ldh a, [$ffb7]
+	ldh a, [hScrollX]
 	rrca
 	rrca
 	rrca
@@ -6026,94 +6046,94 @@ Jump_12_6850::
 	or $98
 	ld h, a
 	ld a, l
-	ld [$c909], a
+	ld [wWindowBgMap], a
 	ld a, h
 	ld [$c90a], a
-	call Call_12_41EF
+	call RestoreTilemapBuffer
 	ld de, $2e11
 	ld hl, $8800
-	call Call_1577
-	call Call_12_4323
-	ld hl, $c905
+	call DecompressVRAM
+	call ResetCursorBlink
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_68A0::
-	ld hl, $c905
+ChooseMonsterWait::
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_68A5::
-	ld hl, $c905
+ChooseMonsterResetCursors::
+	ld hl, wMenuStep
 	inc [hl]
 	xor a
-	ld [$c906], a
-	ld hl, $c8da
+	ld [wMenuSubStep], a
+	ld hl, wLinkChoice
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
-	ld hl, $c8e2
+	call FillMemory
+	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
-	call Call_12C7
+	call FillMemory
 	ret
 
 
-Jump_12_68C4::
-	jr jr_012_68dc
+ChooseMonsterRun::
+	jr ChooseMonsterDispatch
 
-Jump_12_68C6::
-	call Call_12_41EF
+ChooseMonsterClose::
+	call RestoreTilemapBuffer
 	ld de, $2e07
-	call Call_12_40B4
-	call Call_12_40E5
-	ld hl, $c8eb
+	call DrawWindowLayout
+	call CopyTilemapBufferToVram
+	ld hl, wFieldFlags
 	res 4, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-jr_012_68dc:
-	ld a, [$c906]
+ChooseMonsterDispatch::
+	ld a, [wMenuSubStep]
 	rst $00
 
-JumpTable_12_68E0::
-	dw Jump_12_68F2
-	dw Jump_12_6928
-	dw Jump_12_69AF
-	dw Jump_12_69F7
-	dw Jump_12_6A06
-	dw Jump_12_6A2A
-	dw Jump_12_6A68
-	dw Jump_12_6AE3
-	dw Jump_12_6AED
+ChooseMonsterSubSteps::
+	dw ChooseMonsterStart
+	dw ChooseMonsterShowList
+	dw ChooseMonsterListInput
+	dw ChooseMonsterAskConfirm
+	dw ChooseMonsterShowYesNo
+	dw ChooseMonsterYesNoInput
+	dw ChooseMonsterCheckMaster
+	dw ChooseMonsterAccept
+	dw ChooseMonsterNotYours
 
-Jump_12_68F2::
-	call Call_12_6903
-	call Call_12_690A
+ChooseMonsterStart::
+	call SetListLengthToParty
+	call ListPartyMonsters
 	ld hl, $0003
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_6903::
-	ld a, [$ca8d]
-	ld [$c8e9], a
+SetListLengthToParty::
+	ld a, [wPartyCount]
+	ld [wListLength], a
 	ret
 
 
-Call_12_690A::
-	ld hl, $c0d8
+ListPartyMonsters::
+	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
-	call Call_12C7
-	ld a, [$ca8e]
-	ld [$c0d8], a
+	call FillMemory
+	ld a, [wParty]
+	ld [wSceneObjects], a
 	ld a, [$ca8f]
 	ld [$c0d9], a
 	ld a, [$ca90]
@@ -6121,50 +6141,50 @@ Call_12_690A::
 	ret
 
 
-Jump_12_6928::
-	ld a, [$c825]
+ChooseMonsterShowList::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	call Call_12_695D
-	call Call_12_6938
-	ld hl, $c906
+	call LoadChooseNameTiles
+	call DrawChooseMonsterWindow
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Call_12_6938::
-	call Call_12_41EF
+DrawChooseMonsterWindow::
+	call RestoreTilemapBuffer
 	ld de, $2e07
-	call Call_12_40B4
+	call DrawWindowLayout
 	ld de, $724e
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $69ed
 	ld b, $03
-	ld a, [$c8e9]
+	ld a, [wListLength]
 	ld c, a
-	ld hl, $c8e2
-	call Call_12_43C0
-	call Call_12_40E5
+	ld hl, wListCursor
+	call DrawListFrame
+	call CopyTilemapBufferToVram
 	ret
 
 
-Call_12_695D::
-	ld a, [$c8e3]
+LoadChooseNameTiles::
+	ld a, [wListPage]
 	add a
 	add a
-	ld de, $c0d8
+	ld de, wSceneObjects
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
 	ld hl, $8800
-	call Call_12_6974
-	call Call_12_6974
+	call LoadChooseNameSlot
+	call LoadChooseNameSlot
 
-Call_12_6974::
+LoadChooseNameSlot::
 	push de
 	push hl
 	ld a, [de]
@@ -6172,13 +6192,13 @@ Call_12_6974::
 	jr z, jr_012_6995
 
 	ld a, [de]
-	ld hl, $cac2
-	call Call_223B
+	ld hl, wMonName
+	call MonsterField
 	ld e, l
 	ld d, h
 	pop hl
 	push hl
-	call Call_12_4153
+	call DrawNameTiles
 	pop hl
 	ld a, l
 	add $40
@@ -6196,9 +6216,9 @@ jr_012_6995:
 
 jr_012_6997:
 	ld a, $ff
-	call Call_1AB9
+	call WriteVRAMInc
 	xor a
-	call Call_1AB9
+	call WriteVRAMInc
 	dec b
 	jr nz, jr_012_6997
 
@@ -6214,10 +6234,10 @@ jr_012_6997:
 	ret
 
 
-Jump_12_69AF::
+ChooseMonsterListInput::
 	ld de, $69ed
-	ld hl, $c8e2
-	ld a, [$c8e9]
+	ld hl, wListCursor
+	ld a, [wListLength]
 	ld c, a
 	ld b, $03
 	inc hl
@@ -6225,32 +6245,32 @@ Jump_12_69AF::
 	push af
 	ld a, [hl]
 	push af
-	call Call_12_4241
+	call UpdatePagedList
 	pop af
 	pop af
-	ld hl, $c8e3
+	ld hl, wListPage
 	cp [hl]
 	jr z, jr_012_69ce
 
-	call Call_12_695D
+	call LoadChooseNameTiles
 
 jr_012_69ce:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_69db
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	jr jr_012_69ec
 
 jr_012_69db:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_69ec
 
 	ld a, $59
-	call Call_1B2C
-	ld hl, $c906
+	call QueueSound
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_69ec:
@@ -6260,63 +6280,63 @@ jr_012_69ec:
 
 	db $05, $01, $61, $00, $a1, $00, $e1, $00, $ff, $ff
 
-Jump_12_69F7::
+ChooseMonsterAskConfirm::
 	ld hl, $0005
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
 	xor a
-	ld [$c8de], a
+	ld [wMenuChoice3], a
 	ret
 
 
-Jump_12_6A06::
-	ld a, [$c825]
+ChooseMonsterShowYesNo::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $5c
-	call Call_1B2C
+	call QueueSound
 	ld de, $6dcb
-	call Call_12_40B4
-	call Call_12_4323
+	call DrawWindowLayout
+	call ResetCursorBlink
 	ld de, $6a62
-	ld a, [$c8de]
-	call Call_12_43E2
-	call Call_12_40E5
-	ld hl, $c906
+	ld a, [wMenuChoice3]
+	call DrawCursorAt
+	call CopyTilemapBufferToVram
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_6A2A::
+ChooseMonsterYesNoInput::
 	ld de, $6a62
-	ld hl, $c8de
+	ld hl, wMenuChoice3
 	ld b, $02
-	call Call_12_42CA
-	ld a, [$c846]
+	call UpdateMenuCursor
+	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, jr_012_6a49
 
 jr_012_6a3c:
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	jr jr_012_6a61
 
 jr_012_6a49:
-	ld a, [$c846]
+	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_012_6a61
 
 	ld a, $59
-	call Call_1B2C
-	ld a, [$c8de]
+	call QueueSound
+	ld a, [wMenuChoice3]
 	cp $81
 	jr z, jr_012_6a3c
 
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 
 Jump_012_6a61:
@@ -6326,25 +6346,25 @@ jr_012_6a61:
 
 	db $2f, $01, $6f, $01, $ff, $ff
 
-Jump_12_6A68::
-	ld a, [$c8e3]
+ChooseMonsterCheckMaster::
+	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8e2]
+	ld a, [wListCursor]
 	and $7f
 	add b
-	ld hl, $c0d8
+	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$cac0], a
-	ld hl, $cacd
-	call Call_223B
-	ld de, $ca42
+	ld [wCurPartyMember], a
+	ld hl, wMonMaster
+	call MonsterField
+	ld de, wPlayerName
 	ld b, $09
 
 jr_012_6a8c:
@@ -6353,10 +6373,10 @@ jr_012_6a8c:
 	jr z, jr_012_6a9f
 
 	ld hl, $0004
-	call Call_12_441F
-	ld hl, $c906
+	call PrintMenuText
+	ld hl, wMenuSubStep
 	inc [hl]
-	ld hl, $c906
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
@@ -6367,70 +6387,70 @@ jr_012_6a9f:
 	dec b
 	jr nz, jr_012_6a8c
 
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
 	add $10
-	ld [$c8f4], a
-	ld a, [$cac0]
-	ld hl, $cac2
-	call Call_223B
+	ld [wChosenMonPic], a
+	ld a, [wCurPartyMember]
+	ld hl, wMonName
+	call MonsterField
 	ld a, l
-	ld [$c8f2], a
+	ld [wChosenMonName], a
 	ld a, h
 	ld [$c8f3], a
-	ld a, [$cac0]
-	ld hl, $cacc
-	call Call_223B
+	ld a, [wCurPartyMember]
+	ld hl, wMonGender
+	call MonsterField
 	ld a, [hl]
-	ld [$c8f6], a
-	ld a, [$cac0]
-	ld hl, $caca
-	call Call_223B
+	ld [wChosenMonGender], a
+	ld a, [wCurPartyMember]
+	ld hl, wMonRecSpecies
+	call MonsterField
 	ld a, [hl]
-	ld [$c8f5], a
-	ld hl, $c906
+	ld [wChosenMonSpecies], a
+	ld hl, wMenuSubStep
 	inc [hl]
 	ret
 
 
-Jump_12_6AE3::
-	ld a, [$c825]
+ChooseMonsterAccept::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_6AED::
-	ld a, [$c825]
+ChooseMonsterNotYours::
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld hl, $0001
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $01
-	ld [$c906], a
+	ld [wMenuSubStep], a
 	ret
 
 
-Jump_12_6AFE::
-	ld a, [$c905]
+CollectorMenu::
+	ld a, [wMenuStep]
 	rst $00
 
-JumpTable_12_6B02::
-	dw Jump_12_6B0E
-	dw Jump_12_6B7C
-	dw Jump_12_6BEE
-	dw Jump_12_6C90
-	dw Jump_12_6CAA
-	dw Jump_12_6D1A
+CollectorSteps::
+	dw CollectorTakeItems
+	dw CollectorReport
+	dw CollectorGiveEgg
+	dw CollectorRewardText
+	dw CollectorNextGoal
+	dw CollectorClose
 
-Jump_12_6B0E::
-	ld hl, $ca51
+CollectorTakeItems::
+	ld hl, wBagItems
 	ld b, $14
 	ld c, $00
 
@@ -6448,22 +6468,22 @@ jr_012_6b1d:
 	jr nz, jr_012_6b15
 
 	ld a, c
-	ld [$c907], a
+	ld [wItemsHandedIn], a
 	or a
 	jr z, jr_012_6b77
 
-	ld a, [$c903]
+	ld a, [wCollectedItems]
 	ld l, a
 	ld a, [$c904]
 	ld h, a
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, l
-	ld [$c903], a
+	ld [wCollectedItems], a
 	ld a, h
 	ld [$c904], a
 	ld a, l
@@ -6476,54 +6496,54 @@ jr_012_6b1d:
 
 	ld hl, $03e7
 	ld a, l
-	ld [$c903], a
+	ld [wCollectedItems], a
 	ld a, h
 	ld [$c904], a
 
 jr_012_6b56:
-	ld hl, far_Call_03_7160
+	ld hl, far_CompactBag
 	rst $10
-	ld a, [$d9e1]
+	ld a, [wCollectorStep]
 	cp $04
 	jr z, jr_012_6b6c
 
 	ld hl, $0001
-	call Call_12_441F
-	ld hl, $c905
+	call PrintMenuText
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
 jr_012_6b6c:
 	ld hl, $000f
-	call Call_12_441F
-	ld hl, $c905
+	call PrintMenuText
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
 jr_012_6b77:
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_6B7C::
-	ld a, [$c825]
+CollectorReport::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$c903]
+	ld a, [wCollectedItems]
 	ld c, a
 	ld a, [$c904]
 	ld b, a
-	ld hl, $c180
-	call Call_0A7C
-	ld a, [$d9e1]
+	ld hl, wTextArg0
+	call Number16ToDecimal
+	ld a, [wCollectorStep]
 	cp $04
 	jr z, jr_012_6bd0
 
-	ld a, [$d9e1]
+	ld a, [wCollectorStep]
 	add a
 	add a
 	ld hl, $6d29
@@ -6536,10 +6556,10 @@ Jump_12_6B7C::
 	ld b, [hl]
 	ld c, a
 	push bc
-	ld hl, $c190
-	call Call_0A7C
+	ld hl, wTextArg1
+	call Number16ToDecimal
 	pop bc
-	ld a, [$c903]
+	ld a, [wCollectedItems]
 	ld l, a
 	ld a, [$c904]
 	ld h, a
@@ -6552,41 +6572,41 @@ Jump_12_6B7C::
 	jr c, jr_012_6bca
 
 	ld hl, $0002
-	call Call_12_441F
-	ld hl, $c905
+	call PrintMenuText
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
 jr_012_6bca:
 	ld a, $04
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
 jr_012_6bd0:
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	or a
 	jr z, jr_012_6bca
 
-	ld a, [$c907]
+	ld a, [wItemsHandedIn]
 	ld c, a
 	ld b, $00
-	ld hl, $c180
-	call Call_0A7C
+	ld hl, wTextArg0
+	call Number16ToDecimal
 	ld hl, $0010
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $04
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_6BEE::
-	ld a, [$c825]
+CollectorGiveEgg::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $cac1
+	ld hl, wMonsters
 	ld b, $14
 	ld c, $00
 
@@ -6611,8 +6631,8 @@ jr_012_6c0a:
 	jr nc, jr_012_6c84
 
 	ld a, c
-	ld [$da14], a
-	ld a, [$d9e1]
+	ld [wNewMonSlot], a
+	ld a, [wCollectorStep]
 	add a
 	add a
 	ld hl, $6d2b
@@ -6625,16 +6645,16 @@ jr_012_6c0a:
 	ld b, [hl]
 	ld c, a
 	ld a, c
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, b
 	ld [$da13], a
-	ld hl, far_Call_14_40B4
+	ld hl, far_CreateMonster
 	rst $10
-	ld a, [$da14]
-	ld hl, $cb24
-	call Call_223B
+	ld a, [wNewMonSlot]
+	ld hl, wMonEgg
+	call MonsterField
 	ld [hl], $01
-	ld a, [$d9e1]
+	ld a, [wCollectorStep]
 	ld bc, $0050
 	cp $00
 	jr z, jr_012_6c78
@@ -6670,58 +6690,58 @@ jr_012_6c0a:
 	jr jr_012_6c7b
 
 jr_012_6c78:
-	call Call_26A0
+	call SetEventFlag
 
 jr_012_6c7b:
-	ld hl, $d9e1
+	ld hl, wCollectorStep
 	inc [hl]
-	ld hl, $c905
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
 jr_012_6c84:
 	ld hl, $000b
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $05
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_6C90::
-	ld a, [$c825]
+CollectorRewardText::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$d9e1]
+	ld a, [wCollectorStep]
 	ld hl, $0002
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	call Call_12_441F
+	call PrintMenuText
 	ld a, $05
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 
-Jump_12_6CAA::
-	ld a, [$c825]
+CollectorNextGoal::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$c903]
+	ld a, [wCollectedItems]
 	ld c, a
 	ld a, [$c904]
 	ld b, a
-	ld hl, $c180
-	call Call_0A7C
-	ld a, [$d9e1]
+	ld hl, wTextArg0
+	call Number16ToDecimal
+	ld a, [wCollectorStep]
 	cp $04
 	jr z, jr_012_6d0f
 
-	ld a, [$d9e1]
+	ld a, [wCollectorStep]
 	add a
 	add a
 	ld hl, $6d29
@@ -6733,9 +6753,9 @@ Jump_12_6CAA::
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-	ld hl, $c190
-	call Call_0A7C
-	ld a, [$d9e1]
+	ld hl, wTextArg1
+	call Number16ToDecimal
+	ld a, [wCollectorStep]
 	add a
 	add a
 	ld hl, $6d2b
@@ -6748,40 +6768,40 @@ Jump_12_6CAA::
 	ld b, [hl]
 	ld c, a
 	ld a, c
-	ld [$da12], a
+	ld [wNewMonId], a
 	ld a, b
 	ld [$da13], a
-	ld hl, far_Call_14_400F
+	ld hl, far_LoadMonTemplate
 	rst $10
-	ld a, [$da18]
+	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
-	ld de, $c1a0
-	call Call_097A
+	ld de, wTextArg2
+	call CopySystemText
 	ld hl, $000c
-	call Call_12_441F
-	ld hl, $c905
+	call PrintMenuText
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
 jr_012_6d0f:
 	ld hl, $0011
-	call Call_12_441F
-	ld hl, $c905
+	call PrintMenuText
+	ld hl, wMenuStep
 	inc [hl]
 	ret
 
 
-Jump_12_6D1A::
-	ld a, [$c825]
+CollectorClose::
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld hl, $c8eb
+	ld hl, wFieldFlags
 	res 4, [hl]
 	xor a
-	ld [$c905], a
+	ld [wMenuStep], a
 	ret
 
 

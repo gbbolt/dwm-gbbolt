@@ -1186,7 +1186,7 @@ Call_54_526E::
 
 
 Call_54_5298::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	ld c, a
 	ld b, $00
 	ld hl, $4013
@@ -1219,11 +1219,11 @@ Call_54_5298::
 
 
 Call_54_52C7::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	ld [$db4c], a
 	ld a, $00
 	ld [$db4d], a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	bit 2, a
 	jr z, jr_054_52e0
 
@@ -1241,7 +1241,7 @@ jr_054_52e5:
 	ld c, a
 	ld a, [$db4d]
 	ld b, a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	ld hl, $dd0b
 	add l
 	ld l, a
@@ -1268,11 +1268,11 @@ jr_054_530a:
 
 
 Call_54_5313::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	ld [$db4c], a
 	ld a, $00
 	ld [$db4d], a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	bit 2, a
 	jr z, jr_054_532c
 
@@ -1290,7 +1290,7 @@ jr_054_5331:
 	ld c, a
 	ld a, [$db4d]
 	ld b, a
-	ld a, [$db88]
+	ld a, [wSkillUser]
 	ld hl, $dd0b
 	add l
 	ld l, a
@@ -1368,34 +1368,34 @@ jr_054_53a6:
 Call_54_53AC::
 	xor a
 	ld [$db53], a
-	ld a, [$c8dc]
+	ld a, [wConfirmChoice]
 	add a
 	add a
 	ld b, a
-	ld a, [$c8db]
+	ld a, [wMenuChoice2]
 	and $7f
 	add b
 	ld a, a
 	ld [$db4c], a
-	ld hl, $ca51
+	ld hl, wBagItems
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld [$da5e], a
-	ld hl, far_Call_03_6980
+	ld [wItemId], a
+	ld hl, far_GetItemData
 	rst $10
 	ld a, [$db4c]
-	ld [$da5f], a
-	ld hl, far_Call_03_7134
+	ld [wItemBagSlot], a
+	ld hl, far_MaybeUseUpItem
 	rst $10
-	ld a, [$da5e]
+	ld a, [wItemId]
 	cp $ff
 	jr nz, jr_054_53f5
 
-	ld a, [$da65]
+	ld a, [wItemUseUpChance]
 	cp $64
 	jr z, jr_054_53f5
 
@@ -1410,12 +1410,12 @@ jr_054_53f5:
 
 
 Call_54_53F6::
-	ld a, [$db8a]
+	ld a, [wSkillId]
 	sub $af
 	ld l, a
 	ld h, $08
-	ld de, $c190
-	call Call_097A
+	ld de, wTextArg1
+	call CopySystemText
 	ret
 
 
@@ -1432,15 +1432,15 @@ JumpTable_54_5409::
 	dw Jump_54_5577
 
 Jump_54_5415::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
 	ld a, $04
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $00
-	ld [$c823], a
-	ld hl, far_Call_4C_42D1
+	ld [wTextIndex], a
+	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_55A0
 	ld hl, $d9ee
@@ -1449,25 +1449,25 @@ Jump_54_5415::
 
 
 Jump_54_5430::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$da33]
+	ld a, [wMonStats]
 	or a
 	jr z, jr_054_5440
 
 	dec a
-	ld [$da33], a
+	ld [wMonStats], a
 	ret
 
 
 jr_054_5440:
 	ld a, $04
-	ld [$c822], a
+	ld [wTextGroup], a
 	ld a, $01
-	ld [$c823], a
-	ld hl, far_Call_4C_42D1
+	ld [wTextIndex], a
+	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_5591
 	ld hl, $d9ee
@@ -1476,25 +1476,25 @@ jr_054_5440:
 
 
 Jump_54_5456::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$da33]
+	ld a, [wMonStats]
 	or a
 	jr z, jr_054_5466
 
 	dec a
-	ld [$da33], a
+	ld [wMonStats], a
 	ret
 
 
 jr_054_5466:
 	ld a, $04
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr c, jr_054_54a2
 
-	ld de, $c180
+	ld de, wTextArg0
 	ld a, e
 	ld [$db5e], a
 	ld a, d
@@ -1502,21 +1502,21 @@ jr_054_5466:
 	ld a, [$dc40]
 	ld l, a
 	ld h, $05
-	call Call_097A
+	call CopySystemText
 	ld a, [$dc40]
 	ld [$d9ef], a
-	ld hl, $ca94
-	call Call_267E
+	ld hl, wLibraryFlags
+	call TestFlag
 	ld a, $02
 	jr nz, jr_054_5493
 
 	ld a, $03
 
 jr_054_5493:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $04
-	ld [$c822], a
-	ld hl, far_Call_4C_42D1
+	ld [wTextGroup], a
+	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_5591
 
@@ -1527,25 +1527,25 @@ jr_054_54a2:
 
 
 Jump_54_54A7::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$da33]
+	ld a, [wMonStats]
 	or a
 	jr z, jr_054_54b7
 
 	dec a
-	ld [$da33], a
+	ld [wMonStats], a
 	ret
 
 
 jr_054_54b7:
 	ld a, $05
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr c, jr_054_5503
 
-	ld de, $c180
+	ld de, wTextArg0
 	ld a, e
 	ld [$db5e], a
 	ld a, d
@@ -1553,31 +1553,31 @@ jr_054_54b7:
 	ld a, [$dc41]
 	ld l, a
 	ld h, $05
-	call Call_097A
+	call CopySystemText
 	ld a, [$dc41]
 	ld hl, $dc40
 	cp [hl]
 	jr nz, jr_054_54e2
 
 	ld a, $04
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr nc, jr_054_5503
 
 jr_054_54e2:
 	ld [$d9f0], a
 	ld a, [$dc41]
-	ld hl, $ca94
-	call Call_267E
+	ld hl, wLibraryFlags
+	call TestFlag
 	ld a, $02
 	jr nz, jr_054_54f4
 
 	ld a, $03
 
 jr_054_54f4:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $04
-	ld [$c822], a
-	ld hl, far_Call_4C_42D1
+	ld [wTextGroup], a
+	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_5591
 
@@ -1588,25 +1588,25 @@ jr_054_5503:
 
 
 Jump_54_5508::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$da33]
+	ld a, [wMonStats]
 	or a
 	jr z, jr_054_5518
 
 	dec a
-	ld [$da33], a
+	ld [wMonStats], a
 	ret
 
 
 jr_054_5518:
 	ld a, $06
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr c, jr_054_5572
 
-	ld de, $c180
+	ld de, wTextArg0
 	ld a, e
 	ld [$db5e], a
 	ld a, d
@@ -1614,14 +1614,14 @@ jr_054_5518:
 	ld a, [$dc42]
 	ld l, a
 	ld h, $05
-	call Call_097A
+	call CopySystemText
 	ld a, [$dc42]
 	ld hl, $dc40
 	cp [hl]
 	jr nz, jr_054_5543
 
 	ld a, $04
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr nc, jr_054_5572
 
 jr_054_5543:
@@ -1631,24 +1631,24 @@ jr_054_5543:
 	jr nz, jr_054_5551
 
 	ld a, $05
-	call Call_2FA5
+	call CheckBattlerPresent
 	jr nc, jr_054_5572
 
 jr_054_5551:
 	ld [$d9f1], a
 	ld a, [$dc42]
-	ld hl, $ca94
-	call Call_267E
+	ld hl, wLibraryFlags
+	call TestFlag
 	ld a, $02
 	jr nz, jr_054_5563
 
 	ld a, $03
 
 jr_054_5563:
-	ld [$c823], a
+	ld [wTextIndex], a
 	ld a, $04
-	ld [$c822], a
-	ld hl, far_Call_4C_42D1
+	ld [wTextGroup], a
+	ld hl, far_StartText_4C
 	rst $10
 	call Call_54_5591
 
@@ -1659,16 +1659,16 @@ jr_054_5572:
 
 
 Jump_54_5577::
-	ld a, [$c825]
+	ld a, [wTextState]
 	or a
 	ret nz
 
-	ld a, [$da33]
+	ld a, [wMonStats]
 	or a
 	jr z, jr_054_5587
 
 	dec a
-	ld [$da33], a
+	ld [wMonStats], a
 	ret
 
 
@@ -1715,12 +1715,12 @@ jr_054_55b6:
 	xor a
 
 jr_054_55b7:
-	ld [$da33], a
+	ld [wMonStats], a
 	ret
 
 
 Call_54_55BB::
-	call Call_12D0
+	call Random
 	ld a, [$dd61]
 	or a
 	jr z, jr_054_5609
@@ -1745,8 +1745,8 @@ Call_54_55BB::
 	adc h
 	ld h, a
 	ld a, [hl]
-	ld hl, $ca94
-	call Call_267E
+	ld hl, wLibraryFlags
+	call TestFlag
 	push af
 	pop bc
 	ld a, c
@@ -1821,7 +1821,7 @@ jr_054_5637:
 
 jr_054_563d:
 	ld a, $05
-	call Call_1E0D
+	call Divide16
 	jr jr_054_5654
 
 jr_054_5644:
@@ -1852,7 +1852,7 @@ Call_54_5655::
 	jr nz, jr_054_5682
 
 	ld a, $14
-	call Call_1E0D
+	call Divide16
 	jr jr_054_5682
 
 jr_054_566c:
@@ -1883,32 +1883,32 @@ Call_54_5683::
 	jr z, jr_054_56c7
 
 	push hl
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $5b
-	call Call_1E0D
+	call Divide16
 	add $0a
 	ld c, a
 	ld b, $00
 	pop hl
-	call Call_2F45
+	call CompareHLBC
 	jr c, jr_054_56c7
 
-	call Call_12D0
-	ld a, [$c899]
+	call Random
+	ld a, [wRandomHigh]
 	ld l, a
-	ld a, [$c89a]
+	ld a, [wRandomLow]
 	ld h, a
 	ld a, $64
-	call Call_1E0D
+	call Divide16
 	inc a
 	ld c, a
 	ld b, $00
 	ld hl, $005a
-	call Call_2F45
+	call CompareHLBC
 	jr c, jr_054_56c7
 
 jr_054_56c5:
