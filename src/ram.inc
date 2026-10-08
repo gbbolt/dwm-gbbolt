@@ -217,7 +217,7 @@ DEF wLinkRefused EQU $C8DF ;@ u8 Set to $FF when the partner's handshake byte di
 DEF wLinkPartnerChoice EQU $C8E0 ;@ u8 Link mode the partner asked for (2 or 3) when ours differs
 DEF wLinkNoEnd EQU $C8C7 ;@ u8 Nonzero: the partner's end byte $F3 is not looked for
 DEF wMonSpecies EQU $DA31 ;@ u8 Monster number GetMonsterStats looks up
-DEF wMonStats EQU $DA33 ;@ u8[43] Copy of a monster's record from MonsterStats
+DEF wMonStats EQU $DA33 ;@ u8[43] Copy of a monster's record from MonsterStats; the battle steps also use its first byte as a frame counter for short pauses
 DEF wItemId EQU $DA5E ;@ u8 Item being checked or used ($FF afterwards = not usable / used up / not found)
 DEF wItemBagSlot EQU $DA5F ;@ u8 Bag slot of the item being used
 DEF wItemTarget EQU $DA60 ;@ u8 Party slot the item is used on
@@ -500,7 +500,7 @@ DEF wBattleArg0 EQU $DB4C ;@ u8 Argument / result byte 0 of the battle helper ro
 DEF wBattleArg1 EQU $DB4D ;@ u8 Argument / result byte 1 of the battle helper routines
 DEF wBattleArg2 EQU $DB4E ;@ u8 Argument / result byte 2 of the battle helper routines
 DEF wBattleArg3 EQU $DB4F ;@ u8 Argument / result byte 3 of the battle helper routines
-DEF wBattlerReload EQU $DB55 ;@ u8 Set while a battler is refreshed from its monster record (current HP, MP and ailments are kept); the battle items use it for the number of the message to show
+DEF wBattlerReload EQU $DB55 ;@ u8 Set while a battler is refreshed from its monster record (current HP, MP and ailments are kept); the battle items use it for the number of the message to show. The battle flow keeps the upper hand in it: at the start 2 a normal start, 0 the enemies are caught off guard, 1 an ambush; at the end 0 won, 1 lost (also giving up a tournament battle), 2 ran away
 DEF wBattlerSpecies EQU $DC3C ;@ u8[8] Species of each battle position
 DEF wBattlerSex EQU $DB93 ;@ u8[8] Sex of each battle position (0 or 1)
 DEF wBattlerTactic EQU $DD03 ;@ u8[8] Tactic of each battle position (bits 0-1; from bits 4-5 of the record's sex byte)
@@ -605,7 +605,7 @@ DEF wSkillTargeting EQU $DCFC ;@ u8 Skill record byte 2 of the skill being used:
 DEF wSkillFlags1 EQU $DCFD ;@ u8 Skill record byte 7 of the skill being used (flags)
 DEF wSkillFlags2 EQU $DCFE ;@ u8 Skill record byte 8 of the skill being used (flags)
 DEF wSkillFlags3 EQU $DCFF ;@ u8 Skill record byte 9 of the skill being used (flags)
-DEF wBattleItemUsedUp EQU $DB53 ;@ u8 Set when the battle item just used is gone from the bag (its name is in wTextArg1)
+DEF wBattleItemUsedUp EQU $DB53 ;@ u8 Set when the battle item just used is gone from the bag (its name is in wTextArg1); skill animations: number of monsters on the side the animation is drawn at
 DEF wLinkPartnerName EQU $C8BB ;@ u8[8] Name of the link partner (the other player), received at the end of a VS battle
 DEF wMonPicPalette EQU $C81F ;@ u8 BG palette (0-7) LoadMonPicPalette fills for a monster picture
 DEF wMonPicPos EQU $C820 ;@ u16 Screen offset (row * 32 + column) of the monster picture whose attributes DrawMonPicAttrs sets
@@ -629,3 +629,12 @@ DEF wTurnOrderPos EQU $DB82 ;@ u8 Position in wTurnOrder (0 while the order is b
 DEF wReactionKind EQU $DD6C ;@ u8 Nonzero while the action being carried out is a reaction to another one (counterattack, reflected spell, a SuckAll catch...): its kind ($01, $04, $08, $20...)
 DEF wOrderFlag0 EQU $C1D5 ;@ u8 Order flag of the own side ($81 = the monster carries out a direct command); outside link mode set when an enemy's action was replaced by Attack
 DEF wOrderFlag1 EQU $C1D6 ;@ u8 Order flag of the partner's side in a link battle ($81 = a direct command)
+DEF wOrderNameShown EQU $C1C1 ;@ u8 Set when direct orders were picked in the tactic window with several monsters taking orders (the name plate is not printed again)
+DEF wMon4Master EQU $CD21 ;@ u8[9] Master's name field of monster record 4 (wMonMaster + 4 * $95). In a link battle the team of the Game Boy that drives the clock sits in the records from 4 on, so this is that player's name
+DEF wArenaFight EQU $D999 ;@ u8 Kind of the next Starry Night arena fight: 0 and 1 class matches (after a win the next opponents are loaded; kind 1 turns into 2 after round 2), 2 the special fight with its own music ($2B), 3 once that fight is over
+DEF wItemFlags EQU $DA6D ;@ u8 Item record byte 11 (flags): bit 2 the item is kept when the whole party is defeated
+DEF wInterceptState EQU $DD6E ;@ u8 How the current hit was intercepted: 0 not, 1 or 4 another monster stepped in (Cover, Guardian), 2 dodged aside, reflected or absorbed, 3 dodged aside and then covered
+DEF wReflectAnim EQU $DD6D ;@ u8 Animation variant of a reflected attack (0 Bounce, 2 a wind, 7 MagicBack)
+DEF wShieldTarget EQU $C1C8 ;@ u8 The original target while another monster takes the attack in its place (Cover, a shield, a dodge; $FF none)
+DEF wHitShown EQU $C1C9 ;@ u8 Set once the hit of the skill was shown (damage or effect)
+DEF wAbsorbMP EQU $D9F2 ;@ u8 Low byte of the MP a monster glowing with TakeMagic absorbs from a spell (the high byte goes to the next byte, wPanelMode)

@@ -88,7 +88,7 @@ SetUpBattleScreen::
 	ld hl, wGameStarted
 	res 7, [hl]
 ;>     if mem[0xD999] == 2:
-	ld a, [$d999]
+	ld a, [wArenaFight]
 	cp $02
 	jr nz, .play
 
@@ -5499,438 +5499,640 @@ CompactSkillList::
 	ret
 
 
+;@ def LevelUpStep11()
+;@ path: battle/levelup
+;@ Once the text is done: opens the forget-a-skill menu (cursor tiles from Data_51_7B0F, the skill
+;@ list in pages of 4, the description and the MP cost of the skill under the cursor).
 LevelUpStep11::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DecompressVRAM(0x51, 0x12, 0x89C0)          # the cursor tiles (Data_51_7B0F)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
+;> wBattleListCount = CompactSkillList()
 	call CompactSkillList
 	ld [wBattleListCount], a
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> DrawSkillNameColumn()
 	call DrawSkillNameColumn
+;> DrawForgetSkillInfo()
 	call DrawForgetSkillInfo
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawForgetMenu()
 	call DrawForgetMenu
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def DrawForgetMenu()
+;@ path: battle/levelup
+;@ Draws the forget-a-skill screen into the tilemap buffer: the party panel, the title tiles, the skill
+;@ list, description and MP windows, the skill's MP cost, the monster's maximum MP and the cursor.
 DrawForgetMenu::
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> Call_55_4774()                             # the windows' title texts
 	ld hl, far_Call_55_4774
 	rst $10
-	ld de, $6e78
+;> DrawBattleWindow(ForgetSkillListWindow)
+	ld de, ForgetSkillListWindow
 	call DrawBattleWindow
-	ld de, $6fe2
+;> DrawBattleWindow(ForgetSkillInfoWindow)
+	ld de, ForgetSkillInfoWindow
 	call DrawBattleWindow
-	ld de, $7077
+;> DrawBattleWindow(ForgetMPWindow)
+	ld de, ForgetMPWindow
 	call DrawBattleWindow
+;> DrawForgetMPCost()
 	call DrawForgetMPCost
+;> maxmp = mem16[MonsterField(wCurPartyMember, wMonMaxMP)]
 	ld hl, wMonMaxMP
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> PrintNumber3(BattleBufferAddress(0x125), maxmp)     # row 9, column 5
 	ld hl, $0125
 	call BattleBufferAddress
 	call PrintNumber3
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $59d7
+;> DrawPagedCursor(addr(wMenuChoice2), ForgetCursorSpots, wBattleListCount)
+	ld de, ForgetCursorSpots
 	ld a, [wBattleListCount]
 	ld c, a
 	ld hl, wMenuChoice2
 	call DrawPagedCursor
+;> return
 	ret
 
 
+;@ def DrawForgetMPCost()
+;@ path: battle/levelup
+;@ Prints the MP cost of the skill under the cursor (page wConfirmChoice, row wMenuChoice2) at row 9,
+;@ column 1 of the buffer; a skill costing "all MP" (999) shows the monster's maximum MP instead.
 DrawForgetMPCost::
+;> page4 = 4 * wConfirmChoice
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	ld b, a
+;> i = page4 + (wMenuChoice2 & 0x7F)
 	ld a, [wMenuChoice2]
 	and $7f
 	add b
+;> skill = mem[addr(wSceneObjects) + i]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld e, [hl]
+;> cost = GetSkillMPCost(skill)
 	ld d, $00
 	ld hl, far_GetSkillMPCost
 	rst $10
+;> diff = (cost - 999) & 0xFFFF
 	ld c, e
 	ld b, d
 	ld a, e
 	add $19
 	ld e, a
 	ld a, d
+;> if diff != 0:
 	adc $fc
 	ld d, a
 	ld a, d
 	or e
-	jr z, jr_051_58dd
+	jr z, .all
 
+;>     PrintNumber3(BattleBufferAddress(0x121), cost)
 	ld hl, $0121
 	call BattleBufferAddress
 	call PrintNumber3
+;>     return
 	ret
 
-
-jr_051_58dd:
+;> maxmp = mem16[MonsterField(wCurPartyMember, wMonMaxMP)]
+.all:
 	ld hl, wMonMaxMP
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> PrintNumber3(BattleBufferAddress(0x121), maxmp)
 	ld hl, $0121
 	call BattleBufferAddress
 	call PrintNumber3
+;> return
 	ret
 
 
+;@ def DrawSkillNameColumn()
+;@ path: battle/levelup
+;@ Draws the names of the 4 skills on page wConfirmChoice of the skill scratch list into the name
+;@ tiles from $9360 (9 tiles each).
 DrawSkillNameColumn::
+;> p = addr(wSceneObjects) + 4 * wConfirmChoice
 	ld de, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	add e
 	ld e, a
+;> tiles = 0x9360
 	ld a, $00
 	adc d
 	ld d, a
 	ld hl, $9360
+
+;>@r for i in range(2):
+;>     p, tiles = DrawSkillNameTiles(p, tiles)
 	call DrawSkillNameTiles
+;=@r
 	call DrawSkillNameTiles
+;> p, tiles = DrawSkillNameTiles(p, tiles)
+;> return DrawSkillNameTiles(p, tiles)          # the fourth: runs on into it
 	call DrawSkillNameTiles
 
+;@ def DrawSkillNameTiles(p: de, tiles: hl) -> (de, hl)
+;@ path: battle/levelup
+;@ Prints the name of skill mem[p] (text group 6) into 9 tiles at `tiles`; returns p + 1 and the
+;@ tiles of the next line.
 DrawSkillNameTiles::
+;> wTextIndex = mem[p]; wTextGroup = 6
 	push de
 	push hl
 	ld a, [de]
 	ld [wTextIndex], a
 	ld a, $06
 	ld [wTextGroup], a
+;> PrintTextToTiles(tiles, 1, 9)
 	ld de, $0901
 	call PrintTextToTiles
+;>@rt return (p + 1, tiles + 0x90)
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@rt
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def DrawForgetSkillInfo()
+;@ path: battle/levelup
+;@ Prints the description (text group 1) of the skill under the cursor into the tiles at $9000
+;@ (3 lines of 18), keeping the text box settings.
 DrawForgetSkillInfo::
+;> page4 = 4 * wConfirmChoice
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	ld b, a
+;> i = page4 + (wMenuChoice2 & 0x7F)
 	ld a, [wMenuChoice2]
 	and $7f
 	add b
+;> skill = mem[addr(wSceneObjects) + i]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;> wTextIndex = skill
 	ld [wTextIndex], a
+;> wTextGroup = 1
 	ld a, $01
 	ld [wTextGroup], a
+;> savedTiles = wTextTiles
 	ld hl, $9000
 	ld de, $1203
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
+;> savedLines = wTextBoxLines; savedLength = wTextBoxLineLength
 	push bc
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x9000
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = 3; wTextBoxLineLength = 18
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
-	ld hl, LevelUpStep01
+;> Call_56_490F()                       # prints the text into those tiles
+	ld hl, far_Call_56_490F
 	rst $10
+;> wTextTiles = savedTiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = savedLines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = savedLength
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> return
 	ret
 
 
+;@ def LevelUpStep12()
+;@ path: battle/levelup
+;@ The forget-a-skill menu: moves the cursor through the pages of 4 skills (redrawing the names,
+;@ description and MP cost when the page or row changes). A chooses the skill to forget.
 LevelUpStep12::
-	ld de, $59d7
+;> spots = ForgetCursorSpots; n = wBattleListCount
+	ld de, ForgetCursorSpots
 	ld hl, wMenuChoice2
 	ld a, [wBattleListCount]
 	ld c, a
 	ld b, $04
+;> oldRow = wMenuChoice2; oldPage = wConfirmChoice
 	ld a, [hli]
 	push af
 	ld a, [hld]
 	push af
+;> UpdatePagedCursor(addr(wMenuChoice2), spots, n, 4)
 	call UpdatePagedCursor
+;> if wConfirmChoice != oldPage:
 	pop af
 	ld hl, wConfirmChoice
 	cp [hl]
-	jr z, jr_051_59ad
+	jr z, .samePage
 
+;>     DrawSkillNameColumn()
 	call DrawSkillNameColumn
+;>     DrawForgetSkillInfo()
 	call DrawForgetSkillInfo
+;>     DrawForgetMPCost()
 	call DrawForgetMPCost
+;>     CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
 
-jr_051_59ad:
+;> if wMenuChoice2 != oldRow:
+.samePage:
 	pop af
 	ld hl, wMenuChoice2
 	cp [hl]
-	jr z, jr_051_59bd
+	jr z, .buttons
 
+;>     DrawForgetSkillInfo()
 	call DrawForgetSkillInfo
+;>     DrawForgetMPCost()
 	call DrawForgetMPCost
+;>     CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
 
-jr_051_59bd:
+;> if wJoyPressed & 1:                 # A
+.buttons:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_59d6
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;>     wMenuChoice2 |= 0x80
 	ld hl, wMenuChoice2
 	set 7, [hl]
+;>     wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
 
-jr_051_59d6:
+;> return
+.done:
 	ret
 
 
-	db $52, $01, $69, $00, $a9, $00, $e9, $00, $29, $01, $ff, $ff
+;@ path: battle/levelup
+;@ Cursor spots of the forget-a-skill list (BG buffer offsets, $FFFF ends the list): the page number
+;@ first, then the 4 rows.
+ForgetCursorSpots::
+	dw $0152, $0069, $00a9, $00e9, $0129, $ffff
 
+;@ def LevelUpStep13()
+;@ path: battle/levelup
+;@ Once the text is done: asks whether to forget the chosen skill (system text $0B05).
 LevelUpStep13::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> page4 = 4 * wConfirmChoice
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	ld b, a
+;> i = page4 + (wMenuChoice2 & 0x7F)
 	ld a, [wMenuChoice2]
 	and $7f
 	add b
+;> skill = mem[addr(wSceneObjects) + i]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld l, [hl]
+;> CopySystemText(0x0600 + skill, addr(wTextArg0))
 	ld h, $06
 	ld de, wTextArg0
 	call CopySystemText
+;> PrintSystemText(0x0B05)
 	ld hl, $0b05
 	call PrintSystemText
+;> DrawBattleWindow(0x2E07)             # the message box frame
 	ld de, $2e07
 	call DrawBattleWindow
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def LevelUpStep14()
+;@ path: battle/levelup
+;@ Once the text is done: draws the yes/no window of the forget question.
 LevelUpStep14::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawForgetMenu()
 	call DrawForgetMenu
+;> DrawBattleWindow(0x2E07)
 	ld de, $2e07
 	call DrawBattleWindow
+;> DecompressVRAM(0x51, 0x12, 0x89C0)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	ld de, $6eef
+;> DrawBattleWindow(ResultYesNoWindow)
+	ld de, ResultYesNoWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $5ab6
+;> DrawBattleCursorAt(ForgetYesNoSpots, wConfirmChoice2)
+	ld de, ForgetYesNoSpots
 	ld a, [wConfirmChoice2]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def LevelUpStep15()
+;@ path: battle/levelup
+;@ The yes/no choice: B or "no" keeps the skills (system text $0B07, back to step 11); "yes" removes
+;@ the skill from the scratch list and prints "<skill> was forgotten" (system text $0B06).
 LevelUpStep15::
-	ld de, $5ab6
+;> UpdateBattleMenuCursor(addr(wConfirmChoice2), ForgetYesNoSpots, 2)
+	ld de, ForgetYesNoSpots
 	ld hl, wConfirmChoice2
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_5a72
+	jr z, .notB
 
-jr_051_5a65:
+;>     PrintSystemText(0x0B07)
+.no:
 	ld hl, $0b07
 	call PrintSystemText
+;>     wCommandStep = 11
 	ld a, $0b
 	ld [wCommandStep], a
-	jr jr_051_5ab5
+	jr .done
 
-jr_051_5a72:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_5ab5
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice2 == 0x81:     # "no"
 	ld a, [wConfirmChoice2]
 	cp $81
-	jr z, jr_051_5a65
+;>         PrintSystemText(0x0B07); wCommandStep = 11      # the B case above
+	jr z, .no
 
+;>     else:
+;>         wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;>         wConfirmChoice2 |= 0x80
 	ld hl, wConfirmChoice2
 	set 7, [hl]
+;>         page4 = 4 * wConfirmChoice
 	ld hl, wSceneObjects
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	ld b, a
+;>         i = page4 + (wMenuChoice2 & 0x7F)
 	ld a, [wMenuChoice2]
 	and $7f
 	add b
+;>         skill = mem[addr(wSceneObjects) + i]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>         mem[addr(wSceneObjects) + i] = 0xFF
 	ld [hl], $ff
+;>         CopySystemText(0x0600 + skill, addr(wTextArg0))
 	ld l, a
 	ld h, $06
 	ld de, wTextArg0
 	call CopySystemText
+;>         PrintSystemText(0x0B06)
 	ld hl, $0b06
 	call PrintSystemText
 
-jr_051_5ab5:
+;> return
+.done:
 	ret
 
 
-	db $2f, $01, $6f, $01, $ff, $ff
+;@ path: battle/levelup
+;@ Cursor spots of the yes/no window of the forget question (BG buffer offsets, $FFFF ends the list).
+ForgetYesNoSpots::
+	dw $012f, $016f, $ffff
 
+;@ def LevelUpStep16()
+;@ path: battle/levelup
+;@ Once the text is done: one level below its level limit, the monster gets a note (system text $0B20).
 LevelUpStep16::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> lvl = MonsterField(wCurPartyMember, wMonLevel)
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	push hl
+;> maxlvl = mem[MonsterField(wCurPartyMember, wMonMaxLevel)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxLevel
 	call MonsterField
 	ld a, [hl]
+;> if maxlvl - 1 == mem[lvl]:
 	dec a
 	pop hl
 	cp [hl]
-	jr nz, jr_051_5ae0
+	jr nz, .next
 
+;>     PrintSystemText(0x0B20)
 	ld hl, $0b20
 	call PrintSystemText
 
-jr_051_5ae0:
+;> wCommandStep += 1
+.next:
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def LevelUpStep17()
+;@ path: battle/levelup
+;@ Once the text is done: still more than 8 skills means forgetting another one (system text $0B07,
+;@ back to step 11). Otherwise the skills are stored, the level and stats applied, the screen redrawn,
+;@ and the after-battle sequence repeats its level-up check.
 LevelUpStep17::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if CompactSkillList() >= 9:
 	call CompactSkillList
 	cp $09
-	jr c, jr_051_5b04
+	jr c, .apply
 
+;>     PrintSystemText(0x0B07)
 	ld hl, $0b07
 	call PrintSystemText
+;>     wCommandStep = 11
 	ld a, $0b
 	ld [wCommandStep], a
+;>     wMenuChoice2 = 0; wConfirmChoice = 0
 	xor a
 	ld [wMenuChoice2], a
 	ld [wConfirmChoice], a
+;>     return
 	ret
 
-
-jr_051_5b04:
+;> StoreLearnedSkills()
+.apply:
 	call StoreLearnedSkills
+;> ApplyLevelUp()
 	call ApplyLevelUp
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> wBattleStep -= 1
 	ld hl, wBattleStep
 	dec [hl]
+;> return
 	ret
 
 
+;@ def StoreLearnedSkills()
+;@ path: battle/levelup
+;@ Copies the first 8 entries of the skill scratch list back into the monster's skill list.
 StoreLearnedSkills::
+;> dest = MonsterField(wCurPartyMember, wMonSkills)
 	ld a, [wCurPartyMember]
 	ld hl, wMonSkills
 	call MonsterField
+;>@c for i in range(8):
 	ld de, wSceneObjects
 	ld b, $08
 
-jr_051_5b2a:
+;>     mem[dest + i] = wSceneObjects[i]
+.copy:
 	ld a, [de]
 	ld [hli], a
 	inc de
+;=@c
 	dec b
-	jr nz, jr_051_5b2a
+	jr nz, .copy
 
+;> return
 	ret
 
 
+;@ def ApplyLevelUp()
+;@ path: battle/levelup
+;@ Far entry: raises party member wCurPartyMember one level (up to 99) and adds the stat gains of
+;@ wLevelGains. Past its level limit the gains are taken away instead; HP and MP are then cut to the new
+;@ maximum and the party battlers and the screen are refreshed.
 ApplyLevelUp::
+;> if mem[MonsterField(wCurPartyMember, wMonLevel)] >= 99: return
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -5938,138 +6140,175 @@ ApplyLevelUp::
 	cp $63
 	ret nc
 
+;> mem[MonsterField(wCurPartyMember, wMonLevel)] += 1
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	inc a
 	ld [hl], a
+;> if not wOverLevelLimit:
 	ld a, [wOverLevelLimit]
 	or a
-	jr nz, jr_051_5b99
+	jr nz, .lower
 
+;>     RaiseMonsterMaxHP(wCurPartyMember, wLevelGains[0])
 	ld a, [wLevelGains]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterMaxHP
+;>     RaiseMonsterMaxMP(wCurPartyMember, wLevelGains[1])
 	ld a, [$c8cb]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterMaxMP
+;>     RaiseMonsterAttack(wCurPartyMember, wLevelGains[2])
 	ld a, [$c8cc]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterAttack
+;>     RaiseMonsterDefense(wCurPartyMember, wLevelGains[3])
 	ld a, [$c8cd]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterDefense
+;>     RaiseMonsterAgility(wCurPartyMember, wLevelGains[4])
 	ld a, [$c8ce]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterAgility
+;>     RaiseMonsterIntelligence(wCurPartyMember, wLevelGains[5])
 	ld a, [$c8cf]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterIntelligence
+;>     return
 	ret
 
-
-jr_051_5b99:
+;> LowerMonsterMaxHP(wCurPartyMember, wLevelGains[0])
+.lower:
 	ld a, [wLevelGains]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterMaxHP
+;> LowerMonsterMaxMP(wCurPartyMember, wLevelGains[1])
 	ld a, [$c8cb]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterMaxMP
+;> LowerMonsterAttack(wCurPartyMember, wLevelGains[2])
 	ld a, [$c8cc]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterAttack
+;> LowerMonsterDefense(wCurPartyMember, wLevelGains[3])
 	ld a, [$c8cd]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterDefense
+;> LowerMonsterAgility(wCurPartyMember, wLevelGains[4])
 	ld a, [$c8ce]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterAgility
+;> LowerMonsterIntelligence(wCurPartyMember, wLevelGains[5])
 	ld a, [$c8cf]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterIntelligence
+;> maxhp = mem16[MonsterField(wCurPartyMember, wMonMaxHP)]
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxHP
 	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> p = MonsterField(wCurPartyMember, wMonHP)
 	push bc
 	ld a, [wCurPartyMember]
 	ld hl, wMonHP
 	call MonsterField
 	pop bc
+;> if maxhp < mem16[p]:
 	ld a, c
 	sub [hl]
 	inc hl
 	ld a, b
 	sbc [hl]
-	jr nc, jr_051_5c02
+	jr nc, .mp
 
+;>     mem16[p] = maxhp
 	ld [hl], b
 	dec hl
 	ld [hl], c
 
-jr_051_5c02:
+;> maxmp = mem16[MonsterField(wCurPartyMember, wMonMaxMP)]
+.mp:
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxMP
 	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> p = MonsterField(wCurPartyMember, wMonMP)
 	push bc
 	ld a, [wCurPartyMember]
 	ld hl, wMonMP
 	call MonsterField
 	pop bc
+;> if maxmp < mem16[p]:
 	ld a, c
 	sub [hl]
 	inc hl
 	ld a, b
 	sbc [hl]
-	jr nc, jr_051_5c23
+	jr nc, .refresh
 
+;>     mem16[p] = maxmp
 	ld [hl], b
 	dec hl
 	ld [hl], c
 
-jr_051_5c23:
+;> ReloadPartyBattlers()
+.refresh:
 	call ReloadPartyBattlers
+;> RefreshStatusIcons()
 	call RefreshStatusIcons
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> ClearBGAttributes()
 	call ClearBGAttributes
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitScreen()
+;@ path: battle/recruit
+;@ Far entry, run once per frame after a battle when a defeated monster wants to join: step
+;@ wCommandStep of RecruitSteps. The monster (made in the spare record slot 20) is offered; when all
+;@ 20 slots are taken, the player may release a monster or egg first. A newcomer goes to the party
+;@ when there is room (or swaps with a party member), else to the farm; it can be renamed.
 RecruitScreen::
+;> RecruitSteps[wCommandStep]()
 	ld a, [wCommandStep]
 	rst $00
 
+;@ path: battle/recruit
+;@ The steps of RecruitScreen.
 RecruitSteps::
 	dw RecruitStep00
 	dw RecruitStep01
@@ -6109,1496 +6348,2137 @@ RecruitSteps::
 	dw RecruitStep35
 	dw RecruitStep36
 
+;@ def RecruitStep00()
+;@ path: battle/recruit
+;@ Sets up the joining screen: palettes, the window titles, the new monster created in record slot 20
+;@ from wNewMonId (CreateMonsterUnlisted) with its picture in the middle of the screen, and a copy of
+;@ the party's names in wPartyBarTiles.
 RecruitStep00::
+;> LoadFieldObjPalettes()
 	ld hl, far_LoadFieldObjPalettes
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> wTextIndex = 0x0A; wTextGroup = 0x0B
 	ld a, $0a
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x8820, 1, 10)
 	ld hl, $8820
 	ld de, $0a01
 	call PrintTextToTiles
+;> wTextIndex = 0x1B; wTextGroup = 0x0B
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x89C0, 1, 15)
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
+;> wNewMonSlot = 20
 	ld a, $14
 	ld [wNewMonSlot], a
+;> CreateMonsterUnlisted()
 	ld hl, far_CreateMonsterUnlisted
 	rst $10
+;> LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
+;> LoadMonsterPic(wNewMonNameText, 0x9000)
 	ld hl, $9000
 	ld a, [wNewMonNameText]
 	call LoadMonsterPic
+;> fill(wMenuChoice, 8, 0)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;> fill(wCommandStep, 8, 0)
 	xor a
 	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
+;> wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
+;> PlacePicTiles(0, 0x00C7)                   # 6 x 6 tiles from row 6, column 7
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> p = CopyMonName8(wParty[0], addr(wPartyBarTiles))
 	ld de, wPartyBarTiles
 	ld a, [wParty]
 	call CopyMonName8
+;> p = CopyMonName8(wParty[1], p)
 	ld a, [$ca8f]
 	call CopyMonName8
+;> CopyMonName8(wParty[2], p)
 	ld a, [$ca90]
 	call CopyMonName8
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def CopyMonName8(slot: a, dest: de) -> de
+;@ path: battle/recruit
+;@ Copies the 8 name bytes of the monster in record slot `slot` to `dest` ($FF: nothing); returns
+;@ the address after them.
 CopyMonName8::
+;> if slot == 0xFF: return dest
 	cp $ff
 	ret z
 
+;> p = MonsterField(slot, wMonName)
 	push de
 	ld hl, wMonName
 	call MonsterField
 	pop de
+;>@c for i in range(8):
 	ld b, $08
 
-jr_051_5d20:
+;>     mem[dest + i] = mem[p + i]
+.copy:
 	ld a, [hli]
 	ld [de], a
 	inc de
+;=@c
 	dec b
-	jr nz, jr_051_5d20
+	jr nz, .copy
 
+;> return dest + 8
 	ret
 
 
+;@ def RecruitStep01()
+;@ path: battle/recruit
+;@ Prints "<species> wants to join" (system text $0B10) with the newcomer's sex symbol.
 RecruitStep01::
+;> CopySystemText(0x0500 + wNewMonNameText, addr(wTextArg0))     # the species name
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
+;> AppendSexSymbol(mem[MonsterField(20, wMonGender)], addr(wTextArg0))
 	ld a, $14
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg0
 	call AppendSexSymbol
+;> PrintSystemText(0x0B10)
 	ld hl, $0b10
 	call PrintSystemText
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RecruitStep02()
+;@ path: battle/recruit
+;@ Once the text is done: redraws the screen with the yes/no window (cursor wMenuChoice).
 RecruitStep02::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
+;> DecompressVRAM(0x51, 0x12, 0x89C0)          # the cursor tiles
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	ld de, $6eef
+;> DrawBattleWindow(ResultYesNoWindow)
+	ld de, ResultYesNoWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $5de4
+;> DrawBattleCursorAt(JoinYesNoSpots, wMenuChoice)
+	ld de, JoinYesNoSpots
 	ld a, [wMenuChoice]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep03()
+;@ path: battle/recruit
+;@ Accept the monster? B or "no": "<species> goes away" (system text $0B12) and the end (step 29).
+;@ "Yes": on to step 4.
 RecruitStep03::
-	ld de, $5de4
+;> UpdateBattleMenuCursor(addr(wMenuChoice), JoinYesNoSpots, 2)
+	ld de, JoinYesNoSpots
 	ld hl, wMenuChoice
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_5dbc
+	jr z, .notB
 
-jr_051_5da3:
+;>     CopySystemText(0x0500 + wNewMonNameText, addr(wTextArg0))
+.no:
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
+;>     PrintSystemText(0x0B12)
 	ld hl, $0b12
 	call PrintSystemText
+;>     wCommandStep = 29
 	ld a, $1d
 	ld [wCommandStep], a
-	jr jr_051_5de3
+	jr .done
 
-jr_051_5dbc:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_5de3
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice == 0x81:         # "no"
 	ld a, [wMenuChoice]
 	cp $81
-	jr z, jr_051_5da3
+;>         PrintSystemText(0x0B12); wCommandStep = 29      # the B case above
+	jr z, .no
 
+;>     else:
+;>         wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;>         wMenuChoice |= 0x80
 	ld hl, wMenuChoice
 	set 7, [hl]
+;>         fill(wMenuChoice2, 7, 0)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
 
-jr_051_5de3:
+;> return
+.done:
 	ret
 
 
-	db $2f, $01, $6f, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the yes/no window asking whether the monster may join (BG buffer offsets, $FFFF ends).
+JoinYesNoSpots::
+	dw $012f, $016f, $ffff
 
+;@ def RecruitStep04()
+;@ path: battle/recruit
+;@ With a free record slot the newcomer is stored (step 21). With all 20 taken, asks whether to release
+;@ a monster to make room (system text $0B11).
 RecruitStep04::
+;> if CountFreeMonSlots() != 0:
 	call CountFreeMonSlots
 	or a
-	jr z, jr_051_5df7
+	jr z, .full
 
+;>     wCommandStep = 21
 	ld a, $15
 	ld [wCommandStep], a
-	jr jr_051_5e33
+	jr .done
 
-jr_051_5df7:
+;> else:
+;>     wCommandStep += 1
+.full:
 	ld hl, wCommandStep
 	inc [hl]
+;>     PrintSystemText(0x0B11)
 	ld hl, $0b11
 	call PrintSystemText
+;>     ClearBattleTilemap()
 	call ClearBattleTilemap
+;>     DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;>     PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;>     SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
+;>     DecompressVRAM(0x51, 0x12, 0x89C0)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	ld de, $6eef
+;>     DrawBattleWindow(ResultYesNoWindow)
+	ld de, ResultYesNoWindow
 	call DrawBattleWindow
-	ld de, $5de4
+;>     DrawBattleCursorAt(JoinYesNoSpots, wMenuChoice)
+	ld de, JoinYesNoSpots
 	ld a, [wMenuChoice]
 	call DrawBattleCursorAt
+;>     CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
 
-jr_051_5e33:
+;> return
+.done:
 	ret
 
 
+;@ def CountFreeMonSlots() -> a
+;@ path: battle/recruit
+;@ Counts the empty records (kind byte 0) among the 20 monster slots.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2)
 CountFreeMonSlots::
+;> n = 0
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_051_5e3b:
+;>@s for slot in range(20):
+;>     if mem[addr(wMonsters) + slot * 0x95] == 0: n += 1
+.loop:
 	ld a, [de]
 	or a
-	jr nz, jr_051_5e40
+	jr nz, .next
 
 	inc c
 
-jr_051_5e40:
+;=@s
+.next:
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;=@s
 	dec b
-	jr nz, jr_051_5e3b
+	jr nz, .loop
 
+;> return n
 	ld a, c
 	ret
 
 
+;@ def RecruitStep05()
+;@ path: battle/recruit
+;@ Once the text is done: shows the yes/no window of the release question (cursor wMenuChoice2).
 RecruitStep05::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> DecompressVRAM(0x51, 0x12, 0x89C0)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	ld de, $6eef
+;> DrawBattleWindow(ResultYesNoWindow)
+	ld de, ResultYesNoWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $5ed1
+;> DrawBattleCursorAt(RecruitYesNoSpots, wMenuChoice2)
+	ld de, RecruitYesNoSpots
 	ld a, [wMenuChoice2]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep06()
+;@ path: battle/recruit
+;@ Release a monster for the newcomer? B or "no": the newcomer goes away (system text $0B12, step 29).
+;@ "Yes": on to the monsters-or-eggs choice (step 31).
 RecruitStep06::
-	ld de, $5ed1
+;> UpdateBattleMenuCursor(addr(wMenuChoice2), RecruitYesNoSpots, 2)
+	ld de, RecruitYesNoSpots
 	ld hl, wMenuChoice2
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_5ea5
+	jr z, .notB
 
-jr_051_5e8c:
+;>     CopySystemText(0x0500 + wNewMonNameText, addr(wTextArg0))
+.no:
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
+;>     PrintSystemText(0x0B12)
 	ld hl, $0b12
 	call PrintSystemText
+;>     wCommandStep = 29
 	ld a, $1d
 	ld [wCommandStep], a
-	jr jr_051_5ed0
+	jr .done
 
-jr_051_5ea5:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_5ed0
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice2 == 0x81:        # "no"
 	ld a, [wMenuChoice2]
 	cp $81
-	jr z, jr_051_5e8c
+;>         PrintSystemText(0x0B12); wCommandStep = 29      # the B case above
+	jr z, .no
 
+;>     else:
+;>         fill(wListCursor, 8, 0)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
+;>         wMenuChoice2 |= 0x80; wConfirmChoice = 0
 	ld hl, wMenuChoice2
 	set 7, [hl]
 	inc hl
 	ld [hl], $00
+;>         wCommandStep = 31
 	ld a, $1f
 	ld [wCommandStep], a
 
-jr_051_5ed0:
+;> return
+.done:
 	ret
 
 
-	db $2f, $01, $6f, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the yes/no window of the release question (BG buffer offsets, $FFFF ends).
+RecruitYesNoSpots::
+	dw $012f, $016f, $ffff
 
+;@ def RecruitStep07()
+;@ path: battle/recruit
+;@ Lists the monsters (wListCursor2 bit 0 clear) or the eggs (set) the player owns. With none of that
+;@ kind: system text $0B1C and step 34. Otherwise "release which monster / egg?" (system text $0B13 or
+;@ $0B22).
 RecruitStep07::
+;> if CountMonstersOrEggs() == 0:
 	call CountMonstersOrEggs
 	or a
-	jr nz, jr_051_5ee9
+	jr nz, .list
 
+;>     PrintSystemText(0x0B1C)
 	ld hl, $0b1c
 	call PrintSystemText
+;>     wCommandStep = 34
 	ld a, $22
 	ld [wCommandStep], a
+;>     return
 	ret
 
-
-jr_051_5ee9:
+;> ListMonstersOrEggs()
+.list:
 	call ListMonstersOrEggs
-	ld hl, PrintMessageGroup1
+;>@p PrintSystemText(0x0B22 if wListCursor2 & 1 else 0x0B13)
+	ld hl, $0b13
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_5ef9
+	jr z, .print
 
 	ld hl, $0b22
 
-jr_051_5ef9:
+;=@p
+.print:
 	call PrintSystemText
+;> DrawMonsterEggChoice()
 	call DrawMonsterEggChoice
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def DrawMonsterEggChoice()
+;@ path: battle/recruit
+;@ Draws the screen with the newcomer's picture and the monsters / eggs window (cursor wListCursor2).
 DrawMonsterEggChoice::
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
-	ld de, $70ab
+;> DrawBattleWindow(MonsterEggWindow)
+	ld de, MonsterEggWindow
 	call DrawBattleWindow
-	ld de, $6823
+;> DrawBattleCursorAt(MonsterEggSpots, wListCursor2)
+	ld de, MonsterEggSpots
 	ld a, [wListCursor2]
 	call DrawBattleCursorAt
+;> return
 	ret
 
 
+;@ def CountMonstersOrEggs() -> a
+;@ path: battle/recruit
+;@ Counts the owned records that are monsters (wListCursor2 bit 0 clear) or eggs (set; record byte
+;@ wMonEgg 1 or 2) into wListLength.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 CountMonstersOrEggs::
+;> n = 0
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_051_5f35:
+;>@s for slot in range(20):
+;>     rec = addr(wMonsters) + slot * 0x95
+.loop:
 	push de
+;>     if mem[rec] != 0:
 	ld a, [de]
 	or a
-	jr z, jr_051_5f53
+	jr z, .next
 
+;>         egg = mem[rec + 0x63]
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;>@e         if (egg >> 1 | egg) & 1 == wListCursor2 & 1: n += 1
 	ld a, [wListCursor2]
 	and $01
 	ld l, a
 	ld a, [de]
 	ld h, a
 	srl a
+;=@e
 	or h
 	and $01
 	xor l
-	jr nz, jr_051_5f53
+	jr nz, .next
 
 	inc c
 
-jr_051_5f53:
+;=@s
+.next:
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@s
 	ld d, a
 	dec b
-	jr nz, jr_051_5f35
+	jr nz, .loop
 
+;> wListLength = n
 	ld a, c
 	ld [wListLength], a
+;> return n
 	ret
 
 
+;@ def ListMonstersOrEggs()
+;@ path: battle/recruit
+;@ Writes the record slots of the owned monsters (or eggs, by wListCursor2 bit 0) into the list in
+;@ wSceneObjects (20 entries, $FF after the last).
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 ListMonstersOrEggs::
+;> fill(wSceneObjects, 20, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
+;> p = addr(wSceneObjects)
 	ld hl, wSceneObjects
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_051_5f79:
+;>@s for slot in range(20):
+;>     rec = addr(wMonsters) + slot * 0x95
+.loop:
 	push de
+;>     if mem[rec] != 0:
 	ld a, [de]
 	or a
-	jr z, jr_051_5f9a
+	jr z, .next
 
+;>         egg = mem[rec + 0x63]
 	ld a, e
 	add $63
 	ld e, a
 	ld a, d
 	adc $00
 	ld d, a
+;>@e         if (egg >> 1 | egg) & 1 == wListCursor2 & 1:
 	push hl
 	ld a, [wListCursor2]
 	and $01
 	ld l, a
 	ld a, [de]
 	ld h, a
+;=@e
 	srl a
 	or h
 	and $01
 	xor l
 	pop hl
-	jr nz, jr_051_5f9a
+	jr nz, .next
 
+;>             mem[p] = slot; p += 1
 	ld [hl], c
 	inc hl
 
-jr_051_5f9a:
+;=@s
+.next:
 	pop de
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@s
 	ld d, a
 	inc c
 	dec b
-	jr nz, jr_051_5f79
+	jr nz, .loop
 
+;> return
 	ret
 
 
+;@ def RecruitStep08()
+;@ path: battle/recruit
+;@ Once the text is done: draws the first page of the release list.
 RecruitStep08::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawReleaseListPage()
 	call DrawReleaseListPage
+;> DrawReleaseList()
 	call DrawReleaseList
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def DrawReleaseList()
+;@ path: battle/recruit
+;@ Draws the release list window (monsters or eggs) with its title tiles and the paged cursor
+;@ (wListCursor, wListPage; 4 rows per page).
 DrawReleaseList::
+;> Call_55_4813()                             # the title text tiles
 	ld hl, far_Call_55_4813
 	rst $10
-	ld de, $6f14
+;>@w DrawBattleWindow(ResultEggListWindow if wListCursor2 & 1 else ResultMonsterListWindow)
+	ld de, ResultMonsterListWindow
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_5fcc
+	jr z, .draw
 
-	ld de, $70d0
+	ld de, ResultEggListWindow
 
-jr_051_5fcc:
+;=@w
+.draw:
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $61a5
+;> spots = EggListSpots if wListCursor2 & 1 else MonsterListSpots
+	ld de, MonsterListSpots
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_5fdf
+	jr z, .cursor
 
-	ld de, $61b1
+	ld de, EggListSpots
 
-jr_051_5fdf:
+;> DrawPagedCursor(addr(wListCursor), spots, wListLength, 4)
+.cursor:
 	ld b, $04
 	ld a, [wListLength]
 	ld c, a
 	ld hl, wListCursor
 	call DrawPagedCursor
+;> return
 	ret
 
 
+;@ def DrawReleaseListPage()
+;@ path: battle/recruit
+;@ Draws the 4 entries of page wListPage: monster names into tiles from $88C0, or for eggs the species
+;@ names into tiles from $9240 and the sex icons into tiles from $9480.
 DrawReleaseListPage::
+;> p = addr(wSceneObjects) + 4 * wListPage
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;> if wListCursor2 & 1:                 # eggs
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_6014
+	jr z, .monsters
 
+;>     tiles = 0x9240
 	ld hl, $9240
+;>@sp     for i in range(4): p, tiles = DrawListSpeciesTiles(p, tiles)
+	call DrawListSpeciesTiles
+;=@sp
 	call DrawListSpeciesTiles
 	call DrawListSpeciesTiles
 	call DrawListSpeciesTiles
-	call DrawListSpeciesTiles
+;>     DrawListSexIcons()
 	call DrawListSexIcons
+;>     return
 	ret
 
-
-jr_051_6014:
+;> tiles = 0x88C0
+.monsters:
 	ld hl, $88c0
+;>@nm for i in range(3): p, tiles = DrawListNameTiles(p, tiles)
+	call DrawListNameTiles
+;=@nm
 	call DrawListNameTiles
 	call DrawListNameTiles
-	call DrawListNameTiles
+;> return DrawListNameTiles(p, tiles)        # the fourth: runs on into it
 
+;@ def DrawListNameTiles(p: de, tiles: hl) -> (de, hl)
+;@ path: battle/recruit
+;@ Draws the name of the monster in record slot mem[p] into 4 tiles at `tiles` (blank tiles for $FF);
+;@ returns p + 1 and tiles + $40.
 DrawListNameTiles::
+;> if mem[p] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_051_6041
+	jr z, .blank
 
+;>     name = MonsterField(mem[p], wMonName)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
+;>     DrawMonNameTiles(name, tiles)
 	ld e, l
 	ld d, h
 	pop hl
 	push hl
 	call DrawMonNameTiles
+;>@r     return (p + 1, tiles + 0x40)
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
-
-jr_051_6041:
+;>@b for i in range(0x20):              # 4 empty tiles
+.blank:
 	ld b, $20
 
-jr_051_6043:
+;>     WriteVRAMInc(0xFF); WriteVRAMInc(0)
+.clear:
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@b
 	dec b
-	jr nz, jr_051_6043
+	jr nz, .clear
 
+;>@r2 return (p + 1, tiles + 0x40)
 	pop hl
 	ld a, l
 	add $40
 	ld l, a
 	ld a, h
 	adc $00
+;=@r2
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def DrawListSpeciesTiles(p: de, tiles: hl) -> (de, hl)
+;@ path: battle/recruit
+;@ Prints the species name (text group 5) of the record in slot mem[p] into 9 tiles at `tiles`
+;@ (blank for $FF); returns p + 1 and tiles + $90.
 DrawListSpeciesTiles::
+;> if mem[p] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_051_6085
+	jr z, .blank
 
+;>     wTextIndex = mem[MonsterField(mem[p], wMonRecSpecies)]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wTextIndex], a
+;>     wTextGroup = 5
 	ld a, $05
 	ld [wTextGroup], a
+;>     PrintTextToTiles(tiles, 1, 9)
 	ld de, $0901
 	pop hl
 	push hl
 	call PrintTextToTiles
+;>@r     return (p + 1, tiles + 0x90)
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
-
-jr_051_6085:
+;>@b for i in range(0x48):              # 9 empty tiles
+.blank:
 	ld b, $48
 
-jr_051_6087:
+;>     WriteVRAMInc(0xFF); WriteVRAMInc(0)
+.clear:
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@b
 	dec b
-	jr nz, jr_051_6087
+	jr nz, .clear
 
+;>@r2 return (p + 1, tiles + 0x90)
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r2
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def DrawListSexIcons()
+;@ path: battle/recruit
+;@ Draws the sex icons of the 4 eggs on page wListPage into the tiles from $9480.
 DrawListSexIcons::
+;> p = addr(wSceneObjects) + 4 * wListPage
 	ld a, [wListPage]
 	add a
 	add a
 	ld de, wSceneObjects
 	add e
 	ld e, a
+;> tiles = 0x9480
 	ld a, $00
 	adc d
 	ld d, a
 	ld hl, $9480
+;>@ic for i in range(3): p, tiles = DrawListSexIcon(p, tiles)
+	call DrawListSexIcon
+;=@ic
 	call DrawListSexIcon
 	call DrawListSexIcon
-	call DrawListSexIcon
+;> return DrawListSexIcon(p, tiles)         # the fourth: runs on into it
 
+;@ def DrawListSexIcon(p: de, tiles: hl) -> (de, hl)
+;@ path: battle/recruit
+;@ Draws one tile for the egg in record slot mem[p]: its sex symbol ($A7 + sex) once the sex is
+;@ known (wMonEgg 2), else "?" ($98); a blank tile for $FF. Returns p + 1 and tiles + $10.
 DrawListSexIcon::
+;> if mem[p] != 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr z, jr_051_6135
+	jr z, .blank
 
+;>     egg = MonsterField(mem[p], wMonEgg)
 	ld hl, wMonEgg
 	call MonsterField
+;>     icon = 0x98
+;>     if mem[egg] == 2:
 	ld a, [hl]
 	cp $02
 	ld a, $98
-	jr nz, jr_051_60da
+	jr nz, .store
 
+;>@ix         icon = 0xA7 + (mem[egg - 0x58] & 1)      # wMonGender of the record
 	ld a, l
 	add $a8
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@ix
 	ld a, [hl]
 	and $01
 	add $a7
 
-jr_051_60da:
+;>     wTextArg0[0] = icon; wTextArg0[1] = 0xF0
+.store:
 	ld [wTextArg0], a
 	ld a, $f0
 	ld [$c181], a
+;>     savedTiles = wTextTiles
 	pop hl
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
+;>     savedLines = wTextBoxLines; savedLength = wTextBoxLineLength
 	push bc
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;>     wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;>     wTextBoxLines = 1; wTextBoxLineLength = 1
 	ld de, $0101
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>     wTextGroup = 2; wTextIndex = 0          # the text that shows wTextArg0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;>     PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;>     wTextTiles = savedTiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;>     wTextBoxLines = savedLines
 	ld a, e
 	ld [wTextBoxLines], a
+;>     wTextBoxLineLength = savedLength
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>@r     return (p + 1, tiles + 0x10)
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
-
-jr_051_6135:
+;>@b for i in range(8):                 # an empty tile
+.blank:
 	ld b, $08
 
-jr_051_6137:
+;>     WriteVRAMInc(0xFF); WriteVRAMInc(0)
+.clear:
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
+;=@b
 	dec b
-	jr nz, jr_051_6137
+	jr nz, .clear
 
+;>@r2 return (p + 1, tiles + 0x10)
 	pop hl
 	ld a, l
 	add $10
 	ld l, a
 	ld a, h
 	adc $00
+;=@r2
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
+;@ def RecruitStep09()
+;@ path: battle/recruit
+;@ The release list: moves the paged cursor (redrawing the page when it changes). B goes back to the
+;@ monsters-or-eggs choice (system text $0B1A, step 32); A picks the entry (step 10).
 RecruitStep09::
-	ld de, $61a5
+;> spots = EggListSpots if wListCursor2 & 1 else MonsterListSpots
+	ld de, MonsterListSpots
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_615c
+	jr z, .move
 
-	ld de, $61b1
+	ld de, EggListSpots
 
-jr_051_615c:
+;> oldPage = wListPage
+.move:
 	ld hl, wListCursor
 	ld a, [wListLength]
 	ld c, a
 	ld b, $04
 	inc hl
 	ld a, [hld]
+;> UpdatePagedCursor(addr(wListCursor), spots, wListLength, 4)
 	push af
 	call UpdatePagedCursor
+;> if wListPage != oldPage: DrawReleaseListPage()
 	pop af
 	ld hl, wListPage
 	cp [hl]
-	jr z, jr_051_6175
+	jr z, .buttons
 
 	call DrawReleaseListPage
 
-jr_051_6175:
+;> if wJoyPressed & 2:                 # B
+.buttons:
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_618c
+	jr z, .notB
 
+;>     RedrawMonsterEggChoice()
 	call RedrawMonsterEggChoice
+;>     wCommandStep = 32
 	ld a, $20
 	ld [wCommandStep], a
+;>     PrintSystemText(0x0B1A)
 	ld hl, $0b1a
 	call PrintSystemText
-	jr jr_051_61a4
+	jr .done
 
-jr_051_618c:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_61a4
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;>     wConfirmChoice |= 0x80; wConfirmChoice2 = 0
 	ld hl, wConfirmChoice
 	set 7, [hl]
 	inc hl
 	ld [hl], $00
 
-jr_051_61a4:
+;> return
+.done:
 	ret
 
 
-	db $85, $01, $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff, $8b, $01, $a1, $00
-	db $e1, $00, $21, $01, $61, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the release list of monsters (BG buffer offsets, $FFFF ends): the page number, then
+;@ the 4 rows.
+MonsterListSpots::
+	dw $0185, $00a1, $00e1, $0121, $0161, $ffff
 
+;@ path: battle/recruit
+;@ Cursor spots of the release list of eggs (BG buffer offsets, $FFFF ends): the page number, then
+;@ the 4 rows.
+EggListSpots::
+	dw $018b, $00a1, $00e1, $0121, $0161, $ffff
+
+;@ def RecruitStep10()
+;@ path: battle/recruit
+;@ Goes straight on.
 RecruitStep10::
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RecruitStep11()
+;@ path: battle/recruit
+;@ Once the text is done: shows the two-choice window for the picked entry (look at it / release it).
 RecruitStep11::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawReleaseConfirm()
 	call DrawReleaseConfirm
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def DrawReleaseConfirm()
+;@ path: battle/recruit
+;@ Draws the two-choice window for a monster or an egg and its cursor (wConfirmChoice2).
 DrawReleaseConfirm::
-	ld de, $6f6e
+;>@w DrawBattleWindow(EggConfirmWindow if wListCursor2 & 1 else ReleaseConfirmWindow)
+	ld de, ReleaseConfirmWindow
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_61dc
+	jr z, .draw
 
-	ld de, $7150
+	ld de, EggConfirmWindow
 
-jr_051_61dc:
+;=@w
+.draw:
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $629e
+;> spots = EggReleaseYesNoSpots if wListCursor2 & 1 else ReleaseYesNoSpots
+	ld de, ReleaseYesNoSpots
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_61ef
+	jr z, .cursor
 
-	ld de, $62a4
+	ld de, EggReleaseYesNoSpots
 
-jr_051_61ef:
+;> DrawBattleCursorAt(spots, wConfirmChoice2)
+.cursor:
 	ld a, [wConfirmChoice2]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep12()
+;@ path: battle/recruit
+;@ The two choices for the picked entry. B: back to the list (step 7). The first choice shows its status
+;@ screen (step 25). The second releases it (step 13), except the party leader while no other party
+;@ monster is standing (system text $0B24, back to step 31).
 RecruitStep12::
-	ld de, $629e
+;> spots = EggReleaseYesNoSpots if wListCursor2 & 1 else ReleaseYesNoSpots
+	ld de, ReleaseYesNoSpots
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_6206
+	jr z, .move
 
-	ld de, $62a4
+	ld de, EggReleaseYesNoSpots
 
-jr_051_6206:
+;> UpdateBattleMenuCursor(addr(wConfirmChoice2), spots, 2)
+.move:
 	ld hl, wConfirmChoice2
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_622b
+	jr z, .notB
 
+;>@b     wCommandStep -= 5
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
+;=@b
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
-	jr jr_051_629d
+	jr .done
 
-jr_051_622b:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_629d
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wConfirmChoice2 != 0x81:     # look at it
 	ld a, [wConfirmChoice2]
 	cp $81
-	jr z, jr_051_624c
+	jr z, .release
 
+;>         wFieldMenuState = 0; wFieldMenuStep = 0
 	xor a
 	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
+;>         wCommandStep = 25
 	ld a, $19
 	ld [wCommandStep], a
-	jr jr_051_629d
+	jr .done
 
-jr_051_624c:
+;>     else:                           # release it
+;>@lead         if wPartyCount == 1 or mem[MonsterField(wParty[1], wMonStatus)] & 0x80:
+.release:
 	ld a, [wPartyCount]
 	cp $01
-	jr z, jr_051_6260
+	jr z, .leader
 
+;=@lead
 	ld a, [$ca8f]
 	ld hl, wMonStatus
 	call MonsterField
 	bit 7, [hl]
-	jr z, jr_051_6291
+	jr z, .ok
 
-jr_051_6260:
+;>             page4 = 4 * wListPage
+.leader:
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
+;>             i = page4 + (wListCursor & 0x7F)
 	ld a, [wListCursor]
 	and $7f
 	add b
+;>             q = addr(wSceneObjects) + i
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>             if mem[q] == wParty[0]:     # the leader would stand alone
 	ld a, [wParty]
 	cp [hl]
-	jr nz, jr_051_6291
+	jr nz, .ok
 
+;>                 PrintSystemText(0x0B24)
 	ld hl, $0b24
 	call PrintSystemText
+;>                 DrawBattleWindow(0x2E07)
 	ld de, $2e07
 	call DrawBattleWindow
+;>                 CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;>                 wCommandStep = 31; return
 	ld a, $1f
 	ld [wCommandStep], a
-	jr jr_051_629d
+	jr .done
 
-jr_051_6291:
+;>         wCommandStep += 1
+.ok:
 	ld hl, wCommandStep
 	inc [hl]
+;>         wConfirmChoice2 |= 0x80; wMenuChoice3 = 0
 	ld hl, wConfirmChoice2
 	set 7, [hl]
 	inc hl
 	ld [hl], $00
 
-jr_051_629d:
+;> return
+.done:
 	ret
 
 
-	db $2e, $01, $6e, $01, $ff, $ff, $2d, $01, $6d, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the two-choice window for a monster (BG buffer offsets, $FFFF ends).
+ReleaseYesNoSpots::
+	dw $012e, $016e, $ffff
 
+;@ path: battle/recruit
+;@ Cursor spots of the two-choice window for an egg (BG buffer offsets, $FFFF ends).
+EggReleaseYesNoSpots::
+	dw $012d, $016d, $ffff
+
+;@ def RecruitStep13()
+;@ path: battle/recruit
+;@ Once the text is done: releases the picked monster or egg (system text $0B14 with its name, or $0B1D
+;@ for an egg): its record is emptied and the monster list tidied up. Then on to storing the newcomer
+;@ (step 21).
 RecruitStep13::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> page4 = 4 * wListPage
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
+;> i = page4 + (wListCursor & 0x7F)
 	ld a, [wListCursor]
 	and $7f
 	add b
+;> q = addr(wSceneObjects) + i
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> slot = mem[q]
 	ld a, [hl]
 	push af
+;> if mem[MonsterField(slot, wMonEgg)]:
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
 	or a
-	jr z, jr_051_62e0
+	jr z, .monster
 
+;>     PrintSystemText(0x0B1D)
 	pop af
 	push af
 	ld hl, $0b1d
 	call PrintSystemText
-	ld de, $70d0
+;>     DrawBattleWindow(ResultEggListWindow)
+	ld de, ResultEggListWindow
 	call DrawBattleWindow
-	jr jr_051_62f6
+	jr .release
 
-jr_051_62e0:
+;> else:
+;>@n     CopyName(MonsterField(slot, wMonName), addr(wTextArg0))
+.monster:
 	pop af
 	push af
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@n
 	ld hl, wTextArg0
 	call CopyName
+;>     PrintSystemText(0x0B14)
 	ld hl, $0b14
 	call PrintSystemText
 
-jr_051_62f6:
+;> mem[MonsterField(slot, wMonsters)] = 0      # the record is free now
+.release:
 	pop af
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> RefreshStatusIcons()
 	call RefreshStatusIcons
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> DrawBattleWindow(0x2E07)
 	ld de, $2e07
 	call DrawBattleWindow
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> wCommandStep = 21
 	ld a, $15
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def RecruitStep14()
+;@ path: battle/recruit
+;@ Once the text is done: asks whether the newcomer joins the party (system text $0B15) over its picture.
 RecruitStep14::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> name = MonsterField(wNewMonSlot, wMonName)
 	ld a, [wNewMonSlot]
 	ld hl, wMonName
 	call MonsterField
+;> CopyName(name, addr(wTextArg0))
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
 	call CopyName
+;> PrintSystemText(0x0B15)
 	ld hl, $0b15
 	call PrintSystemText
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep15()
+;@ path: battle/recruit
+;@ Once the text is done: shows the yes/no window (cursor wMenuChoice3).
 RecruitStep15::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> DecompressVRAM(0x51, 0x12, 0x89C0)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	ld de, $6eef
+;> DrawBattleWindow(ResultYesNoWindow)
+	ld de, ResultYesNoWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $63bc
+;> DrawBattleCursorAt(PartyFullYesNoSpots, wMenuChoice3)
+	ld de, PartyFullYesNoSpots
 	ld a, [wMenuChoice3]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep16()
+;@ path: battle/recruit
+;@ Join the party? B or "no": to the farm (step 17). "Yes": into the party (step 18).
 RecruitStep16::
-	ld de, $63bc
+;> UpdateBattleMenuCursor(addr(wMenuChoice3), PartyFullYesNoSpots, 2)
+	ld de, PartyFullYesNoSpots
 	ld hl, wMenuChoice3
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_6398
+	jr z, .notB
 
-jr_051_6392:
+;>     wCommandStep += 1
+.farm:
 	ld hl, wCommandStep
 	inc [hl]
-	jr jr_051_63bb
+	jr .done
 
-jr_051_6398:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_63bb
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wMenuChoice3 == 0x81:        # "no"
 	ld a, [wMenuChoice3]
 	cp $81
-	jr z, jr_051_6392
+;>         wCommandStep += 1           # the B case above
+	jr z, .farm
 
+;>     else:
+;>         wCommandStep += 2
 	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wCommandStep
 	inc [hl]
+;>         wMenuChoice3 |= 0x80; wLinkRefused = 0
 	ld hl, wMenuChoice3
 	set 7, [hl]
 	inc hl
 	ld [hl], $00
 
-jr_051_63bb:
+;> return
+.done:
 	ret
 
 
-	db $2f, $01, $6f, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the yes/no window asking whether the newcomer joins the party (BG buffer offsets).
+PartyFullYesNoSpots::
+	dw $012f, $016f, $ffff
 
+;@ def RecruitStep17()
+;@ path: battle/recruit
+;@ Once the text is done: the newcomer goes to the farm (system text $0B16); then step 30.
 RecruitStep17::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> name = MonsterField(wNewMonSlot, wMonName)
 	ld a, [wNewMonSlot]
 	ld hl, wMonName
 	call MonsterField
+;> CopyName(name, addr(wTextArg0))
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
 	call CopyName
+;> PrintSystemText(0x0B16)
 	ld hl, $0b16
 	call PrintSystemText
+;> wCommandStep = 30
 	ld a, $1e
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def FindFreeMonSlot() -> a
+;@ path: battle/recruit
+;@ Returns the first empty record slot (kind byte 0) of the 20, or 20 when all are taken.
+;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2)
 FindFreeMonSlot::
+;> slot = 0
 	ld de, wMonsters
 	ld b, $14
 	ld c, $00
 
-jr_051_63ef:
+;>@s while slot < 20 and mem[addr(wMonsters) + slot * 0x95] != 0:
+.loop:
 	ld a, [de]
 	or a
-	jr z, jr_051_63ff
+	jr z, .found
 
+;>     slot += 1
 	inc c
 	ld a, e
 	add $95
 	ld e, a
 	ld a, d
 	adc $00
+;=@s
 	ld d, a
 	dec b
-	jr nz, jr_051_63ef
+	jr nz, .loop
 
-jr_051_63ff:
+;> return slot
+.found:
 	ld a, c
 	ret
 
 
+;@ def RecruitStep18()
+;@ path: battle/recruit
+;@ Once the text is done: with room in the party the newcomer joins it (step 30); with a full party,
+;@ asks which monster it should replace (system text $0B18, step 19).
 RecruitStep18::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wPartyCount != 3:
 	ld a, [wPartyCount]
 	cp $03
-	jr z, jr_051_642b
+	jr z, .full
 
+;>     q = addr(wParty) + wPartyCount
 	ld a, [wPartyCount]
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;>     mem[q] = wNewMonSlot
 	ld h, a
 	ld a, [wNewMonSlot]
 	ld [hl], a
+;>     wPartyCount += 1
 	ld hl, wPartyCount
 	inc [hl]
+;>     CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;>     wCommandStep = 30
 	ld a, $1e
 	ld [wCommandStep], a
+;>     return
 	ret
 
-
-jr_051_642b:
+;> wCommandStep += 1
+.full:
 	ld hl, wCommandStep
 	inc [hl]
+;> PrintSystemText(0x0B18)
 	ld hl, $0b18
 	call PrintSystemText
+;> DrawPartyFullMenu()
 	call DrawPartyFullMenu
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def DrawPartyFullMenu()
+;@ path: battle/recruit
+;@ Draws the newcomer's picture with the yes/no window (cursor wMenuChoice3).
 DrawPartyFullMenu::
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
+;> DecompressVRAM(0x51, 0x12, 0x89C0)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
-	ld de, $6eef
+;> DrawBattleWindow(ResultYesNoWindow)
+	ld de, ResultYesNoWindow
 	call DrawBattleWindow
-	ld de, $63bc
+;> DrawBattleCursorAt(PartyFullYesNoSpots, wMenuChoice3)
+	ld de, PartyFullYesNoSpots
 	ld a, [wMenuChoice3]
 	call DrawBattleCursorAt
+;> return
 	ret
 
 
+;@ def RecruitStep19()
+;@ path: battle/recruit
+;@ Once the text is done: lists the party and the newcomer to pick the one that goes to the farm.
 RecruitStep19::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> ListPartyAndNewcomer()
 	call ListPartyAndNewcomer
+;> DrawPartySwapNames()
 	call DrawPartySwapNames
+;> DrawPartySwapList()
 	call DrawPartySwapList
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def DrawPartySwapList()
+;@ path: battle/recruit
+;@ Draws the list window of the party and the newcomer with its cursor (wLinkRefused, used here as a
+;@ menu cursor).
 DrawPartySwapList::
+;> Call_55_4813()                             # the title text tiles
 	ld hl, far_Call_55_4813
 	rst $10
-	ld de, $6f14
+;> DrawBattleWindow(ResultMonsterListWindow)
+	ld de, ResultMonsterListWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $6527
+;> DrawBattleCursorAt(PartySwapSpots, wLinkRefused)
+	ld de, PartySwapSpots
 	ld a, [wLinkRefused]
 	call DrawBattleCursorAt
+;> return
 	ret
 
 
+;@ def DrawPartySwapNames()
+;@ path: battle/recruit
+;@ Draws the 4 names of the swap list (wSceneObjects) into the tiles from $88C0.
 DrawPartySwapNames::
+;> p, tiles = addr(wSceneObjects), 0x88C0
 	ld de, wSceneObjects
 	ld hl, $88c0
+;>@n for i in range(4):
+;>     p, tiles = DrawListNameTiles(p, tiles)
+	call DrawListNameTiles
+;=@n
 	call DrawListNameTiles
 	call DrawListNameTiles
 	call DrawListNameTiles
-	call DrawListNameTiles
+;> return
 	ret
 
 
+;@ def ListPartyAndNewcomer()
+;@ path: battle/recruit
+;@ Writes the record slots of the party monsters and then the newcomer (wNewMonSlot) into the 4-entry
+;@ list in wSceneObjects.
 ListPartyAndNewcomer::
+;> fill(wSceneObjects, 4, 0xFF)
 	ld hl, wSceneObjects
 	ld bc, $0004
 	ld a, $ff
 	call FillMemory
+;> p = addr(wSceneObjects)
 	ld hl, wSceneObjects
+;> if wParty[0] != 0xFF: p = AppendToList(wParty[0], p)
 	ld a, [wParty]
 	cp $ff
 	call nz, AppendToList
+;> if wParty[1] != 0xFF: p = AppendToList(wParty[1], p)
 	ld a, [$ca8f]
 	cp $ff
 	call nz, AppendToList
+;> if wParty[2] != 0xFF: p = AppendToList(wParty[2], p)
 	ld a, [$ca90]
 	cp $ff
 	call nz, AppendToList
+;> AppendToList(wNewMonSlot, p)
 	ld a, [wNewMonSlot]
 	call AppendToList
+;> return
 	ret
 
 
+;@ def AppendToList(v: a, p: hl) -> hl
+;@ path: battle/recruit
+;@ Stores `v` at `p` and returns p + 1.
 AppendToList::
+;> mem[p] = v
 	ld [hli], a
+;> return p + 1
 	ret
 
 
+;@ def RecruitStep20()
+;@ path: battle/recruit
+;@ The swap list: B goes back to the join-the-party question (step 14); A picks the monster (step 22).
 RecruitStep20::
-	ld de, $6527
+;> UpdateBattleMenuCursor(addr(wLinkRefused), PartySwapSpots, wPartyCount + 1)
+	ld de, PartySwapSpots
 	ld hl, wLinkRefused
 	ld a, [wPartyCount]
 	inc a
 	ld b, a
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_650a
+	jr z, .notB
 
+;>@b     wCommandStep -= 6
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
+;=@b
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
-	jr jr_051_6526
+;=@b
+	jr .done
 
-jr_051_650a:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_6526
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wCommandStep += 2
 	ld hl, wCommandStep
 	inc [hl]
 	ld hl, wCommandStep
 	inc [hl]
+;>     wLinkRefused |= 0x80; wLinkPartnerChoice = 0
 	ld hl, wLinkRefused
 	set 7, [hl]
 	inc hl
 	ld [hl], $00
 
-jr_051_6526:
+;> return
+.done:
 	ret
 
 
-	db $a1, $00, $e1, $00, $21, $01, $61, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the swap list, one per row (BG buffer offsets, $FFFF ends).
+PartySwapSpots::
+	dw $00a1, $00e1, $0121, $0161, $ffff
 
+;@ def RecruitStep21()
+;@ path: battle/recruit
+;@ Once the text is done: stores the newcomer in the first free record slot and prints
+;@ "<species> joined" (system text $0B17); then on to naming it (step 35).
 RecruitStep21::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wNewMonSlot = FindFreeMonSlot()
 	call FindFreeMonSlot
 	ld [wNewMonSlot], a
+;> StoreRecruitedMonster(wNewMonSlot)
 	call StoreRecruitedMonster
+;> CopySystemText(0x0500 + wNewMonNameText, addr(wTextArg0))
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
+;> AppendSexSymbol(mem[MonsterField(wNewMonSlot, wMonGender)], addr(wTextArg0))
 	ld a, [wNewMonSlot]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg0
 	call AppendSexSymbol
+;> PrintSystemText(0x0B17)
 	ld hl, $0b17
 	call PrintSystemText
+;> wCommandStep = 35
 	ld a, $23
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def RecruitStep22()
+;@ path: battle/recruit
+;@ Once the text is done: shows the two-choice window for the picked monster (look at it / send it to
+;@ the farm).
 RecruitStep22::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> DrawSwapConfirm()
 	call DrawSwapConfirm
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def DrawSwapConfirm()
+;@ path: battle/recruit
+;@ Draws the two-choice window for the picked monster with its cursor (wLinkPartnerChoice).
 DrawSwapConfirm::
-	ld de, $6f6e
+;> DrawBattleWindow(ReleaseConfirmWindow)
+	ld de, ReleaseConfirmWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $65d8
+;> DrawBattleCursorAt(SwapYesNoSpots, wLinkPartnerChoice)
+	ld de, SwapYesNoSpots
 	ld a, [wLinkPartnerChoice]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep23()
+;@ path: battle/recruit
+;@ The two choices: B back to the swap list (step 20); the first shows the monster's status (step 27);
+;@ the second sends it to the farm (step 24).
 RecruitStep23::
-	ld de, $65d8
+;> UpdateBattleMenuCursor(addr(wLinkPartnerChoice), SwapYesNoSpots, 2)
+	ld de, SwapYesNoSpots
 	ld hl, wLinkPartnerChoice
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_65aa
+	jr z, .notB
 
+;>@b     wCommandStep -= 3
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
 	ld hl, wCommandStep
 	dec [hl]
-	jr jr_051_65d7
+;=@b
+	jr .done
 
-jr_051_65aa:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_65d7
+	jr z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     if wLinkPartnerChoice != 0x81:  # look at it
 	ld a, [wLinkPartnerChoice]
 	cp $81
-	jr z, jr_051_65cb
+	jr z, .send
 
+;>         wFieldMenuState = 0; wFieldMenuStep = 0
 	xor a
 	ld [wFieldMenuState], a
 	ld [wFieldMenuStep], a
+;>         wCommandStep = 27
 	ld a, $1b
 	ld [wCommandStep], a
-	jr jr_051_65d7
+	jr .done
 
-jr_051_65cb:
+;>     else:
+;>         wCommandStep += 1
+.send:
 	ld hl, wCommandStep
 	inc [hl]
+;>         wLinkPartnerChoice |= 0x80; wListLastRows = 0
 	ld hl, wLinkPartnerChoice
 	set 7, [hl]
 	inc hl
 	ld [hl], $00
 
-jr_051_65d7:
+;> return
+.done:
 	ret
 
 
-	db $2e, $01, $6e, $01, $ff, $ff
+;@ path: battle/recruit
+;@ Cursor spots of the two-choice window for the picked monster (BG buffer offsets, $FFFF ends).
+SwapYesNoSpots::
+	dw $012e, $016e, $ffff
 
+;@ def RecruitStep24()
+;@ path: battle/recruit
+;@ Once the text is done: the picked monster goes to the farm and the newcomer takes its place
+;@ (system text $0B19); the party is rebuilt from the remaining list entries. Then the end (step 29).
 RecruitStep24::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> q = addr(wSceneObjects) + (wLinkRefused & 0x7F)
 	ld a, [wLinkRefused]
 	and $7f
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
+;> name = MonsterField(mem[q], wMonName)
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld hl, wMonName
 	call MonsterField
+;> CopyName(name, addr(wTextArg0))
 	ld e, l
 	ld d, h
 	ld hl, wTextArg0
 	call CopyName
+;> CopySystemText(0x0500 + wNewMonNameText, addr(wTextArg1))
 	ld a, [wNewMonNameText]
 	ld l, a
 	ld h, $05
 	ld de, wTextArg1
 	call CopySystemText
+;> PrintSystemText(0x0B19)
 	ld hl, $0b19
 	call PrintSystemText
+;> DrawBattleWindow(0x2E07)
 	ld de, $2e07
 	call DrawBattleWindow
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> q = addr(wSceneObjects) + (wLinkRefused & 0x7F)
 	ld a, [wLinkRefused]
 	and $7f
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
+;> mem[q] = 0xFF
 	adc h
 	ld h, a
 	ld [hl], $ff
+;> p = AppendIfFilled(mem[addr(wSceneObjects)], addr(wParty))
 	ld hl, wParty
 	ld a, [wSceneObjects]
 	call AppendIfFilled
+;> p = AppendIfFilled(mem[addr(wSceneObjects) + 1], p)
 	ld a, [$c0d9]
 	call AppendIfFilled
+;> p = AppendIfFilled(mem[addr(wSceneObjects) + 2], p)
 	ld a, [$c0da]
 	call AppendIfFilled
+;> AppendIfFilled(mem[addr(wSceneObjects) + 3], p)
 	ld a, [$c0db]
 	call AppendIfFilled
+;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;> wCommandStep = 29
 	ld a, $1d
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def AppendIfFilled(v: a, p: hl) -> hl
+;@ path: battle/recruit
+;@ Stores `v` at `p` and returns p + 1, unless `v` is $FF (then returns p).
 AppendIfFilled::
+;> if v == 0xFF: return p
 	cp $ff
 	ret z
 
+;> mem[p] = v
 	ld [hli], a
+;> return p + 1
 	ret
 
 
+;@ def RecruitStep25()
+;@ path: battle/recruit
+;@ Shows the status screen of the monster picked in the release list (ShowMonsterStatus, run each
+;@ frame); when it closes, on to step 26.
 RecruitStep25::
+;> page4 = 4 * wListPage
 	ld a, [wListPage]
 	add a
 	add a
 	ld b, a
+;> i = page4 + (wListCursor & 0x7F)
 	ld a, [wListCursor]
 	and $7f
 	add b
+;> q = addr(wSceneObjects) + i
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> wCurPartyMember = mem[q]
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep == 0: return
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
@@ -7808,6 +8688,7 @@ jr_051_6822:
 	ret
 
 
+MonsterEggSpots::
 	db $2f, $01, $6f, $01, $ff, $ff
 
 RecruitStep34::
@@ -8144,7 +9025,7 @@ jr_051_6a2d:
 	cp $01
 	ret z
 
-	ld de, $c1c8
+	ld de, wShieldTarget
 	ld hl, $9740
 	call DrawMonNameTiles
 	ld a, [wPartyBattlers]
@@ -8194,6 +9075,7 @@ RefreshStatusIcons::
 	ret
 
 
+PanelWindow3::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $70, $71, $72, $73, $da, $e0, $74, $75
 	db $76, $77, $db, $e0, $78, $79, $7a, $7b, $dc, $e0, $ff, $d8, $ec, $eb, $eb, $eb
@@ -8202,31 +9084,48 @@ RefreshStatusIcons::
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0
 	db $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+PanelWindow2::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $70, $71, $72, $73, $da, $e0, $74, $75, $76, $77, $db, $e0, $ff, $d8
 	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe
 	db $e1, $e0, $e0, $e0, $e0, $e0, $e1, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e2
 	db $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $00, $fa, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+PanelWindow1::
+	db $00, $00, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $70, $71, $72, $73, $da, $e0, $ff, $d8
 	db $ec, $eb, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e1, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $a0, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $fd, $d9
+
+UnusedWindow51_6BAE::
+	db $a0, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87, $88, $89, $e0, $86, $89, $8a, $8b
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $7c, $81, $80, $7f, $e0, $e0, $7d, $7e, $7f, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $a0, $01, $fa, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6BF6::
+	db $a0, $01, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9a, $82, $9b, $82, $e0, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $84, $9c
-	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $01, $fa, $ef, $ef
+	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6C25::
+	db $00, $01, $fa, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $6c, $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $fd, $d9, $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
+	db $fd, $d9
+
+UnusedWindow51_6C3C::
+	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $96, $88, $91, $8d, $87, $8a, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $8b, $86, $94, $8a, $95, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $96, $91, $8e, $89, $86, $90, $8e, $8c, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $96, $90, $8b, $8b, $91, $8f
 	db $95, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+UnusedWindow51_6CAA::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $95, $96, $97, $98, $99
@@ -8234,28 +9133,46 @@ RefreshStatusIcons::
 	db $e0, $ff, $d8, $fe, $e0, $9e, $9f, $a0, $a1, $a2, $a3, $a4, $a5, $a6, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a7
 	db $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb
+	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6D21::
+	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $85, $86, $87, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed
 	db $d8, $fe, $e0, $7e, $84, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $88, $87, $89, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87
+	db $d9
+
+UnusedWindow51_6D5B::
+	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87
 	db $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72
 	db $73, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76
 	db $77, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a
-	db $7b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $20, $01, $fa, $ef, $ef
+	db $7b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6DA5::
+	db $20, $01, $fa, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $86, $88, $87, $e0, $ff, $d8, $ec, $eb, $eb
 	db $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72, $73, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76, $77, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8, $fc, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6DEF::
+	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
 	db $95, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff
 	db $d8, $fe, $e0, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $9e, $9f, $ff, $d8, $fe
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a0
 	db $a1, $a2, $a3, $a4, $a5, $a6, $a7, $a8, $a9, $ff, $d8, $fc, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $00, $01, $fa, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6E53::
+	db $00, $01, $fa, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $d4, $e0, $d5, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8
-	db $fe, $e0, $d5, $d5, $d6, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $48, $00
+	db $fe, $e0, $d5, $d5, $d6, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+ForgetSkillListWindow::
+	db $48, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $36
 	db $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $3f, $40, $41, $42, $43, $44, $45
@@ -8263,22 +9180,37 @@ RefreshStatusIcons::
 	db $d8, $fe, $e0, $48, $49, $4a, $4b, $4c, $4d, $4e, $4f, $50, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $51, $52, $53
 	db $54, $55, $56, $57, $58, $59, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
+	db $ee, $ee, $ee, $fd, $d9
+
+ResultYesNoWindow::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9e
-	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $40, $00, $fa, $ef, $ef, $ef
+	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+ResultMonsterListWindow::
+	db $40, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8, $ec, $eb, $eb, $eb
 	db $eb, $eb, $ed, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $90, $91, $92, $93, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $94, $95, $96, $97, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $ff, $d8, $fe, $e0, $98, $99, $9a, $9b, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $fd, $d9, $0d, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
+	db $ee, $ee, $fd, $d9
+
+ReleaseConfirmWindow::
+	db $0d, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
-	db $89, $8a, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $20, $01
+	db $89, $8a, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_6F98::
+	db $20, $01
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8
 	db $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72, $73, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $74, $75, $76, $77, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
-	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef, $ef, $ef, $ef, $ef
+	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+ForgetSkillInfoWindow::
+	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $0f
 	db $10, $11, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -8287,13 +9219,22 @@ RefreshStatusIcons::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $2d, $2e, $2f
 	db $30, $31, $32, $33, $34, $35, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9, $c0, $00, $fa
+	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+
+ForgetMPWindow::
+	db $c0, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9c, $d6, $d5, $e0, $e2, $e3
 	db $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0
 	db $e0, $e5, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
-	db $d9, $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a0, $a1, $a2, $ff
+	db $d9
+
+MonsterEggWindow::
+	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a0, $a1, $a2, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a3, $a4, $a5, $ff, $d8, $fc
-	db $ee, $ee, $ee, $ee, $fd, $d9, $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+ResultEggListWindow::
+	db $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $24, $25, $26, $27, $28, $29, $2a, $2b
 	db $2c, $48, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $ff, $d8, $fe, $e0, $2d, $2e, $2f, $30, $31, $32, $33, $34, $35, $49, $ff, $d8
@@ -8301,15 +9242,27 @@ RefreshStatusIcons::
 	db $36, $37, $38, $39, $3a, $3b, $3c, $3d, $3e, $4a, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $3f, $40, $41, $42
 	db $43, $44, $45, $46, $47, $4b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $0c, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+EggConfirmWindow::
+	db $0c, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $a6, $a7, $a8, $a9, $aa, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $89, $8a, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
-	db $ee, $ee, $ee, $fd, $d9, $c0, $00, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $6c
-	db $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9, $60, $01, $fa, $ef
+	db $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_717F::
+	db $c0, $00, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $6c
+	db $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_7196::
+	db $60, $01, $fa, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $89, $82, $e0, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $84, $82, $86, $81, $ff, $d8, $fe, $e0
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $83, $8a, $85, $e0, $ff, $d8, $fc, $ee
-	db $ee, $ee, $ee, $ee, $fd, $d9, $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
+	db $ee, $ee, $ee, $ee, $fd, $d9
+
+UnusedWindow51_71D0::
+	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
 	db $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe
 	db $e0, $95, $96, $97, $98, $99, $9a, $9b, $9c, $9d, $ff, $d8, $fe, $e0, $e0, $e0
@@ -9179,7 +10132,11 @@ jr_051_7736:
 	ret
 
 
-	db $c7, $76, $f2, $76, $23, $77, $76, $6b, $76, $6b, $1a, $6b, $9a, $6a
+UnusedPanelJumps::
+	db $c7, $76, $f2, $76, $23, $77
+
+PanelWindowTable::
+	db $76, $6b, $76, $6b, $1a, $6b, $9a, $6a
 
 Jump_051_7763:
 	cp $03
@@ -9417,8 +10374,18 @@ jr_051_787a:
 	ret
 
 
-	db $25, $00, $2b, $00, $31, $00, $61, $00, $67, $00, $6d, $00, $81, $00, $87, $00
-	db $8d, $00, $dc, $d7, $db, $dd, $da, $d8
+PanelMarkSpots::
+	db $25, $00, $2b, $00, $31, $00
+
+PanelLevelSpots::
+	db $61, $00, $67, $00, $6d, $00
+
+PanelAilmentSpots::
+	db $81, $00, $87, $00
+	db $8d, $00
+
+AilmentIconTiles::
+	db $dc, $d7, $db, $dd, $da, $d8
 
 PanelSlotAddress::
 	ld a, c
@@ -9472,6 +10439,7 @@ LoadStatusIconTiles::
 	ret
 
 
+StatusIconGfx::
 	db $02, $5b, $03, $5b, $04, $5b, $05, $5b, $06, $5b, $07, $5b, $08, $5b, $09, $5b
 
 UpdateStatusIcon::

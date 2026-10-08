@@ -68,23 +68,23 @@ GetScriptWord_0E::
 ;@ that corner (row * 32 + column) and then tile numbers: $D8 starts the next row (under the
 ;@ block's first column), $D9 ends the block.
 DrawScriptTiles_0E::
-;> hScrollX &= 0xF8
+;> hScrollX &= 0xFFF8                  # (the low byte)
 	ld hl, hScrollX
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-;> hScrollY &= 0xF8
+;> hScrollY &= 0xFFF8
 	ld hl, hScrollY
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-;> row_offset = hScrollY * 4             # tile row * 32
+;> row_offset = (hScrollY & 0xFF) * 4             # tile row * 32
 	ldh a, [hScrollY]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, hl
-;> column = hScrollX >> 3
+;> column = (hScrollX & 0xFF) >> 3
 	ldh a, [hScrollX]
 	rrca
 	rrca
@@ -125,6 +125,7 @@ DrawScriptTiles_0E::
 ;@ Writes the values of a tile block (see DrawScriptTiles_0E) into the background map at
 ;@ wScriptBlockPtr plus the block's offset, each through WriteVRAM. Rows and columns wrap around
 ;@ inside the 32x32 map. Used for the tile numbers and, with VRAM bank 1, for CGB attributes.
+;@ test: skip writes VRAM
 WriteBlockToBGMap_0E::
 ;> offset = mem16[block]; block += 2
 	ld a, [bc]
@@ -247,6 +248,7 @@ NextMapColumn_0E::
 ;@ path: event/script
 ;@ Copies the tile numbers of a tile block (see DrawScriptTiles_0E) into wSavedTilemap, the
 ;@ RAM copy of the background map; the block's offset is taken from the buffer's start.
+;@ test: skip reads a block through a pointer from the script
 CopyBlockToTileBuffer_0E::
 ;> offset = mem16[block]; block += 2
 	ld a, [bc]
@@ -314,12 +316,12 @@ CopyBlockToTileBuffer_0E::
 ;@ wScreenMap (4 bits per cell) and, on a Game Boy Color, into the attribute map (VRAM bank 1)
 ;@ at the same place.
 DrawScriptAttrs_0E::
-;> hScrollX &= 0xF8
+;> hScrollX &= 0xFFF8                  # (the low byte)
 	ld hl, hScrollX
 	ld a, [hl]
 	and $f8
 	ld [hl], a
-;> hScrollY &= 0xF8
+;> hScrollY &= 0xFFF8
 	ld hl, hScrollY
 	ld a, [hl]
 	and $f8
@@ -330,7 +332,7 @@ DrawScriptAttrs_0E::
 	ld h, $00
 	add hl, hl
 	add hl, hl
-;> column = hScrollX >> 3
+;> column = (hScrollX & 0xFF) >> 3
 	ldh a, [hScrollX]
 	rrca
 	rrca
@@ -397,6 +399,7 @@ DrawScriptAttrs_0E::
 ;@ path: event/script
 ;@ Stores the values of an attribute block in wScreenMap (SetAttrNibble_0E); the block's
 ;@ offset is the number of the first map cell.
+;@ test: skip reads a block through a pointer from the script
 CopyBlockToAttrBuffer_0E::
 ;> cell = mem16[block]; block += 2
 	ld a, [bc]
@@ -456,6 +459,7 @@ CopyBlockToAttrBuffer_0E::
 ;@ path: event/script
 ;@ Stores the 4-bit `value` for map cell `cell` (0-1023) in wScreenMap: two cells per byte,
 ;@ the even cell in the high nibble, the odd one in the low nibble.
+;@ test: skip writes through a pointer argument
 SetAttrNibble_0E::
 ;> odd = cell & 1
 	push hl

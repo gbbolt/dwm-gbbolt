@@ -3599,7 +3599,7 @@ jr_057_7c66:
 	ld a, $08
 
 jr_057_7c68:
-	ld [$dd6d], a
+	ld [wReflectAnim], a
 	res 0, [hl]
 	ret
 

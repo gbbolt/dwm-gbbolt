@@ -794,6 +794,7 @@ GoalArrowTiles::
 ;@ def RoundToTile_19(ptr: hl)
 ;@ path: field/floormap
 ;@ Rounds the 16-bit value at `ptr` to the nearest multiple of 8 (a whole tile).
+;@ test: skip writes through a pointer argument
 RoundToTile_19::
 ;> mem16[ptr] += 4
 	ld a, [hl]

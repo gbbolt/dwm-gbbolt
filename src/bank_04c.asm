@@ -165,7 +165,7 @@ PrintText_4C::
 ;@ test: skip runs the text code with this bank switched in
 PrintBattleMessage::
 ;> wTextIndex = mem[0xDD6D] + 0xD7
-	ld a, [$dd6d]
+	ld a, [wReflectAnim]
 	add $d7
 	ld [wTextIndex], a
 ;> wTextGroup = 0
@@ -175,7 +175,7 @@ PrintBattleMessage::
 	call StartText_4C
 ;> mem[0xDD6D] = 0
 	xor a
-	ld [$dd6d], a
+	ld [wReflectAnim], a
 	ret
 
 

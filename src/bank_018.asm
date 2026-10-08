@@ -2752,216 +2752,312 @@ VSResultBackToList::
 	ret
 
 
+;@ def VSResultDrawGiver()
+;@ path: link/result
+;@ Every frame: when there is a prize monster, keeps drawing the old master (facing left at X
+;@ wMenuChoice) from step 12 on, except while the status screen is open (steps 23 and 24).
+;@ test: skip draws sprites through far calls
 VSResultDrawGiver::
+;> slot = VSPrizeRecordSlot()
 	call VSPrizeRecordSlot
+;> if slot == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> if not mem[MonsterField(slot, wMonsters)]:
+;>     return
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	or a
 	ret z
 
+;> if wTitleStep < 0x0C:
+;>     return
 	ld a, [wTitleStep]
 	cp $0c
 	ret c
 
+;> if wTitleStep in (0x17, 0x18):
+;>@ret     return
 	cp $17
 	ret z
 
+;=@ret
 	cp $18
 	ret z
 
+;> DrawTrainerSpriteFlipped(wMenuChoice)
 	ld a, [wMenuChoice]
 	call DrawTrainerSpriteFlipped
 	ret
 
 
+;@ def DrawTrainerSpriteFlipped(x: a)
+;@ path: link/result
+;@ DrawTrainerSpriteAttr with the sprite mirrored (attribute $20: facing left).
+;@ test: skip draws sprites through far calls
 DrawTrainerSpriteFlipped::
+;> return DrawTrainerSpriteAttr(x, 0x20)
 	ld c, $20
 	jr DrawTrainerSpriteAttr
 
+;@ def DrawTrainerSprite(x: a)
+;@ path: link/result
+;@ DrawTrainerSpriteAttr unmirrored (facing right); runs on into it.
+;@ test: skip draws sprites through far calls
 DrawTrainerSprite::
+;> return DrawTrainerSpriteAttr(x, 0x00)
 	ld c, $00
 
+;@ def DrawTrainerSpriteAttr(x: a, attr: c)
+;@ path: link/result
+;@ Draws a walking trainer (actor sprite set 0, Terry's) at X `x`, Y $58 with sprite attribute
+;@ `attr`; the walking frame (2 or 3) changes every 16 frames. X from $E0 on is off screen and
+;@ draws nothing.
+;@ test: skip draws sprites through far calls
 DrawTrainerSpriteAttr::
+;> if x >= 0xE0:
+;>     return
 	cp $e0
 	ret nc
 
+;> hSpriteX = x
 	ld hl, hSpriteX
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x58
 	ld a, $58
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteSet = 0
 	ld a, $00
 	ld [hli], a
+;>@frame hSpriteFrame = 3 if wFrameCounter & 0x10 else 2
 	ld b, $02
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_018_4e20
+	jr z, .frame
 
 	ld b, $03
 
-jr_018_4e20:
+.frame
+;=@frame
 	ld a, b
 	ld [hli], a
+;> hSpriteTileBase = 0
 	ld a, $00
 	ld [hli], a
+;> hSpriteAttr = attr
 	ld a, c
 	ld [hl], a
+;> DrawActorSprite()
 	ld hl, far_DrawActorSprite
 	rst $10
 	ret
 
 
+;@ def DrawPrizeMonsterSprite(x: a)
+;@ path: link/result
+;@ Draws the prize monster at X `x`, Y $58, facing left: its walking sprite (actor set species +
+;@ $10, tiles from $20 on, frame 2 or 3 changing every 16 frames), or for an egg the egg sprite
+;@ (character set $55). X from $E0 on draws nothing. (The two bytes after the jump are an
+;@ unused unmirrored entry, `ld c, $00`.)
+;@ test: skip draws sprites through far calls
 DrawPrizeMonsterSprite::
+;> attr = 0x20
 	ld c, $20
-	jr jr_018_4e32
+	jr .draw
 
 	db $0e, $00
 
-jr_018_4e32:
+.draw
+;> if x >= 0xE0:
+;>     return
 	cp $e0
 	ret nc
 
+;> hSpriteX = x
 	ld hl, hSpriteX
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;> hSpriteY = 0x58
 	ld a, $58
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>@egg if mem[MonsterField(VSPrizeRecordSlot(), wMonEgg)] == 0:
 	push bc
 	push de
 	push hl
 	call VSPrizeRecordSlot
 	ld hl, wMonEgg
 	call MonsterField
+;=@egg
 	ld a, [hl]
 	pop hl
 	pop de
 	pop bc
 	or a
-	jr nz, jr_018_4e7f
+	jr nz, .egg
 
+;>@sp     hSpriteSet = mem[MonsterField(VSPrizeRecordSlot(), wMonRecSpecies)] + 0x10
 	push bc
 	push de
 	push hl
 	call VSPrizeRecordSlot
 	ld hl, wMonRecSpecies
 	call MonsterField
+;=@sp
 	ld a, [hl]
 	pop hl
 	pop de
 	pop bc
 	add $10
 	ld [hli], a
+;>@frame     hSpriteFrame = 3 if wFrameCounter & 0x10 else 2
 	ld b, $02
 	ld a, [wFrameCounter]
 	bit 4, a
-	jr z, jr_018_4e73
+	jr z, .frame
 
 	ld b, $03
 
-jr_018_4e73:
+.frame
+;=@frame
 	ld a, b
 	ld [hli], a
+;>     hSpriteTileBase = 0x20
 	ld a, $20
 	ld [hli], a
+;>     hSpriteAttr = attr
 	ld a, c
 	ld [hl], a
+;>     DrawActorSprite()
 	ld hl, far_DrawActorSprite
 	rst $10
 	ret
 
 
-jr_018_4e7f:
+;> else:
+;>     hSpriteSet = 0x55                # the egg
+.egg
 	ld a, $55
 	ld [hli], a
+;>     hSpriteFrame = 0
 	ld a, $00
 	ld [hli], a
+;>     hSpriteTileBase = 0x20
 	ld a, $20
 	ld [hli], a
+;>     hSpriteAttr = attr
 	ld a, c
 	ld [hl], a
+;>     DrawCharacterSprite()
 	ld hl, far_DrawCharacterSprite
 	rst $10
 	ret
 
 
+;@ def DrawBannerLetter(i: a)
+;@ path: link/result
+;@ Draws letter `i` (0-7) of the "YOU WIN!" / "YOU LOSE" banner (WinBannerLetters or
+;@ LoseBannerLetters by wBattlerReload) as 2 x 2 tiles at row 2, column 2 + 2i, both into
+;@ wTilemapBuffer and the BG map. Tiles: $80 + the table value, the next three for the
+;@ other quarters. A gap ($FF) draws nothing.
+;@ test: skip writes VRAM
 DrawBannerLetter::
+;>@t table = LoseBannerLetters if wBattlerReload else WinBannerLetters
 	push af
-	ld de, $4f46
+	ld de, WinBannerLetters
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_018_4e9c
+	jr z, .table
 
-	ld de, $4f4e
+	ld de, LoseBannerLetters
 
-jr_018_4e9c:
+.table
+;> t = mem[table + i]
 	pop af
 	push af
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>@pos pos = 0x42 + 2 * i
 	ld d, a
 	pop af
 	add a
 	ld hl, $0042
 	add l
 	ld l, a
+;=@pos
 	ld a, $00
 	adc h
 	ld h, a
+;> if t == 0xFF:
+;>     return
 	ld a, [de]
 	cp $ff
 	ret z
 
+;> PutBufferAndBgTile(pos, t + 0x80)
 	add $80
 	call PutBufferAndBgTile
+;> PutBufferAndBgTile(pos + 1, t + 0x81)
 	inc hl
 	inc a
 	call PutBufferAndBgTile
+;>@down pos += 0x20                       # the row below
 	push af
 	ld a, l
 	add $1f
 	ld l, a
 	ld a, h
 	adc $00
+;=@down
 	ld h, a
 	pop af
+;> PutBufferAndBgTile(pos, t + 0x82)
 	inc a
 	call PutBufferAndBgTile
+;> PutBufferAndBgTile(pos + 1, t + 0x83)
 	inc hl
 	inc a
 	call PutBufferAndBgTile
 	ret
 
 
+;@ def PutBufferAndBgTile(pos: hl, tile: a)
+;@ path: gfx/tilemap
+;@ Writes `tile` at screen offset `pos` both into wTilemapBuffer and the BG map at $9800.
+;@ test: skip writes VRAM
 PutBufferAndBgTile::
+;>@buf mem[wTilemapBuffer + pos] = tile
 	push hl
 	push af
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
+;=@buf
 	adc $c5
 	ld h, a
 	pop af
 	ld [hl], a
 	pop hl
+;>@bg WriteVRAM(tile, 0x9800 + pos)
 	push hl
 	push af
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
+;=@bg
 	adc $98
 	ld h, a
 	pop af
@@ -2970,308 +3066,434 @@ PutBufferAndBgTile::
 	ret
 
 
+;@ def DrawBannerToBuffer()
+;@ path: link/result
+;@ Draws the whole banner into wTilemapBuffer (letter 3 is the gap in both words).
+;@ test: skip reads tables from ROM
 DrawBannerToBuffer::
+;>@b for i in (0, 1, 2, 4, 5, 6, 7):      # the last by running on into DrawBannerLetterToBuffer
+;>     DrawBannerLetterToBuffer(i)
 	ld a, $00
 	call DrawBannerLetterToBuffer
 	ld a, $01
 	call DrawBannerLetterToBuffer
+;=@b
 	ld a, $02
 	call DrawBannerLetterToBuffer
 	ld a, $04
 	call DrawBannerLetterToBuffer
+;=@b
 	ld a, $05
 	call DrawBannerLetterToBuffer
 	ld a, $06
 	call DrawBannerLetterToBuffer
+;=@b
 	ld a, $07
 
+;@ def DrawBannerLetterToBuffer(i: a)
+;@ path: link/result
+;@ DrawBannerLetter into wTilemapBuffer only (row 2, column 2 + 2i).
+;@ test: skip reads tables from ROM
 DrawBannerLetterToBuffer::
+;>@t table = LoseBannerLetters if wBattlerReload else WinBannerLetters
 	push af
-	ld de, $4f46
+	ld de, WinBannerLetters
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_018_4f1b
+	jr z, .table
 
-	ld de, $4f4e
+	ld de, LoseBannerLetters
 
-jr_018_4f1b:
+.table
+;> t = mem[table + i]
 	pop af
 	push af
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;>@p p = wTilemapBuffer + 0x42 + 2 * i
 	ld d, a
 	pop af
 	add a
-	ld hl, $c542
+	ld hl, wTilemapBuffer + $42
 	add l
 	ld l, a
+;=@p
 	ld a, $00
 	adc h
 	ld h, a
+;> if t == 0xFF:
+;>     return
 	ld a, [de]
 	cp $ff
 	ret z
 
+;> mem[p] = t + 0x80; mem[p + 1] = t + 0x81
 	add $80
 	ld [hli], a
 	inc a
 	ld [hl], a
+;>@down mem[p + 0x20] = t + 0x82; mem[p + 0x21] = t + 0x83
 	push af
 	ld a, l
 	add $1f
 	ld l, a
 	ld a, h
 	adc $00
+;=@down
 	ld h, a
 	pop af
 	inc a
 	ld [hli], a
+;=@down
 	inc a
 	ld [hl], a
 	ret
 
 
+;@ path: link/result
+;@ Banner letters of "YOU WIN!": per letter the first of its 4 tiles (relative to $80), $FF a
+;@ gap.
 WinBannerLetters::
 	db $00, $04, $08, $ff, $0c, $10, $14, $18
 
+;@ path: link/result
+;@ Banner letters of "YOU LOSE" (the O shares the tiles of the first one).
 LoseBannerLetters::
 	db $00, $04, $08, $ff, $1c, $04, $20, $24
 
+;@ def NextBgColumn_18(addr: hl) -> hl
+;@ path: gfx/tilemap
+;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
+;@ test: hl = rand(0x9800, 0x9BFF)
 NextBgColumn_18::
+;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@col
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@col
 	ret
 
 
+;@ def TitleBgAddr_18(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ BG map address of a screen offset: wTitleBgMap + `offset`, wrapped around within the 1 KiB
+;@ BG map.
+;@ test: hl = rand(0, 0x3FF)
+;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
 TitleBgAddr_18::
+;> addr = wTitleBgMap + offset
 	ld a, [wTitleBgMap]
 	add l
 	ld l, a
-	ld a, [$c8d7]
+	ld a, [wTitleBgMap + 1]
 	adc h
+;>@g return (addr & 0x03FF) | (wTitleBgMap & 0xFC00)
 	and $03
 	ld h, a
-	ld a, [$c8d7]
+	ld a, [wTitleBgMap + 1]
 	and $fc
 	or h
 	ld h, a
+;=@g
 	ret
 
 
+;@ def TilemapBufferAddr_18(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ Address of a screen offset in wTilemapBuffer.
+;@ test: hl = rand(0, 0x23F)
 TilemapBufferAddr_18::
+;>@g return wTilemapBuffer + offset
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;=@g
 	ret
 
 
+;@ def TitleBgAddrWrapped_18(offset: hl) -> hl
+;@ path: gfx/tilemap
+;@ BG map address of a screen offset (row * 32 + column), wrapping the column around within
+;@ the BG map row as the screen is scrolled.
+;@ test: hl = rand(0, 0x23F)
+;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
 TitleBgAddrWrapped_18::
+;> addr = TitleBgAddr_18(offset & 0xFFE0)   # start of the row
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
 	call TitleBgAddr_18
+;> for i in range(offset & 0x1F):
 	ld a, b
 	and $1f
-	jr z, jr_018_4f97
+	jr z, .done
 
 	ld b, a
 
-jr_018_4f91:
+.loop
+;>     addr = NextBgColumn_18(addr)
 	call NextBgColumn_18
 	dec b
-	jr nz, jr_018_4f91
+	jr nz, .loop
 
-jr_018_4f97:
+.done
+;> return addr
 	pop bc
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls (a copy of the window drawer that writes straight into the BG map,
+;@ as DrawWindowLayout_18 does into the tilemap buffer).
 DrawLayoutToVram_18::
 	db $1a, $6f, $13, $1a, $67, $13, $cd, $82, $4f, $7d, $e0, $d5, $7c, $e0, $d6, $1a
 	db $13, $fe, $d9, $c8, $fe, $d8, $20, $1c, $f0, $d5, $6f, $f0, $d6, $67, $7d, $c6
 	db $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67, $7d, $e0, $d5, $7c
 	db $e0, $d6, $18, $db, $cd, $ad, $1a, $cd, $56, $4f, $18, $d3
 
+;@ def DrawWindowLayout_18(layout: de)
+;@ path: gfx/tilemap
+;@ Draws a window layout into wTilemapBuffer. Layout format: a u16 screen offset (row * 32 +
+;@ column) where it starts, then tile numbers; $D8 starts the next row below the start, $D9
+;@ ends.
+;@ test: skip reads a layout from ROM
 DrawWindowLayout_18::
+;>@start row = p = TilemapBufferAddr_18(mem16[layout]); layout += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@start
 	call TilemapBufferAddr_18
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 
-jr_018_4fe4:
+.loop
+;> while (t := mem[layout]) != 0xD9:
+;>     layout += 1
 	ld a, [de]
 	inc de
 	cp $d9
 	ret z
 
+;>     if t == 0xD8:                    # next row
 	cp $d8
-	jr nz, jr_018_5003
+	jr nz, .tile
 
+;>@row         row += 32; p = row
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
+;=@row
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ldh [hNumber], a
+;=@row
 	ld a, h
-	ldh [$ffd6], a
-	jr jr_018_4fe4
+	ldh [hNumber + 1], a
+	jr .loop
 
-jr_018_5003:
+;>     else:
+;>         mem[p] = t; p += 1
+.tile
 	ld [hli], a
-	jr jr_018_4fe4
+	jr .loop
 
+;@ def CopyTilemapBufferToVram_18()
+;@ path: gfx/tilemap
+;@ Copies the 18 rows of 32 tiles of wTilemapBuffer to the BG map at wTitleBgMap (columns and
+;@ rows wrap around within the BG map).
+;@ test: skip writes VRAM
 CopyTilemapBufferToVram_18::
+;> addr = wTitleBgMap
 	ld a, [wTitleBgMap]
 	ld l, a
-	ld a, [$c8d7]
+	ld a, [wTitleBgMap + 1]
 	ld h, a
+;> src = wTilemapBuffer
 	ld de, wTilemapBuffer
+;> for row in range(18):
 	ld c, $12
 
-jr_018_5013:
+.row
+;>     p = addr
+;>     for col in range(32):
 	ld b, $20
 	push hl
 
-jr_018_5016:
+.col
+;>@src         WriteVRAM(mem[src], p); src += 1
 	ld a, [de]
 	call WriteVRAM
+;>@next         p = NextBgColumn_18(p)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@next
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;=@src
 	inc de
 	dec b
-	jr nz, jr_018_5016
+	jr nz, .col
 
+;>@down     addr = ((addr + 32) & 0x03FF) | 0x9800
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@down
 	or $98
 	ld h, a
 	pop bc
 	dec c
-	jr nz, jr_018_5013
+	jr nz, .row
 
 	ret
 
 
+;@ def DrawTextTiles_18(tiles: hl, lines: e, line_length: d)
+;@ path: text/tiles
+;@ Prints text wTextGroup / wTextIndex of bank $41 at once into the tiles at `tiles` (`lines`
+;@ lines of `line_length` tiles), keeping the text box settings.
+;@ test: skip prints text
 DrawTextTiles_18::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_box = (wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = lines; wTextBoxLineLength = line_length
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_box[0]
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_box[1]
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ def DrawNameTiles_18(name: de, tiles: hl)
+;@ path: text/tiles
+;@ Prints a 4-letter name into the 4 tiles at `tiles` (through wTextArg0 and text 0 of group 2,
+;@ which prints it), keeping the text box settings.
+;@ test: skip prints text
 DrawNameTiles_18::
+;> CopyName(name, wTextArg0)
 	push hl
 	ld hl, wTextArg0
 	call CopyName
 	pop hl
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_box = (wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1; wTextBoxLineLength = 4
 	ld de, $0401
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2; wTextIndex = 0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_box[0]
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_box[1]
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls: prints the single character in a into the tile at hl (as
+;@ DrawNameTiles_18, with a one-tile text box).
 DrawCharTile_18::
 	db $ea, $80, $c1, $3e, $f0, $ea, $81, $c1, $fa, $27, $c8, $4f, $fa, $28, $c8, $47
 	db $c5, $fa, $29, $c8, $4f, $fa, $2a, $c8, $47, $c5, $7d, $ea, $27, $c8, $7c, $ea
@@ -3279,108 +3501,147 @@ DrawCharTile_18::
 	db $22, $c8, $3e, $00, $ea, $23, $c8, $21, $02, $41, $d7, $d1, $e1, $7d, $ea, $27
 	db $c8, $7c, $ea, $28, $c8, $7b, $ea, $29, $c8, $7a, $ea, $2a, $c8, $c9
 
+;@ path: unused
+;@ Code that nothing calls: copies $200 bytes from $C300 to wTilemapBuffer, then two rows of 20
+;@ bytes from $C1C0 on over its start (rows 32 bytes apart in the buffer, 20 at the source).
 UnusedCopyScreen_18::
 	db $21, $00
 	db $c5, $11, $00, $c3, $01, $00, $02, $1a, $13, $22, $0b, $78, $b1, $20, $f8, $11
 	db $c0, $c1, $0e, $02, $06, $14, $1a, $13, $22, $05, $20, $fa, $7b, $c6, $0c, $5f
 	db $7a, $ce, $00, $57, $7d, $c6, $0c, $6f, $7c, $ce, $00, $67, $0d, $20, $e5, $c9
 
+;@ def ClearTilemapBuffer_18()
+;@ path: gfx/tilemap
+;@ Fills the $240 bytes of wTilemapBuffer with the blank tile $E0.
 ClearTilemapBuffer_18::
+;>@fill fill(wTilemapBuffer, 0x240, 0xE0)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
-jr_018_5148:
+.loop
+;=@fill
 	ld a, $e0
 	ld [hli], a
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_018_5148
+	jr nz, .loop
 
+;=@fill
 	ret
 
 
+;@ path: unused
+;@ Code that nothing calls: fills the BG map at $9800 (32 x 32 tiles) with the blank tile $E0.
 ClearBgMap_18::
 	db $21, $00, $98, $01, $00, $04, $3e, $e0, $cd, $b9, $1a, $0b, $78, $b1, $20, $f6
 	db $c9
 
+;@ def MovePagedListCursor_18(cur: hl, rows: b, count: c, marks: de)
+;@ path: menu/cursor
+;@ Cursor of a paged list of `count` entries, `rows` per page: cur[0] is the row (bit 7 set once
+;@ chosen), cur[1] the page. Left and Right turn the page (wrapping around; on the shorter last
+;@ page the row is pulled up), Up and Down move the row within the page (MoveMenuCursor_18),
+;@ A chooses. `marks` is the list's cursor table: the page number position, then the rows.
+;@ test: skip draws through helpers
 MovePagedListCursor_18::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> marks += 2                           # skip the page number position
 	inc de
 	inc de
+;>@turn if not wTextState and wJoyRepeat & 0x30:     # Left or Right: turn the page
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_018_51c9
+	jp nz, .noTurn
 
+;>     if wJoyRepeat & 0x20:            # Left
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_018_518f
+	jr z, .notLeft
 
+;>         page = (cur[1] - 1) & 0xFF
 	inc hl
 	ld a, [hl]
 	dec a
 	push af
+;>@pg1         pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@pg1
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:
+;>             page = pages - 1         # wrap to the last page
 	pop af
 	cp c
-	jr c, jr_018_51ad
+	jr c, .setPage
 
 	ld a, c
 	dec a
-	jr jr_018_51ad
+	jr .setPage
 
-jr_018_518f:
+.notLeft
+;=@turn
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_018_51c9
+	jr z, .noTurn
 
+;>     else:                            # Right
+;>         page = (cur[1] + 1) & 0xFF
 	inc hl
 	ld a, [hl]
 	inc a
 	push af
+;>@pg2         pages = (count - 1) // rows + 1
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;=@pg2
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>         if page >= pages:
+;>             page = 0                 # wrap to the first page
 	pop af
 	cp c
-	jr c, jr_018_51ad
+	jr c, .setPage
 
 	ld a, $00
 
-jr_018_51ad:
+.setPage
+;>     cur[1] = page
 	ld [hld], a
+;>     if page == pages - 1:            # the last page may be shorter
 	dec c
 	cp c
 	jr nz, jr_018_520c
 
+;>@left         left = count % rows
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@left
 	call Divide8
 	pop bc
 	pop de
+;>         if left and cur[0] > left - 1:
 	or a
 	jr z, jr_018_520c
 
@@ -3388,69 +3649,93 @@ jr_018_51ad:
 	cp [hl]
 	jr nc, jr_018_520c
 
+;>             cur[0] = left - 1
 	ld [hl], a
+;>     return MenuCursorFinish_18(cur, marks)   # the end of MoveMenuCursor_18: blink, A, marks
 	jr jr_018_520c
 
-Jump_018_51c9:
-jr_018_51c9:
+.noTurn
+;>@lpn DrawListPageNumber_18(cur, rows, count, marks)
 	push bc
 	push de
 	push hl
 	call DrawListPageNumber_18
 	pop hl
 	pop de
+;=@lpn
 	pop bc
+;>@lp last_page, left = divmod(count - 1, rows)
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
 	call Divide8
+;> wListLastRows = left                 # rows on the last page - 1
 	ld [wListLastRows], a
+;=@lp
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;> if cur[1] == last_page:
 	inc hl
 	ld a, [hld]
 	cp c
 	jr nz, MoveMenuCursor_18
 
+;>     rows = wListLastRows + 1         # the rows on the last page
 	ld a, [wListLastRows]
 	inc a
+;> return MoveMenuCursor_18(cur, rows, marks)   # runs on into it
 	ld b, a
 
+;@ def MoveMenuCursor_18(cur: hl, rows: b, marks: de)
+;@ path: menu/cursor
+;@ Moves a menu cursor (cur[0], bit 7 = chosen) with Up and Down through `rows` entries,
+;@ wrapping around, sets bit 7 when A is pressed and draws the cursor marks.
+;@ test: skip draws through helpers
 MoveMenuCursor_18::
+;> cur[0] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:                # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_018_51fd
+	jr z, .notUp
 
+;>     c = cur[0] - 1
+;>     if c >= rows: c = rows - 1       # (also when it went below 0)
 	ld a, [hl]
 	dec a
 	cp b
-	jr c, jr_018_520b
+	jr c, .set
 
 	dec b
 	ld a, b
-	jr jr_018_520b
+;>@set     cur[0] = c; wTitleBlink = 0
+	jr .set
 
-jr_018_51fd:
+.notUp
+;> elif wJoyRepeat & 0x80:              # Down
 	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_018_5214
 
+;>     c = cur[0] + 1
+;>     if c >= rows: c = 0
 	ld a, [hl]
 	inc a
 	cp b
-	jr c, jr_018_520b
+	jr c, .set
 
 	ld a, $00
 
-jr_018_520b:
+.set
+;>@set2     cur[0] = c; wTitleBlink = 0
 	ld [hl], a
 
 jr_018_520c:
+;=@set2
 	xor a
 	ld [wTitleBlink], a
 	push hl
@@ -3459,449 +3744,639 @@ jr_018_520c:
 	pop hl
 
 jr_018_5214:
+;> if wJoyPressed & A_BUTTON:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_018_521d
+	jr z, .draw
 
+;>     cur[0] |= 0x80
 	set 7, [hl]
 
-jr_018_521d:
+.draw
+;> MenuDrawCursorMarks_18(cur[0], marks)
 	ld a, [hl]
 	call MenuDrawCursorMarks_18
 	ret
 
 
+;@ path: unused
+;@ Code that nothing reaches: a left/right variant of the cursor movement in MoveMenuCursor_18
+;@ (Left moves to the previous entry, Right to the next, wrapping to 0), jumping back into it.
 MoveMenuCursorSideways_18::
 	db $cb, $be, $fa, $47, $c8, $cb, $6f, $28, $09, $7e, $3d, $b8, $38, $db, $05, $78
 	db $18, $d7, $fa, $47, $c8, $cb, $67, $28, $d9, $7e, $3c, $b8, $38, $cb, $3e, $00
 	db $18, $c7
 
+;@ def MenuResetBlink_18()
+;@ path: menu/cursor
+;@ Restarts the cursor blink, so the cursor is drawn at once.
 MenuResetBlink_18::
+;> wTitleBlink = 0
 	xor a
 	ld [wTitleBlink], a
 	ret
 
 
+;@ def MenuDrawCursorMarks_18(cursor: a, marks: de) -> a
+;@ path: menu/cursor
+;@ Draws the mark of every entry of a cursor table (u16 screen offsets, $FFFF ends) into the
+;@ BG map and wTilemapBuffer: the arrow $E8 at entry `cursor` (blinking: blank while
+;@ wTitleBlink bit 4 is set), $E9 when chosen (bit 7), blank $E0 at the others. A cursor not
+;@ chosen is only redrawn every 16 frames.
+;@ test: skip writes VRAM
 MenuDrawCursorMarks_18::
+;> if not cursor & 0x80:
 	ld c, a
 	bit 7, a
-	jr nz, jr_018_525e
+	jr nz, .draw
 
+;>     phase = wTitleBlink & 0x0F; wTitleBlink += 1
 	ld a, [wTitleBlink]
 	and $0f
 	push af
 	ld a, [wTitleBlink]
 	inc a
 	ld [wTitleBlink], a
+;>     if phase:
+;>         return cursor
 	pop af
 	ld a, c
 	ret nz
 
-jr_018_525e:
+.draw
+;> i = 0
 	ld c, a
 	ld b, $00
 
-jr_018_5261:
+.loop
+;>@while while (pos := mem16[marks]) != 0xFFFF:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@while
 	and l
 	cp $ff
 	ret z
 
+;>@bg     bg = TitleBgAddrWrapped_18(pos); marks += 2
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@bg
 	call TitleBgAddrWrapped_18
 	pop bc
 	pop de
+;>     tile = 0xE0
+;>     if i == cursor & 0x7F:
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_018_5291
+	jr nz, .write
 
+;>@sel         tile = 0xE9 if cursor & 0x80 else (0xE0 if wTitleBlink & 0x10 else 0xE8)
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_018_5291
+	jr nz, .write
 
+;=@sel
 	ld a, [wTitleBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_018_5291
+	jr nz, .write
 
+;=@sel
 	ld a, $e8
 
-jr_018_5291:
+.write
+;>     WriteVRAM(tile, bg)
 	call WriteVRAM
+;>@buf     mem[TilemapBufferAddr_18(pos)] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
+;>     i += 1
 	inc b
-	jr jr_018_5261
+	jr .loop
 
+;@ def DrawListPageNumber_18(cur: hl, rows: b, count: c, marks: de)
+;@ path: menu/cursor
+;@ When a list has more entries than one page holds, writes the page number (tile $F1 + page,
+;@ cur[1]) just left of the page arrow, whose position is the word before `marks`, into the
+;@ BG map and wTilemapBuffer.
+;@ test: skip writes VRAM
 DrawListPageNumber_18::
+;> if rows >= count:
+;>     return
 	ld a, b
 	cp c
 	ret nc
 
+;> page = cur[1]
 	inc hl
 	ld c, [hl]
+;>@pos pos = mem16[marks - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@pos
 	ld h, a
 	inc de
+;> if pos == 0xFFFF:
+;>     return
 	and l
 	cp $ff
 	ret z
 
+;> pos -= 1
 	dec hl
+;>@digit WriteVRAM(0xF1 + (page & 0x7F), TitleBgAddrWrapped_18(pos))
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@digit
 	call TitleBgAddrWrapped_18
 	pop bc
 	pop de
 	ld a, c
 	and $7f
 	add $f1
+;=@digit
 	call WriteVRAM
+;>@buf mem[TilemapBufferAddr_18(pos)] = 0xF1 + (page & 0x7F)
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	ret
 
 
+;@ def MenuDrawListCursor_18(cur: hl, marks: de, rows: b, count: c)
+;@ path: menu/cursor
+;@ Draws a paged list's cursor into wTilemapBuffer: at the table's first position the page
+;@ arrow $E7 with the page number left of it when there are several pages (else the frame tile
+;@ $EE), then the row cursor (MenuDrawCursorAt_18, run on into).
+;@ test: skip draws through helpers
 MenuDrawListCursor_18::
+;> cursor = cur[0]; page = cur[1]
 	ld a, [hli]
 	push af
 	push hl
+;>@p p = TilemapBufferAddr_18(mem16[marks]); marks += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
 	ld h, a
+;=@p
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;>@mark mem[p] = 0xE7 if rows < count else 0xEE
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_018_52fa
+	jr nc, .mark
 
 	ld a, $e7
 
-jr_018_52fa:
+.mark
+;=@mark
 	ld [hld], a
+;> if rows < count:
+;>     mem[p - 1] = page + 0xF1
 	pop bc
-	jr nc, jr_018_5302
+	jr nc, .one
 
 	ld a, [bc]
 	add $f1
 	ld [hl], a
 
-jr_018_5302:
+.one
+;> MenuDrawCursorAt_18(cursor, marks)   # runs on into it
 	pop af
 
+;@ def MenuDrawCursorAt_18(cursor: a, marks: de)
+;@ path: menu/cursor
+;@ Writes the cursor mark of entry `cursor` of a cursor table into wTilemapBuffer: $E9 when
+;@ chosen (bit 7), else the blinking arrow ($E8, blank $E0 while wTitleBlink bit 4 is set).
+;@ test: skip reads a table from ROM
 MenuDrawCursorAt_18::
+;>@pos pos = mem16[marks + 2 * cursor]
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@pos
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;>@bg TitleBgAddrWrapped_18(pos)          # (the result is not used)
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
+;=@bg
 	call TitleBgAddrWrapped_18
 	pop bc
 	pop de
+;>@sel tile = 0xE9 if cursor & 0x80 else (0xE0 if wTitleBlink & 0x10 else 0xE8)
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_018_532e
+	jr nz, .write
 
+;=@sel
 	ld a, [wTitleBlink]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_018_532e
+	jr nz, .write
 
+;=@sel
 	ld a, $e8
 
-jr_018_532e:
+.write
+;>@buf mem[TilemapBufferAddr_18(pos)] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
+;=@buf
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@buf
 	ld [hl], a
 	ret
 
 
+;@ def LoadPartyPictures_18()
+;@ path: link/result
+;@ Unpacks the big pictures of the party monsters into the tiles at $9000, $9240 and $9480
+;@ (36 tiles each).
+;@ test: skip decompresses into VRAM
 LoadPartyPictures_18::
+;> if wPartyCount == 0:
+;>     return
 	ld a, [wPartyCount]
 	or a
 	ret z
 
+;>@p0 LoadMonsterPicture_18(GetPartyMonsterByte(0, wMonRecSpecies), 0x9000)
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	ld hl, $9000
 	call LoadMonsterPicture_18
+;> if wPartyCount == 1:
+;>     return
 	ld a, [wPartyCount]
 	cp $01
 	ret z
 
+;>@p1 LoadMonsterPicture_18(GetPartyMonsterByte(1, wMonRecSpecies), 0x9240)
 	ld a, $01
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	ld hl, $9240
 	call LoadMonsterPicture_18
+;> if wPartyCount == 2:
+;>     return
 	ld a, [wPartyCount]
 	cp $02
 	ret z
 
+;> LoadMonsterPicture_18(GetPartyMonsterByte(2, wMonRecSpecies), 0x9480)   # runs on into it
 	ld a, $02
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	ld hl, $9480
 
+;@ def LoadMonsterPicture_18(species: a, dest: hl)
+;@ path: link/result
+;@ Unpacks the big picture of `species` (graphics number from the table at $2B9F in the home
+;@ bank) to VRAM `dest`; nothing for $FF.
+;@ test: skip decompresses into VRAM
 LoadMonsterPicture_18::
+;> if species == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;>@g gfx = mem16[0x2B9F + 2 * species]
 	push hl
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
 	add $9f
+;=@g
 	ld l, a
 	ld a, h
 	adc $2b
 	ld h, a
 	ld e, [hl]
 	inc hl
+;=@g
 	ld d, [hl]
 	pop hl
+;> Decompress(hi(gfx), lo(gfx), dest)
 	call Decompress
 	ret
 
 
+;@ def DrawPartyPictures_18()
+;@ path: link/result
+;@ Places the party's monster pictures (6 x 6 tiles each, from tile 0 on) in row 6 of
+;@ wTilemapBuffer, centred for 1, 2 or 3 monsters, and gives each its CGB palette (BG palettes
+;@ 4-6).
+;@ test: skip calls routines in other banks
 DrawPartyPictures_18::
+;>@c if wPartyCount not in (2, 3):       # one monster
 	ld a, [wPartyCount]
 	cp $03
-	jr z, jr_018_53cb
+	jr z, .three
 
+;=@c
 	cp $02
-	jr z, jr_018_53ac
+	jr z, .two
 
+;>     DrawPictureTiles_18(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call DrawPictureTiles_18
+;>     SetPartyPicturePalette_18(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call SetPartyPicturePalette_18
 	ret
 
 
-jr_018_53ac:
+;> elif wPartyCount == 2:
+;>     tile = DrawPictureTiles_18(0, 0x00C4)
+.two
 	ld a, $00
 	ld hl, $00c4
 	call DrawPictureTiles_18
+;>     DrawPictureTiles_18(tile, 0x00CA)
 	ld hl, $00ca
 	call DrawPictureTiles_18
+;>     SetPartyPicturePalette_18(0, 0x00C4)
 	ld a, $00
 	ld hl, $00c4
 	call SetPartyPicturePalette_18
+;>     SetPartyPicturePalette_18(1, 0x00CA)
 	ld a, $01
 	ld hl, $00ca
 	call SetPartyPicturePalette_18
 	ret
 
 
-jr_018_53cb:
+;> else:
+;>     tile = DrawPictureTiles_18(0, 0x00C1)
+.three
 	ld a, $00
 	ld hl, $00c1
 	call DrawPictureTiles_18
+;>     tile = DrawPictureTiles_18(tile, 0x00C7)
 	ld hl, $00c7
 	call DrawPictureTiles_18
+;>     DrawPictureTiles_18(tile, 0x00CD)
 	ld hl, $00cd
 	call DrawPictureTiles_18
+;>     SetPartyPicturePalette_18(0, 0x00C1)
 	ld a, $00
 	ld hl, $00c1
 	call SetPartyPicturePalette_18
+;>     SetPartyPicturePalette_18(1, 0x00C7)
 	ld a, $01
 	ld hl, $00c7
 	call SetPartyPicturePalette_18
+;>     SetPartyPicturePalette_18(2, 0x00CD)
 	ld a, $02
 	ld hl, $00cd
 	call SetPartyPicturePalette_18
 	ret
 
 
+;@ def DrawPictureTiles_18(tile: a, pos: hl) -> a
+;@ path: gfx/tilemap
+;@ Writes a 6 x 6 block of consecutive tile numbers from `tile` on into wTilemapBuffer at screen
+;@ offset `pos`; returns the next tile number.
+;@ test: hl = rand(0, 0x100)
 DrawPictureTiles_18::
+;> for row in range(6):
 	ld c, $06
 
-jr_018_53fa:
+.row
+;>     p = TilemapBufferAddr_18(pos)
 	push hl
 	push af
 	call TilemapBufferAddr_18
 	pop af
+;>     for col in range(6):
 	ld b, $06
 
-jr_018_5402:
+.col
+;>         mem[p] = tile; p += 1
 	ld [hli], a
+;>         tile = (tile + 1) & 0xFF
 	inc a
 	dec b
-	jr nz, jr_018_5402
+	jr nz, .col
 
+;>     pos += 32
 	pop hl
 	ld de, $0020
 	add hl, de
 	dec c
-	jr nz, jr_018_53fa
+	jr nz, .row
 
+;> return tile
 	ret
 
 
+;@ def SetPartyPicturePalette_18(n: a, pos: hl)
+;@ path: link/result
+;@ Gives the picture of party monster `n` at screen offset `pos` its species' palette: BG
+;@ palette 4 + n, and its attributes.
+;@ test: skip calls routines in other banks
 SetPartyPicturePalette_18::
+;> wMonPicPos = pos
 	push af
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
+;> wPaletteSet = mem[PartyMonsterField(n, wMonRecSpecies)]
 	pop af
 	push af
 	ld hl, wMonRecSpecies
 	call PartyMonsterField
 	ld a, [hl]
 	ld [wPaletteSet], a
+;> wMonPicPalette = n + 4
 	pop af
 	add $04
 	ld [wMonPicPalette], a
+;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
 	ret
 
 
+;@ def PrintTwoDigits_18(n: bc, dest: hl)
+;@ path: text/numbers
+;@ Writes `n` (0-99) as one or two digit tiles ($F0 + digit) at `dest` (through WriteVRAM, so
+;@ VRAM or RAM); no leading zero.
+;@ test: skip writes through WriteVRAM
 PrintTwoDigits_18::
+;> if n // 10:
 	ld de, $000a
 	push bc
 	call DivideBCByDE_18
 	pop bc
 	or a
-	jr z, jr_018_544b
+	jr z, .ones
 
+;>     tens, n = DivideBCByDE_18(n, 10)
 	ld de, $000a
 	call DivideBCByDE_18
+;>     WriteDigitTile_18(tens, dest)
 	call WriteDigitTile_18
+;>     dest = NextBgColumn2_18(dest)
 	call NextBgColumn2_18
 
-jr_018_544b:
+.ones
+;> WriteDigitTile_18(n, dest)
 	ld a, c
 	call WriteDigitTile_18
 	ret
 
 
+;@ def DivideBCByDE_18(n: bc, d: de) -> (a, bc)
+;@ path: system/math
+;@ Divides `n` by `d` by repeated subtraction: returns the quotient (8-bit) and the remainder.
+;@ test: bc = rand(0, 0x3FF)
+;@ test: de = rand(1, 0x30)
 DivideBCByDE_18::
+;> q = -1
 	push hl
 	ld h, $ff
 
-jr_018_5453:
+.loop
+;> while True:
+;>     q += 1
 	inc h
+;>@sub     n -= d
 	ld a, c
 	sub e
 	ld c, a
 	ld a, b
 	sbc d
+;=@sub
 	ld b, a
-	jr nc, jr_018_5453
+;>     if n < 0:
+;>         break
+	jr nc, .loop
 
+;> n += d                               # undo the last step
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;> return q & 0xFF, n
 	ld a, h
 	pop hl
 	ret
 
 
+;@ def WriteDigitTile_18(digit: a, dest: hl)
+;@ path: text/numbers
+;@ Writes the digit tile $F0 + `digit` at `dest` through WriteVRAM.
+;@ test: skip writes through WriteVRAM
 WriteDigitTile_18::
+;> WriteVRAM(0xF0 + digit, dest)
 	add $f0
 	call WriteVRAM
 	ret
 
 
+;@ def NextBgColumn2_18(addr: hl) -> hl
+;@ path: gfx/tilemap
+;@ A copy of NextBgColumn_18: one column right, wrapping around within the 32-tile row.
+;@ test: hl = rand(0x9800, 0x9BFF)
 NextBgColumn2_18::
+;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@col
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@col
 	ret
 
 

@@ -12,12 +12,12 @@ BankNumber_5F::
 ;@ path: system/banks
 ;@ Entry points of bank $5F for far calls: the ending (game mode 4), the opening, the battle
 ;@ screen effects and skill animations, the debug animation viewer (game mode 5) and the debug
-;@ window with the battlers' personality numbers. Entry 3 is the opening's per-frame routine.
+;@ window with the battlers' personality numbers.
 FarTable_5F::
 	dw EndingInit
 	dw EndingUpdate
 	dw OpeningInit
-	dw $4619
+	dw OpeningUpdate
 	dw StartSkillHitEffect
 	dw UpdateScreenEffect
 	dw StartSkillVisual
@@ -571,116 +571,175 @@ SavePromptDone::
 	ret
 
 
+;@ def CopyTileRect_5F(src: de, dest: hl, width: b, height: c)
+;@ path: gfx/tilemap
+;@ Copies a `width` x `height` block of tile numbers (stored row after row) into a BG map at
+;@ `dest`, each byte written when VRAM is accessible.
+;@ test: skip polls the LCD
 CopyTileRect_5F::
+;>@rows for y in range(height):
+;>     rowstart = dest
 	push bc
 	push hl
 
-jr_05f_424c:
+.column
+;>     for x in range(width):
+;>         WriteVRAM(mem[src + x], dest + x)
 	ld a, [de]
 	call WriteVRAM
 	inc hl
 	inc de
 	dec b
-	jr nz, jr_05f_424c
+	jr nz, .column
 
+;>     src += width                         # (moved along while copying)
 	pop hl
 	pop bc
+;>     dest = u16(rowstart + 32)            # next BG map row
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@rows
 	dec c
 	jr nz, CopyTileRect_5F
 
+;> return
 	ret
 
 
+;@ def DrawTilemap_5F(src: de, dest: hl)
+;@ path: gfx/tilemap
+;@ Draws a tilemap into a BG map (or a buffer). Format: a 2-byte offset added to dest, then
+;@ tile numbers; $D8 goes to the start of the next row (32 tiles on), $D9 ends the map.
+;@ test: skip pointer-driven loop over map data
 DrawTilemap_5F::
+;> offset = mem16[src]; src += 2
 	ld a, [de]
 	inc de
 	ld c, a
 	ld a, [de]
 	inc de
 	ld b, a
+;> dest += offset
 	add hl, bc
+;> wSceneObjectPtr = dest                  # start of the current row
 	ld a, l
 	ld [wSceneObjectPtr], a
 	ld a, h
-	ld [$c0ff], a
+	ld [wSceneObjectPtr + 1], a
 
-jr_05f_4272:
+;> while True:
+.loop
+;>     t = mem[src]; src += 1
 	ld a, [de]
 	inc de
+;>     if t == 0xD8:
 	cp $d8
-	jr z, jr_05f_427e
+	jr z, .newRow
 
+;>@row1         dest = wSceneObjectPtr
+;>@row2         dest += 0x20
+;>@row3         wSceneObjectPtr = dest
+;>     elif t == 0xD9:
 	cp $d9
+;>         return
 	ret z
 
+;>     else:
+;>         mem[dest] = t; dest += 1
 	ld [hli], a
-	jr jr_05f_4272
+	jr .loop
 
-jr_05f_427e:
+.newRow
+;=@row1
 	ld a, [wSceneObjectPtr]
 	ld l, a
-	ld a, [$c0ff]
+	ld a, [wSceneObjectPtr + 1]
 	ld h, a
+;=@row2
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@row3
 	ld a, l
 	ld [wSceneObjectPtr], a
 	ld a, h
-	ld [$c0ff], a
-	jr jr_05f_4272
+	ld [wSceneObjectPtr + 1], a
+	jr .loop
 
+;@ def DrawTilemapVRAM_5F(src: de, dest: hl)
+;@ path: gfx/tilemap
+;@ DrawTilemap_5F for a BG map in VRAM while the screen is on: every tile is written when VRAM
+;@ is accessible (WriteVRAMInc).
+;@ test: skip polls the LCD
 DrawTilemapVRAM_5F::
+;> offset = mem16[src]; src += 2
 	ld a, [de]
 	inc de
 	ld c, a
 	ld a, [de]
 	inc de
 	ld b, a
+;> dest += offset
 	add hl, bc
+;> wSceneObjectPtr = dest                  # start of the current row
 	ld a, l
 	ld [wSceneObjectPtr], a
 	ld a, h
-	ld [$c0ff], a
+	ld [wSceneObjectPtr + 1], a
 
-jr_05f_42a7:
+;> while True:
+.loop
+;>     t = mem[src]; src += 1
 	ld a, [de]
 	inc de
+;>     if t == 0xD8:
 	cp $d8
-	jr z, jr_05f_42b5
+	jr z, .newRow
 
+;>@row1         dest = wSceneObjectPtr
+;>@row2         dest += 0x20
+;>@row3         wSceneObjectPtr = dest
+;>     elif t == 0xD9:
 	cp $d9
+;>         return
 	ret z
 
+;>     else:
+;>         dest = WriteVRAMInc(t, dest)
 	call WriteVRAMInc
-	jr jr_05f_42a7
+	jr .loop
 
-jr_05f_42b5:
+.newRow
+;=@row1
 	ld a, [wSceneObjectPtr]
 	ld l, a
-	ld a, [$c0ff]
+	ld a, [wSceneObjectPtr + 1]
 	ld h, a
+;=@row2
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@row3
 	ld a, l
 	ld [wSceneObjectPtr], a
 	ld a, h
-	ld [$c0ff], a
-	jr jr_05f_42a7
+	ld [wSceneObjectPtr + 1], a
+	jr .loop
 
+;@ path: event/ending
+;@ The text box of the closing screen: 20 x 4 tile numbers for CopyTileRect_5F (frame tiles
+;@ $EE/$EF/$FA-$FF, blank $E0, letters from tile $B0 on).
+;@ asset: tilemap width=20 height=4
 EndingSaveBoxTilemap::
 	db $e0, $e0, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $e0, $e0, $fe, $b0, $b1, $b2, $e0, $b3, $b4, $e0, $b5, $b6
@@ -688,141 +747,216 @@ EndingSaveBoxTilemap::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $e0, $e0, $fc, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
 
+;@ def PrintCreditsHeading()
+;@ path: event/ending
+;@ Prints text wTextGroup / wTextIndex of bank $4C (2 lines of 20 letters) into the tiles at
+;@ $8000, the top of a credits page. The text box settings are put back afterwards, but
+;@ wrongly: the saved line count lands in the high byte of wTextTiles and the line length in
+;@ wTextBoxLines.
+;@ test: skip calls a routine in another bank
 PrintCreditsHeading::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_lines, saved_length = wTextBoxLines, wTextBoxLineLength
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x8000
 	ld hl, $8000
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 2
 	ld de, $1402
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 20
 	ld a, d
 	ld [wTextBoxLineLength], a
-	ld hl, EffectShakeY
+;> PrintText_4C()
+	ld hl, $4c02
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> mem[0xC828] = saved_lines               # (meant for wTextBoxLines)
 	ld a, e
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_length            # (meant for wTextBoxLineLength)
 	ld a, d
 	ld [wTextBoxLines], a
 	ret
 
 
+;@ def PrintCreditsBody()
+;@ path: event/ending
+;@ Prints text wTextGroup / wTextIndex of bank $4C (12 lines of 11 letters) into the tiles from
+;@ $8260 on, the names of a credits page; the settings are put back with the same mix-up as
+;@ in PrintCreditsHeading.
+;@ test: skip calls a routine in another bank
 PrintCreditsBody::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_lines, saved_length = wTextBoxLines, wTextBoxLineLength
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = 0x8260
 	ld hl, $8260
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = 12
 	ld de, $0b0c
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 11
 	ld a, d
 	ld [wTextBoxLineLength], a
-	ld hl, EffectShakeY
+;> PrintText_4C()
+	ld hl, $4c02
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> mem[0xC828] = saved_lines               # (meant for wTextBoxLines)
 	ld a, e
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_length            # (meant for wTextBoxLineLength)
 	ld a, d
 	ld [wTextBoxLines], a
 	ret
 
 
+;@ def PrintCreditsPage()
+;@ path: event/ending
+;@ Prints the text of credits page wSceneObjects[1]: its heading (text group 5 of bank $4C)
+;@ and its names (text group 6).
+;@ test: skip calls a routine in another bank
 PrintCreditsPage::
-	ld a, [$c0d9]
+;> wTextIndex = wSceneObjects[1]
+	ld a, [wSceneObjects + 1]
 	ld [wTextIndex], a
+;> wTextGroup = 5
 	ld a, $05
 	ld [wTextGroup], a
+;> PrintCreditsHeading()
 	call PrintCreditsHeading
-	ld a, [$c0d9]
+;> wTextIndex = wSceneObjects[1]
+	ld a, [wSceneObjects + 1]
 	ld [wTextIndex], a
+;> wTextGroup = 6
 	ld a, $06
 	ld [wTextGroup], a
+;> PrintCreditsBody()
 	call PrintCreditsBody
 	ret
 
 
+;@ def LoadCreditsMonster()
+;@ path: event/ending
+;@ Loads the monster of credits page wSceneObjects[1] (CreditsMonsters): its picture into the
+;@ tiles at $8AA0 and, on a Game Boy Color, its colours into BG palette 4 for the picture at
+;@ row 11, column 13.
+;@ test: skip calls routines in other banks
 LoadCreditsMonster::
-	ld a, [$c0d9]
-	ld hl, $43f4
+;> page = wSceneObjects[1]
+	ld a, [wSceneObjects + 1]
+;> p = CreditsMonsters + page
+	ld hl, CreditsMonsters
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> species = mem[p]
 	ld a, [hl]
+;> if species == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
-	ld [$c0de], a
+;> wSceneObjects[6] = species; wPaletteSet = species
+	ld [wSceneObjects + 6], a
 	ld [wPaletteSet], a
+;> wMonPicPalette = 4
 	ld a, $04
 	ld [wMonPicPalette], a
+;> wMonPicPos = 0x016D                     # row 11, column 13
 	ld hl, $016d
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
+;> wSceneObjects[4] = 0xA0; wSceneObjects[5] = 0x8A   # picture tiles at $8AA0
 	ld hl, $8aa0
 	ld a, l
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, h
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
+;> LoadMonsterPicFar()
 	ld hl, far_LoadMonsterPicFar
 	rst $10
+;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
 	ret
 
 
+;@ path: event/ending
+;@ Monster (species number) shown on each of the 27 credits pages; $FF would show none.
 CreditsMonsters::
 	db $6d, $13, $59, $49, $42, $0a, $a4, $1b, $81, $84, $c7, $95, $96, $97, $44, $7f
 	db $c2, $91, $9a, $2c, $6d, $13, $59, $49, $42, $0a, $08
 
+;@ def DrawCreditsLastPage()
+;@ path: event/ending
+;@ Draws the screen layout of the last credits page (CreditsLastTilemap, 20 x 11 tiles) at the
+;@ top of the BG map.
+;@ test: skip polls the LCD
 DrawCreditsLastPage::
-	ld de, $681b
+;> CopyTileRect_5F(CreditsLastTilemap, 0x9800, 20, 11)
+	ld de, CreditsLastTilemap
 	ld hl, $9800
-	ld bc, ClearScroll
+	ld bc, $140b
 	call CopyTileRect_5F
 	ret
 
 
+;@ def OpeningInit()
+;@ path: title/opening
+;@ Sets up the screen of opening scene wOpeningScene (with the screen off): 0 the three logo
+;@ screens, 1-3 and 5 the shooting stars on black, 4 the picture, 6 the title screen.
+;@ test: skip runs the scenes through a jump table
 OpeningInit::
+;> OpeningInitScenes[wOpeningScene]()
 	ld a, [wOpeningScene]
 	rst $00
 
+;@ path: title/opening
+;@ Set-up routine of each opening scene (wOpeningScene 0-6).
 OpeningInitScenes::
 	dw OpeningInitLogos
 	dw OpeningInitStarScene
@@ -832,238 +966,355 @@ OpeningInitScenes::
 	dw OpeningInitStarScene
 	dw OpeningInitTitle
 
+;@ def OpeningInitLogos()
+;@ path: title/opening
+;@ Scene 0: sets up logo screen wOpeningLogo (0-2).
+;@ test: skip runs the logos through a jump table
 OpeningInitLogos::
+;> OpeningInitLogoTable[wOpeningLogo]()
 	ld a, [wOpeningLogo]
 	rst $00
 
+;@ path: title/opening
+;@ Set-up routine of each logo screen; the byte after the table is a spare `ret`.
 OpeningInitLogoTable::
 	dw OpeningInitLogo0
 	dw OpeningInitLogo1
 	dw OpeningInitLogo2
 	db $c9
 
+;@ def OpeningInitLogo0()
+;@ path: title/opening
+;@ First logo screen: Super Game Boy border 2, logo tiles (compressed entry 56:0E) at $9000,
+;@ OpeningLogo0Tilemap, palette set 0 and on a Game Boy Color the attribute map 3F:00.
+;@ test: skip calls routines in other banks
 OpeningInitLogo0::
+;> LoadSGBBorder(2)
 	ld a, $02
 	call LoadSGBBorder
+;> SGBPacketDelay()
 	call SGBPacketDelay
+;> fill(0x9800, 0, 0x400)
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	call FillMemory
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> Decompress(0x56, 0x0E, 0x9000)
 	ld de, $560e
 	ld hl, $9000
 	call Decompress
-	ld de, $669d
+;> DrawTilemap_5F(OpeningLogo0Tilemap, 0x9800)
+	ld de, OpeningLogo0Tilemap
 	ld hl, $9800
 	call DrawTilemap_5F
+;> wPaletteSet = 0
 	ld a, $00
 	ld [wPaletteSet], a
+;> LoadPaletteSet()
 	ld hl, far_LoadPaletteSet
 	rst $10
+;> rVBK = 1
 	ld de, $3f00
 	ld a, $01
 	ldh [rVBK], a
+;> if wOnCGB:
+;>     Decompress(0x3F, 0x00, 0x9800)      # attribute map
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
 	call nz, Decompress
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
 
+;@ def OpeningInitLogo1()
+;@ path: title/opening
+;@ Second logo screen: like the first with tiles 56:0C and OpeningLogo1Tilemap.
+;@ test: skip calls routines in other banks
 OpeningInitLogo1::
+;> LoadSGBBorder(2)
 	ld a, $02
 	call LoadSGBBorder
+;> SGBPacketDelay()
 	call SGBPacketDelay
+;> fill(0x9800, 0, 0x400)
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	call FillMemory
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> Decompress(0x56, 0x0C, 0x9000)
 	ld de, $560c
 	ld hl, $9000
 	call Decompress
-	ld de, $666e
+;> DrawTilemap_5F(OpeningLogo1Tilemap, 0x9800)
+	ld de, OpeningLogo1Tilemap
 	ld hl, $9800
 	call DrawTilemap_5F
+;> wPaletteSet = 0
 	ld a, $00
 	ld [wPaletteSet], a
+;> LoadPaletteSet()
 	ld hl, far_LoadPaletteSet
 	rst $10
+;> rVBK = 1
 	ld de, $3f00
 	ld a, $01
 	ldh [rVBK], a
+;> if wOnCGB:
+;>     Decompress(0x3F, 0x00, 0x9800)      # attribute map
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
 	call nz, Decompress
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
 
+;@ def OpeningInitLogo2()
+;@ path: title/opening
+;@ Third logo screen: like the first with tiles 5B:1F and OpeningLogo2Tilemap.
+;@ test: skip calls routines in other banks
 OpeningInitLogo2::
+;> LoadSGBBorder(2)
 	ld a, $02
 	call LoadSGBBorder
+;> SGBPacketDelay()
 	call SGBPacketDelay
+;> fill(0x9800, 0, 0x400)
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	call FillMemory
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> Decompress(0x5B, 0x1F, 0x9000)
 	ld de, $5b1f
 	ld hl, $9000
 	call Decompress
-	ld de, $6457
+;> DrawTilemap_5F(OpeningLogo2Tilemap, 0x9800)
+	ld de, OpeningLogo2Tilemap
 	ld hl, $9800
 	call DrawTilemap_5F
+;> wPaletteSet = 0
 	ld a, $00
 	ld [wPaletteSet], a
+;> LoadPaletteSet()
 	ld hl, far_LoadPaletteSet
 	rst $10
+;> rVBK = 1
 	ld de, $3f00
 	ld a, $01
 	ldh [rVBK], a
+;> if wOnCGB:
+;>     Decompress(0x3F, 0x00, 0x9800)      # attribute map
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
 	call nz, Decompress
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
 
+;@ def OpeningInitStarScene()
+;@ path: title/opening
+;@ Scenes 1-3 and 5: an all-black background (tile 0 made solid colour 3) with the shooting
+;@ star and sparkle sprites (tiles 5B:18 at $8000 and 5B:19 at $8040).
+;@ test: skip calls routines in other banks
 OpeningInitStarScene::
+;> fill(0x9800, 0, 0x400)
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	call FillMemory
+;> fill(0x9000, 0xFF, 16)                  # tile 0: black
 	ld a, $ff
 	ld hl, $9000
 	ld bc, $0010
 	call FillMemory
+;> DecompressVRAM(0x5B, 0x18, 0x8000)
 	ld de, $5b18
 	ld hl, $8000
 	call DecompressVRAM
+;> DecompressVRAM(0x5B, 0x19, 0x8040)
 	ld de, $5b19
 	ld hl, $8040
 	call DecompressVRAM
+;> wPaletteSet = 0
 	ld a, $00
 	ld [wPaletteSet], a
+;> LoadPaletteSet()
 	ld hl, far_LoadPaletteSet
 	rst $10
+;> wPaletteSet = 0
 	ld a, $00
 	ld [wPaletteSet], a
+;> LoadObjPaletteA()
 	ld hl, $170c
 	rst $10
+;> rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
+;> if wOnCGB:
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	ld a, [wOnCGB]
 	or a
+;>     fill(0x9800, 0, 0x400)              # attribute map: palette 0
 	ld a, $00
 	call nz, FillMemory
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
 
+;@ def OpeningInitPicture()
+;@ path: title/opening
+;@ Scene 4: the picture between the shooting stars (tiles 5B:20 at $9000 and 5B:21 at $8800,
+;@ OpeningPictureTilemap, palette set 1, attribute map 3F:02).
+;@ test: skip calls routines in other banks
 OpeningInitPicture::
+;> fill(0x9800, 0, 0x400)
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	call FillMemory
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> Decompress(0x5B, 0x20, 0x9000)
 	ld de, $5b20
 	ld hl, $9000
 	call Decompress
+;> Decompress(0x5B, 0x21, 0x8800)
 	ld de, $5b21
 	ld hl, $8800
 	call Decompress
-	ld de, $64f1
+;> DrawTilemap_5F(OpeningPictureTilemap, 0x9800)
+	ld de, OpeningPictureTilemap
 	ld hl, $9800
 	call DrawTilemap_5F
+;> wPaletteSet = 1
 	ld a, $01
 	ld [wPaletteSet], a
+;> LoadPaletteSet()
 	ld hl, far_LoadPaletteSet
 	rst $10
+;> rVBK = 1
 	ld de, $3f02
 	ld a, $01
 	ldh [rVBK], a
+;> if wOnCGB:
+;>     Decompress(0x3F, 0x02, 0x9800)      # attribute map
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
 	call nz, Decompress
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
 
+;@ def OpeningInitTitle()
+;@ path: title/opening
+;@ Scene 6: the title screen (the picture's tiles, OpeningTitleTilemap, every tile on CGB
+;@ palette 5) with the title song $06.
+;@ test: skip calls routines in other banks
 OpeningInitTitle::
+;> fill(0x9800, 0, 0x400)
 	xor a
 	ld hl, $9800
 	ld bc, $0400
 	call FillMemory
+;> fill(wSceneObjects, 0, 40)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> DecompressVRAM(0x5B, 0x20, 0x9000)
 	ld de, $5b20
 	ld hl, $9000
 	call DecompressVRAM
+;> DecompressVRAM(0x5B, 0x21, 0x8800)
 	ld de, $5b21
 	ld hl, $8800
 	call DecompressVRAM
-	ld de, $6583
+;> DrawTilemap_5F(OpeningTitleTilemap, 0x9800)
+	ld de, OpeningTitleTilemap
 	ld hl, $9800
 	call DrawTilemap_5F
+;> QueueMusic(0x06)
 	ld a, $06
 	call QueueMusic
+;> wPaletteSet = 1
 	ld a, $01
 	ld [wPaletteSet], a
+;> LoadPaletteSet()
 	ld hl, far_LoadPaletteSet
 	rst $10
+;> rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
+;> if wOnCGB:
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
-	jr nz, jr_05f_460c
+	jr nz, .cgb
 
-	jr jr_05f_4614
+	jr .done
 
-jr_05f_460c:
+.cgb
+;>     for p in range(0x9800, 0x9B00):
+;>         mem[p] = 5                      # attribute map: palette 5
 	ld a, $05
 	ld [hli], a
 	ld a, h
 	cp $9b
-	jr nz, jr_05f_460c
+	jr nz, .cgb
 
-jr_05f_4614:
+.done
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
 	ret
 
-
+;@ def OpeningUpdate()
+;@ path: title/opening
+;@ Per-frame routine of the opening (far entry 3, called from TitleUpdateOpening): answers a
+;@ linked Game Boy with $F4, lets A, B or Start skip ahead (OpeningSkip), else runs scene
+;@ wOpeningScene.
+;@ test: skip talks to the serial port
+OpeningUpdate::
+;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
+;> buttons = wJoyPressed
 	ld a, [wJoyPressed]
+;> if buttons & 0x0B:                      # A, B or Start
+;>     return OpeningSkip()
 	bit 0, a
 	jr nz, OpeningSkip
 
@@ -1073,9 +1324,12 @@ jr_05f_4614:
 	bit 3, a
 	jr nz, OpeningSkip
 
+;> OpeningUpdateScenes[wOpeningScene]()
 	ld a, [wOpeningScene]
 	rst $00
 
+;@ path: title/opening
+;@ Per-frame routine of each opening scene (wOpeningScene 0-6).
 OpeningUpdateScenes::
 	dw OpeningLogos
 	dw OpeningStarScene1
@@ -1085,849 +1339,1305 @@ OpeningUpdateScenes::
 	dw OpeningStarScene5
 	dw OpeningTitle
 
+;@ def OpeningSkip()
+;@ path: title/opening
+;@ A, B or Start during the opening: on the title screen it opens the title menu (game mode 0
+;@ step 1); during the second logo it jumps to the third; from the third logo on it jumps to the
+;@ title screen. The first logo cannot be skipped. Every jump fades out and restarts the mode.
+;@ test: wOpeningScene = rng.randint(0, 6); wOpeningLogo = rng.randint(0, 2)
 OpeningSkip::
+;> scene = wOpeningScene
 	ld a, [wOpeningScene]
+;> if scene >= 6:                          # title screen: on to the title menu
 	cp $06
-	jr nc, jr_05f_4663
+	jr nc, .menu
 
+;>@m1     StartFade(0x04)
+;>@m2     wGameModeStep = 1
+;>@m3     wOpeningScene = 0
+;>@m4     wOpeningLogo = 0
+;>@m5     wGameModeChange += 1
+;>@m6     return
+;> if scene == 0:                          # a logo screen
 	cp $00
-	jr z, jr_05f_467c
+	jr z, .logos
 
-Jump_05f_464a:
+;>@l1     if wOpeningLogo == 0:
+;>@l2         return                       # the first logo plays in full
+;>@l3     if wOpeningLogo == 1:            # second logo: skip to the third
+;>@l4         StartFade(0x04)
+;>@l5         wGameModeStep = 0
+;>@l6         wOpeningScene = 0
+;>@l7         wOpeningLogo = 2
+;>@l8         wGameModeChange += 1
+;>@l9         return
+.toTitle
+;> StartFade(0x04)                         # on to the title screen
 	ld a, $04
 	call StartFade
+;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
+;> wOpeningScene = 6
 	ld a, $06
 	ld [wOpeningScene], a
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
-
-jr_05f_4663:
+.menu
+;=@m1
 	ld a, $04
 	call StartFade
+;=@m2
 	ld a, $01
 	ld [wGameModeStep], a
+;=@m3
 	ld a, $00
 	ld [wOpeningScene], a
+;=@m4
 	ld a, $00
 	ld [wOpeningLogo], a
+;=@m5
 	ld hl, wGameModeChange
 	inc [hl]
+;=@m6
 	ret
 
-
-jr_05f_467c:
+.logos
+;=@l1
 	ld a, [wOpeningLogo]
 	cp $00
-	jp nz, Jump_05f_4685
+	jp nz, .notFirst
 
+;=@l2
 	ret
 
-
-Jump_05f_4685:
+.notFirst
+;=@l3
 	ld a, [wOpeningLogo]
 	cp $01
-	jp nz, Jump_05f_464a
+	jp nz, .toTitle
 
+;=@l4
 	ld a, $04
 	call StartFade
+;=@l5
 	ld a, $00
 	ld [wGameModeStep], a
+;=@l6
 	ld a, $00
 	ld [wOpeningScene], a
+;=@l7
 	ld a, $02
 	ld [wOpeningLogo], a
+;=@l8
 	ld hl, wGameModeChange
 	inc [hl]
+;=@l9
 	ret
 
 
+;@ def OpeningLogos()
+;@ path: title/opening
+;@ Scene 0: runs logo screen wOpeningLogo.
+;@ test: skip runs the logos through a jump table
 OpeningLogos::
+;> OpeningLogoSteps[wOpeningLogo]()
 	ld a, [wOpeningLogo]
 	rst $00
 
+;@ path: title/opening
+;@ Per-frame routine of each logo screen; the byte after the table is a spare `ret`.
 OpeningLogoSteps::
 	dw OpeningLogo0
 	dw OpeningLogo1
 	dw OpeningLogo2
 	db $c9
 
+;@ def OpeningLogo0()
+;@ path: title/opening
+;@ First logo: once faded in, shows it for 60 frames, then fades out and restarts the mode
+;@ for the next logo.
+;@ test: wSceneObjects[0] = rng.randint(0, 59)
 OpeningLogo0::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> wSceneObjects[0] += 1                   # frames shown
 	ld hl, wSceneObjects
 	inc [hl]
+;> if wSceneObjects[0] != 60:
+;>     return
 	ld a, [wSceneObjects]
 	cp $3c
 	ret nz
 
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningLogo += 1
 	ld hl, wOpeningLogo
 	inc [hl]
+;> wGameModeChange += 1                    # OpeningInit sets up the next logo
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def OpeningLogo1()
+;@ path: title/opening
+;@ Second logo: shown for 180 frames, then on to the third.
+;@ test: wSceneObjects[0] = rng.randint(0, 179)
 OpeningLogo1::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> wSceneObjects[0] += 1                   # frames shown
 	ld hl, wSceneObjects
 	inc [hl]
+;> if wSceneObjects[0] != 180:
+;>     return
 	ld a, [wSceneObjects]
 	cp $b4
 	ret nz
 
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningLogo += 1
 	ld hl, wOpeningLogo
 	inc [hl]
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def OpeningLogo2()
+;@ path: title/opening
+;@ Third logo: shown for 180 frames, then on to scene 1 with its two sprite objects set up.
+;@ test: wSceneObjects[0] = rng.randint(0, 179)
 OpeningLogo2::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> wSceneObjects[0] += 1                   # frames shown
 	ld hl, wSceneObjects
 	inc [hl]
+;> if wSceneObjects[0] != 180:
+;>     return
 	ld a, [wSceneObjects]
 	cp $b4
 	ret nz
 
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningScene += 1
 	ld hl, wOpeningScene
 	inc [hl]
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
-	ld hl, $c0dc
+;> SetUpStarScene1(addr(wSceneObjects) + 4)
+	ld hl, wSceneObjects + 4
 	call SetUpStarScene1
 	ret
 
 
+;@ def OpeningStarScene1()
+;@ path: title/opening
+;@ Scene 1: a shooting star (object at wSceneObjects[4]) flies down to the left, 2 pixels a frame;
+;@ when it reaches X $40 the sparkle appears at its place in the sky, and it vanishes at X $E0 (off the left edge).
+;@ When both are gone the next scene starts at once (SetUpStarScene2 sets up its objects).
+;@ test: skip calls a routine in another bank
 OpeningStarScene1::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> if wSceneObjects[0] == 0:               # first frame of the scene
+;>     QueueSound(0x5D)                    # the star's sound
 	ld a, [wSceneObjects]
 	or a
-	jr nz, jr_05f_472a
+	jr nz, .started
 
 	ld a, $5d
 	call QueueSound
 
-jr_05f_472a:
+.started
+;> wSceneObjects[0] = 1
 	ld a, $01
 	ld [wSceneObjects], a
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # the star is still flying
+	ld a, [wSceneObjects + 4]
 	or a
-	jr nz, jr_05f_4777
+	jr nz, .sparkle
 
+;>     hSpriteSet = 0                     # star sprites
 	ld a, $00
 	ldh [hSpriteSet], a
+;>     hSpriteTileBase = 0
 	ld a, $00
 	ldh [hSpriteTileBase], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0dc
+;>     wSceneStep = 0xDC; wSceneTimer = 0xC0   # object pointer: the star
+	ld hl, wSceneObjects + 4
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;>     far_call(0x02, 0x04)               # UpdateSceneObject: draw and animate it
 	ld hl, $0204
 	rst $10
-	ld hl, $c0dd
+;>     wSceneObjects[5] -= 2              # X: to the left
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0dd
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0de
+;>     wSceneObjects[6] += 2              # Y: down
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld a, [$c0dd]
+;>     if wSceneObjects[5] == 0x40:
+	ld a, [wSceneObjects + 5]
 	cp $40
-	jr z, jr_05f_4772
+	jr z, .showSparkle
 
+;>@sp         wSceneObjects[10] = 0         # the sparkle appears
+;>     elif wSceneObjects[5] == 0xE0:
 	cp $e0
-	jr nz, jr_05f_4777
+	jr nz, .sparkle
 
+;>         wSceneObjects[4] = 1           # the star is gone
 	ld a, $01
-	ld [$c0dc], a
-	jr jr_05f_4777
+	ld [wSceneObjects + 4], a
+	jr .sparkle
 
-jr_05f_4772:
+.showSparkle
+;=@sp
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 
-jr_05f_4777:
-	ld a, [$c0e2]
+.sparkle
+;> if wSceneObjects[10] != 0:              # sparkle not shown (yet)
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret nz
 
+;> hSpriteSet = 1                          # sparkle sprites
 	ld a, $01
 	ldh [hSpriteSet], a
+;> hSpriteTileBase = 4
 	ld a, $04
 	ldh [hSpriteTileBase], a
+;> hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0e2
+;> wSceneStep = 0xE2; wSceneTimer = 0xC0   # object pointer: the sparkle
+	ld hl, wSceneObjects + 10
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;> far_call(0x02, 0x04)                    # UpdateSceneObject (hides it when its script ends)
 	ld hl, $0204
 	rst $10
-	ld a, [$c0e2]
+;> if wSceneObjects[10] == 0:              # sparkle still playing
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret z
 
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # star still flying
+;>     return
+	ld a, [wSceneObjects + 4]
 	or a
 	ret z
 
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningScene += 1
 	ld hl, wOpeningScene
 	inc [hl]
-	ld hl, $c0dc
+;> SetUpStarScene2(addr(wSceneObjects) + 4)
+	ld hl, wSceneObjects + 4
 	call SetUpStarScene2
 	ret
 
 
+;@ def OpeningStarScene2()
+;@ path: title/opening
+;@ Scene 2: a shooting star (object at wSceneObjects[4]) flies down to the left, 2 pixels a frame;
+;@ the sparkle appears when the star reaches X $10, the star vanishes at X $E0.
+;@ When both are gone the next scene starts at once (SetUpStarScene3 sets up its objects).
+;@ test: skip calls a routine in another bank
 OpeningStarScene2::
+;> if wSceneObjects[0] == 0:               # first frame of the scene
+;>     QueueSound(0x5D)                    # the star's sound
 	ld a, [wSceneObjects]
 	or a
-	jr nz, jr_05f_47bb
+	jr nz, .started
 
 	ld a, $5d
 	call QueueSound
 
-jr_05f_47bb:
+.started
+;> wSceneObjects[0] = 1
 	ld a, $01
 	ld [wSceneObjects], a
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # the star is still flying
+	ld a, [wSceneObjects + 4]
 	or a
-	jr nz, jr_05f_4808
+	jr nz, .sparkle
 
+;>     hSpriteSet = 0                     # star sprites
 	ld a, $00
 	ldh [hSpriteSet], a
+;>     hSpriteTileBase = 0
 	ld a, $00
 	ldh [hSpriteTileBase], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0dc
+;>     wSceneStep = 0xDC; wSceneTimer = 0xC0   # object pointer: the star
+	ld hl, wSceneObjects + 4
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;>     far_call(0x02, 0x04)               # UpdateSceneObject: draw and animate it
 	ld hl, $0204
 	rst $10
-	ld hl, $c0dd
+;>     wSceneObjects[5] -= 2              # X: to the left
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0dd
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0de
+;>     wSceneObjects[6] += 2              # Y: down
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld a, [$c0dd]
+;>     if wSceneObjects[5] == 0x10:
+	ld a, [wSceneObjects + 5]
 	cp $10
-	jr z, jr_05f_4803
+	jr z, .showSparkle
 
+;>@sp         wSceneObjects[10] = 0         # the sparkle appears
+;>     elif wSceneObjects[5] == 0xE0:
 	cp $e0
-	jr nz, jr_05f_4808
+	jr nz, .sparkle
 
+;>         wSceneObjects[4] = 1           # the star is gone
 	ld a, $01
-	ld [$c0dc], a
-	jr jr_05f_4808
+	ld [wSceneObjects + 4], a
+	jr .sparkle
 
-jr_05f_4803:
+.showSparkle
+;=@sp
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 
-jr_05f_4808:
-	ld a, [$c0e2]
+.sparkle
+;> if wSceneObjects[10] != 0:              # sparkle not shown (yet)
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret nz
 
+;> hSpriteSet = 1                          # sparkle sprites
 	ld a, $01
 	ldh [hSpriteSet], a
+;> hSpriteTileBase = 4
 	ld a, $04
 	ldh [hSpriteTileBase], a
+;> hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0e2
+;> wSceneStep = 0xE2; wSceneTimer = 0xC0   # object pointer: the sparkle
+	ld hl, wSceneObjects + 10
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;> far_call(0x02, 0x04)                    # UpdateSceneObject (hides it when its script ends)
 	ld hl, $0204
 	rst $10
-	ld a, [$c0e2]
+;> if wSceneObjects[10] == 0:              # sparkle still playing
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret z
 
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # star still flying
+;>     return
+	ld a, [wSceneObjects + 4]
 	or a
 	ret z
 
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningScene += 1
 	ld hl, wOpeningScene
 	inc [hl]
-	ld hl, $c0dc
+;> SetUpStarScene3(addr(wSceneObjects) + 4)
+	ld hl, wSceneObjects + 4
 	call SetUpStarScene3
 	ret
 
 
+;@ def OpeningStarScene3()
+;@ path: title/opening
+;@ Scene 3: a shooting star (object at wSceneObjects[4]) flies down to the left, 2 pixels a frame;
+;@ the sparkle appears when the star reaches X $70, the star vanishes at X $20.
+;@ When both are gone the screen fades out and the picture scene follows.
+;@ test: skip calls a routine in another bank
 OpeningStarScene3::
+;> if wSceneObjects[0] == 0:               # first frame of the scene
+;>     QueueSound(0x5D)                    # the star's sound
 	ld a, [wSceneObjects]
 	or a
-	jr nz, jr_05f_484c
+	jr nz, .started
 
 	ld a, $5d
 	call QueueSound
 
-jr_05f_484c:
+.started
+;> wSceneObjects[0] = 1
 	ld a, $01
 	ld [wSceneObjects], a
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # the star is still flying
+	ld a, [wSceneObjects + 4]
 	or a
-	jr nz, jr_05f_4899
+	jr nz, .sparkle
 
+;>     hSpriteSet = 0                     # star sprites
 	ld a, $00
 	ldh [hSpriteSet], a
+;>     hSpriteTileBase = 0
 	ld a, $00
 	ldh [hSpriteTileBase], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0dc
+;>     wSceneStep = 0xDC; wSceneTimer = 0xC0   # object pointer: the star
+	ld hl, wSceneObjects + 4
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;>     far_call(0x02, 0x04)               # UpdateSceneObject: draw and animate it
 	ld hl, $0204
 	rst $10
-	ld hl, $c0dd
+;>     wSceneObjects[5] -= 2              # X: to the left
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0dd
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0de
+;>     wSceneObjects[6] += 2              # Y: down
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld a, [$c0dd]
+;>     if wSceneObjects[5] == 0x70:
+	ld a, [wSceneObjects + 5]
 	cp $70
-	jr z, jr_05f_4894
+	jr z, .showSparkle
 
+;>@sp         wSceneObjects[10] = 0         # the sparkle appears
+;>     elif wSceneObjects[5] == 0x20:
 	cp $20
-	jr nz, jr_05f_4899
+	jr nz, .sparkle
 
+;>         wSceneObjects[4] = 1           # the star is gone
 	ld a, $01
-	ld [$c0dc], a
-	jr jr_05f_4899
+	ld [wSceneObjects + 4], a
+	jr .sparkle
 
-jr_05f_4894:
+.showSparkle
+;=@sp
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 
-jr_05f_4899:
-	ld a, [$c0e2]
+.sparkle
+;> if wSceneObjects[10] != 0:              # sparkle not shown (yet)
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret nz
 
+;> hSpriteSet = 1                          # sparkle sprites
 	ld a, $01
 	ldh [hSpriteSet], a
+;> hSpriteTileBase = 4
 	ld a, $04
 	ldh [hSpriteTileBase], a
+;> hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0e2
+;> wSceneStep = 0xE2; wSceneTimer = 0xC0   # object pointer: the sparkle
+	ld hl, wSceneObjects + 10
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;> far_call(0x02, 0x04)                    # UpdateSceneObject (hides it when its script ends)
 	ld hl, $0204
 	rst $10
-	ld a, [$c0e2]
+;> if wSceneObjects[10] == 0:              # sparkle still playing
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret z
 
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # star still flying
+;>     return
+	ld a, [wSceneObjects + 4]
 	or a
 	ret z
 
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningScene += 1
 	ld hl, wOpeningScene
 	inc [hl]
+;> wGameModeChange += 1                    # OpeningInit sets up the picture
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def OpeningPicture()
+;@ path: title/opening
+;@ Scene 4: shows the picture for 120 frames, then fades out to scene 5 with its two stars set
+;@ up.
+;@ test: wSceneObjects[0] = rng.randint(0, 119)
 OpeningPicture::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> wSceneObjects[0] += 1                   # frames shown
 	ld hl, wSceneObjects
 	inc [hl]
+;> if wSceneObjects[0] != 120:
+;>     return
 	ld a, [wSceneObjects]
 	cp $78
 	ret nz
 
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningScene += 1
 	ld hl, wOpeningScene
 	inc [hl]
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wSceneObjects[16] = 0
 	xor a
-	ld [$c0e8], a
+	ld [wSceneObjects + 16], a
+;> wSceneObjects[17] = 0
 	xor a
-	ld [$c0e9], a
+	ld [wSceneObjects + 17], a
+;> wSceneObjects[18] = 0
 	xor a
-	ld [$c0ea], a
-	ld hl, $c0dc
+	ld [wSceneObjects + 18], a
+;> SetUpStarScene5(addr(wSceneObjects) + 4)
+	ld hl, wSceneObjects + 4
 	call SetUpStarScene5
 	ret
 
 
+;@ def OpeningStarScene5()
+;@ path: title/opening
+;@ Scene 5: two shooting stars (objects at wSceneObjects[4] and [10]) fly down to the left
+;@ together, 2 pixels a frame; the first vanishes at X $36, the second at X $59. Then the
+;@ screen fades out to the title screen.
+;@ test: skip calls a routine in another bank
 OpeningStarScene5::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> if wSceneObjects[0] == 0:               # first frame of the scene
+;>     QueueSound(0x5D)
 	ld a, [wSceneObjects]
 	or a
-	jr nz, jr_05f_4918
+	jr nz, .started
 
 	ld a, $5d
 	call QueueSound
 
-jr_05f_4918:
+.started
+;> wSceneObjects[0] = 1
 	ld a, $01
 	ld [wSceneObjects], a
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:               # first star still flying
+	ld a, [wSceneObjects + 4]
 	or a
-	jr nz, jr_05f_495a
+	jr nz, .second
 
+;>     hSpriteSet = 0
 	ld a, $00
 	ldh [hSpriteSet], a
+;>     hSpriteTileBase = 0
 	ld a, $00
 	ldh [hSpriteTileBase], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0dc
+;>     wSceneStep = 0xDC; wSceneTimer = 0xC0   # object pointer: first star
+	ld hl, wSceneObjects + 4
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;>     far_call(0x02, 0x04)                # UpdateSceneObject
 	ld hl, $0204
 	rst $10
-	ld hl, $c0dd
+;>     wSceneObjects[5] -= 2               # X: to the left
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0dd
+	ld hl, wSceneObjects + 5
 	dec [hl]
-	ld hl, $c0de
+;>     wSceneObjects[6] += 2               # Y: down
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	inc [hl]
-	ld a, [$c0dd]
+;>     if wSceneObjects[5] == 0x36:
+	ld a, [wSceneObjects + 5]
 	cp $36
-	jr nz, jr_05f_495a
+	jr nz, .second
 
+;>         wSceneObjects[4] = 1            # gone
 	ld a, $01
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 
-jr_05f_495a:
-	ld a, [$c0e2]
+.second
+;> if wSceneObjects[10] == 0:              # second star still flying
+	ld a, [wSceneObjects + 10]
 	or a
-	jr nz, jr_05f_4997
+	jr nz, .check
 
+;>     hSpriteSet = 0
 	ld a, $00
 	ldh [hSpriteSet], a
+;>     hSpriteTileBase = 0
 	ld a, $00
 	ldh [hSpriteTileBase], a
+;>     hSpriteAttr = 0
 	ld a, $00
 	ldh [hSpriteAttr], a
-	ld hl, $c0e2
+;>     wSceneStep = 0xE2; wSceneTimer = 0xC0   # object pointer: second star
+	ld hl, wSceneObjects + 10
 	ld a, l
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
+;>     far_call(0x02, 0x04)                # UpdateSceneObject
 	ld hl, $0204
 	rst $10
-	ld hl, $c0e3
+;>     wSceneObjects[11] -= 2
+	ld hl, wSceneObjects + 11
 	dec [hl]
-	ld hl, $c0e3
+	ld hl, wSceneObjects + 11
 	dec [hl]
-	ld hl, $c0e4
+;>     wSceneObjects[12] += 2
+	ld hl, wSceneObjects + 12
 	inc [hl]
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	inc [hl]
-	ld a, [$c0e3]
+;>     if wSceneObjects[11] == 0x59:
+	ld a, [wSceneObjects + 11]
 	cp $59
-	jr nz, jr_05f_4997
+	jr nz, .check
 
+;>         wSceneObjects[10] = 1           # gone
 	ld a, $01
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 
-jr_05f_4997:
-	ld a, [$c0e2]
+.check
+;> if wSceneObjects[10] == 0:
+;>     return
+	ld a, [wSceneObjects + 10]
 	or a
 	ret z
 
-	ld a, [$c0dc]
+;> if wSceneObjects[4] == 0:
+;>     return
+	ld a, [wSceneObjects + 4]
 	or a
 	ret z
 
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[0] = 0
 	xor a
 	ld [wSceneObjects], a
+;> wOpeningScene += 1
 	ld hl, wOpeningScene
 	inc [hl]
+;> wGameModeChange += 1                    # OpeningInit sets up the title screen
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def OpeningTitle()
+;@ path: title/opening
+;@ Scene 6, the title screen: when all four music channels have finished ($FF in the state
+;@ byte of each), starts the title song again. Interrupts stay off until QueueMusic turns them
+;@ back on.
+;@ test: skip starts the music
 OpeningTitle::
+;> done = mem[0xDDB4] & mem[0xDDCE]
 	ld a, [$ddb4]
 	ld hl, $ddce
 	and [hl]
+;> done &= mem[0xDDE8] & mem[0xDE02]
 	ld hl, $dde8
 	and [hl]
 	ld hl, $de02
 	and [hl]
+;> if done != 0xFF:
+;>     return
 	cp $ff
 	ret nz
 
+;> disable_interrupts(); QueueMusic(0x06)
 	ld a, $06
 	di
 	call QueueMusic
 	ret
 
 
+;@ def SetUpStarScene1(objs: hl)
+;@ path: title/opening
+;@ Sets up the two cutscene objects of scene 1 at `objs` (6 bytes each: hidden, X, Y, pose,
+;@ script step, frames left): the shooting star at X $80, Y 0 and the sparkle at X $50, Y $30,
+;@ still hidden.
+;@ test: objs = 0xC100
 SetUpStarScene1::
+;> for i, v in enumerate([0, 0x80, 0x00, 0, 0, 2, 1, 0x50, 0x30, 0, 0, 2]):
+;>@w     mem[objs + i] = v
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $80
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;=@w
 	ld a, $01
 	ld [hli], a
+;=@w
 	ld a, $50
 	ld [hli], a
+;=@w
 	ld a, $30
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def SetUpStarScene2(objs: hl)
+;@ path: title/opening
+;@ Objects of scene 2: the star at X $40, Y 0, the hidden sparkle at X $20, Y $20.
+;@ test: objs = 0xC100
 SetUpStarScene2::
+;> for i, v in enumerate([0, 0x40, 0x00, 0, 0, 2, 1, 0x20, 0x20, 0, 0, 2]):
+;>@w     mem[objs + i] = v
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $40
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;=@w
 	ld a, $01
 	ld [hli], a
+;=@w
 	ld a, $20
 	ld [hli], a
+;=@w
 	ld a, $20
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def SetUpStarScene3(objs: hl)
+;@ path: title/opening
+;@ Objects of scene 3: the star at X $A0, Y $30, the hidden sparkle at X $80, Y $50.
+;@ test: objs = 0xC100
 SetUpStarScene3::
+;> for i, v in enumerate([0, 0xA0, 0x30, 0, 0, 2, 1, 0x80, 0x50, 0, 0, 2]):
+;>@w     mem[objs + i] = v
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $a0
 	ld [hli], a
+;=@w
 	ld a, $30
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;=@w
 	ld a, $01
 	ld [hli], a
+;=@w
 	ld a, $80
 	ld [hli], a
+;=@w
 	ld a, $50
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def SetUpStarScene5(objs: hl)
+;@ path: title/opening
+;@ Objects of scene 5: two stars, both shown, at X $86, Y $FE (just above the screen) and
+;@ X $A9, Y 4.
+;@ test: objs = 0xC100
 SetUpStarScene5::
+;> for i, v in enumerate([0, 0x86, 0xFE, 0, 0, 2, 0, 0xA9, 0x04, 0, 0, 2]):
+;>@w     mem[objs + i] = v
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $86
 	ld [hli], a
+;=@w
 	ld a, $fe
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $a9
 	ld [hli], a
+;=@w
 	ld a, $04
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $00
 	ld [hli], a
+;=@w
 	ld a, $02
 	ld [hli], a
+;> return
 	ret
 
 
+;@ def StartSkillHitEffect()
+;@ path: battle/screeneffect
+;@ Starts the screen effect of a skill hitting its target, for the skills that have one
+;@ (wSkillId in the ranges below): the target's picture blinks when it is an enemy (effect 2),
+;@ the screen shakes when it is one of the player's own monsters, which are not shown (effect
+;@ 3); skills $84-$87 flash the screen instead (effect 4). Linked, the Game Boy driving the
+;@ clock sees the sides the other way round. Other skills leave the effect state alone.
+;@ test: wSkillTarget = rng.randint(0, 7)
 StartSkillHitEffect::
+;> s = wSkillId
 	ld a, [wSkillId]
+;> if s < 0x12 or s == 0x39:
+;>     pass
 	cp $12
-	jp c, Jump_05f_4ae8
+	jp c, .hit
 
 	cp $39
-	jr z, jr_05f_4ae8
+	jr z, .hit
 
+;> elif s < 0x37:
+;>     return
 	cp $37
 	ret c
 
+;> elif s < 0x41:
+;>     pass
 	cp $41
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x42:
+;>     return
 	cp $42
 	ret c
 
+;> elif s < 0x43:
+;>     pass
 	cp $43
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x44:
+;>     return
 	cp $44
 	ret c
 
+;> elif s < 0x54:
+;>     pass
 	cp $54
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x55:
+;>     return
 	cp $55
 	ret c
 
+;> elif s < 0x6A:
+;>     pass
 	cp $6a
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x73:
+;>     return
 	cp $73
 	ret c
 
+;> elif s < 0x75:
+;>     pass
 	cp $75
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x7D:
+;>     return
 	cp $7d
 	ret c
 
+;> elif s < 0x7F:
+;>     pass
 	cp $7f
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x81:
+;>     return
 	cp $81
 	ret c
 
+;> elif s < 0x84:
+;>     pass
 	cp $84
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0x88:
 	cp $88
-	jr c, jr_05f_4b0b
+	jr c, .flash
 
+;>@f1     fill(addr(wBattleAnimDone), 0, 6)
+;>@f2     wScreenEffect = 4               # flash
+;>@f3     return
+;> elif s < 0x99:
+;>     return
 	cp $99
 	ret c
 
+;> elif s < 0x9C:
+;>     pass
 	cp $9c
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xA5:
+;>     return
 	cp $a5
 	ret c
 
+;> elif s < 0xA6:
+;>     pass
 	cp $a6
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xAB:
+;>     return
 	cp $ab
 	ret c
 
+;> elif s < 0xAC:
+;>     pass
 	cp $ac
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xAF:
+;>     return
 	cp $af
 	ret c
 
+;> elif s < 0xB0:
+;>     pass
 	cp $b0
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xC7:
+;>     return
 	cp $c7
 	ret c
 
+;> elif s < 0xC9:
+;>     pass
 	cp $c9
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xCA:
+;>     return
 	cp $ca
 	ret c
 
+;> elif s < 0xCC:
+;>     pass
 	cp $cc
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xD4:
+;>     return
 	cp $d4
 	ret c
 
+;> elif s < 0xD5:
+;>     pass
 	cp $d5
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xD6:
+;>     return
 	cp $d6
 	ret c
 
+;> elif s < 0xDA:
+;>     pass
 	cp $da
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xDD:
+;>     return
 	cp $dd
 	ret c
 
+;> elif s < 0xDE:
+;>     pass
 	cp $de
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> elif s < 0xDF:
+;>     return
 	cp $df
 	ret c
 
+;> elif s < 0xE0:
+;>     pass
 	cp $e0
-	jr c, jr_05f_4ae8
+	jr c, .hit
 
+;> else:
+;>     return
 	ret
 
-
-Jump_05f_4ae8:
-jr_05f_4ae8:
+.hit
+;> fill(addr(wBattleAnimDone), 0, 6)       # wBattleAnimDone and the screen effect state
 	xor a
 	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
+;> effect = 3                              # shake the screen
 	ld b, $03
+;> if wLinkFlags & 0x02:                   # this Game Boy drives the clock
+;>     effect = 2
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_05f_4afd
+	jr z, .side
 
 	ld b, $02
 
-jr_05f_4afd:
+.side
+;> if wSkillTarget >= 4:                   # the other side
+;>     effect ^= 1                         # 3 <-> 2
 	ld a, [wSkillTarget]
 	cp $04
 	ld a, b
-	jr c, jr_05f_4b07
+	jr c, .set
 
 	xor $01
 
-jr_05f_4b07:
+.set
+;> wScreenEffect = effect
 	ld [wScreenEffect], a
 	ret
 
-
-jr_05f_4b0b:
+.flash
+;=@f1
 	xor a
 	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
+;=@f2
 	ld a, $04
 	ld [wScreenEffect], a
+;=@f3
 	ret
 
 
+;@ def UpdateScreenEffect()
+;@ path: battle/screeneffect
+;@ Runs one step of battle screen effect wScreenEffect every 5th frame, until the effect sets
+;@ wBattleAnimDone. A pending $80 in wItemMsgGroup (the skill animation's screen place) plays
+;@ sound $6C instead.
+;@ test: skip runs the effects through a jump table
 UpdateScreenEffect::
+;> t = mem[0xDA34] + 1
 	ld a, [$da34]
 	inc a
+;> mem[0xDA34] = t
 	cp $05
 	ld [$da34], a
+;> if t < 5:
+;>     return
 	ret c
 
+;> mem[0xDA34] = 0
 	xor a
 	ld [$da34], a
+;> if wBattleAnimDone:
+;>     return
 	ld a, [wBattleAnimDone]
 	or a
 	ret nz
 
+;> if wItemMsgGroup == 0x80:
+;>     QueueSound(0x6C)
 	ld a, [wItemMsgGroup]
 	cp $80
-	jr nz, jr_05f_4b40
+	jr nz, .run
 
 	ld a, $6c
 	call QueueSound
+;>     wItemMsgGroup = 0xFF
+;>     return
 	ld a, $ff
 	ld [wItemMsgGroup], a
 	ret
 
-
-jr_05f_4b40:
+.run
+;> ScreenEffects[wScreenEffect]()
 	ld a, [wScreenEffect]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Routine of each battle screen effect (wScreenEffect 0-13): 0-1 none, 2 blink the target's
+;@ picture, 3 shake up and down, 4 flash, 5 darken, 6 invert, 7 darken twice, 8 quake, 9 wave,
+;@ 10 lighten, 11 long flash, 12 shake sideways, 13 blink the user's picture.
 ScreenEffects::
 	dw EffectNone
 	dw EffectNone
@@ -1944,48 +2654,75 @@ ScreenEffects::
 	dw EffectShakeX
 	dw EffectBlinkUser
 
+;@ def EffectNone()
+;@ path: battle/screeneffect
+;@ Screen effects 0 and 1: nothing to show, done at once.
 EffectNone::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectBlinkTarget()
+;@ path: battle/screeneffect
+;@ Screen effect 2: the target's picture disappears and comes back twice (one step each 5
+;@ frames). Ends at once when the target has no picture (one of the player's own monsters,
+;@ position 3 or 7) or has left the battle.
+;@ test: skip runs the steps through a jump table
 EffectBlinkTarget::
+;> flags = wLinkFlags
 	ld a, [wLinkFlags]
 	ld b, a
+;> if wSkillTarget & 0x03 == 3:
+;>     return BlinkTargetEnd()
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
 	jr z, BlinkTargetEnd
 
+;> pos = wSkillTarget
 	ld a, [wSkillTarget]
+;> if flags & 0x02:                        # this Game Boy drives the clock: sides swapped
 	bit 1, b
-	jr nz, jr_05f_4b84
+	jr nz, .master
 
+;>@m1     if pos >= 4:
+;>@m2         return BlinkTargetEnd()
+;> elif pos < 4:                           # own side: no picture
+;>     return BlinkTargetEnd()
 	cp $04
 	jr c, BlinkTargetEnd
 
-	jr jr_05f_4b88
+	jr .check
 
-jr_05f_4b84:
+.master
+;=@m1
 	cp $04
+;=@m2
 	jr nc, BlinkTargetEnd
 
-jr_05f_4b88:
+.check
+;> if wBattleSubStep != 0x0A and CheckBattlerPresent(wSkillTarget):
+;>     return BlinkTargetEnd()             # the target is gone
 	ld a, [wBattleSubStep]
 	cp $0a
-	jr z, jr_05f_4b97
+	jr z, .run
 
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	jr c, BlinkTargetEnd
 
-jr_05f_4b97:
+.run
+;> BlinkTargetSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the blinking target picture: hide, show, hide, show, done.
 BlinkTargetSteps::
 	dw BlinkTargetHide
 	dw BlinkTargetShow
@@ -1993,76 +2730,118 @@ BlinkTargetSteps::
 	dw BlinkTargetShow
 	dw BlinkTargetEnd
 
+;@ def BlinkTargetHide()
+;@ path: battle/screeneffect
+;@ Overwrites the target's 6 x 6 tile picture with blank tiles.
+;@ test: skip writes VRAM
 BlinkTargetHide::
+;> wScreenEffectTimer = 6                  # picture width
 	ld a, $06
 	ld [wScreenEffectTimer], a
+;> slot = GetTargetPicSlot()
 	call GetTargetPicSlot
-	ld hl, $50ff
+;> dest = 0x9800 + GetWordEntry_5F(slot, PicSlotOffsets)
+	ld hl, PicSlotOffsets
 	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
 	ld d, h
+;> tiles = GetWordEntry_5F(3, PicTileLayouts)   # blank
 	ld a, $03
-	ld hl, $5109
+	ld hl, PicTileLayouts
 	call GetWordEntry_5F
+;> CopyTileRectVRAM_5F(tiles, dest, 6)
 	ld c, $06
 	call CopyTileRectVRAM_5F
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def BlinkTargetShow()
+;@ path: battle/screeneffect
+;@ Draws the target's picture again: the tile numbers of enemy picture wSkillTarget & 3.
+;@ test: skip writes VRAM
 BlinkTargetShow::
+;> wScreenEffectTimer = 6                  # picture width
 	ld a, $06
 	ld [wScreenEffectTimer], a
+;> slot = GetTargetPicSlot()
 	call GetTargetPicSlot
-	ld hl, $50ff
+;> dest = 0x9800 + GetWordEntry_5F(slot, PicSlotOffsets)
+	ld hl, PicSlotOffsets
 	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
 	ld d, h
+;> tiles = GetWordEntry_5F(wSkillTarget & 0x03, PicTileLayouts)
 	ld a, [wSkillTarget]
 	and $03
-	ld hl, $5109
+	ld hl, PicTileLayouts
 	call GetWordEntry_5F
+;> CopyTileRectVRAM_5F(tiles, dest, 6)
 	ld c, $06
 	call CopyTileRectVRAM_5F
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def BlinkTargetEnd()
+;@ path: battle/screeneffect
+;@ Ends the blinking picture effect.
 BlinkTargetEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def EffectShakeY()
+;@ path: battle/screeneffect
+;@ Screen effect 3: the screen jumps 2 pixels up and back twice (skipped for skill $81).
+;@ test: skip runs the steps through a jump table
 EffectShakeY::
+;> if wSkillId == 0x81:
+;>     return ShakeYEnd()
 	ld a, [wSkillId]
 	cp $81
 	jr z, ShakeYEnd
 
+;> ShakeYSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the up-and-down shake.
 ShakeYSteps::
 	dw ShakeYDown
 	dw ShakeYBack
 	dw ShakeYDown
 	dw ShakeYEnd
 
+;@ def ShakeYDown()
+;@ path: battle/screeneffect
+;@ Scrolls the background 2 pixels (Y). The 13 bytes after it are an unused step that sets
+;@ scroll Y 0 and scroll X 1.
 ShakeYDown::
+;> mem[addr(hScrollY)] = 2
 	ld a, $02
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 0
 	ld a, $00
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
@@ -2070,32 +2849,52 @@ ShakeYDown::
 
 	db $3e, $00, $e0, $bb, $3e, $01, $e0, $b7, $21, $84, $da, $34, $c9
 
+;@ def ShakeYBack()
+;@ path: battle/screeneffect
+;@ Puts the background scroll back to 0.
 ShakeYBack::
+;> mem[addr(hScrollY)] = 0
 	xor a
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 0
 	xor a
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeYEnd()
+;@ path: battle/screeneffect
+;@ Ends the shake with the scroll back at 0.
 ShakeYEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> mem[addr(hScrollY)] = 0
 	xor a
 	ldh [hScrollY], a
+;> mem[addr(hScrollX)] = 0
 	xor a
 	ldh [hScrollX], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectFlash()
+;@ path: battle/screeneffect
+;@ Screen effect 4: the screen flashes white three times.
+;@ test: skip runs the steps through a jump table
 EffectFlash::
+;> FlashSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the flash: white, normal, three times, then done.
 FlashSteps::
 	dw SetPalettesWhite
 	dw SetPalettesNormal
@@ -2105,102 +2904,165 @@ FlashSteps::
 	dw SetPalettesNormal
 	dw FlashEnd
 
+;@ def SetPalettesWhite()
+;@ path: battle/screeneffect
+;@ Makes all Game Boy palettes white (wBGP, wOBP0, wOBP1 = 0) and goes to the next step.
 SetPalettesWhite::
+;> wBGP = 0; wOBP0 = 0
 	ld hl, wBGP
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> wOBP1 = 0
 	inc hl
 	ld [hl], $00
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def SetPalettesNormal()
+;@ path: battle/screeneffect
+;@ Puts the battle's Game Boy palettes back (BG and sprite palette 0 $D2, sprite palette 1 $E2)
+;@ and goes to the next step.
 SetPalettesNormal::
+;> wBGP = 0xD2; wOBP0 = 0xD2
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
+;> wOBP1 = 0xE2
 	inc hl
 	ld [hl], $e2
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def FlashEnd()
+;@ path: battle/screeneffect
+;@ Ends a flash effect with the normal palettes.
 FlashEnd::
+;> SetPalettesNormal()
 	call SetPalettesNormal
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectDarken()
+;@ path: battle/screeneffect
+;@ Screen effect 5: the palettes darken in 4 steps, stay dark for 10 steps, then come back.
+;@ test: skip runs the steps through a jump table
 EffectDarken::
+;> DarkenSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the darkening: fade, hold, restore, done.
 DarkenSteps::
 	dw DarkenFade
 	dw DarkenHold
 	dw DarkenRestore
 	dw DarkenEnd
 
+;@ def DarkenFade()
+;@ path: battle/screeneffect
+;@ Darkens the palettes one shade; after 4 shades goes on to the next step.
+;@ test: wScreenEffectFrame = rng.randint(0, 3)
 DarkenFade::
+;> DarkenPalettesStep()
 	call DarkenPalettesStep
+;> if wScreenEffectFrame < 4:
+;>     return
 	ld a, [wScreenEffectFrame]
 	cp $04
 	ret c
 
+;> wScreenEffectAux = 0
 	xor a
 	ld [wScreenEffectAux], a
+;> wScreenEffectFrame = 0
 	xor a
 	ld [wScreenEffectFrame], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def DarkenHold()
+;@ path: battle/screeneffect
+;@ Keeps the screen as it is for 10 steps.
+;@ test: wScreenEffectTimer = rng.randint(0, 9)
 DarkenHold::
+;> wScreenEffectTimer += 1
 	ld hl, wScreenEffectTimer
 	inc [hl]
+;> if wScreenEffectTimer != 10:
+;>     return
 	ld a, [wScreenEffectTimer]
 	cp $0a
 	ret nz
 
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def DarkenRestore()
+;@ path: battle/screeneffect
+;@ Puts the normal palettes back (as SetPalettesNormal).
 DarkenRestore::
+;> wBGP = 0xD2; wOBP0 = 0xD2
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
+;> wOBP1 = 0xE2
 	inc hl
 	ld [hl], $e2
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def DarkenEnd()
+;@ path: battle/screeneffect
+;@ Ends the darkening effect.
 DarkenEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectInvert()
+;@ path: battle/screeneffect
+;@ Screen effect 6: the palettes are inverted 12 times (6 flickers to the negative and back).
+;@ test: skip runs the steps through a jump table
 EffectInvert::
+;> InvertSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the inverting effect: 12 inversions, then done.
 InvertSteps::
 	dw InvertPalettes
 	dw InvertPalettes
@@ -2216,34 +3078,53 @@ InvertSteps::
 	dw InvertPalettes
 	dw InvertEnd
 
+;@ def InvertPalettes()
+;@ path: battle/screeneffect
+;@ Inverts the three Game Boy palettes (every colour becomes 3 - colour).
 InvertPalettes::
+;> wBGP ^= 0xFF
 	ld hl, wBGP
 	ld a, [hl]
 	xor $ff
 	ld [hli], a
+;> wOBP0 ^= 0xFF
 	ld a, [hl]
 	xor $ff
 	ld [hli], a
+;> wOBP1 ^= 0xFF
 	ld a, [hl]
 	xor $ff
 	ld [hl], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def InvertEnd()
+;@ path: battle/screeneffect
+;@ Ends the inverting effect (after an even number of inversions the palettes are normal).
 InvertEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectDarkenTwice()
+;@ path: battle/screeneffect
+;@ Screen effect 7: twice darkens the palettes in 4 shades, holds 5 steps and restores them.
+;@ test: skip runs the steps through a jump table
 EffectDarkenTwice::
+;> DarkenTwiceSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the double darkening: fade, hold, restore, twice, then done.
 DarkenTwiceSteps::
 	dw DarkenTwiceFade
 	dw DarkenTwiceHold
@@ -2253,161 +3134,262 @@ DarkenTwiceSteps::
 	dw DarkenTwiceRestore
 	dw DarkenTwiceEnd
 
+;@ def DarkenTwiceFade()
+;@ path: battle/screeneffect
+;@ Darkens the palettes one shade; after 4 shades goes on to the next step.
+;@ test: wScreenEffectFrame = rng.randint(0, 3)
 DarkenTwiceFade::
+;> DarkenPalettesStep()
 	call DarkenPalettesStep
+;> if wScreenEffectFrame < 4:
+;>     return
 	ld a, [wScreenEffectFrame]
 	cp $04
 	ret c
 
+;> wScreenEffectAux = 0
 	xor a
 	ld [wScreenEffectAux], a
+;> wScreenEffectFrame = 0
 	xor a
 	ld [wScreenEffectFrame], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def DarkenTwiceHold()
+;@ path: battle/screeneffect
+;@ Keeps the screen dark for 5 steps.
+;@ test: wScreenEffectTimer = rng.randint(0, 4)
 DarkenTwiceHold::
+;> wScreenEffectTimer += 1
 	ld hl, wScreenEffectTimer
 	inc [hl]
+;> if wScreenEffectTimer != 5:
+;>     return
 	ld a, [wScreenEffectTimer]
 	cp $05
 	ret nz
 
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def DarkenTwiceRestore()
+;@ path: battle/screeneffect
+;@ Puts the normal palettes back.
 DarkenTwiceRestore::
+;> wBGP = 0xD2; wOBP0 = 0xD2
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
+;> wOBP1 = 0xE2
 	inc hl
 	ld [hl], $e2
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def DarkenTwiceEnd()
+;@ path: battle/screeneffect
+;@ Ends the double darkening.
 DarkenTwiceEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectQuake()
+;@ path: battle/screeneffect
+;@ Screen effect 8, the quake: the screen shakes in a 27-step pattern (QuakeShake) while the
+;@ palettes flash white in the second half (QuakeFlash); both run on wScreenEffectTimer.
+;@ test: skip runs the steps through jump tables
 EffectQuake::
+;> if wScreenEffectStep == 0:
+;>     QuakeShake()
 	ld a, [wScreenEffectStep]
 	or a
 	call z, QuakeShake
+;> QuakeFlash()
 	call QuakeFlash
+;> if wScreenEffectStep == 0:              # QuakeEnd sets it
+;>     return
 	ld a, [wScreenEffectStep]
 	or a
 	ret z
 
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def EffectWave()
+;@ path: battle/screeneffect
+;@ Screen effect 9: the screen waves sideways (per-line X scroll, WaveStep). The first step
+;@ clears the wave's counters, which borrow wMenuStep (wave step), wMenuSubStep, wItemsHandedIn
+;@ (amplitude) and wHatchSlot (hold count).
+;@ test: skip calls the raster effect code
 EffectWave::
+;> if wScreenEffectFrame == 0:
 	ld a, [wScreenEffectFrame]
 	or a
-	jr nz, jr_05f_4da1
+	jr nz, .run
 
+;>     wScreenEffectFrame += 1
 	ld hl, wScreenEffectFrame
 	inc [hl]
+;>     wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;>     wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;>     wItemsHandedIn = 0
 	xor a
 	ld [wItemsHandedIn], a
+;>     wHatchSlot = 0
 	xor a
 	ld [wHatchSlot], a
+;>     return
 	ret
 
-
-jr_05f_4da1:
+.run
+;> WaveStep()
 	call WaveStep
+;> wScreenEffectFrame += 1                 # wave phase
 	ld hl, wScreenEffectFrame
 	inc [hl]
 	ret
 
 
+;@ def EffectLighten()
+;@ path: battle/screeneffect
+;@ Screen effect 10: the palettes lighten in 4 shades, stay for 10 steps, then come back.
+;@ test: skip runs the steps through a jump table
 EffectLighten::
+;> LightenSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the lightening: fade, hold, restore, done.
 LightenSteps::
 	dw LightenFade
 	dw LightenHold
 	dw LightenRestore
 	dw LightenEnd
 
+;@ def LightenFade()
+;@ path: battle/screeneffect
+;@ Lightens the palettes one shade; after 4 shades goes on to the next step.
+;@ test: wScreenEffectFrame = rng.randint(0, 3)
 LightenFade::
+;> LightenPalettesStep()
 	call LightenPalettesStep
+;> if wScreenEffectFrame < 4:
+;>     return
 	ld a, [wScreenEffectFrame]
 	cp $04
 	ret c
 
+;> wScreenEffectAux = 0
 	xor a
 	ld [wScreenEffectAux], a
+;> wScreenEffectFrame = 0
 	xor a
 	ld [wScreenEffectFrame], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def LightenHold()
+;@ path: battle/screeneffect
+;@ Keeps the screen light for 10 steps.
+;@ test: wScreenEffectTimer = rng.randint(0, 9)
 LightenHold::
+;> wScreenEffectTimer += 1
 	ld hl, wScreenEffectTimer
 	inc [hl]
+;> if wScreenEffectTimer != 10:
+;>     return
 	ld a, [wScreenEffectTimer]
 	cp $0a
 	ret nz
 
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def LightenRestore()
+;@ path: battle/screeneffect
+;@ Puts the normal palettes back.
 LightenRestore::
+;> wBGP = 0xD2; wOBP0 = 0xD2
 	ld hl, wBGP
 	ld [hl], $d2
 	inc hl
 	ld [hl], $d2
+;> wOBP1 = 0xE2
 	inc hl
 	ld [hl], $e2
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def LightenEnd()
+;@ path: battle/screeneffect
+;@ Ends the lightening effect.
 LightenEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectFlashLong()
+;@ path: battle/screeneffect
+;@ Screen effect 11: the screen flashes white eight times.
+;@ test: skip runs the steps through a jump table
 EffectFlashLong::
+;> FlashLongSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the long flash: white, normal, eight times, then done; a spare `ret` follows.
 FlashLongSteps::
 	dw SetPalettesWhite
 	dw SetPalettesNormal
@@ -2710,307 +3692,450 @@ QuakeFlashNormal::
 	ret
 
 
+;@ def WaveStep()
+;@ path: battle/screeneffect
+;@ One frame of the wave effect: wave step wMenuStep (0 start, 1 grow, 2 hold, 3 end).
+;@ test: skip runs the steps through a jump table
 WaveStep::
+;> WaveSteps[wMenuStep]()
 	ld a, [wMenuStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the wave effect.
 WaveSteps::
 	dw WaveStart
 	dw WaveGrow
 	dw WaveHold
 	dw WaveEnd
 
+;@ def WaveStart()
+;@ path: battle/screeneffect
+;@ Starts the wave: every line of wLineScroll gets the current X scroll, the amplitude starts
+;@ at 1 and the LCD interrupt's per-line X scroll (wLCDEffect 2) is switched on from line 2.
+;@ test: skip switches on the raster effect
 WaveStart::
+;> wMenuStep += 1
 	ld hl, wMenuStep
 	inc [hl]
+;> for i in range(128):
+;>     wLineScroll[i] = lo(hScrollX)
 	ld hl, wLineScroll
 	ld b, $80
 
-jr_05f_4fb0:
+.fill
 	ldh a, [hScrollX]
 	ld [hli], a
 	dec b
-	jr nz, jr_05f_4fb0
+	jr nz, .fill
 
+;> wItemsHandedIn = 1                      # amplitude
 	ld a, $01
 	ld [wItemsHandedIn], a
+;> rLYC = 2
 	ld a, $02
 	ldh [rLYC], a
+;> wLCDEffect = 2                          # per-line X scroll
 	ld a, $02
 	ld [wLCDEffect], a
 	ret
 
 
+;@ def WaveGrow()
+;@ path: battle/screeneffect
+;@ Every 8 frames makes the wave wider (amplitude + amplitude / 16 + 1) until it reaches $1C;
+;@ then the hold step follows. Runs on into WaveSetLines.
+;@ test: skip runs on into the raster effect code
 WaveGrow::
+;> if (wScreenEffectFrame & 0x07) == 0:
 	ld a, [wScreenEffectFrame]
 	and $07
 	jr nz, WaveSetLines
 
+;>     step = (wItemsHandedIn >> 4) + 1
 	ld a, [wItemsHandedIn]
 	swap a
 	and $0f
 	inc a
 	ld b, a
+;>     wItemsHandedIn = u8(wItemsHandedIn + step)
 	ld a, [wItemsHandedIn]
 	add b
 	ld [wItemsHandedIn], a
+;>     if wItemsHandedIn >= 0x1C:
 	cp $1c
 	jr c, WaveSetLines
 
+;>         wMenuStep += 1                  # on to holding
 	ld hl, wMenuStep
 	inc [hl]
+;>         wHatchSlot = 0
 	xor a
 	ld [wHatchSlot], a
+;> WaveSetLines()                          # (runs on into it)
 
+;@ def WaveSetLines()
+;@ path: battle/screeneffect
+;@ Writes the wave into wLineScroll lines 46-101 (the monsters' part of the screen): every pair
+;@ of lines gets hScrollX +/- WaveOffsets_5F[e] * amplitude / 256 (minus in the second half of
+;@ the wave), with e stepping along the 16-entry wave from wScreenEffectFrame >> 2, so the wave
+;@ moves.
+;@ test: skip pointer loop over the line buffer
 WaveSetLines::
+;> hNumber[0] = wItemsHandedIn             # amplitude
 	ld a, [wItemsHandedIn]
 	ldh [hNumber], a
+;> e = (wScreenEffectFrame >> 2) & 0x0F
 	ld a, [wScreenEffectFrame]
 	rra
 	rra
 	and $0f
 	ld e, a
 	ld d, $00
-	ld bc, $c12e
+;> line = 0xC12E                           # wLineScroll + 46
+	ld bc, wLineScroll + 46
+;> hNumber[1] = 0x66                       # low byte of the end (line 102)
 	ld a, $66
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 
-jr_05f_4ffe:
+;>@w while True:
+.loop
+;>     e = (e + 1) & 0x0F
 	inc e
 	ld a, e
 	and $0f
 	ld e, a
-	ld hl, $5025
+;>     h = (mem[WaveOffsets_5F + e] * hNumber[0]) >> 8
+	ld hl, WaveOffsets_5F
 	add hl, de
 	push bc
 	ld c, [hl]
 	ldh a, [hNumber]
 	call Multiply
+;>     if e & 0x08:
 	pop bc
 	bit 3, e
-	jr z, jr_05f_5018
+	jr z, .plus
 
+;>         x = u8(hScrollX - h)
 	ldh a, [hScrollX]
 	sub h
-	jr jr_05f_501b
+;>     else:
+	jr .store
 
-jr_05f_5018:
+;>         x = u8(hScrollX + h)
+.plus
 	ldh a, [hScrollX]
 	add h
 
-jr_05f_501b:
+;>     mem[line] = x; mem[line + 1] = x
+.store
 	ld [bc], a
 	inc c
 	ld [bc], a
+;>     line += 2
 	inc c
-	ldh a, [$ffd6]
+;>     if (line & 0xFF) == hNumber[1]:
+;>         return
+	ldh a, [hNumber + 1]
 	cp c
-	jr nz, jr_05f_4ffe
+;=@w
+	jr nz, .loop
 
 	ret
 
 
+;@ path: battle/screeneffect
+;@ The wave of WaveSetLines: 16 offsets (scaled by the amplitude / 256), half a sine twice.
 WaveOffsets_5F::
 	db $00, $30, $5b, $76, $7f, $76, $5b, $30, $00, $30, $5b, $76, $7f, $76, $5b, $30
 
+;@ def WaveHold()
+;@ path: battle/screeneffect
+;@ Keeps waving at full width; every 16 frames counts wHatchSlot up, after 4 the wave ends.
+;@ test: skip runs into the raster effect code
 WaveHold::
+;> if (wScreenEffectFrame & 0x0F) == 0:
 	ld a, [wScreenEffectFrame]
 	and $0f
-	jr nz, jr_05f_504b
+	jr nz, .lines
 
+;>     wHatchSlot += 1
 	ld a, [wHatchSlot]
 	inc a
 	ld [wHatchSlot], a
+;>     if wHatchSlot == 4:
+;>         wMenuStep += 1
 	cp $04
-	jr nz, jr_05f_504b
+	jr nz, .lines
 
 	ld hl, wMenuStep
 	inc [hl]
 
-jr_05f_504b:
+.lines
+;> WaveSetLines()
 	call WaveSetLines
 	ret
 
 
+;@ def WaveEnd()
+;@ path: battle/screeneffect
+;@ Switches the raster effect off and ends the wave effect, clearing its counters.
 WaveEnd::
+;> wLCDEffect = 0
 	ld a, $00
 	ld [wLCDEffect], a
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectFrame = 0
 	xor a
 	ld [wScreenEffectFrame], a
+;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> wItemsHandedIn = 0
 	xor a
 	ld [wItemsHandedIn], a
+;> wHatchSlot = 0
 	xor a
 	ld [wHatchSlot], a
 	ret
 
 
+;@ def DarkenPalettesStep()
+;@ path: battle/screeneffect
+;@ Darkens the three Game Boy palettes one shade (every colour + 1, at most 3) and counts
+;@ wScreenEffectFrame up. Quirks: the result of each palette is ORed into the next ones, and a
+;@ colour 3 in the top slot wraps round to 0.
+;@ test: wBGP = rng.randint(0, 255); wOBP0 = rng.randint(0, 255); wOBP1 = rng.randint(0, 255)
 DarkenPalettesStep::
+;> wScreenEffectAux = 0
 	xor a
 	ld [wScreenEffectAux], a
+;> wScreenEffectFrame += 1
 	ld hl, wScreenEffectFrame
 	inc [hl]
+;> c = 0; p = addr(wBGP)
 	ld b, $03
 	ld c, $00
 	ld hl, wBGP
 
-jr_05f_507d:
+;>@pal for i in range(3):
+.palette
+;>     x = min((mem[p] & 0x03) + 0x01, 0x03)
 	ld a, [hl]
 	and $03
 	add $01
 	cp $04
-	jr c, jr_05f_5088
+	jr c, .c0
 
 	ld a, $03
 
-jr_05f_5088:
+.c0
+;>     c |= x
 	or c
 	ld c, a
+;>     x = min((mem[p] & 0x0C) + 0x04, 0x0C)
 	ld a, [hl]
 	and $0c
 	add $04
 	cp $0d
-	jr c, jr_05f_5095
+	jr c, .c1
 
 	ld a, $0c
 
-jr_05f_5095:
+.c1
+;>     c |= x
 	or c
 	ld c, a
+;>     x = min((mem[p] & 0x30) + 0x10, 0x30)
 	ld a, [hl]
 	and $30
 	add $10
 	cp $31
-	jr c, jr_05f_50a2
+	jr c, .c2
 
 	ld a, $30
 
-jr_05f_50a2:
+.c2
+;>     c |= x
 	or c
 	ld c, a
+;>     x = u8((mem[p] & 0xC0) + 0x40)        # (3 wraps round to 0)
 	ld a, [hl]
 	and $c0
 	add $40
 	cp $c1
-	jr c, jr_05f_50af
+	jr c, .c3
 
 	ld a, $c0
 
-jr_05f_50af:
+.c3
+;>     mem[p] = c | x; p += 1
 	or c
 	ld [hli], a
+;=@pal
 	dec b
-	jr nz, jr_05f_507d
+	jr nz, .palette
 
 	ret
 
 
+;@ def LightenPalettesStep()
+;@ path: battle/screeneffect
+;@ Lightens the three Game Boy palettes one shade (every colour - 1, at least 0) and counts
+;@ wScreenEffectFrame up; the result of each palette is ORed into the next ones.
+;@ test: wBGP = rng.randint(0, 255); wOBP0 = rng.randint(0, 255); wOBP1 = rng.randint(0, 255)
 LightenPalettesStep::
+;> wScreenEffectAux = 0
 	xor a
 	ld [wScreenEffectAux], a
+;> wScreenEffectFrame += 1
 	ld hl, wScreenEffectFrame
 	inc [hl]
+;> c = 0; p = addr(wBGP)
 	ld b, $03
 	ld c, $00
 	ld hl, wBGP
 
-jr_05f_50c4:
+;>@pal for i in range(3):
+.palette
+;>     x = max((mem[p] & 0x03) - 0x01, 0)
 	ld a, [hl]
 	and $03
 	cp $00
-	jr z, jr_05f_50cd
+	jr z, .c0
 
 	sub $01
 
-jr_05f_50cd:
+.c0
+;>     c |= x
 	or c
 	ld c, a
+;>     x = max((mem[p] & 0x0C) - 0x04, 0)
 	ld a, [hl]
 	and $0c
 	cp $00
-	jr z, jr_05f_50d8
+	jr z, .c1
 
 	sub $04
 
-jr_05f_50d8:
+.c1
+;>     c |= x
 	or c
 	ld c, a
+;>     x = max((mem[p] & 0x30) - 0x10, 0)
 	ld a, [hl]
 	and $30
 	cp $00
-	jr z, jr_05f_50e3
+	jr z, .c2
 
 	sub $10
 
-jr_05f_50e3:
+.c2
+;>     c |= x
 	or c
 	ld c, a
+;>     x = max((mem[p] & 0xC0) - 0x40, 0)
 	ld a, [hl]
 	and $c0
 	cp $00
-	jr z, jr_05f_50ee
+	jr z, .c3
 
 	sub $40
 
-jr_05f_50ee:
+.c3
+;>     mem[p] = c | x; p += 1
 	or c
 	ld [hli], a
+;=@pal
 	dec b
-	jr nz, jr_05f_50c4
+	jr nz, .palette
 
 	ret
 
 
+;@ def GetWordEntry_5F(index: a, table: hl) -> hl
+;@ path: data
+;@ Returns entry `index` of a table of 16-bit words.
+;@ test: index = rng.randint(0, 127); table = 0xC100
 GetWordEntry_5F::
+;> p = table + (2 * index & 0xFF)
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> return mem16[p]
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ret
 
 
+;@ path: battle/screeneffect
+;@ BG map offsets (row * 32 + column) of the five places an enemy picture can stand: row 6 at
+;@ column 7 (one enemy, or the middle one), 4 / 10 (two enemies), 1 / 13 (left and right of
+;@ three).
 PicSlotOffsets::
-	db $c7, $00, $c4, $00, $ca, $00, $c1, $00, $cd, $00
+	dw $00c7, $00c4, $00ca, $00c1, $00cd
 
+;@ path: battle/screeneffect
+;@ Tile layouts of the enemy pictures for CopyTileRectVRAM_5F: the 6 x 6 tile numbers of
+;@ picture 0, 1, 2 and a blank one.
 PicTileLayouts::
-	db $11, $51, $35, $51, $59, $51
-	db $7d, $51
+	dw MonPicTiles0, MonPicTiles1, MonPicTiles2
+	dw MonPicTilesBlank
 
+;@ path: battle/screeneffect
+;@ Tiles of the first enemy picture ($00-$23), row after row.
+;@ asset: tilemap width=6 height=6
 MonPicTiles0::
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d
 	db $0e, $0f, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $1a, $1b, $1c, $1d
 	db $1e, $1f, $20, $21, $22, $23
 
+;@ path: battle/screeneffect
+;@ Tiles of the second enemy picture ($24-$47).
+;@ asset: tilemap width=6 height=6
 MonPicTiles1::
 	db $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $2d
 	db $2e, $2f, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $3a, $3b, $3c, $3d
 	db $3e, $3f, $40, $41, $42, $43, $44, $45, $46, $47
 
+;@ path: battle/screeneffect
+;@ Tiles of the third enemy picture ($48-$6B).
+;@ asset: tilemap width=6 height=6
 MonPicTiles2::
 	db $48, $49, $4a, $4b, $4c, $4d
 	db $4e, $4f, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5a, $5b, $5c, $5d
 	db $5e, $5f, $60, $61, $62, $63, $64, $65, $66, $67, $68, $69, $6a, $6b
 
+;@ path: battle/screeneffect
+;@ A blank 6 x 6 picture (tile $E0) that hides a monster.
 MonPicTilesBlank::
 	db $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0
 
+;@ def EffectShakeX()
+;@ path: battle/screeneffect
+;@ Screen effect 12: the screen shakes sideways, wider and wider (2, 4, 8 pixels), the last
+;@ swings also 2 pixels down.
+;@ test: skip runs the steps through a jump table
 EffectShakeX::
+;> ShakeXSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the sideways shake (every swing followed by a step back to the middle).
 ShakeXSteps::
 	dw ShakeXLeft2
 	dw ShakeXCenter
@@ -3041,124 +4166,199 @@ ShakeXSteps::
 	dw ShakeXRight8Down
 	dw ShakeXEnd
 
+;@ def ShakeXCenter()
+;@ path: battle/screeneffect
+;@ Puts the background scroll back to 0.
 ShakeXCenter::
+;> mem[addr(hScrollX)] = 0; mem[addr(hScrollY)] = 0
 	xor a
 	ldh [hScrollX], a
 	ldh [hScrollY], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXLeft2()
+;@ path: battle/screeneffect
+;@ Scroll X -2.
 ShakeXLeft2::
+;> mem[addr(hScrollX)] = 0xFE
 	ld a, $fe
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXRight2()
+;@ path: battle/screeneffect
+;@ Scroll X +2.
 ShakeXRight2::
+;> mem[addr(hScrollX)] = 0x02
 	ld a, $02
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXLeft4()
+;@ path: battle/screeneffect
+;@ Scroll X -4.
 ShakeXLeft4::
+;> mem[addr(hScrollX)] = 0xFC
 	ld a, $fc
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXRight4()
+;@ path: battle/screeneffect
+;@ Scroll X +4.
 ShakeXRight4::
+;> mem[addr(hScrollX)] = 0x04
 	ld a, $04
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXLeft8()
+;@ path: battle/screeneffect
+;@ Scroll X -8.
 ShakeXLeft8::
+;> mem[addr(hScrollX)] = 0xF8
 	ld a, $f8
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXRight8()
+;@ path: battle/screeneffect
+;@ Scroll X +8.
 ShakeXRight8::
+;> mem[addr(hScrollX)] = 0x08
 	ld a, $08
 	ldh [hScrollX], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXLeft8Down()
+;@ path: battle/screeneffect
+;@ Scroll X -8, Y +2.
 ShakeXLeft8Down::
+;> mem[addr(hScrollX)] = 0xF8
 	ld a, $f8
 	ldh [hScrollX], a
+;> mem[addr(hScrollY)] = 0x02
 	ld a, $02
 	ldh [hScrollY], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXRight8Down()
+;@ path: battle/screeneffect
+;@ Scroll X +8, Y +2.
 ShakeXRight8Down::
+;> mem[addr(hScrollX)] = 0x08
 	ld a, $08
 	ldh [hScrollX], a
+;> mem[addr(hScrollY)] = 0x02
 	ld a, $02
 	ldh [hScrollY], a
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def ShakeXEnd()
+;@ path: battle/screeneffect
+;@ Ends the sideways shake with the scroll back at 0.
 ShakeXEnd::
+;> mem[addr(hScrollX)] = 0; mem[addr(hScrollY)] = 0
 	xor a
 	ldh [hScrollX], a
 	ldh [hScrollY], a
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
 	ret
 
 
+;@ def EffectBlinkUser()
+;@ path: battle/screeneffect
+;@ Screen effect 13: the picture of the skill's user disappears and comes back twice. Ends at
+;@ once when the user has no picture (position 3 or from 7 on, or one of the player's own
+;@ monsters) or has left the battle.
+;@ test: skip runs the steps through a jump table
 EffectBlinkUser::
+;> flags = wLinkFlags
 	ld a, [wLinkFlags]
 	ld b, a
+;> pos = wSkillUser
 	ld a, [wSkillUser]
+;> if pos >= 7 or pos == 3:
+;>     return BlinkUserEnd()
 	cp $07
 	jr nc, BlinkUserEnd
 
 	cp $03
 	jr z, BlinkUserEnd
 
+;> if flags & 0x02:                        # this Game Boy drives the clock: sides swapped
 	bit 1, b
-	jr nz, jr_05f_525f
+	jr nz, .master
 
+;>@m1     if pos >= 4:
+;>@m2         return BlinkUserEnd()
+;> elif pos < 4:                           # own side: no picture
+;>     return BlinkUserEnd()
 	cp $04
 	jr c, BlinkUserEnd
 
-	jr jr_05f_5263
+	jr .check
 
-jr_05f_525f:
+.master
+;=@m1
 	cp $04
+;=@m2
 	jr nc, BlinkUserEnd
 
-jr_05f_5263:
+.check
+;> if CheckBattlerPresent(wSkillUser):     # (carry: not in the battle)
+;>     return BlinkUserEnd()
 	ld a, [wSkillUser]
 	call CheckBattlerPresent
 	jr c, BlinkUserEnd
 
+;> BlinkUserSteps[wScreenEffectStep]()
 	ld a, [wScreenEffectStep]
 	rst $00
 
+;@ path: battle/screeneffect
+;@ Steps of the blinking user picture: hide, show, hide, show, done.
 BlinkUserSteps::
 	dw BlinkUserHide
 	dw BlinkUserShow
@@ -3166,411 +4366,983 @@ BlinkUserSteps::
 	dw BlinkUserShow
 	dw BlinkUserEnd
 
+;@ def BlinkUserHide()
+;@ path: battle/screeneffect
+;@ Overwrites the user's 6 x 6 tile picture with blank tiles.
+;@ test: skip writes VRAM
 BlinkUserHide::
+;> wScreenEffectTimer = 6                  # picture width
 	ld a, $06
 	ld [wScreenEffectTimer], a
+;> slot = GetUserPicSlot()
 	call GetUserPicSlot
-	ld hl, $50ff
+;> dest = 0x9800 + GetWordEntry_5F(slot, PicSlotOffsets)
+	ld hl, PicSlotOffsets
 	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
 	ld d, h
+;> tiles = GetWordEntry_5F(3, PicTileLayouts)   # blank
 	ld a, $03
-	ld hl, $5109
+	ld hl, PicTileLayouts
 	call GetWordEntry_5F
+;> CopyTileRectVRAM_5F(tiles, dest, 6)
 	ld c, $06
 	call CopyTileRectVRAM_5F
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def BlinkUserShow()
+;@ path: battle/screeneffect
+;@ Draws the user's picture again: the tile numbers of enemy picture wSkillUser & 3.
+;@ test: skip writes VRAM
 BlinkUserShow::
+;> wScreenEffectTimer = 6                  # picture width
 	ld a, $06
 	ld [wScreenEffectTimer], a
+;> slot = GetUserPicSlot()
 	call GetUserPicSlot
-	ld hl, $50ff
+;> dest = 0x9800 + GetWordEntry_5F(slot, PicSlotOffsets)
+	ld hl, PicSlotOffsets
 	call GetWordEntry_5F
 	ld de, $9800
 	add hl, de
 	ld e, l
 	ld d, h
+;> tiles = GetWordEntry_5F(wSkillUser & 0x03, PicTileLayouts)
 	ld a, [wSkillUser]
 	and $03
-	ld hl, $5109
+	ld hl, PicTileLayouts
 	call GetWordEntry_5F
+;> CopyTileRectVRAM_5F(tiles, dest, 6)
 	ld c, $06
 	call CopyTileRectVRAM_5F
+;> wScreenEffectStep += 1
 	ld hl, wScreenEffectStep
 	inc [hl]
 	ret
 
 
+;@ def BlinkUserEnd()
+;@ path: battle/screeneffect
+;@ Ends the blinking user picture effect.
 BlinkUserEnd::
+;> wBattleAnimDone = 1
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wScreenEffectStep = 0
 	xor a
 	ld [wScreenEffectStep], a
+;> wScreenEffectTimer = 0
 	xor a
 	ld [wScreenEffectTimer], a
 	ret
 
 
+;@ def CheckSwappedPicSkill() -> zero
+;@ path: battle/screeneffect
+;@ Zero when skill $3B, $3C or $3E is being carried out at battle step 7, sub-step 4: then
+;@ GetUserPicSlot counts the other side's monsters in a link battle.
+;@ test: wSkillId = rng.choice([0x3B, 0x3C, 0x3D, 0x3E, 0x10]); wBattleStep = rng.choice([7, 3]); wBattleSubStep = rng.choice([4, 1])
 CheckSwappedPicSkill::
+;> s = wSkillId
 	ld a, [wSkillId]
+;> if s not in (0x3B, 0x3C, 0x3E):
+;>     return False
 	cp $3b
-	jr z, jr_05f_52e4
+	jr z, .step
 
 	cp $3c
-	jr z, jr_05f_52e4
+	jr z, .step
 
 	cp $3e
 	ret nz
 
-jr_05f_52e4:
+.step
+;> if wBattleStep != 7:
+;>     return False
 	ld a, [wBattleStep]
 	cp $07
 	ret nz
 
+;> return wBattleSubStep == 4
 	ld a, [wBattleSubStep]
 	cp $04
 	ret
 
 
+;@ def StartSkillVisual()
+;@ path: battle/animation
+;@ Starts what the screen shows for skill wSkillId: a skill animation (sprites) or a screen
+;@ effect, picked from SkillVisualsOwn (user on this Game Boy's side, or user $10, no battle
+;@ position), SkillVisualsEnemy, or SkillVisualsLink (the other player's monster in a link
+;@ battle, at stage 5 of a skill). During a monster's action (battle step 7) the skills are in
+;@ four groups that each show their visual only at certain stages of the action (A: stage 5 of
+;@ sub-step 1, B: stage $0E on, C: only in sub-step 4, D: not in sub-step $0A with counter 4;
+;@ A and B also not in sub-step $0A with counter 1). Skill $80 always shows it. Nothing is
+;@ shown for a skill aimed at the own side by user $10.
+;@ test: skip calls routines in other banks
 StartSkillVisual::
+;> s = wSkillId
 	ld a, [wSkillId]
+;> if s < 0x15: group = 'A'
 	cp $15
-	jp c, Jump_05f_53a4
+	jp c, .groupA
 
+;> elif s < 0x24: group = 'B'
 	cp $24
-	jp c, Jump_05f_5382
+	jp c, .groupB
 
+;> elif s < 0x25: group = 'A'
 	cp $25
-	jp c, Jump_05f_53a4
+	jp c, .groupA
 
+;> elif s == 0x2A: group = 'A'
 	cp $2a
-	jp z, Jump_05f_53a4
+	jp z, .groupA
 
+;> elif s < 0x37: group = 'B'
 	cp $37
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s == 0x3B: group = 'C'
 	cp $3b
-	jp z, Jump_05f_53be
+	jp z, .groupC
 
+;> elif s == 0x3C: group = 'C'
 	cp $3c
-	jp z, Jump_05f_53be
+	jp z, .groupC
 
+;> elif s == 0x3E: group = 'C'
 	cp $3e
-	jp z, Jump_05f_53be
+	jp z, .groupC
 
+;> elif s < 0x67: group = 'A'
 	cp $67
-	jp c, Jump_05f_53a4
+	jp c, .groupA
 
+;> elif s < 0x6A: group = 'C'
 	cp $6a
-	jp c, Jump_05f_53be
+	jp c, .groupC
 
+;> elif s == 0x71: group = 'A'
 	cp $71
-	jr z, jr_05f_53a4
+	jr z, .groupA
 
+;> elif s < 0x73: group = 'B'
 	cp $73
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s < 0x75: group = 'A'
 	cp $75
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s < 0x77: group = 'B'
 	cp $77
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s < 0x78: group = 'A'
 	cp $78
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s < 0x7B: group = 'B'
 	cp $7b
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s == 0x80: group = 'B'
 	cp $80
-	jr z, jr_05f_5382
+	jr z, .groupB
 
+;> elif s < 0x84: group = 'A'
 	cp $84
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s < 0x88: group = 'B'
 	cp $88
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s < 0x91: group = 'A'
 	cp $91
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s == 0x95: group = 'A'
 	cp $95
-	jr z, jr_05f_53a4
+	jr z, .groupA
 
+;> elif s < 0x97: group = 'B'
 	cp $97
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s == 0xA3: group = 'B'
 	cp $a3
-	jr z, jr_05f_5382
+	jr z, .groupB
 
+;> elif s < 0xA4: group = 'A'
 	cp $a4
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s < 0xA7: group = 'A'
 	cp $a7
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s == 0xA9: group = 'A'
 	cp $a9
-	jr z, jr_05f_53a4
+	jr z, .groupA
 
+;> elif s < 0xAB: group = 'B'
 	cp $ab
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s == 0xAE: group = 'B'
 	cp $ae
-	jr z, jr_05f_5382
+	jr z, .groupB
 
+;> elif s < 0xB0: group = 'A'
 	cp $b0
-	jr c, jr_05f_53a4
+	jr c, .groupA
 
+;> elif s < 0xC7: group = 'B'
 	cp $c7
-	jr c, jr_05f_5382
+	jr c, .groupB
 
+;> elif s == 0xC9: group = 'B'
 	cp $c9
-	jr z, jr_05f_5382
+	jr z, .groupB
 
+;> elif s < 0xD5: group = 'D'
 	cp $d5
-	jr c, jr_05f_53cd
+	jr c, .groupD
 
+;> elif s == 0xD5: group = 'B'
 	cp $d5
-	jr z, jr_05f_5382
+	jr z, .groupB
 
-	jr jr_05f_53a4
+;> else: group = 'A'
+	jr .groupA
 
-Jump_05f_5382:
-jr_05f_5382:
+.groupB
+;> if group == 'B':
+;>@b1     if s != 0x80 and wBattleStep == 7:      # during a monster's action
 	ld a, [wSkillId]
 	cp $80
-	jp z, Jump_05f_53e9
+	jp z, .show
 
+;=@b1
 	ld a, [wBattleStep]
 	cp $07
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;>         if wBattleSubStep == 0x0A:
+;>@e1             if wBattleStepArg0 == 1: return
 	ld a, [wBattleSubStep]
 	cp $0a
-	jr z, jr_05f_53e3
+	jr z, .subStepA
 
+;>@b2         elif wBattleSubStep == 1 and wBattleSubStep2 < 0x0E:
 	cp $01
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;=@b2
 	ld a, [wBattleSubStep2]
 	cp $0e
-	jr nc, jr_05f_53e9
+	jr nc, .show
 
+;>             return
 	ret
 
 
-Jump_05f_53a4:
-jr_05f_53a4:
+.groupA
+;> elif group == 'A':
+;>     if wBattleStep == 7:
 	ld a, [wBattleStep]
 	cp $07
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;>         if wBattleSubStep == 0x0A:
+;>@e2             if wBattleStepArg0 == 1: return
 	ld a, [wBattleSubStep]
 	cp $0a
-	jr z, jr_05f_53e3
+	jr z, .subStepA
 
+;>@a1         elif wBattleSubStep == 1 and wBattleSubStep2 != 5:
 	cp $01
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;=@a1
 	ld a, [wBattleSubStep2]
 	cp $05
-	jr z, jr_05f_53e9
+	jr z, .show
 
+;>             return
 	ret
 
 
-Jump_05f_53be:
+.groupC
+;> elif group == 'C':
+;>@c1     if wBattleStep == 7 and wBattleSubStep != 4:
 	ld a, [wBattleStep]
 	cp $07
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;=@c1
 	ld a, [wBattleSubStep]
 	cp $04
-	jr z, jr_05f_53e9
+	jr z, .show
 
+;>         return
 	ret
 
 
-jr_05f_53cd:
+.groupD
+;> elif group == 'D':
+;>@d1     if wBattleStep == 7 and wBattleSubStep == 0x0A and wBattleStepArg0 == 4:
 	ld a, [wBattleStep]
 	cp $07
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;=@d1
 	ld a, [wBattleSubStep]
 	cp $0a
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;=@d1
 	ld a, [wBattleStepArg0]
 	cp $04
-	jr nz, jr_05f_53e9
+	jr nz, .show
 
+;>         return
 	ret
 
 
-jr_05f_53e3:
+.subStepA
+;=@e1
+;=@e2
 	ld a, [wBattleStepArg0]
 	cp $01
 	ret z
 
-Jump_05f_53e9:
-jr_05f_53e9:
+.show
+;> if wSkillUser == 0x10:                    # the skill comes from no battle position
+;>@n1     if IsTargetOwnSide():
+;>@n2         return
+;>@n3     own = True
 	ld a, [wSkillUser]
 	cp $10
-	jr z, jr_05f_5409
+	jr z, .noUser
 
+;> elif wLinkFlags & 0x02:                   # clock-driving Game Boy: its own monsters are 4-7
+;>@m1     own = wSkillUser >= 4
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_05f_5400
+	jr nz, .linkMaster
 
+;> else:
+;>     own = wSkillUser < 4
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_05f_540d
+	jr c, .ownTable
 
-	jr jr_05f_5412
+	jr .enemyTable
 
-jr_05f_5400:
+.linkMaster
+;=@m1
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_05f_5412
+	jr c, .enemyTable
 
-	jr jr_05f_540d
+	jr .ownTable
 
-jr_05f_5409:
+.noUser
+;=@n1
 	call IsTargetOwnSide
+;=@n2
+;=@n3
 	ret c
 
-jr_05f_540d:
-	ld hl, $58dd
-	jr jr_05f_5433
+.ownTable
+;> if own:
+;>     table = SkillVisualsOwn
+	ld hl, SkillVisualsOwn
+	jr .lookUp
 
-jr_05f_5412:
-	ld hl, $59c3
+.enemyTable
+;> else:
+;>     table = SkillVisualsEnemy
+	ld hl, SkillVisualsEnemy
+;>@k     if wLinkActive and wBattleStep == 7 and wBattleSubStep == 1 and wBattleSubStep2 == 5:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_05f_5433
+	jr z, .lookUp
 
+;=@k
 	ld a, [wBattleStep]
 	cp $07
-	jr nz, jr_05f_5433
+	jr nz, .lookUp
 
+;=@k
 	ld a, [wBattleSubStep]
 	cp $01
-	jr nz, jr_05f_5433
+	jr nz, .lookUp
 
+;=@k
 	ld a, [wBattleSubStep2]
 	cp $05
-	jr nz, jr_05f_5433
+	jr nz, .lookUp
 
-	ld hl, $5aa9
+;>         table = SkillVisualsLink          # the other player's monster in a link battle
+	ld hl, SkillVisualsLink
 
-jr_05f_5433:
+.lookUp
+;> p = table + wSkillId
 	ld a, [wSkillId]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> RunSkillVisual(mem[p])
 	ld a, [hl]
 	call RunSkillVisual
+;> return
 	ret
 
 
+;@ def RunSkillVisual(visual: a)
+;@ path: battle/animation
+;@ Runs entry `visual` of SkillVisualRoutines: starts a skill animation or a screen effect.
+;@ The byte after it (a `jp hl`) is never reached.
+;@ test: skip jumps through a table to routines that call other banks
 RunSkillVisual::
+;> SkillVisualRoutines[visual]()
 	ld c, a
 	ld b, $00
-	ld hl, $58bd
+	ld hl, SkillVisualRoutines
 	add hl, bc
 	add hl, bc
 	call JumpToPointer
+;> return
 	ret
 
 
 	db $e9
 
+;@ def SetSkillAnimPlace()
+;@ path: battle/animation
+;@ Works out where on the screen the skill animation is drawn (wItemMsgGroup: 1 the single
+;@ monster or the middle one of three, 2/3 the left/right one of two, 4/6 the left/right one
+;@ of three, 8 nowhere) from a slot (battle position & 3) and the number of monsters on that
+;@ side (also kept in wBattleItemUsedUp). Normally it is the target's slot on this Game Boy's
+;@ enemy side. Skills $1A, $1B, $29 and $76 of an enemy-side monster are drawn at the user. An
+;@ enemy-side monster's skill aimed at the own side uses the user's slot but the own side's
+;@ number of monsters.
+;@ test: skip calls IsUserOwnSide / IsTargetOwnSide
 SetSkillAnimPlace::
-	db $fa, $8a, $db, $fe, $1a, $38, $6e, $fe, $1c, $38, $08, $fe, $29, $28, $04
-	db $fe, $76, $20, $62, $cd, $8f, $5b, $38, $5d, $21, $74, $db, $fa, $63, $c8, $e6
-	db $02, $cb, $3f, $ee, $01, $85, $6f, $3e, $00, $8c, $67, $7e, $ea, $53, $db, $7e
-	db $fe, $01, $28, $32, $fe, $02, $28, $18, $fa, $88, $db, $e6, $03, $fe, $01, $28
-	db $25, $38, $09, $fe, $03, $d2, $23, $55, $3e, $06, $18, $26, $3e, $04, $18, $22
-	db $fa, $88, $db, $e6, $03, $fe, $03, $d2, $23, $55, $fe, $01, $28, $04, $3e, $02
-	db $18, $10, $3e, $03, $18, $0c, $fa, $88, $db, $e6, $03, $fe, $03, $d2, $23, $55
-	db $3e, $01, $ea, $54, $db, $c9, $cd, $8f, $5b, $30, $61, $21, $74, $db, $fa, $63
-	db $c8, $e6, $02, $cb, $3f, $ee, $01, $85, $6f, $3e, $00, $8c, $67, $7e, $ea, $53
-	db $db, $7e, $fe, $01, $28, $30, $fe, $02, $28, $17, $fa, $89, $db, $e6, $03, $fe
-	db $01, $28, $23, $38, $08, $fe, $03, $30, $2d, $3e, $06, $18, $25, $3e, $04, $18
-	db $21, $fa, $89, $db, $e6, $03, $fe, $01, $28, $08, $fe, $03, $30, $18, $3e, $02
-	db $18, $10, $3e, $03, $18, $0c, $fa, $89, $db, $e6, $03, $fe, $03, $d2, $23, $55
-	db $3e, $01, $ea, $54, $db, $c9, $3e, $08, $ea, $54, $db, $c9, $fa, $89, $db, $e6
-	db $03, $fe, $03, $30, $f1, $cd, $a3, $5b, $30, $91, $21, $74, $db, $fa, $63, $c8
-	db $e6, $02, $cb, $3f, $85, $6f, $3e, $00, $8c, $67, $7e, $ea, $53, $db, $7e, $fe
-	db $01, $28, $33, $fe, $02, $28, $19, $fa, $88, $db, $e6, $03, $fe, $01, $28, $26
-	db $38, $0a, $e6, $03, $fe, $03, $30, $be, $3e, $06, $18, $b6, $3e, $04, $18, $b2
-	db $fa, $88, $db, $e6, $03, $fe, $01, $28, $09, $fe, $03, $d2, $23, $55, $3e, $02
-	db $18, $a0, $3e, $03, $18, $9c, $fa, $88, $db, $e6, $03, $fe, $03, $d2, $23, $55
-	db $3e, $01, $18, $8e
+;> s = wSkillId
+	ld a, [wSkillId]
+;>@u if s in (0x1A, 0x1B, 0x29, 0x76) and not IsUserOwnSide():   # drawn at the enemy-side user
+	cp $1a
+	jr c, .notAtUser
 
+	cp $1c
+	jr c, .atUser
+
+;=@u
+	cp $29
+	jr z, .atUser
+
+	cp $76
+	jr nz, .notAtUser
+
+.atUser
+;=@u
+	call IsUserOwnSide
+	jr c, .notAtUser
+
+;>     i = (wLinkFlags & 0x02) >> 1 ^ 1      # 1: wEnemyCount (0: wPartyBattlers on the clock-driving Game Boy)
+	ld hl, wPartyBattlers
+	ld a, [wLinkFlags]
+	and $02
+	srl a
+	xor $01
+;>     count = mem[wPartyBattlers + i]       # monsters on this Game Boy's enemy side
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+	ld a, [hl]
+;>     wBattleItemUsedUp = count
+	ld [wBattleItemUsedUp], a
+;>     if count == 1:
+;>@uo         place = 8 if wSkillUser & 3 >= 3 else 1
+	ld a, [hl]
+	cp $01
+	jr z, .userOne
+
+;>     elif count == 2:
+;>@ut         place = [2, 3, 8, 8][wSkillUser & 3]
+	cp $02
+	jr z, .userTwo
+
+;>     else:
+;>@uh         place = [4, 1, 6, 8][wSkillUser & 3]
+	ld a, [wSkillUser]
+	and $03
+	cp $01
+	jr z, .userOne
+
+;=@uh
+	jr c, .userLeft
+
+	cp $03
+	jp nc, .nowhere
+
+	ld a, $06
+	jr .storeUser
+
+.userLeft
+;=@uh
+	ld a, $04
+	jr .storeUser
+
+.userTwo
+;=@ut
+	ld a, [wSkillUser]
+	and $03
+	cp $03
+	jp nc, .nowhere
+
+;=@ut
+	cp $01
+	jr z, .userRight
+
+	ld a, $02
+	jr .storeUser
+
+.userRight
+;=@ut
+	ld a, $03
+	jr .storeUser
+
+.userOne
+;=@uo
+;=@uh
+	ld a, [wSkillUser]
+	and $03
+	cp $03
+	jp nc, .nowhere
+
+	ld a, $01
+
+.storeUser
+;>     wItemMsgGroup = place
+;>     return
+	ld [wItemMsgGroup], a
+	ret
+
+
+.notAtUser
+;>@t if IsUserOwnSide() or (wSkillTarget & 3 < 3 and not IsTargetOwnSide()):   # at the target
+	call IsUserOwnSide
+	jr nc, .enemyUser
+
+.atTarget
+;>     i = (wLinkFlags & 0x02) >> 1 ^ 1
+	ld hl, wPartyBattlers
+	ld a, [wLinkFlags]
+	and $02
+	srl a
+	xor $01
+;>     count = mem[wPartyBattlers + i]       # monsters on this Game Boy's enemy side
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+	ld a, [hl]
+;>     wBattleItemUsedUp = count
+	ld [wBattleItemUsedUp], a
+;>     if count == 1:
+;>@to         place = 8 if wSkillTarget & 3 >= 3 else 1
+	ld a, [hl]
+	cp $01
+	jr z, .targetOne
+
+;>     elif count == 2:
+;>@tt         place = [2, 3, 8, 8][wSkillTarget & 3]
+	cp $02
+	jr z, .targetTwo
+
+;>     else:
+;>@th         place = [4, 1, 6, 8][wSkillTarget & 3]
+	ld a, [wSkillTarget]
+	and $03
+	cp $01
+	jr z, .targetOne
+
+;=@th
+	jr c, .targetLeft
+
+	cp $03
+	jr nc, .nowhere
+
+	ld a, $06
+	jr .store
+
+.targetLeft
+;=@th
+	ld a, $04
+	jr .store
+
+.targetTwo
+;=@tt
+	ld a, [wSkillTarget]
+	and $03
+	cp $01
+	jr z, .targetRight
+
+;=@tt
+	cp $03
+	jr nc, .nowhere
+
+	ld a, $02
+	jr .store
+
+.targetRight
+;=@tt
+	ld a, $03
+	jr .store
+
+.targetOne
+;=@to
+;=@th
+	ld a, [wSkillTarget]
+	and $03
+	cp $03
+	jp nc, .nowhere
+
+	ld a, $01
+
+.store
+;>     wItemMsgGroup = place
+;>     return
+	ld [wItemMsgGroup], a
+	ret
+
+
+.nowhere
+;> elif wSkillTarget & 3 >= 3:               # (also where every place 8 above ends up)
+;>     wItemMsgGroup = 8                      # nowhere
+	ld a, $08
+	ld [wItemMsgGroup], a
+;>     return
+	ret
+
+
+.enemyUser
+;=@t
+	ld a, [wSkillTarget]
+	and $03
+	cp $03
+	jr nc, .nowhere
+
+;=@t
+	call IsTargetOwnSide
+	jr nc, .atTarget
+
+;> else:                                     # an enemy-side monster's skill aimed at the own side
+;>     i = (wLinkFlags & 0x02) >> 1          # 0: wPartyBattlers (1: wEnemyCount on the clock-driving Game Boy)
+	ld hl, wPartyBattlers
+	ld a, [wLinkFlags]
+	and $02
+	srl a
+;>     count = mem[wPartyBattlers + i]       # monsters on the own side
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+	ld h, a
+	ld a, [hl]
+;>     wBattleItemUsedUp = count
+	ld [wBattleItemUsedUp], a
+;>     if count == 1:
+;>@eo         place = 8 if wSkillUser & 3 >= 3 else 1
+	ld a, [hl]
+	cp $01
+	jr z, .ownOne
+
+;>     elif count == 2:
+;>@et         place = [2, 3, 8, 8][wSkillUser & 3]
+	cp $02
+	jr z, .ownTwo
+
+;>     else:
+;>@eh         place = [4, 1, 6, 8][wSkillUser & 3]
+	ld a, [wSkillUser]
+	and $03
+	cp $01
+	jr z, .ownOne
+
+;=@eh
+	jr c, .ownLeft
+
+	and $03
+	cp $03
+	jr nc, .nowhere
+
+;=@eh
+	ld a, $06
+	jr .store
+
+.ownLeft
+;=@eh
+	ld a, $04
+	jr .store
+
+.ownTwo
+;=@et
+	ld a, [wSkillUser]
+	and $03
+	cp $01
+	jr z, .ownRight
+
+;=@et
+	cp $03
+	jp nc, .nowhere
+
+	ld a, $02
+	jr .store
+
+.ownRight
+;=@et
+	ld a, $03
+	jr .store
+
+.ownOne
+;=@eo
+;=@eh
+	ld a, [wSkillUser]
+	and $03
+	cp $03
+	jp nc, .nowhere
+
+	ld a, $01
+;>     wItemMsgGroup = place                 # (through the target case's store)
+;>     return
+	jr .store
+
+;@ def SkillVisualAtTarget()
+;@ path: battle/animation
+;@ Skill visual 0: the skill animation starts at the place of its target (SetSkillAnimPlace).
+;@ test: skip calls routines in other banks
 SkillVisualAtTarget::
-	db $cd, $4e, $54, $3e, $01, $ea, $68, $dd, $18, $20
+;> SetSkillAnimPlace()
+	call SetSkillAnimPlace
+;> wSkillAnimPhase = 1
+	ld a, $01
+	ld [wSkillAnimPhase], a
+;> StartSkillAnimation()
+	jr StartSkillAnimation
 
+;@ def SkillVisualCenter()
+;@ path: battle/animation
+;@ Skill visual 1: the skill animation starts in the middle of the enemy side (place 1).
+;@ test: skip calls routines in other banks
 SkillVisualCenter::
-	db $3e, $01
-	db $ea, $54, $db, $3e, $01, $ea, $68, $dd, $18, $14
+;> wItemMsgGroup = 1                         # place: the middle
+	ld a, $01
+	ld [wItemMsgGroup], a
+;> wSkillAnimPhase = 1
+	ld a, $01
+	ld [wSkillAnimPhase], a
+;> StartSkillAnimation()
+	jr StartSkillAnimation
 
+;@ def SkillVisualAtTarget2()
+;@ path: battle/animation
+;@ Skill visual 2: the skill animation starts at the place of its target, in phase 2.
+;@ test: skip calls routines in other banks
 SkillVisualAtTarget2::
-	db $cd, $4e, $54, $3e, $02, $ea
-	db $68, $dd, $18, $0a
+;> SetSkillAnimPlace()
+	call SetSkillAnimPlace
+;> wSkillAnimPhase = 2
+	ld a, $02
+	ld [wSkillAnimPhase], a
+;> StartSkillAnimation()
+	jr StartSkillAnimation
 
+;@ def SkillVisualFlyIn()
+;@ path: battle/animation
+;@ Skill visual 3: the skill animation flies in from the left (phase 0, no place); goes on
+;@ into StartSkillAnimation.
+;@ test: skip calls routines in other banks
 SkillVisualFlyIn::
-	db $3e, $00, $ea, $54, $db, $3e, $00, $ea, $68, $dd
+;> wItemMsgGroup = 0
+	ld a, $00
+	ld [wItemMsgGroup], a
+;> wSkillAnimPhase = 0
+	ld a, $00
+	ld [wSkillAnimPhase], a
+;> StartSkillAnimation()
 
+;@ def StartSkillAnimation()
+;@ path: battle/animation
+;@ Looks up the skill animation (GetSkillAnim) and, if there is one, starts its animation
+;@ object and its sprites and sets wSkillAnimActive. Its final `ret` is also skill visual 13
+;@ (nothing shown).
+;@ test: skip calls routines in other banks
 StartSkillAnimation::
-	db $cd, $30
-	db $56, $fe, $ff, $c8, $cd, $96, $56, $cd, $03, $31, $3e, $01, $ea, $80, $da, $c9
+;> GetSkillAnim()
+	call GetSkillAnim
+;> if wSkillAnim == 0xFF:
+;>     return
+	cp $ff
+	ret z
+
+;> StartSkillAnimObject()
+	call StartSkillAnimObject
+;> StartSkillAnimSprites()
+	call StartSkillAnimSprites
+;> wSkillAnimActive = 1
+	ld a, $01
+	ld [wSkillAnimActive], a
+;> return
+	ret
+;@ def SkillVisualFlash()
+;@ path: battle/effects
+;@ Skill visual 4: screen effect 4, the screen flashes.
+;@ test: skip calls a routine with its own tables
 SkillVisualFlash::
-	db $cd, $60, $4a, $3e, $04, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 4
+	ld a, $04
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualDarken()
+;@ path: battle/effects
+;@ Skill visual 5: screen effect 5, the screen darkens and comes back.
+;@ test: skip calls a routine with its own tables
 SkillVisualDarken::
-	db $cd, $60, $4a, $3e, $05, $ea, $83
-	db $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 5
+	ld a, $05
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualInvert()
+;@ path: battle/effects
+;@ Skill visual 6: screen effect 6, the palettes are inverted for a while.
+;@ test: skip calls a routine with its own tables
 SkillVisualInvert::
-	db $cd, $60, $4a, $3e, $06, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 6
+	ld a, $06
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualDarkenTwice()
+;@ path: battle/effects
+;@ Skill visual 7: screen effect 7, the screen darkens twice.
+;@ test: skip calls a routine with its own tables
 SkillVisualDarkenTwice::
-	db $cd, $60, $4a, $3e, $07
-	db $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 7
+	ld a, $07
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualQuake()
+;@ path: battle/effects
+;@ Skill visual 8: screen effect 8, the screen quakes.
+;@ test: skip calls a routine with its own tables
 SkillVisualQuake::
-	db $cd, $60, $4a, $3e, $08, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 8
+	ld a, $08
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualWave()
+;@ path: battle/effects
+;@ Skill visual 9: screen effect 9, the picture waves.
+;@ test: skip calls a routine with its own tables
 SkillVisualWave::
-	db $cd, $60, $4a
-	db $3e, $09, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 9
+	ld a, $09
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualLighten()
+;@ path: battle/effects
+;@ Skill visual 10: screen effect 10, the screen lightens and comes back.
+;@ test: skip calls a routine with its own tables
 SkillVisualLighten::
-	db $cd, $60, $4a, $3e, $0a, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 10
+	ld a, $0a
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualFlashLong()
+;@ path: battle/effects
+;@ Skill visual 11: screen effect 11, a long flash.
+;@ test: skip calls a routine with its own tables
 SkillVisualFlashLong::
-	db $cd
-	db $60, $4a, $3e, $0b, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 11
+	ld a, $0b
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualShakeX()
+;@ path: battle/effects
+;@ Skill visual 12: screen effect 12, the screen shakes sideways.
+;@ test: skip calls a routine with its own tables
 SkillVisualShakeX::
-	db $cd, $60, $4a, $3e, $0c, $ea, $83, $da
-	db $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 12
+	ld a, $0c
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualShakeY()
+;@ path: battle/effects
+;@ Skill visual 14: screen effect 3, the screen shakes up and down.
+;@ test: skip calls a routine with its own tables
 SkillVisualShakeY::
-	db $cd, $60, $4a, $3e, $03, $ea, $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 3
+	ld a, $03
+	ld [wScreenEffect], a
+	ret
 
+;@ def SkillVisualBlinkUser()
+;@ path: battle/effects
+;@ Skill visual 15: screen effect 13, the user's picture blinks.
+;@ test: skip calls a routine with its own tables
 SkillVisualBlinkUser::
-	db $cd, $60, $4a, $3e, $0d, $ea
-	db $83, $da, $c9
+;> StartSkillHitEffect()
+	call StartSkillHitEffect
+;> wScreenEffect = 13
+	ld a, $0d
+	ld [wScreenEffect], a
+	ret
 
 GetSkillAnim::
 	ld a, [wSkillUser]
@@ -3650,7 +5422,7 @@ jr_05f_5690:
 	ret
 
 
-StartSkillAnimSprite::
+StartSkillAnimObject::
 	db $cd, $b9, $56, $fa, $a4, $da, $ea, $64, $dd, $3e, $60, $ea, $63, $dd, $3e, $00
 	db $ea, $62, $dd, $21, $62, $dd, $7d, $ea, $b4, $d7, $7c, $ea, $b5, $d7, $21, $00
 	db $02, $d7, $c9
@@ -4002,12 +5774,12 @@ AnimViewerNextAnim::
 	ld [wMenuChoice2], a
 	ld a, [wMenuChoice2]
 	cp $2d
-	jr c, jr_05f_5d48
+	jr c, AnimViewerAnimChanged
 
 	xor a
 	ld [wMenuChoice2], a
 
-jr_05f_5d48:
+AnimViewerAnimChanged:
 	call AnimViewerDrawAnimNumber
 	ret
 
@@ -4018,11 +5790,11 @@ AnimViewerPrevAnim::
 	ld [wMenuChoice2], a
 	ld a, [wMenuChoice2]
 	cp $2d
-	jr c, jr_05f_5d48
+	jr c, AnimViewerAnimChanged
 
 	ld a, $2c
 	ld [wMenuChoice2], a
-	jr jr_05f_5d48
+	jr AnimViewerAnimChanged
 
 AnimViewerCursorDown::
 jr_05f_5d61:
@@ -4076,12 +5848,12 @@ AnimViewerNextBG::
 	ld [wConfirmChoice2], a
 	ld a, [wConfirmChoice2]
 	cp $d8
-	jr c, jr_05f_5db6
+	jr c, AnimViewerBGChanged
 
 	xor a
 	ld [wConfirmChoice2], a
 
-jr_05f_5db6:
+AnimViewerBGChanged:
 	call AnimViewerDrawBGNumber
 	ld a, [wConfirmChoice]
 	or a
@@ -4097,11 +5869,11 @@ AnimViewerPrevBG::
 	ld [wConfirmChoice2], a
 	ld a, [wConfirmChoice2]
 	cp $d8
-	jr c, jr_05f_5db6
+	jr c, AnimViewerBGChanged
 
 	ld a, $d7
 	ld [wConfirmChoice2], a
-	jr jr_05f_5db6
+	jr AnimViewerBGChanged
 
 AnimViewerPlayAnim::
 	ld a, [wMenuChoice2]
@@ -4174,12 +5946,12 @@ AnimViewerNextEffect::
 	ld [wListLastRows], a
 	ld a, [wListLastRows]
 	cp $0d
-	jr c, jr_05f_5e6e
+	jr c, AnimViewerEffectChanged
 
 	xor a
 	ld [wListLastRows], a
 
-jr_05f_5e6e:
+AnimViewerEffectChanged:
 	call AnimViewerDrawEffectNumber
 	ret
 
@@ -4190,11 +5962,11 @@ AnimViewerPrevEffect::
 	ld [wListLastRows], a
 	ld a, [wListLastRows]
 	cp $0d
-	jr c, jr_05f_5e6e
+	jr c, AnimViewerEffectChanged
 
 	ld a, $0c
 	ld [wListLastRows], a
-	jr jr_05f_5e6e
+	jr AnimViewerEffectChanged
 
 AnimViewerPlayEffect::
 	ld a, $04
@@ -4660,7 +6432,7 @@ DebugStatsWindow::
 	ld [wBattleArg1], a
 	ld a, h
 	ld [wBattleArg2], a
-	call DrawDebugStatsLine
+	call DrawDebugStatsColumn
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
@@ -4676,7 +6448,7 @@ DebugStatsWindow::
 	ld [wBattleArg2], a
 	ld hl, wBattleArg0
 	inc [hl]
-	call DrawDebugStatsLine
+	call DrawDebugStatsColumn
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
@@ -4692,7 +6464,7 @@ DebugStatsWindow::
 	ld [wBattleArg2], a
 	ld hl, wBattleArg0
 	inc [hl]
-	call DrawDebugStatsLine
+	call DrawDebugStatsColumn
 
 jr_05f_62d2:
 	ld hl, far_CopyTilemapBufferToScreen_50
@@ -4711,7 +6483,7 @@ jr_05f_62d7:
 	ret
 
 
-DrawDebugStatsLine::
+DrawDebugStatsColumn::
 	call ClearDebugDigits
 	ld a, [wBattleArg0]
 	ld hl, wBattlerPersonality1
@@ -4962,7 +6734,7 @@ CreditsLastTilemap::
 	db $e0, $e0, $e0, $e0, $52, $53, $54, $55, $56, $57, $58, $59, $5a, $5b, $5c, $5d
 	db $5e, $5f, $60, $61, $62, $63, $64
 
-UnusedSpace_5F::
+CreditsLastUnusedRows::
 	db $e0, $e0, $68, $69, $6a, $6b, $6c, $6d, $6e
 	db $6f, $70, $71, $72, $aa, $ab, $ac, $ad, $ae, $af, $e0, $e0, $e0, $e0, $e0, $73
 	db $74, $75, $76, $77, $78, $79, $7a, $7b, $b0, $b1, $b2, $b3, $b4, $b5, $e0, $e0
@@ -4972,7 +6744,10 @@ UnusedSpace_5F::
 	db $9b, $9c, $9d, $9e, $c2, $c3, $c4, $c5, $c6, $c7, $e0, $e0, $e0, $e0, $e0, $9f
 	db $a0, $a1, $a2, $a3, $a4, $a5, $a6, $a7, $c8, $c9, $ca, $cb, $cc, $cd, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
-	db $e0, $e0, $e0, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	db $e0, $e0, $e0
+
+UnusedSpace_5F::
+	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

@@ -24,6 +24,7 @@ FarTable_14::
 ;@ def LoadMonTemplate()
 ;@ path: monster/create
 ;@ Copies the 25-byte template of monster wNewMonId (MonTemplates) to wNewMonNameText.
+;@ test: skip random monster numbers point outside the template table
 LoadMonTemplate::
 ;> LoadMonTemplateTo(wNewMonNameText)
 	ld de, wNewMonNameText
@@ -34,6 +35,7 @@ LoadMonTemplate::
 ;@ def LoadMonTemplate2()
 ;@ path: monster/create
 ;@ The same as LoadMonTemplate (a second far entry).
+;@ test: skip random monster numbers point outside the template table
 LoadMonTemplate2::
 ;> LoadMonTemplateTo(wNewMonNameText)
 	ld de, wNewMonNameText
@@ -951,6 +953,7 @@ UnknownName::
 ;@ path: monster/create
 ;@ Copies `count` bytes from `src` into field `field` of the new monster's record (slot
 ;@ wNewMonSlot).
+;@ test: skip fills a party record through helpers
 CopyToNewMon::
 ;> dest = MonsterField(wNewMonSlot, field)
 	push bc
@@ -974,6 +977,7 @@ CopyToNewMon::
 ;@ def SetNewMonByte(field: hl, src: de)
 ;@ path: monster/create
 ;@ Copies the byte at `src` into field `field` of the new monster's record.
+;@ test: skip fills a party record through helpers
 SetNewMonByte::
 ;> dest = MonsterField(wNewMonSlot, field)
 	push de
@@ -990,6 +994,7 @@ SetNewMonByte::
 ;@ path: monster/create
 ;@ Copies 2 bytes into the new monster's record (CopyToNewMon). After it come 5 bytes no code
 ;@ reaches: ld b, 3 / jp CopyToNewMon, the same for 3 bytes.
+;@ test: skip fills a party record through helpers
 CopyToNewMonWord::
 ;> return CopyToNewMon(field, src, 2)
 	ld b, $02
@@ -1001,6 +1006,7 @@ CopyToNewMonWord::
 ;@ def CopyToNewMon4(field: hl, src: de)
 ;@ path: monster/create
 ;@ Copies 4 bytes into the new monster's record (CopyToNewMon).
+;@ test: skip fills a party record through helpers
 CopyToNewMon4::
 ;> return CopyToNewMon(field, src, 4)
 	ld b, $04
@@ -1011,6 +1017,7 @@ CopyToNewMon4::
 ;@ path: monster/create
 ;@ For each of the 8 skills the new monster knows, takes the first skill of that skill's
 ;@ series out of its list of skills to learn (DropSupersededSkill).
+;@ test: skip fills a party record through helpers
 DropSupersededSkills::
 ;> skills = MonsterField(wNewMonSlot, wMonSkills)
 	ld hl, wMonSkills
@@ -1042,6 +1049,7 @@ DropSupersededSkills::
 ;@ Skill $DB is removed from the known skills itself. For any other skill, the first skill of
 ;@ its series (SkillSupersedes) is taken out of the new monster's list of skills to learn
 ;@ (wMonSkillList, 25 entries; the first match becomes $FF).
+;@ test: skip fills a party record through helpers
 DropSupersededSkill::
 ;> if skill == 0xFF:
 ;>     return
@@ -1058,7 +1066,7 @@ DropSupersededSkill::
 	ret
 
 .series
-;> base = SkillSupersedes[skill]
+;> base = mem[SkillSupersedes + skill]
 	ld hl, SkillSupersedes
 	add l
 	ld l, a
@@ -1106,6 +1114,7 @@ DropSupersededSkill::
 ;@ path: monster/create
 ;@ Lowers a byte field of the new monster's record at random: value * (205..256) / 256, that
 ;@ is to 80-100 %.
+;@ test: skip fills a party record through helpers
 RandomizeNewMonByte::
 ;> Random()
 	push hl
@@ -1141,6 +1150,7 @@ RandomizeNewMonByte::
 ;@ def RandomizeNewMonWord(field: hl)
 ;@ path: monster/create
 ;@ The same for a 16-bit field.
+;@ test: skip fills a party record through helpers
 RandomizeNewMonWord::
 ;> Random()
 	push hl
@@ -1182,8 +1192,9 @@ RandomizeNewMonWord::
 ;@ def LoadMonTemplateTo(dest: de)
 ;@ path: monster/create
 ;@ Copies the 25-byte template of monster wNewMonId (MonTemplates + 25 * wNewMonId) to `dest`.
+;@ test: skip copies to a pointer argument
 LoadMonTemplateTo::
-;>@d3 src = MonTemplates + 25 * wNewMonId
+;>@d3 src = (MonTemplates + 25 * wNewMonId) & 0xFFFF
 	push de
 	ld a, [wNewMonId]
 	ld c, a

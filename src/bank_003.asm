@@ -367,7 +367,7 @@ LinkSendMode1::
 ;@ def LinkReceiveMode1()
 ;@ path: link/serial
 ;@ Link mode 1, receive phase: takes the partner's byte, then (unless this exchange was a stall)
-;@ runs one frame of the game logic of mode 1 (Call_50_5E49) right here in the interrupt, so both
+;@ runs one frame of the game logic of mode 1 (BattleFrameLogic) right here in the interrupt, so both
 ;@ Game Boys advance in step.
 ;@ test: skip runs the link protocol
 LinkReceiveMode1::
@@ -383,8 +383,8 @@ LinkReceiveMode1::
 
 ;> LinkFrameDone()
 	call LinkFrameDone
-;> Call_50_5E49()
-	ld hl, far_Call_50_5E49
+;> BattleFrameLogic()
+	ld hl, far_BattleFrameLogic
 	rst $10
 ;> wVBlankFlags &= ~0x02                # this exchange's frame has run
 	ld hl, wVBlankFlags

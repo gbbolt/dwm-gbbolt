@@ -21,6 +21,9 @@ FarTable_54::
 	dw ConsumeBattleItem
 	dw CheckEnemyJoins
 	dw UseBeastTail
+;@ path: monster/skills
+;@ Pointers to the 19-byte skill records, one per skill number ($00-$DD; format at Skill_Blaze). The
+;@ table is also entries 9 and up of the bank's far table; the code reads it as SkillPointers + 2 * skill.
 SkillPointers::
 	dw Skill_Blaze
 	dw Skill_Blazemore
@@ -1989,8 +1992,8 @@ ConsumeBattleItem::
 	ld [wBattleItemUsedUp], a
 ;>     CopyBattleItemName()
 	call CopyBattleItemName
-;>     Call_50_5B58()
-	ld hl, far_Call_50_5B58
+;>     ShowItemBrokeMessage()
+	ld hl, far_ShowItemBrokeMessage
 	rst $10
 
 .done
@@ -2014,10 +2017,20 @@ CopyBattleItemName::
 	ret
 
 
+;@ def UseBeastTail()
+;@ path: item/battle
+;@ Battle effect of the BeastTail item, one step per frame (wBattleSubStep2): "<Terry> takes out the
+;@ BeastTail", "Points the BeastTail at the enemy", then for each enemy species present (once per
+;@ species) "<name> has been your pal before" or "...hasn't been your pal yet", decided by the
+;@ library flags. Between the messages wMonStats[0] counts down a pause set by SetMessagePause.
+;@ test: skip jump table dispatch
 UseBeastTail::
+;> BeastTailSteps[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: item/battle
+;@ Steps of UseBeastTail.
 BeastTailSteps::
 	dw BeastTail_TakeOut
 	dw BeastTail_Point
@@ -2026,280 +2039,396 @@ BeastTailSteps::
 	dw BeastTail_EnemyC
 	dw BeastTail_Done
 
+;@ def BeastTail_TakeOut()
+;@ path: item/battle
+;@ Step 0: once no text is running, prints "<Terry> takes out the BeastTail".
+;@ test: skip calls routines in other banks
 BeastTail_TakeOut::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;> wTextIndex = 0                         # "<Terry> takes out the BeastTail"
 	ld a, $00
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> SetMessagePauseLong()
 	call SetMessagePauseLong
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def BeastTail_Point()
+;@ path: item/battle
+;@ Step 1: after the message and its pause, prints "Points the BeastTail at the enemy".
+;@ test: skip calls routines in other banks
 BeastTail_Point::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wMonStats[0]:                       # pause after the last message
 	ld a, [wMonStats]
 	or a
-	jr z, jr_054_5440
+	jr z, .print
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
-
-jr_054_5440:
+.print
+;> wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;> wTextIndex = 1                         # "Points the BeastTail at the enemy"
 	ld a, $01
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> SetMessagePause()
 	call SetMessagePause
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def BeastTail_EnemyA()
+;@ path: item/battle
+;@ Step 2: if enemy A (battle position 4) is there, tells whether its species has been your pal.
+;@ test: skip calls routines in other banks
 BeastTail_EnemyA::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_054_5466
+	jr z, .check
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
-
-jr_054_5466:
+.check
+;> if not CheckBattlerPresent(4):
 	ld a, $04
 	call CheckBattlerPresent
-	jr c, jr_054_54a2
+	jr c, .next
 
+;>     wNameDest = wTextArg0
 	ld de, wTextArg0
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
-	ld [$db5f], a
-	ld a, [$dc40]
+	ld [wNameDest + 1], a
+;>     CopySystemText(0x0500 + wBattlerSpecies[4], wTextArg0)   # the species name
+	ld a, [wBattlerSpecies + 4]
 	ld l, a
 	ld h, $05
 	call CopySystemText
-	ld a, [$dc40]
+;>     wBattleStepArg0 = wBattlerSpecies[4]
+	ld a, [wBattlerSpecies + 4]
 	ld [wBattleStepArg0], a
+;>     known = TestFlag(wBattlerSpecies[4], wLibraryFlags)
 	ld hl, wLibraryFlags
 	call TestFlag
+;>     wTextIndex = 2 if known else 3     # "...has been your pal before" / "...hasn't been your pal yet"
 	ld a, $02
-	jr nz, jr_054_5493
+	jr nz, .text
 
 	ld a, $03
 
-jr_054_5493:
+.text
 	ld [wTextIndex], a
+;>     wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     SetMessagePause()
 	call SetMessagePause
 
-jr_054_54a2:
+.next
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def BeastTail_EnemyB()
+;@ path: item/battle
+;@ Step 3: the same for enemy B (position 5), unless it is the species of enemy A and A is there.
+;@ test: skip calls routines in other banks
 BeastTail_EnemyB::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_054_54b7
+	jr z, .check
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
-
-jr_054_54b7:
+.check
+;> if not CheckBattlerPresent(5):
 	ld a, $05
 	call CheckBattlerPresent
-	jr c, jr_054_5503
+	jr c, .next
 
+;>     wNameDest = wTextArg0
 	ld de, wTextArg0
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
-	ld [$db5f], a
-	ld a, [$dc41]
+	ld [wNameDest + 1], a
+;>     CopySystemText(0x0500 + wBattlerSpecies[5], wTextArg0)
+	ld a, [wBattlerSpecies + 5]
 	ld l, a
 	ld h, $05
 	call CopySystemText
-	ld a, [$dc41]
-	ld hl, $dc40
+;>     if wBattlerSpecies[5] == wBattlerSpecies[4]:
+	ld a, [wBattlerSpecies + 5]
+	ld hl, wBattlerSpecies + 4
 	cp [hl]
-	jr nz, jr_054_54e2
+	jr nz, .tell
 
+;>         if not CheckBattlerPresent(4):   # enemy A told it already
+;>             wBattleSubStep2 += 1; return
 	ld a, $04
 	call CheckBattlerPresent
-	jr nc, jr_054_5503
+	jr nc, .next
 
-jr_054_54e2:
+.tell
+;>     wBattleStepArg1 = wBattlerSpecies[5]
 	ld [wBattleStepArg1], a
-	ld a, [$dc41]
+;>     known = TestFlag(wBattlerSpecies[5], wLibraryFlags)
+	ld a, [wBattlerSpecies + 5]
 	ld hl, wLibraryFlags
 	call TestFlag
+;>     wTextIndex = 2 if known else 3
 	ld a, $02
-	jr nz, jr_054_54f4
+	jr nz, .text
 
 	ld a, $03
 
-jr_054_54f4:
+.text
 	ld [wTextIndex], a
+;>     wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     SetMessagePause()
 	call SetMessagePause
 
-jr_054_5503:
+.next
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def BeastTail_EnemyC()
+;@ path: item/battle
+;@ Step 4: the same for enemy C (position 6), unless its species was already told for A or B.
+;@ test: skip calls routines in other banks
 BeastTail_EnemyC::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_054_5518
+	jr z, .check
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
-
-jr_054_5518:
+.check
+;> if not CheckBattlerPresent(6):
 	ld a, $06
 	call CheckBattlerPresent
-	jr c, jr_054_5572
+	jr c, .next
 
+;>     wNameDest = wTextArg0
 	ld de, wTextArg0
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
-	ld [$db5f], a
-	ld a, [$dc42]
+	ld [wNameDest + 1], a
+;>     CopySystemText(0x0500 + wBattlerSpecies[6], wTextArg0)
+	ld a, [wBattlerSpecies + 6]
 	ld l, a
 	ld h, $05
 	call CopySystemText
-	ld a, [$dc42]
-	ld hl, $dc40
+;>     if wBattlerSpecies[6] == wBattlerSpecies[4]:
+	ld a, [wBattlerSpecies + 6]
+	ld hl, wBattlerSpecies + 4
 	cp [hl]
-	jr nz, jr_054_5543
+	jr nz, .notA
 
+;>         if not CheckBattlerPresent(4):
+;>             wBattleSubStep2 += 1; return
 	ld a, $04
 	call CheckBattlerPresent
-	jr nc, jr_054_5572
+	jr nc, .next
 
-jr_054_5543:
-	ld a, [$dc42]
+.notA
+;>     if wBattlerSpecies[6] == wBattlerSpecies[5]:
+	ld a, [wBattlerSpecies + 6]
 	inc hl
 	cp [hl]
-	jr nz, jr_054_5551
+	jr nz, .tell
 
+;>         if not CheckBattlerPresent(5):
+;>             wBattleSubStep2 += 1; return
 	ld a, $05
 	call CheckBattlerPresent
-	jr nc, jr_054_5572
+	jr nc, .next
 
-jr_054_5551:
+.tell
+;>     wFallStep = wBattlerSpecies[6]
 	ld [wFallStep], a
-	ld a, [$dc42]
+;>     known = TestFlag(wBattlerSpecies[6], wLibraryFlags)
+	ld a, [wBattlerSpecies + 6]
 	ld hl, wLibraryFlags
 	call TestFlag
+;>     wTextIndex = 2 if known else 3
 	ld a, $02
-	jr nz, jr_054_5563
+	jr nz, .text
 
 	ld a, $03
 
-jr_054_5563:
+.text
 	ld [wTextIndex], a
+;>     wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     SetMessagePause()
 	call SetMessagePause
 
-jr_054_5572:
+.next
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def BeastTail_Done()
+;@ path: item/battle
+;@ Step 5: after the last pause, goes on with battle sub-step $0D.
+;@ test: wMonStats[0] = rand(0, 3)
 BeastTail_Done::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_054_5587
+	jr z, .done
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
-
-jr_054_5587:
+.done
+;> wBattleSubStep = 0x0D
 	ld a, $0d
 	ld [wBattleSubStep], a
+;> wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep2], a
 	ret
 
 
+;@ def SetMessagePause()
+;@ path: battle/messages
+;@ Sets the pause after a battle message (counted down in wMonStats[0]): 10 frames per step of the
+;@ message speed setting, (wMessageSpeed + 1) * 10, or none at the fastest setting 7.
+;@ test: wMessageSpeed = rand(0, 7)
 SetMessagePause::
+;> if wMessageSpeed == 7:                 # fastest: no pause
 	ld a, [wMessageSpeed]
 	cp $07
 	jr z, jr_054_55b6
 
+;>     wMonStats[0] = 0; return           # (at jr_054_55b6)
+;> wMonStats[0] = (wMessageSpeed + 1) * 10   # (the loop in SetMessagePauseLong)
 	inc a
 	ld b, a
 	ld a, $00
 	ld c, $0a
 	jr jr_054_55b0
 
+;@ def SetMessagePauseLong()
+;@ path: battle/messages
+;@ Like SetMessagePause, but a longer pause: $20 + wMessageSpeed * 10 frames (none at speed 7).
+;@ test: wMessageSpeed = rand(0, 7)
 SetMessagePauseLong::
+;> if wMessageSpeed == 7:
 	ld a, [wMessageSpeed]
 	cp $07
 	jr z, jr_054_55b6
 
+;>@z     pause = 0
+;> else:
+;>     n = wMessageSpeed + 1
 	inc a
 	ld b, a
+;>     pause = 0x20
 	ld a, $20
+;>@lp     for _ in range(n - 1): pause += 10
 	dec b
 	jr z, jr_054_55b7
 
 	ld c, $0a
 
 jr_054_55b0:
+;=@lp
 	add c
 	dec b
 	jr nz, jr_054_55b0
@@ -2307,216 +2436,313 @@ jr_054_55b0:
 	jr jr_054_55b7
 
 jr_054_55b6:
+;=@z
 	xor a
 
 jr_054_55b7:
+;> wMonStats[0] = pause
 	ld [wMonStats], a
 	ret
 
 
+;@ def CheckEnemyJoins()
+;@ path: battle/recruit
+;@ After a won battle: decides whether the enemy defeated last (wJoinCandidate) asks to join. Its
+;@ template byte 3 (wEnemyTemplate3) is a join class 0-7 (0 always joins, 7 never); wJoinPoints are
+;@ scaled by that class, much more harshly when the species has been your pal before (library flag),
+;@ then RollEnemyJoins rolls. If it doesn't join, wBattleStep skips the joining step.
+;@ test: skip calls Random
 CheckEnemyJoins::
+;> Random()
 	call Random
+;> if wJoinCandidate != 0:
 	ld a, [wJoinCandidate]
 	or a
-	jr z, jr_054_5609
+	jr z, .noJoin
 
+;>@cls     wBattleArg1 = wEnemyTemplate3[wJoinCandidate & 3]   # join class
 	and $03
 	ld hl, wEnemyTemplate3
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@cls
 	ld h, a
 	ld a, [hl]
 	ld [wBattleArg1], a
+;>     if wBattleArg1 != 7:
 	cp $07
-	jr z, jr_054_5609
+	jr z, .noJoin
 
+;>@sp         known = TestFlag(wBattlerSpecies[wJoinCandidate], wLibraryFlags)
 	ld a, [wJoinCandidate]
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sp
 	ld h, a
 	ld a, [hl]
 	ld hl, wLibraryFlags
 	call TestFlag
+;>         wBattleArg0 = 0x20 if known else 0xA0   # the CPU flags of that test (not used)
 	push af
 	pop bc
 	ld a, c
 	ld [wBattleArg0], a
+;>         points = wJoinPoints
 	push bc
 	ld a, [wJoinPoints]
 	ld l, a
-	ld a, [$db84]
+	ld a, [wJoinPoints + 1]
 	ld h, a
+;>         if not known:
 	pop af
-	jr nz, jr_054_5601
+	jr nz, .known
 
+;>             points = ScaleJoinPointsNew(points)
 	call ScaleJoinPointsNew
-	jr jr_054_5604
+	jr .roll
 
-jr_054_5601:
+;>         else:
+.known
+;>             points = ScaleJoinPointsKnown(points)
 	call ScaleJoinPointsKnown
 
-jr_054_5604:
+.roll
+;>         if RollEnemyJoins(points):
+;>             return                     # the next battle step has it join
 	call RollEnemyJoins
-	jr c, jr_054_560d
+	jr c, .done
 
-jr_054_5609:
+.noJoin
+;> wBattleStep += 1                       # skip the joining step
 	ld hl, wBattleStep
 	inc [hl]
 
-jr_054_560d:
+.done
 	ret
 
 
+;@ def ScaleJoinPointsNew(points: hl) -> hl
+;@ path: battle/recruit
+;@ Scales the join points by the join class wBattleArg1 for a species that has never been your pal:
+;@ class 1 x5, 2 x2, 3 x1, 4 /2, 5 /5, 6 /16, other classes unchanged.
+;@ test: wBattleArg1 = rand(0, 7); points = rand(0, 1600)
 ScaleJoinPointsNew::
+;> cls = wBattleArg1
 	ld a, [wBattleArg1]
+;> orig = points
 	ld d, h
 	ld e, l
+;> if cls == 1:
 	cp $01
-	jr z, jr_054_562d
+	jr z, .times5
 
+;>@x5     return points * 5 & 0xFFFF
+;> if cls == 2:
 	cp $02
-	jr z, jr_054_5632
+	jr z, .times2
 
+;>@x2     return points * 2 & 0xFFFF
+;> if cls == 3:
 	cp $03
-	jr z, jr_054_5635
+	jr z, .same
 
+;>@x1     return points
+;> if cls == 4:
 	cp $04
-	jr z, jr_054_5637
+	jr z, .half
 
+;>@d2     return points >> 1
+;> if cls == 5:
 	cp $05
-	jr z, jr_054_563d
+	jr z, .fifth
 
+;>@d5     return points // 5
+;> if cls == 6:
 	cp $06
-	jr z, jr_054_5644
+	jr z, .sixteenth
 
-	jr jr_054_5654
+;>@d16     return points >> 4
+;> return points
+	jr .done
 
-jr_054_562d:
+.times5
+;=@x5
 	add hl, hl
 	add hl, hl
 	add hl, de
-	jr jr_054_5654
+	jr .done
 
-jr_054_5632:
+.times2
+;=@x2
 	add hl, hl
-	jr jr_054_5654
+	jr .done
 
-jr_054_5635:
-	jr jr_054_5654
+.same
+;=@x1
+	jr .done
 
-jr_054_5637:
+.half
+;=@d2
 	srl h
 	rr l
-	jr jr_054_5654
+	jr .done
 
-jr_054_563d:
+.fifth
+;=@d5
 	ld a, $05
 	call Divide16
-	jr jr_054_5654
+	jr .done
 
-jr_054_5644:
+.sixteenth
+;=@d16
 	srl h
 	rr l
 	srl h
 	rr l
+;=@d16
 	srl h
 	rr l
 	srl h
 	rr l
 
-jr_054_5654:
+.done
 	ret
 
 
+;@ def ScaleJoinPointsKnown(points: hl) -> hl
+;@ path: battle/recruit
+;@ Scales the join points by the join class wBattleArg1 for a species that has been your pal before:
+;@ class 1-2 /4, 3-5 /8, 6 /20, class 0 and 7 unchanged.
+;@ test: wBattleArg1 = rand(0, 7); points = rand(0, 1600)
 ScaleJoinPointsKnown::
+;> cls = wBattleArg1
 	ld a, [wBattleArg1]
+;> if cls == 0:
+;>     return points
 	or a
-	jr z, jr_054_5682
+	jr z, .done
 
+;> if cls < 3:
 	cp $03
-	jr c, jr_054_566c
+	jr c, .quarter
 
+;>@q     return points >> 2
+;> if cls < 6:
 	cp $06
-	jr c, jr_054_5676
+	jr c, .eighth
 
-	jr nz, jr_054_5682
+;>@e     return points >> 3
+;> if cls != 6:
+;>     return points
+	jr nz, .done
 
+;> return points // 20
 	ld a, $14
 	call Divide16
-	jr jr_054_5682
+	jr .done
 
-jr_054_566c:
+.quarter
+;=@q
 	srl h
 	rr l
 	srl h
 	rr l
-	jr jr_054_5682
+	jr .done
 
-jr_054_5676:
+.eighth
+;=@e
 	srl h
 	rr l
 	srl h
 	rr l
+;=@e
 	srl h
 	rr l
 
-jr_054_5682:
+.done
 	ret
 
 
+;@ def RollEnemyJoins(points: hl) -> carry
+;@ path: battle/recruit
+;@ Carry when the enemy joins: always for join class 0, never for class 7; otherwise the scaled
+;@ points must reach a random 10-100, and then a 90% roll must succeed.
+;@ test: skip calls Random
 RollEnemyJoins::
+;> cls = wBattleArg1
 	ld a, [wBattleArg1]
+;> if cls == 0:
 	or a
-	jr z, jr_054_56c5
+	jr z, .join
 
+;>@j1     return True
+;> if cls == 7:
 	cp $07
-	jr z, jr_054_56c7
+	jr z, .no
 
+;>@n1     return False
+;> Random()
 	push hl
 	call Random
+;> seed = wRandomHigh | wRandomLow << 8
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;> need = seed % 91 + 10
 	ld a, $5b
 	call Divide16
 	add $0a
 	ld c, a
 	ld b, $00
+;> if points < need:
 	pop hl
 	call CompareHLBC
-	jr c, jr_054_56c7
+	jr c, .no
 
+;>@n2     return False
+;> Random()
 	call Random
+;> seed = wRandomHigh | wRandomLow << 8
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;> roll = seed % 100 + 1
 	ld a, $64
 	call Divide16
 	inc a
 	ld c, a
 	ld b, $00
+;> if roll > 90:                          # it may still refuse
 	ld hl, $005a
 	call CompareHLBC
-	jr c, jr_054_56c7
+	jr c, .no
 
-jr_054_56c5:
+;>@n3     return False
+;> return True
+
+.join
+;=@j1
 	scf
 	ret
 
-
-jr_054_56c7:
+.no
+;=@n1
+;=@n2
+;=@n3
 	scf
 	ccf
 	ret
 
 
+;@ path: unused
+;@ Unused space at the end of bank $54 (zeros).
 Bank54Padding::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

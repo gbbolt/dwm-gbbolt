@@ -627,8 +627,8 @@ InitGameMode01::
 ;@ Starts game mode $02 (bank $50).
 ;@ test: skip calls a routine in another bank
 InitGameMode02::
-;> Call_50_5DC9()
-	ld hl, far_Call_50_5DC9
+;> InitBattleMode()
+	ld hl, far_InitBattleMode
 	rst $10
 	ret
 
@@ -1152,8 +1152,8 @@ UpdateGameMode01::
 ;@ Per-frame routine of game mode $02 (bank $50).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode02::
-;> Call_50_5E21()
-	ld hl, far_Call_50_5E21
+;> BattleFrame()
+	ld hl, far_BattleFrame
 	rst $10
 	ret
 
@@ -11274,6 +11274,7 @@ UpdateSkillAnimation::
 	ret
 
 
+StartSkillAnimSprites::
 	db $21, $07, $5f, $d7, $fa, $81, $da, $fe, $ff, $c8, $21, $9b, $c8, $23, $3e, $d0
 	db $22, $3e, $e0, $77, $21, $41, $31, $fa, $81, $da, $85, $6f, $3e, $00, $8c, $67
 	db $7e, $ea, $9c, $c8, $fa, $81, $da, $fe, $0e, $38, $09, $fe, $21, $38, $0a, $21

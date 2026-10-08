@@ -6686,7 +6686,7 @@ jr_006_6a8b:
 ;>         if not mem[0xDA6D] & 0x04:       # not kept
 	pop bc
 	pop hl
-	ld a, [$da6d]
+	ld a, [wItemFlags]
 	bit 2, a
 	jr nz, jr_006_6aa7
 

@@ -158,7 +158,7 @@ LoadMapPalettes::
 ;@ test: skip reads pointer tables in this bank
 LoadMapAttrBuffer::
 ;> if wOnGateFloor:
-;>@g     return Decompress(GateAttrMaps[wFloorLayout[wMapScreen]], wScreenMap)
+;>@g     return Decompress(mem16[(GateAttrMaps2 if wFloorKind == 2 else GateAttrMaps1) + 2 * wFloorLayout[wMapScreen]], wScreenMap)
 	ld a, [wOnGateFloor]
 	or a
 	jp nz, .gate
@@ -1233,7 +1233,7 @@ FadeOutComponent::
 	ld a, d
 
 .keep
-;> color = (color & 0xFFE0) | value
+;> color = (color & 0xFFE0) | value; carry = 0
 	ld e, a
 	ld a, c
 	and $e0
@@ -1241,7 +1241,7 @@ FadeOutComponent::
 	ld c, a
 	pop de
 ;>@sh for i in range(5):
-;>     color, out = shift_right_32(color, out)
+;>     x = carry << 32 | color << 16 | out; carry = x & 1; color, out = (x >> 17) & 0xFFFF, (x >> 1) & 0xFFFF
 	rr b
 	rr c
 	rr d
@@ -1265,6 +1265,7 @@ FadeOutComponent::
 ;=@sh
 	rr d
 	rr e
+;> return color, out
 	ret
 
 
@@ -1419,7 +1420,7 @@ FadeInComponent::
 	ld a, c
 	and $1f
 	ld d, a
-;> value = min(comp + wFadeLevel, 0x1F)
+;> value = min((comp + wFadeLevel) & 0xFF, 0x1F)
 	ld a, [wFadeLevel]
 	add d
 	cp $1f
@@ -1428,7 +1429,7 @@ FadeInComponent::
 	ld a, $1f
 
 .keep
-;> color = (color & 0xFFE0) | value
+;> color = (color & 0xFFE0) | value; carry = 0
 	ld e, a
 	ld a, c
 	and $e0
@@ -1436,7 +1437,7 @@ FadeInComponent::
 	ld c, a
 	pop de
 ;>@sh for i in range(5):
-;>     color, out = shift_right_32(color, out)
+;>     x = carry << 32 | color << 16 | out; carry = x & 1; color, out = (x >> 17) & 0xFFFF, (x >> 1) & 0xFFFF
 	rr b
 	rr c
 	rr d
@@ -1460,6 +1461,7 @@ FadeInComponent::
 ;=@sh
 	rr d
 	rr e
+;> return color, out
 	ret
 
 
@@ -1474,13 +1476,13 @@ CopyBGPalettes::
 	or a
 	ret z
 
-;> size = 8 * count
+;> size = (8 * count & 0xFF) or 256
 	ld a, b
 	add a
 	add a
 	add a
 	ld b, a
-;>@d dest = wCGBBGPalettes + 8 * first
+;>@d dest = wCGBBGPalettes + (8 * first & 0xFF)
 	ld a, c
 	add a
 	add a
@@ -1514,13 +1516,13 @@ CopyObjPalettes::
 	or a
 	ret z
 
-;> size = 8 * count
+;> size = (8 * count & 0xFF) or 256
 	ld a, b
 	add a
 	add a
 	add a
 	ld b, a
-;>@d dest = wSGBPalettes + 8 * first
+;>@d dest = wSGBPalettes + (8 * first & 0xFF)
 	ld a, c
 	add a
 	add a

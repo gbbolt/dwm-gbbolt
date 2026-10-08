@@ -1887,7 +1887,7 @@ WipeBoxesStep::
 	ld [wWindowBgMap + 1], a
 
 .draw
-;> entry = widths + wHatchSlot
+;> entry = CallBoxCornerFunc.widths + wHatchSlot
 	ld hl, CallBoxCornerFunc.widths
 	ld a, [wHatchSlot]
 	add l
@@ -1897,7 +1897,7 @@ WipeBoxesStep::
 ;> width = mem[entry]
 	ld h, a
 	ld b, [hl]
-;> func = funcs + 2 * wHatchSlot
+;> func = CallBoxCornerFunc.funcs + 2 * wHatchSlot
 	ld hl, CallBoxCornerFunc.funcs
 	ld a, [wHatchSlot]
 	add a
@@ -1927,7 +1927,7 @@ WipeBoxesStep::
 	dec b
 	jr nz, .bottom
 
-;> entry = widths + wHatchSlot
+;> entry = CallBoxCornerFunc.widths + wHatchSlot
 	ld hl, CallBoxCornerFunc.widths
 	ld a, [wHatchSlot]
 	add l
@@ -1956,7 +1956,7 @@ WipeBoxesStep::
 	dec b
 	jr nz, .top
 
-;> entry = heights + wHatchSlot
+;> entry = CallBoxCornerFunc.heights + wHatchSlot
 	push hl
 	ld hl, CallBoxCornerFunc.heights
 	ld a, [wHatchSlot]
@@ -1989,7 +1989,7 @@ WipeBoxesStep::
 ;=@right
 	jr nz, .right
 
-;> entry = heights + wHatchSlot
+;> entry = CallBoxCornerFunc.heights + wHatchSlot
 	ld hl, CallBoxCornerFunc.heights
 	ld a, [wHatchSlot]
 	add l
@@ -2224,6 +2224,7 @@ CallBoxCornerFunc::
 ;@ def RoundToTile_13(ptr: hl)
 ;@ path: battle/transition
 ;@ Rounds the 16-bit scroll value at `ptr` to the nearest multiple of 8 (a whole tile).
+;@ test: skip writes through a pointer argument
 RoundToTile_13::
 ;> mem16[ptr] = (mem16[ptr] + 4) & 0xFFFF
 	ld a, [hl]
