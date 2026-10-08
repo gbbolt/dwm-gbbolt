@@ -28,17 +28,17 @@ FarTable_18::
 ;@ box, reloads the monsters from the save and the party's pictures, and turns the screen on.
 ;@ test: skip calls routines in other banks
 VSResultInit::
-;> fill(wMenuChoice, 8, 0)
+;> fill(wMenuChoice, 0, 8)
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
-;> fill(wTextTiles, 0x12, 0)
+;> fill(wTextTiles, 0, 0x12)
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
-;> fill(wTitleStep, 8, 0)
+;> fill(wTitleStep, 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -69,7 +69,7 @@ VSResultInit::
 ;> StartFade(0xFC)                       # fade in
 	ld a, $fc
 	call StartFade
-;> fill(0x9800, 0x400, 0xE0)             # blank BG map
+;> fill(0x9800, 0xE0, 0x400)             # blank BG map
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $e0
@@ -918,7 +918,7 @@ VSResultKeepPrize::
 
 
 .free
-;>@copy     copy(wBreedParent2, wMonsters + 19 * 0x95, 0x95)   # the received monster into the last slot
+;>@copy     copy(wMonsters + 19 * 0x95, wBreedParent2, 0x95)   # the received monster into the last slot
 	ld hl, wMonsters + 19 * $95
 	ld de, wBreedParent2
 	ld b, $95
@@ -977,7 +977,7 @@ CopyFromSRAM_18::
 	ld [$0100], a
 
 .loop
-;>@copy copy(src, dest, count)
+;>@copy copy(dest, src, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
@@ -1003,7 +1003,7 @@ CopyToSRAM_18::
 	ld [$0100], a
 
 .loop
-;>@copy copy(src, dest, count)
+;>@copy copy(dest, src, count)
 	ld a, [hli]
 	ld [de], a
 	inc de
@@ -1076,7 +1076,7 @@ VSResultReplaceYesNoInput::
 	ld hl, wMenuChoice3
 	ld b, $02
 	call MoveMenuCursor_18
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:             # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -1088,7 +1088,7 @@ VSResultReplaceYesNoInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:             # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -1279,7 +1279,7 @@ CountReplaceCandidates::
 ;@ counts.
 ;@ test: skip reads battery RAM
 ListReplaceCandidates::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -2092,7 +2092,7 @@ VSResultReplaceListInput::
 	call CopyTilemapBufferToVram_18
 
 .samePage
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:             # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -2111,7 +2111,7 @@ VSResultReplaceListInput::
 	ld [wTitleStep], a
 	jr .done
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:             # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -2249,7 +2249,7 @@ VSResultInfoOkInput::
 	ld hl, wLinkRefused
 	ld b, $02
 	call MoveMenuCursor_18
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:             # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -2275,7 +2275,7 @@ VSResultInfoOkInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:             # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -2484,7 +2484,7 @@ VSResultReplaceMonster::
 ;> CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
-;>@copy copy(wBreedParent2, wMonsters + 19 * 0x95, 0x95)   # the won monster into the last slot
+;>@copy copy(wMonsters + 19 * 0x95, wBreedParent2, 0x95)   # the won monster into the last slot
 	ld hl, wMonsters + 19 * $95
 	ld de, wBreedParent2
 	ld b, $95
@@ -2643,7 +2643,7 @@ VSResultKindInput::
 	ld hl, wLinkPartnerChoice
 	ld b, $02
 	call MoveMenuCursor_18
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:             # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -2662,7 +2662,7 @@ VSResultKindInput::
 	ld [wTitleStep], a
 	jr .done
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:             # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -3514,7 +3514,7 @@ UnusedCopyScreen_18::
 ;@ path: gfx/tilemap
 ;@ Fills the $240 bytes of wTilemapBuffer with the blank tile $E0.
 ClearTilemapBuffer_18::
-;>@fill fill(wTilemapBuffer, 0x240, 0xE0)
+;>@fill fill(wTilemapBuffer, 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
@@ -3651,7 +3651,8 @@ MovePagedListCursor_18::
 
 ;>             cur[0] = left - 1
 	ld [hl], a
-;>     return MenuCursorFinish_18(cur, marks)   # the end of MoveMenuCursor_18: blink, A, marks
+;>     wTitleBlink = 0; cur[0] |= 0x80 if wJoyPressed & 0x01 else 0   # the shared end of MoveMenuCursor_18
+;>     return MenuDrawCursorMarks_18(cur[0], marks)
 	jr jr_018_520c
 
 .noTurn
@@ -3664,7 +3665,7 @@ MovePagedListCursor_18::
 	pop de
 ;=@lpn
 	pop bc
-;>@lp last_page, left = divmod(count - 1, rows)
+;>@lp last_page = (count - 1) // rows; left = (count - 1) % rows
 	push de
 	push bc
 	ld a, b
@@ -3744,7 +3745,7 @@ jr_018_520c:
 	pop hl
 
 jr_018_5214:
-;> if wJoyPressed & A_BUTTON:
+;> if wJoyPressed & 0x01:             # A
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, .draw
@@ -4213,7 +4214,7 @@ DrawPartyPictures_18::
 ;@ path: gfx/tilemap
 ;@ Writes a 6 x 6 block of consecutive tile numbers from `tile` on into wTilemapBuffer at screen
 ;@ offset `pos`; returns the next tile number.
-;@ test: hl = rand(0, 0x100)
+;@ test: hl = rand(0, 0x40)
 DrawPictureTiles_18::
 ;> for row in range(6):
 	ld c, $06

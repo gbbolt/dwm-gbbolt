@@ -6621,7 +6621,7 @@ jr_006_6a25:
 	ld [$c916], a
 ;> mem[0xD92B] = 8
 	ld a, $08
-	ld [$d92b], a
+	ld [wHomeWarpCause], a
 ;> wWarpMap = 0; wWarpOnGateFloor = 0       # back home
 	ld hl, $0000
 	ld a, l
@@ -7345,7 +7345,7 @@ TransitionLoad::
 	ret nz
 
 ;>@d if mem[0xD92B] in (1, 2, 3, 4, 5): return
-	ld a, [$d92b]
+	ld a, [wHomeWarpCause]
 	cp $01
 	ret z
 

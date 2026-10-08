@@ -4060,7 +4060,7 @@ DrawPlayerAndFollowers::
 	cp $5d
 	jr z, .keepHidden
 ;=@k
-	ld a, [$d92b]
+	ld a, [wHomeWarpCause]
 	cp $07
 	jr nz, .show
 	ld a, [wBattleKind]

@@ -3479,7 +3479,7 @@ ItemApply::
 	call BuildStatusBar
 ;=@h4
 	ld a, $06
-	ld [$d92b], a
+	ld [wHomeWarpCause], a
 	ld hl, $0000
 	ld a, l
 	ld [wWarpMap], a

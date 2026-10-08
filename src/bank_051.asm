@@ -9060,218 +9060,300 @@ SetNewMonPicPalette::
 	ret
 
 
+;@ def SetBattlePicPalettes()
+;@ path: battle/screen/pictures
+;@ Loads the colour palettes of the monster pictures at the top of the battle screen: the enemies
+;@ (positions 4-6), or in a link battle seen from the other side, the party (positions 0-2). One
+;@ picture sits in the middle, two or three are spread out.
 SetBattlePicPalettes::
+;> if wLinkActive and wLinkFlags & 2:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_696d
+	jr z, .enemies
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_696d
+	jr z, .enemies
 
+;>     n = wPartyBattlers; first = 0
 	ld a, [wPartyBattlers]
 	ld c, $00
-	jr jr_051_6972
+	jr .count
 
-jr_051_696d:
+;> else:
+;>     n = wEnemyCount; first = 4
+.enemies:
 	ld a, [wEnemyCount]
 	ld c, $04
 
-jr_051_6972:
+;> if n != 3 and n != 2:
+.count:
 	cp $03
-	jr z, jr_051_6992
+	jr z, .three
 
 	cp $02
-	jr z, jr_051_6982
+	jr z, .two
 
+;>     SetPicPalette(first, 0x00C7)
 	ld a, c
 	ld hl, $00c7
 	call SetPicPalette
+;>     return
 	ret
 
-
-jr_051_6982:
+;> if n == 2:
+;>     SetPicPalette(first, 0x00C4)
+.two:
 	ld a, c
 	ld hl, $00c4
 	call SetPicPalette
+;>     SetPicPalette(first + 1, 0x00CA)
 	inc c
 	ld a, c
 	ld hl, $00ca
 	call SetPicPalette
+;>     return
 	ret
 
-
-jr_051_6992:
+;> SetPicPalette(first, 0x00C1)
+.three:
 	ld a, c
 	ld hl, $00c1
 	call SetPicPalette
+;> SetPicPalette(first + 1, 0x00C7)
 	inc c
 	ld a, c
 	ld hl, $00c7
 	call SetPicPalette
+;> SetPicPalette(first + 2, 0x00CD)
 	inc c
 	ld a, c
 	ld hl, $00cd
 	call SetPicPalette
+;> return
 	ret
 
 
+;@ def SetPicPalette(pos: a, offset: hl)
+;@ path: battle/screen/pictures
+;@ Loads the palette of the monster at battle position `pos` (also passed in c) for its picture at
+;@ buffer offset `offset`; the palette slot is 4 + (pos & 3).
 SetPicPalette::
+;> wMonPicPos = offset
 	push bc
 	push af
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
+;>@s wPaletteSet = wBattlerSpecies[pos]
 	pop af
 	push af
 	ld de, wBattlerSpecies
 	add e
 	ld e, a
 	ld a, $00
+;=@s
 	adc d
 	ld d, a
 	ld a, [de]
 	ld [wPaletteSet], a
+;> GetCGBPicSpecies(pos)
 	call GetCGBPicSpecies
+;> wMonPicPalette = (pos & 3) + 4
 	pop af
 	and $03
 	add $04
 	ld [wMonPicPalette], a
+;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
+;> return
 	pop bc
 	ret
 
 
+;@ def GetCGBPicSpecies(pos: c)
+;@ path: battle/screen/pictures
+;@ On a Game Boy Color, takes the palette species of position `pos` from the copy kept in WRAM bank 2
+;@ (at the address of wSideFlags + pos) instead. This is done for the enemy positions 4-6, or in a
+;@ link battle seen from the other side for the positions 0-2.
 GetCGBPicSpecies::
+;> if not wOnCGB: return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> if wLinkActive and wLinkFlags & 2:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_69ed
+	jr z, .normal
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_69ed
+	jr z, .normal
 
+;>     if pos >= 3: return
 	ld a, c
 	cp $03
-	jr nc, jr_051_6a0c
+	jr nc, .done
 
-	jr jr_051_69f6
+	jr .read
 
-jr_051_69ed:
+;> elif pos < 4 or pos == 7: return
+.normal:
 	ld a, c
 	cp $04
-	jr c, jr_051_6a0c
+	jr c, .done
 
 	cp $07
-	jr z, jr_051_6a0c
+	jr z, .done
 
-jr_051_69f6:
+;> rSVBK = 2
+.read:
 	ld a, $02
 	ldh [rSVBK], a
+;>@r wPaletteSet = mem[addr(wSideFlags) + pos]          # in WRAM bank 2
 	ld a, c
 	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
+;=@r
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wPaletteSet], a
+;> rSVBK = 0
 	ld a, $00
 	ldh [rSVBK], a
 
-jr_051_6a0c:
+;> return
+.done:
 	ret
 
 
+;@ def RefreshIconsAndNames()
+;@ path: battle/screen/panel
+;@ Updates the status icons of the three party positions, clears the name tiles at $9700 (96 tiles
+;@ worth of rows) and draws the names of the party monsters in battle into them.
 RefreshIconsAndNames::
+;> wSkillTarget = 0
 	ld a, $00
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> wSkillTarget = 1
 	ld a, $01
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> wSkillTarget = 2
 	ld a, $02
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;>@c for i in range(0x60):
 	ld hl, $9700
 	ld b, $60
 
-jr_051_6a2d:
+;>     WriteVRAMInc(0x9700 + 2*i, 0xFF); WriteVRAMInc(0x9701 + 2*i, 0x00)
+.clear:
 	ld a, $ff
 	call WriteVRAMInc
 	ld a, $00
 	call WriteVRAMInc
+;=@c
 	dec b
-	jr nz, jr_051_6a2d
+	jr nz, .clear
 
+;> if wPartyBattlers == 0: return
 	ld a, [wPartyBattlers]
 	or a
 	ret z
 
+;> DrawMonNameTiles(addr(wPartyBarTiles), 0x9700)
 	ld de, wPartyBarTiles
 	ld hl, $9700
 	call DrawMonNameTiles
+;> if wPartyBattlers == 1: return
 	ld a, [wPartyBattlers]
 	cp $01
 	ret z
 
+;> DrawMonNameTiles(addr(wShieldTarget), 0x9740)
 	ld de, wShieldTarget
 	ld hl, $9740
 	call DrawMonNameTiles
+;> if wPartyBattlers == 2: return
 	ld a, [wPartyBattlers]
 	cp $02
 	ret z
 
+;> DrawMonNameTiles(0xC1D0, 0x9780)
 	ld de, $c1d0
 	ld hl, $9780
 	call DrawMonNameTiles
+;> return
 	ret
 
 
+;@ def LoadMonsterPic(species: a, dest: hl)
+;@ path: battle/screen/pictures
+;@ Decompresses the picture of monster `species` to VRAM at `dest`; the compressed entry (bank and
+;@ number) comes from the picture table at $2B9F in bank 0.
 LoadMonsterPic::
+;>@e entry = mem16[0x2B9F + 2*species]
 	push de
 	push hl
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
+;=@e
 	add $9f
 	ld l, a
 	ld a, h
 	adc $2b
 	ld h, a
+;=@e
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> DecompressVRAM(entry, dest)
 	pop hl
 	call DecompressVRAM
+;> return
 	pop de
 	ret
 
 
+;@ def RefreshStatusIcons()
+;@ path: battle/screen/panel
+;@ Updates the status icons of the three party positions.
 RefreshStatusIcons::
+;> wSkillTarget = 0
 	ld a, $00
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> wSkillTarget = 1
 	ld a, $01
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> wSkillTarget = 2
 	ld a, $02
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> return
 	ret
 
 
@@ -9471,118 +9553,166 @@ UnusedWindow51_71D0::
 	db $e0, $ff, $d8, $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ def NextColumnWrapped(pos: hl) -> hl
+;@ path: battle/screen/tilemap
+;@ Steps `pos` one tile to the right inside its 32-tile row, wrapping from the last column to the
+;@ first.
 NextColumnWrapped::
+;>@r return (pos & 0xFFE0) | ((pos + 1) & 0x1F)
 	push af
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
+;=@r
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
 	pop af
+;=@r
 	ret
 
 
+;@ def BGMapAddress(offset: hl) -> hl
+;@ path: battle/screen/tilemap
+;@ Turns a buffer offset into an address on the battle BG map at wBattleBGMap, wrapping inside the
+;@ 1 KiB map.
 BGMapAddress::
+;>@r s = wBattleBGMap + offset
 	ld a, [wBattleBGMap]
 	add l
 	ld l, a
 	ld a, [$d9f9]
 	adc h
+;>@m return (wBattleBGMap & 0xFC00) | (s & 0x03FF)
 	and $03
 	ld h, a
 	ld a, [$d9f9]
 	and $fc
 	or h
 	ld h, a
+;=@m
 	ret
 
 
+;@ def BattleBufferAddress(offset: hl) -> hl
+;@ path: battle/screen/tilemap
+;@ Turns a buffer offset into an address in wTilemapBuffer.
 BattleBufferAddress::
+;>@b return addr(wTilemapBuffer) + offset
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;=@b
 	ret
 
 
+;@ def OffsetToBGAddress(offset: hl) -> hl
+;@ path: battle/screen/tilemap
+;@ Turns a buffer offset (row * 32 + column) into an address on the battle BG map, wrapping the row
+;@ and the column.
 OffsetToBGAddress::
+;> pos = BGMapAddress(offset & 0xFFE0)
 	push bc
 	ld b, l
 	ld a, l
 	and $e0
 	ld l, a
 	call BGMapAddress
+;>@c for i in range(offset & 0x1F):
 	ld a, b
 	and $1f
-	jr z, jr_051_7288
+	jr z, .done
 
 	ld b, a
 
-jr_051_7282:
+;>     pos = NextColumnWrapped(pos)
+.column:
 	call NextColumnWrapped
+;=@c
 	dec b
-	jr nz, jr_051_7282
+	jr nz, .column
 
-jr_051_7288:
+;> return pos
+.done:
 	pop bc
 	ret
 
-
+; Unused: a version of DrawBattleWindow that writes the window layout straight to the BG map
+; (OffsetToBGAddress, then WriteVRAM and NextColumnWrapped per tile, $D8 next row, $D9 end).
 	db $1a, $6f, $13, $1a, $67, $13, $cd, $73, $72, $7d, $ea, $ea, $d9, $7c, $ea, $eb
 	db $d9, $1a, $13, $fe, $d9, $c8, $fe, $d8, $20, $20, $fa, $ea, $d9, $6f, $fa, $eb
 	db $d9, $67, $7d, $c6, $20, $6f, $7c, $ce, $00, $67, $7c, $e6, $03, $f6, $98, $67
 	db $7d, $ea, $ea, $d9, $7c, $ea, $eb, $d9, $18, $d7, $cd, $ad, $1a, $cd, $47, $72
 	db $18, $cf
 
+;@ def DrawBattleWindow(layout: de)
+;@ path: battle/screen/windows
+;@ Draws a window layout into wTilemapBuffer: a word with the buffer offset, then the tiles, $D8 for
+;@ the next row and $D9 for the end.
 DrawBattleWindow::
+;>@p p = BattleBufferAddress(mem16[layout]); layout += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;=@p
 	call BattleBufferAddress
+;> wLayoutRow = p
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
 
-jr_051_72dd:
+;> while True:
+;>     t = mem[layout]; layout += 1
+.loop:
 	ld a, [de]
 	inc de
+;>     if t == 0xD9: return
 	cp $d9
 	ret z
 
+;>     if t == 0xD8:
 	cp $d8
-	jr nz, jr_051_7300
+	jr nz, .tile
 
+;>@n         p = wLayoutRow + 0x20; wLayoutRow = p
 	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
 	ld a, l
 	add $20
+;=@n
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@n
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
-	jr jr_051_72dd
+;>         continue
+	jr .loop
 
-jr_051_7300:
+;>     else:
+;>         mem[p] = t; p += 1
+.tile:
 	ld [hli], a
-	jr jr_051_72dd
+	jr .loop
 
+; Unused: redraws three tiles of each party position (columns $25/$2B/$31 and $62/$68/$6E, two rows)
+; from wTilemapBuffer straight to the BG map.
 	db $fa, $74, $db, $4f, $fa, $63, $c8, $cb, $4f, $28, $04, $fa, $75, $db, $4f, $c5
 	db $06, $25, $0e, $62, $cd, $32, $73, $c1, $0d, $c8, $c5, $06, $2b, $0e, $68, $cd
 	db $32, $73, $c1, $0d, $c8, $c5, $06, $31, $0e, $6e, $cd, $32, $73, $c1, $c9, $68
@@ -9591,157 +9721,224 @@ jr_051_7300:
 	db $8e, $73, $06, $03, $79, $c6, $20, $6f, $26, $98, $11, $00, $c5, $83, $5f, $3e
 	db $00, $8a, $57, $cd, $8e, $73, $c9
 
+;@ def CopyTilemapBufferToBG()
+;@ path: battle/screen/tilemap
+;@ Copies the 18 rows of wTilemapBuffer to the battle BG map at wBattleBGMap, wrapping inside the
+;@ map at $9800.
 CopyTilemapBufferToBG::
+;> p = wBattleBGMap; src = addr(wTilemapBuffer)
 	ld a, [wBattleBGMap]
 	ld l, a
 	ld a, [$d9f9]
 	ld h, a
 	ld de, wTilemapBuffer
+;>@r for row in range(18):
 	ld c, $12
 
-jr_051_7377:
+;>     src = CopyTilemapRow(src, p, 32)
+.row:
 	ld b, $20
 	push hl
 	call CopyTilemapRow
 	pop hl
+;>@w     p = ((p + 0x20) & 0x03FF) | 0x9800
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
 	or $98
+;=@w
 	ld h, a
 	pop bc
+;=@r
 	dec c
-	jr nz, jr_051_7377
+	jr nz, .row
 
+;> return
 	ret
 
 
+;@ def CopyTilemapRow(src: de, pos: hl, count: b) -> de
+;@ path: battle/screen/tilemap
+;@ Copies `count` tiles from `src` to VRAM at `pos`, wrapping inside the 32-tile row.
 CopyTilemapRow::
+;>@l for i in range(count):
+;>     WriteVRAM(mem[src], pos)
 	ld a, [de]
 	call WriteVRAM
+;>@x     pos = (pos & 0xFFE0) | ((pos + 1) & 0x1F)
 	ld a, l
 	and $e0
 	push af
 	ld a, l
 	inc a
 	and $1f
+;=@x
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;>     src += 1
 	inc de
+;=@l
 	dec b
 	jr nz, CopyTilemapRow
 
+;> return src
 	ret
 
 
+;@ def PrintTextToTiles(dest: hl, size: de)
+;@ path: battle/screen/text
+;@ Prints text wTextGroup / wTextIndex as tiles at `dest` (d tiles per line, e lines), keeping the
+;@ current text-tile settings.
 PrintTextToTiles::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
+;> saved_lines = wTextBoxLines
 	ld a, [wTextBoxLines]
 	ld c, a
+;> saved_length = wTextBoxLineLength
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = dest
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = size & 0xFF
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = size >> 8
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_length
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> return
 	ret
 
 
+;@ def DrawMonNameTiles(name: de, dest: hl)
+;@ path: battle/screen/text
+;@ Prints the 4-letter name at `name` as tiles at `dest` (one line of 4 tiles), keeping the current
+;@ text-tile settings.
 DrawMonNameTiles::
+;> CopyName(name, addr(wTextArg0))
 	push hl
 	ld hl, wTextArg0
 	call CopyName
 	pop hl
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
 	ld a, [$c828]
 	ld b, a
 	push bc
+;> saved_lines = wTextBoxLines
 	ld a, [wTextBoxLines]
 	ld c, a
+;> saved_length = wTextBoxLineLength
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = dest
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = 1
 	ld de, $0401
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 4
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2; wTextIndex = 0
 	ld a, $02
 	ld [wTextGroup], a
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
+;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_length
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> return
 	ret
 
 
+;@ def ClearBattleTilemap()
+;@ path: battle/screen/tilemap
+;@ Fills wTilemapBuffer ($240 tiles) with the blank tile $E0.
 ClearBattleTilemap::
+;>@c for i in range(0x240):
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 
-jr_051_7430:
+;>     wTilemapBuffer[i] = 0xE0
+.loop:
 	ld a, $e0
 	ld [hli], a
+;=@c
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_051_7430
+	jr nz, .loop
 
+;> return
 	ret
 
 
+;@ def ClearBGMap()
+;@ path: battle/screen/tilemap
+;@ Fills the BG map at $9800 ($400 tiles) with the blank tile $E0.
 ClearBGMap::
+;>@c for i in range(0x400):
 	ld hl, $9800
 	ld bc, $0400
 
-jr_051_743f:
+;>     WriteVRAMInc(0xE0, 0x9800 + i)
+.loop:
 	ld a, $e0
 	call WriteVRAMInc
+;=@c
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_051_743f
+	jr nz, .loop
 
+;> return
 	ret
 
 

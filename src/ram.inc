@@ -317,7 +317,7 @@ DEF wReturnDir EQU $C901 ;@ u8 Direction saved with wReturnMap
 DEF wReturnActor EQU $C902 ;@ u8 Actor that turns to Terry when the script comes back (script command $43)
 DEF wScriptMenuArg EQU $C8F7 ;@ u16 Argument of script command $42 for the field menu code
 DEF wArenaClass EQU $D9CE ;@ u8 Starry Night tournament class being fought
-DEF wArenaRound EQU $D9CD ;@ u8 Round within the tournament class
+DEF wArenaRound EQU $D9CD ;@ u8 Round within the Starry Night tournament class (3 = class won); in the battle room (map $52) the number of teams beaten
 DEF wArenaWins EQU $D9CF ;@ u8 Tournament progress counter (bit 7 = stop counting)
 DEF wArenaPrize EQU $D9D0 ;@ u8 Item won as the tournament prize
 DEF wScriptChoiceRow EQU $D9DF ;@ u8 Row (1-5) used by script command $2E
@@ -475,8 +475,8 @@ DEF wVSTeamSlots EQU $C8C4 ;@ u8[3] Monster slots the VS team came from (they ar
 DEF wTouchedActor EQU $D7BD ;@ u8 Number of the actor Terry overlaps (set by CheckActorOverlap)
 DEF wScrollColumn EQU $C91F ;@ u8 Column or row counter of the screen-to-screen scroll
 DEF wEventBoxMap EQU $C919 ;@ u16 BG map address of the field event's text box
-DEF wArenaTeam1 EQU $D9D1 ;@ u8[6] Species (3 x u16) of the second team of the tournament class being fought
-DEF wArenaTeam2 EQU $D9D9 ;@ u8[6] Species (3 x u16) of the third team of the tournament class being fought
+DEF wArenaTeam1 EQU $D9D1 ;@ u8[6] Species (3 x u16) of the second team of the battle room (map $52) of a gate world
+DEF wArenaTeam2 EQU $D9D9 ;@ u8[6] Species (3 x u16) of the third team of the battle room (map $52) of a gate world
 DEF sStashedParty EQU $A1F3 ;@ u8[4] Saved game: wSavedParty, the party count and slots a script put aside
 DEF sLibraryFlags EQU $A1CE ;@ u8[32] Saved game: wLibraryFlags (monster library entries)
 DEF wBreedTemp EQU $DA72 ;@ u8 Breeding scratch: family + $F0 of the pedigree parent; resistance index while resistances are inherited
@@ -638,3 +638,4 @@ DEF wReflectAnim EQU $DD6D ;@ u8 Animation variant of a reflected attack (0 Boun
 DEF wShieldTarget EQU $C1C8 ;@ u8 The original target while another monster takes the attack in its place (Cover, a shield, a dodge; $FF none)
 DEF wHitShown EQU $C1C9 ;@ u8 Set once the hit of the skill was shown (damage or effect)
 DEF wAbsorbMP EQU $D9F2 ;@ u8 Low byte of the MP a monster glowing with TakeMagic absorbs from a spell (the high byte goes to the next byte, wPanelMode)
+DEF wHomeWarpCause EQU $D92B ;@ u8 Why the pending warp sends Terry home: 6 an item, 8 a lost battle or the end of an event (the field code also tests 1-5 and 7)

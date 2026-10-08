@@ -6419,6 +6419,7 @@ AnimViewerHideCursor::
 ;@ def AnimViewerExit()
 ;@ path: unused/debug/animviewer
 ;@ B: fades out and goes back to the debug menu (game mode 7).
+;@ test: skip StartFade works on the palettes over many frames
 AnimViewerExit::
 ;> StartFade(0x04)
 	ld a, $04
@@ -7152,139 +7153,209 @@ HighNibble_5F::
 	ret
 
 
+;@ def DebugStatsWindow()
+;@ path: unused/debug
+;@ A debug window for battle (far entry 10, called from nowhere): Select opens and closes a
+;@ box at the bottom (rows 12-17) showing, for each of this Game Boy's monsters in the battle
+;@ (one column each), personality bytes 1 and 2, record byte +$67 and personality byte 3 in
+;@ decimal. Does nothing once a command is chosen (wMenuChoice bit 7).
+;@ test: skip calls routines in other banks
 DebugStatsWindow::
+;> if wMenuChoice & 0x80:
+;>     return
 	ld a, [wMenuChoice]
 	bit 7, a
 	ret nz
 
+;> if wDebugStatsShown:
+;>@h1     if not wJoyPressed & 0x04:          # Select closes it
+;>@h2         return
+;>@h3     wDebugStatsShown = 0
+;>@h4     wCommandStep = 0                     # the command menu starts over
+;>@h5     return
 	ld a, [wDebugStatsShown]
 	or a
-	jr nz, jr_05f_62d7
+	jr nz, .shown
 
+;> if not wJoyPressed & 0x04:               # Select opens it
+;>     return
 	ld a, [wJoyPressed]
 	bit 2, a
 	ret z
 
+;> wDebugStatsShown = 1
 	ld a, $01
 	ld [wDebugStatsShown], a
-	ld hl, $6452
+;> DrawDebugString(DebugStatsLabels, 0x8860)   # tiles $86-$89
+	ld hl, DebugStatsLabels
 	ld de, $8860
 	call DrawDebugString
-	ld de, $63b0
+;> DrawTilemap_5F(DebugStatsTilemap, wTilemapBuffer)
+	ld de, DebugStatsTilemap
 	ld hl, wTilemapBuffer
 	call DrawTilemap_5F
+;> wBattleArg0 = (wLinkFlags & 0x02) << 1    # first own position: 0, or 4 on the clock-driving Game Boy
 	ld a, [wLinkFlags]
 	and $02
 	rlca
 	ld [wBattleArg0], a
+;> p = wBattlerSpecies + wBattleArg0 + 1      # species of the next position
 	inc a
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> mem16[wBattleArg1] = p
 	ld h, a
 	ld a, l
 	ld [wBattleArg1], a
 	ld a, h
 	ld [wBattleArg2], a
+;> DrawDebugStatsColumn()
 	call DrawDebugStatsColumn
+;> for _ in range(2):                         # up to two more monsters
+;>@p1     p = mem16[wBattleArg1]
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
 	ld h, a
+;>@p2     if mem[p] == 0xFF:                     # no monster there
+;>@p3         break
 	ld a, [hl]
 	cp $ff
-	jr z, jr_05f_62d2
+	jr z, .show
 
+;>@p4     mem16[wBattleArg1] = p + 1
 	inc hl
 	ld a, l
 	ld [wBattleArg1], a
 	ld a, h
 	ld [wBattleArg2], a
+;>@p5     wBattleArg0 += 1
 	ld hl, wBattleArg0
 	inc [hl]
+;>@p6     DrawDebugStatsColumn()
 	call DrawDebugStatsColumn
+;=@p1
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
 	ld h, a
+;=@p2
+;=@p3
 	ld a, [hl]
 	cp $ff
-	jr z, jr_05f_62d2
+	jr z, .show
 
+;=@p4
 	inc hl
 	ld a, l
 	ld [wBattleArg1], a
 	ld a, h
 	ld [wBattleArg2], a
+;=@p5
 	ld hl, wBattleArg0
 	inc [hl]
+;=@p6
 	call DrawDebugStatsColumn
 
-jr_05f_62d2:
+.show
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-jr_05f_62d7:
+.shown
+;=@h1
 	ld a, [wJoyPressed]
 	bit 2, a
+;=@h2
 	ret z
 
+;=@h3
 	xor a
 	ld [wDebugStatsShown], a
+;=@h4
 	ld [wCommandStep], a
+;=@h5
 	ret
 
 
+;@ def DrawDebugStatsColumn()
+;@ path: unused/debug
+;@ Writes the four numbers of battle position wBattleArg0 into its column (wBattleArg0 & 3)
+;@ of the debug window in wTilemapBuffer: personality bytes 1 and 2, record byte +$67 and
+;@ personality byte 3.
+;@ test: skip calls a routine with its own tables
 DrawDebugStatsColumn::
+;> ClearDebugDigits()
 	call ClearDebugDigits
+;> i = wBattleArg0
 	ld a, [wBattleArg0]
+;> p = wBattlerPersonality1 + i
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> SplitDecimal_5F(p)
 	call SplitDecimal_5F
-	ld hl, $643a
+;> DrawDebugNumber(DebugStatsPos1)
+	ld hl, DebugStatsPos1
 	call DrawDebugNumber
+;> i = wBattleArg0
 	ld a, [wBattleArg0]
+;> p = wBattlerPersonality2 + i
 	ld hl, wBattlerPersonality2
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> SplitDecimal_5F(p)
 	call SplitDecimal_5F
-	ld hl, $6440
+;> DrawDebugNumber(DebugStatsPos2)
+	ld hl, DebugStatsPos2
 	call DrawDebugNumber
+;> i = wBattleArg0
 	ld a, [wBattleArg0]
+;> p = wBattlerStat67 + i
 	ld hl, wBattlerStat67
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> SplitDecimal_5F(p)
 	call SplitDecimal_5F
-	ld hl, $6446
+;> DrawDebugNumber(DebugStatsPos3)
+	ld hl, DebugStatsPos3
 	call DrawDebugNumber
+;> i = wBattleArg0
 	ld a, [wBattleArg0]
+;> p = wBattlerPersonality3 + i
 	ld hl, wBattlerPersonality3
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> SplitDecimal_5F(p)
 	call SplitDecimal_5F
-	ld hl, $644c
+;> DrawDebugNumber(DebugStatsPos4)
+	ld hl, DebugStatsPos4
 	call DrawDebugNumber
 	ret
 
 
+;@ def ClearDebugDigits()
+;@ path: unused/debug
+;@ Clears the three decimal digits SplitDecimal_5F makes (wBattleArg3 and the two bytes after).
 ClearDebugDigits::
+;> fill(0xDB4F, 0, 3)                     # wBattleArg3, wNamePos and the byte after
 	xor a
 	ld hl, wBattleArg3
 	ld bc, $0003
@@ -7292,82 +7363,120 @@ ClearDebugDigits::
 	ret
 
 
+;@ def SplitDecimal_5F(p: hl)
+;@ path: unused/debug
+;@ Splits the byte at p into its decimal digits: hundreds into wBattleArg3, tens into
+;@ wNamePos, ones into the byte after it.
 SplitDecimal_5F::
+;> n = mem[p]
 	ld b, [hl]
+;> hundreds, rest = Divide8(n, 100)
 	ld a, $64
 	call Divide8
+;> wBattleArg3 = hundreds
 	ld hl, wBattleArg3
 	ld [hl], b
+;> tens, ones = Divide8(rest, 10)
 	ld b, a
 	ld a, $0a
 	call Divide8
+;> wNamePos = tens
 	ld hl, wNamePos
 	ld [hl], b
-	ld [$db51], a
+;> mem[0xDB51] = ones                      # the byte after wNamePos
+	ld [wNamePos + 1], a
 	ret
 
 
+;@ def DrawDebugNumber(rows: hl)
+;@ path: unused/debug
+;@ Writes the digits of SplitDecimal_5F as tiles (DebugDigitTiles) into wTilemapBuffer at the
+;@ column of battle position wBattleArg0 in the row table `rows` (DebugStatsPos1-4); leading
+;@ zeros are left out.
+;@ test: skip writes into the tilemap buffer through a table
 DrawDebugNumber::
+;> i = 2 * (wBattleArg0 & 3)
 	ld a, [wBattleArg0]
 	and $03
 	add a
+;> p = rows + i
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> dest = wTilemapBuffer + mem16[p]
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld de, wTilemapBuffer
 	add hl, de
+;> shown = 0
 	ld c, $00
+;> if wBattleArg3 or shown:                 # hundreds
 	ld a, [wBattleArg3]
 	or c
-	jr z, jr_05f_638a
+	jr z, .tens
 
+;>     shown = 1
 	inc c
+;>     d = wBattleArg3
 	ld a, [wBattleArg3]
-	ld de, $6430
+;>     q = DebugDigitTiles + d
+	ld de, DebugDigitTiles
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;>     mem[dest] = mem[q]
 	ld a, [de]
 	ld [hl], a
 
-jr_05f_638a:
+.tens
+;> dest += 1
 	inc hl
+;> if wNamePos or shown:                    # tens
 	ld a, [wNamePos]
 	or c
-	jr z, jr_05f_63a0
+	jr z, .ones
 
+;>     shown = 1
 	inc c
+;>     d = wNamePos
 	ld a, [wNamePos]
-	ld de, $6430
+;>     q = DebugDigitTiles + d
+	ld de, DebugDigitTiles
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;>     mem[dest] = mem[q]
 	ld a, [de]
 	ld [hl], a
 
-jr_05f_63a0:
+.ones
+;> dest += 1
 	inc hl
-	ld a, [$db51]
-	ld de, $6430
+;> d = mem[0xDB51]                          # ones (the byte after wNamePos)
+	ld a, [wNamePos + 1]
+;> q = DebugDigitTiles + d
+	ld de, DebugDigitTiles
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> mem[dest] = mem[q]
 	ld a, [de]
 	ld [hl], a
 	ret
 
 
+;@ path: unused/debug
+;@ The debug window in DrawTilemap_5F format (offset $0180: rows 12-17): a framed box with the
+;@ label tiles $86-$89 between the three number columns of rows 13-16.
 DebugStatsTilemap::
 	db $80, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $86, $e0, $e0
@@ -7377,24 +7486,40 @@ DebugStatsTilemap::
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $89, $e0, $e0, $e0
 	db $e0, $e0, $89, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: unused/debug
+;@ Tile numbers of the digits 0-9.
 DebugDigitTiles::
 	db $f0, $f1, $f2, $f3, $f4, $f5, $f6, $f7, $f8, $f9
 
+;@ path: unused/debug
+;@ Where the debug window's first row (row 13, personality byte 1) is written for each of the
+;@ three monsters: offsets in wTilemapBuffer (columns 2, 8 and 14).
 DebugStatsPos1::
-	db $a2, $01, $a8, $01, $ae, $01
+	dw $01a2, $01a8, $01ae
+;@ path: unused/debug
+;@ Row 14 (personality byte 2), columns 2, 8 and 14.
 DebugStatsPos2::
-	db $c2, $01, $c8, $01, $ce, $01
+	dw $01c2, $01c8, $01ce
 
+;@ path: unused/debug
+;@ Row 15 (record byte +$67), columns 2, 8 and 14.
 DebugStatsPos3::
-	db $e2, $01, $e8, $01, $ee, $01
+	dw $01e2, $01e8, $01ee
 
+;@ path: unused/debug
+;@ Row 16 (personality byte 3), columns 2, 8 and 14.
 DebugStatsPos4::
-	db $02, $02, $08, $02
-	db $0e, $02
+	dw $0202, $0208, $020e
 
+;@ path: unused/debug
+;@ The four label letters of the debug window's rows (font codes $4A, $28, $2F, $48), ending
+;@ in $FF.
 DebugStatsLabels::
 	db $4a, $28, $2f, $48, $ff
 
+;@ path: title/opening
+;@ The third logo screen in DrawTilemap_5F format (offset $0080: from row 4, ten rows of up to
+;@ 16 tiles, tiles $01-$4F; $D8 next row, $D9 end).
 OpeningLogo2Tilemap::
 	db $80, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $01, $02, $03, $04, $05, $d8, $00, $00, $00, $00, $00, $00, $00, $06
@@ -7408,6 +7533,9 @@ OpeningLogo2Tilemap::
 	db $48, $d8, $00, $00, $00, $00, $00, $00, $49, $4a, $4b, $4c, $4d, $4e, $4f, $37
 	db $d9
 
+;@ path: title/opening
+;@ The picture of opening scene 4 in DrawTilemap_5F format (offset $00A0: rows 5-12, 20 tiles
+;@ each; tile 0 is the black sky).
 OpeningPictureTilemap::
 	db $a0, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $d8, $00, $6a, $6b, $6c, $00, $00, $00, $00, $00, $00, $00
@@ -7420,6 +7548,9 @@ OpeningPictureTilemap::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $d9
 
+;@ path: title/opening
+;@ The title screen in DrawTilemap_5F format (offset $00A0: rows 5-17): the opening picture's
+;@ top rows with the game's name, a gap, and two rows of text near the bottom.
 OpeningTitleTilemap::
 	db $a0, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $d8, $00, $6a, $6b, $6c, $00, $00, $00
@@ -7437,17 +7568,28 @@ OpeningTitleTilemap::
 	db $b5, $b6, $b7, $b8, $b9, $00, $00, $00, $d8, $00, $00, $00, $00, $c1, $c2, $c3
 	db $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $00, $00, $00, $00, $d9
 
+;@ path: title/opening
+;@ The second logo screen in DrawTilemap_5F format (offset $0103: row 8, column 3; three rows
+;@ of 14 tiles, $01-$2A).
 OpeningLogo1Tilemap::
 	db $03, $01
 	db $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $d8, $0f
 	db $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $1a, $1b, $1c, $d8, $1d, $1e
 	db $1f, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $2a, $d9
 
+;@ path: title/opening
+;@ The first logo screen in DrawTilemap_5F format (offset $0100: row 8; one row of 19 tiles,
+;@ $00-$12).
 OpeningLogo0Tilemap::
 	db $00, $01, $00
 	db $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $0f, $10
 	db $11, $12, $d9
 
+;@ path: event/ending
+;@ The staff credits screen, 20 x 18 tile numbers for CopyTileRect_5F: the heading letters
+;@ (tiles $00-$25, rows 2-3), the names ($26 on, left) and the monster picture ($AA-$CD, right);
+;@ blank $E0. The tiles are printed at run time.
+;@ asset: tilemap width=20 height=18
 CreditsTilemap::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -7473,6 +7615,10 @@ CreditsTilemap::
 	db $c8, $c9, $ca, $cb, $cc, $cd, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 
+;@ path: event/ending
+;@ The top 11 rows (20 x 11 tile numbers) of the last credits page for CopyTileRect_5F:
+;@ heading and text lines without a monster picture.
+;@ asset: tilemap width=20 height=11
 CreditsLastTilemap::
 	db $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -7490,6 +7636,10 @@ CreditsLastTilemap::
 	db $e0, $e0, $e0, $e0, $52, $53, $54, $55, $56, $57, $58, $59, $5a, $5b, $5c, $5d
 	db $5e, $5f, $60, $61, $62, $63, $64
 
+;@ path: unused/data
+;@ Rows 11-17 of CreditsLastTilemap (20 x 7, never drawn: DrawCreditsLastPage copies only 11
+;@ rows); they end the page with a monster picture like CreditsTilemap.
+;@ asset: tilemap width=20 height=7
 CreditsLastUnusedRows::
 	db $e0, $e0, $68, $69, $6a, $6b, $6c, $6d, $6e
 	db $6f, $70, $71, $72, $aa, $ab, $ac, $ad, $ae, $af, $e0, $e0, $e0, $e0, $e0, $73
@@ -7502,6 +7652,8 @@ CreditsLastUnusedRows::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0
 
+;@ path: unused/data
+;@ Zero padding up to the end of the bank.
 UnusedSpace_5F::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

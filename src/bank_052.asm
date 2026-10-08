@@ -17,8 +17,9 @@ BankNumber_52::
 ;@ the skill step of the action (ActionStepSkill, in this bank) indexes the table directly,
 ;@ `call JumpToPointer` on mem16[$4011 + 2 * wSkillId] ($4011 = entry 8). Every effect
 ;@ routine sets wSkillResult and its two messages (SkillFails, SkillWorks and the like)
-;@ for the message and animation steps that follow; the skills from $B0 on are the
-;@ battle items, which have their own routines (UseBattleItem) and get SkillAttack here.
+;@ for the message and animation steps that follow. Numbers $B0-$D4 are the battle items,
+;@ which have their own routines (UseBattleItem, BattleItemEffects); their entries here
+;@ point at SkillAttack.
 FarTable_52::
 	dw RunActionStep  ; entry 0
 	dw CheckBattleOver  ; entry 1
@@ -5639,986 +5640,2583 @@ JumpToItemEffect::
 	jp hl
 
 
+;@ path: battle/item/effects
+;@ Effect routine of each battle item, by item effect number - $B0 (wBattleItemEffect, from
+;@ the item data): Herb, HealWater, SageStone, WorldDew, Potion, ElfWater, Antidote, MoonHerb,
+;@ SkyBell, Laurel, AwakeSand, WorldLeaf, the six seeds and nuts ($BC-$C1, no battle effect),
+;@ FeedMeat, BeefJerky, PorkChop, BadMeat, Sirloin, the staffs Bolt, Vacuum, Block, Lava and
+;@ Snow ($C7-$CB), nothing for $CC-$D3, and the fire staff routine at $D4.
 BattleItemEffects::
-	db $72, $56, $72, $56, $72, $56, $72, $56, $7a, $57, $7a, $57, $4d, $58, $72, $58
-	db $97, $58, $bc, $58, $de, $58, $03, $59, $71, $56, $71, $56, $71, $56, $71, $56
-	db $71, $56, $71, $56, $40, $59, $40, $59, $40, $59, $b8, $59, $40, $59, $03, $5a
-	db $1b, $5a, $33, $5a, $6a, $5a, $82, $5a, $71, $56, $71, $56, $71, $56, $71, $56
-	db $71, $56, $71, $56, $71, $56, $71, $56, $9a, $5a
+	dw ItemHealHP       ; $B0 Herb
+	dw ItemHealHP       ; $B1 HealWater
+	dw ItemHealHP       ; $B2 SageStone
+	dw ItemHealHP       ; $B3 WorldDew
+	dw ItemHealMP       ; $B4 Potion
+	dw ItemHealMP       ; $B5 ElfWater
+	dw ItemAntidote     ; $B6 Antidote
+	dw ItemMoonHerb     ; $B7 MoonHerb
+	dw ItemSkyBell      ; $B8 SkyBell
+	dw ItemLaurel       ; $B9 Laurel
+	dw ItemAwakeSand    ; $BA AwakeSand
+	dw ItemWorldLeaf    ; $BB WorldLeaf
+	dw ItemNone         ; $BC LifeAcorn
+	dw ItemNone         ; $BD MysticNut
+	dw ItemNone         ; $BE PwrSeed
+	dw ItemNone         ; $BF DefSeed
+	dw ItemNone         ; $C0 AgilSeed
+	dw ItemNone         ; $C1 IntSeed
+	dw ItemMeat         ; $C2 FeedMeat
+	dw ItemMeat         ; $C3 BeefJerky
+	dw ItemMeat         ; $C4 PorkChop
+	dw ItemBadMeat      ; $C5 BadMeat
+	dw ItemMeat         ; $C6 Sirloin
+	dw ItemBoltStaff    ; $C7 BoltStaff
+	dw ItemVacuumStaff  ; $C8 (Vacuum) Staff
+	dw ItemBlockStaff   ; $C9 BlockStaff
+	dw ItemLavaStaff    ; $CA LavaStaff
+	dw ItemSnowStaff    ; $CB SnowStaff
+	dw ItemNone         ; $CC
+	dw ItemNone         ; $CD
+	dw ItemNone         ; $CE
+	dw ItemNone         ; $CF
+	dw ItemNone         ; $D0
+	dw ItemNone         ; $D1
+	dw ItemNone         ; $D2
+	dw ItemNone         ; $D3
+	dw ItemFireStaff    ; $D4
 
+;@ def ItemNoEffect()
+;@ path: battle/item/effects
+;@ The item does nothing: "But nothing happens!" (message $BB). wSkillId is cleared, except
+;@ for WorldDew ($B3), whose later steps go on.
 ItemNoEffect::
-	db $fa, $78, $db, $fe, $b3, $28
-	db $04, $af, $ea, $8a, $db
+;> if wBattleItemEffect != 0xB3:
+;>     wSkillId = 0
+	ld a, [wBattleItemEffect]
+	cp $b3
+	jr z, ItemNothingHappens
 
+	xor a
+	ld [wSkillId], a
+;> ItemNothingHappens()                              # (falls through)
+;> return
+
+;@ def ItemNothingHappens()
+;@ path: battle/item/effects
+;@ Message $BB "But nothing happens!" (ItemShowFailMessage).
 ItemNothingHappens::
-	db $3e, $bb, $ea, $55, $db
+;> wBattlerReload = 0xBB
+	ld a, $bb
+	ld [wBattlerReload], a
+;> ItemShowFailMessage()                             # (falls through)
+;> return
 
+;@ def ItemShowFailMessage()
+;@ path: battle/item/effects
+;@ Shows battle message wBattlerReload (text group 0) as the item's result, message mode 0.
 ItemShowFailMessage::
-	db $3e, $00, $ea, $22, $c8, $fa
-	db $55, $db, $ea, $23, $c8, $3e, $00, $ea, $6b, $dd, $c9
+;> wTextGroup = 0
+	ld a, $00
+	ld [wTextGroup], a
+;> wTextIndex = wBattlerReload
+	ld a, [wBattlerReload]
+	ld [wTextIndex], a
+;> wSkillMsgMode = 0
+	ld a, $00
+	ld [wSkillMsgMode], a
+;> return
+	ret
 
+;@ def ItemShowUseMessage()
+;@ path: battle/item/effects
+;@ Shows the item's result: refreshes the target's status icon, puts the target's name into
+;@ wTextArg0 and the player's name into wTextArg2; for the meats ($C2-$C6) bank $58's
+;@ SetNameFormMessage (entry 9) picks a text of group 1, otherwise message wBattlerReload of
+;@ group 0. wSkillId becomes the item's effect number, message mode 1.
+;@ test: skip far calls into the battle panel and message banks
 ItemShowUseMessage::
-	db $3e, $01, $ea, $8a, $db
-	db $fa, $89, $db, $21, $04, $50, $d7, $cd, $23, $6c, $11, $42, $ca, $21, $a0, $c1
-	db $cd, $80, $0c, $fa, $78, $db, $fe, $c2, $38, $0f, $fe, $c7, $30, $0b, $21, $09
-	db $58, $d7, $3e, $01, $ea, $22, $c8, $18, $0b, $fa, $55, $db, $ea, $23, $c8, $3e
-	db $00, $ea, $22, $c8, $fa, $78, $db, $ea, $8a, $db, $3e, $01, $ea, $6b, $dd, $c9
+;> wSkillId = 1
+	ld a, $01
+	ld [wSkillId], a
+;> UpdateStatusIcon_50(wSkillTarget)
+	ld a, [wSkillTarget]
+	ld hl, far_UpdateStatusIcon_50
+	rst $10
+;> TargetNameToArg0()
+	call TargetNameToArg0
+;> CopyName(wPlayerName, wTextArg2)
+	ld de, wPlayerName
+	ld hl, wTextArg2
+	call CopyName
+;> if 0xC2 <= wBattleItemEffect < 0xC7:              # the meats
+	ld a, [wBattleItemEffect]
+	cp $c2
+	jr c, .plain
+
+	cp $c7
+	jr nc, .plain
+
+;>     SetNameFormMessage()                          # bank $58 entry 9
+	ld hl, $5809
+	rst $10
+;>     wTextGroup = 1
+	ld a, $01
+	ld [wTextGroup], a
+	jr .done
+
+;> else:
+;>@p1     wTextIndex = wBattlerReload
+.plain
+;=@p1
+	ld a, [wBattlerReload]
+	ld [wTextIndex], a
+;>@p2     wTextGroup = 0
+;=@p2
+	ld a, $00
+	ld [wTextGroup], a
+
+.done
+;> wSkillId = wBattleItemEffect
+	ld a, [wBattleItemEffect]
+	ld [wSkillId], a
+;> wSkillMsgMode = 1
+	ld a, $01
+	ld [wSkillMsgMode], a
+;> return
+	ret
+;@ def ItemNone()
+;@ path: battle/item/effects
+;@ Items without an effect in battle: nothing.
 ItemNone::
-	db $c9
+;> return
+	ret
 
+;@ def ItemHealHP()
+;@ path: battle/item/effects
+;@ Herb, HealWater, SageStone and WorldDew ($B0-$B3): heal the target's HP by the item table's
+;@ amount plus its random spread (GetSkillValue + AddSkillSpread, own-side or enemy field), up
+;@ to the maximum; WorldDew heals fully. WorldDew covers the whole side one monster per step
+;@ (wHitCount): on its first step it checks that some monster of that side is in the fight
+;@ without full HP, else "But nothing happens!". Healing an enemy adds half the amount to
+;@ wJoinPoints. Message "X's wound heals!", sound $70 for own monsters, the skill visual.
+;@ test: skip far calls into the skill table and IsHPFull (still data)
 ItemHealHP::
-	db $fa, $78, $db, $fe, $b3, $20, $55, $21, $69, $dd, $34, $fa, $69, $dd, $fe
-	db $01, $20, $1f, $fa, $89, $db, $e6, $04, $4f, $06, $03, $79, $cd, $a5, $2f, $38
-	db $06, $79, $cd, $ef, $69, $20, $0b, $0c, $05, $20, $f0, $af, $ea, $8a, $db, $c3
-	db $16, $56, $fa, $89, $db, $cd, $ef, $69, $ca, $0b, $56, $fa, $89, $db, $21, $a3
-	db $db, $cd, $b8, $6a, $2a, $46, $4f, $fa, $89, $db, $cd, $da, $2f, $91, $6f, $7c
-	db $98, $67, $7d, $ea, $5a, $db, $7c, $ea, $5b, $db, $c3, $33, $57, $fa, $89, $db
-	db $cd, $ef, $69, $ca, $0b, $56, $fa, $89, $db, $fe, $04, $38, $07, $3e, $0f, $ea
-	db $4e, $db, $18, $05, $3e, $0b, $ea, $4e, $db, $21, $01, $54, $d7, $fa, $4c, $db
-	db $6f, $fa, $4d, $db, $67, $cd, $9c, $67, $7d, $ea, $5a, $db, $7c, $ea, $5b, $db
-	db $e5, $fa, $89, $db, $cd, $e8, $2f, $c1, $09, $e5, $fa, $89, $db, $cd, $da, $2f
-	db $c1, $cd, $45, $2f, $30, $1c, $79, $95, $4f, $78, $9c, $47, $fa, $5a, $db, $6f
-	db $fa, $5b, $db, $67, $7d, $91, $6f, $7c, $98, $67, $7d, $ea, $5a, $db, $7c, $ea
-	db $5b, $db, $fa, $89, $db, $21, $a3, $db, $cd, $b8, $6a, $e5, $2a, $66, $6f, $fa
-	db $5a, $db, $4f, $fa, $5b, $db, $47, $09, $44, $4d, $e1, $79, $22, $70, $fa, $5a
-	db $db, $6f, $fa, $5b, $db, $67, $fa, $89, $db, $cb, $57, $28, $08, $44, $4d, $cd
-	db $32, $6b, $cd, $d1, $5b, $3e, $84, $ea, $55, $db, $cd, $2c, $56, $cd, $c4, $5b
-	db $21, $06, $5f, $d7, $af, $ea, $6b, $dd, $c9
+;> if wBattleItemEffect == 0xB3:                     # WorldDew
+	ld a, [wBattleItemEffect]
+	cp $b3
+	jr nz, .normal
 
+;>     wHitCount += 1
+	ld hl, wHitCount
+	inc [hl]
+;>@first     if wHitCount == 1:
+	ld a, [wHitCount]
+	cp $01
+	jr nz, .dew
+
+;>@side         pos = wSkillTarget & 4
+	ld a, [wSkillTarget]
+	and $04
+	ld c, a
+	ld b, $03
+
+;>@loop         for pos in range(pos, pos + 3):
+.check
+;>             if not CheckBattlerPresent(pos) and not IsHPFull(pos):   # IsHPFull at $69EF
+;>@br                 break
+	ld a, c
+	call CheckBattlerPresent
+	jr c, .next
+
+	ld a, c
+	call $69ef
+	jr nz, .dew
+
+.next
+;=@loop
+	inc c
+	dec b
+	jr nz, .check
+
+;>@el         else:
+;>             wSkillId = 0
+	xor a
+	ld [wSkillId], a
+;>             return ItemNothingHappens()
+	jp ItemNothingHappens
+
+;>@dew     if IsHPFull(wSkillTarget):
+.dew
+;=@dew
+	ld a, [wSkillTarget]
+	call $69ef
+	jp z, ItemNoEffect
+
+;>@dew1         return ItemNoEffect()
+;>@full     wSkillAmount2 = GetBattlerMaxHP(wSkillTarget) - mem16[wBattlerHP + 2 * wSkillTarget]
+	ld a, [wSkillTarget]
+	ld hl, wBattlerHP
+	call IndexWords
+	ld a, [hli]
+	ld b, [hl]
+	ld c, a
+;=@full
+	ld a, [wSkillTarget]
+	call GetBattlerMaxHP
+	sub c
+	ld l, a
+	ld a, h
+	sbc b
+;=@full
+	ld h, a
+	ld a, l
+	ld [wSkillAmount2], a
+	ld a, h
+	ld [wSkillAmount2 + 1], a
+	jp .apply
+
+;> else:
+;>@n1     if IsHPFull(wSkillTarget):
+.normal
+;=@n1
+	ld a, [wSkillTarget]
+	call $69ef
+	jp z, ItemNoEffect
+
+;>@n2         return ItemNoEffect()
+;>@n3     wBattleArg2 = 0x0F if wSkillTarget >= 4 else 0x0B   # enemy / own table field
+;=@n3
+	ld a, [wSkillTarget]
+	cp $04
+	jr c, .own
+
+	ld a, $0f
+	ld [wBattleArg2], a
+	jr .value
+
+.own
+;=@n3
+	ld a, $0b
+	ld [wBattleArg2], a
+
+.value
+;>     GetSkillValue()
+	ld hl, far_GetSkillValue
+	rst $10
+;>@sp     wSkillAmount2 = AddSkillSpread(wBattleArg0 | wBattleArg1 << 8)
+	ld a, [wBattleArg0]
+	ld l, a
+	ld a, [wBattleArg1]
+	ld h, a
+	call AddSkillSpread
+	ld a, l
+;=@sp
+	ld [wSkillAmount2], a
+	ld a, h
+	ld [wSkillAmount2 + 1], a
+;>@hp     hp = (GetBattlerHP(wSkillTarget) + wSkillAmount2) & 0xFFFF
+	push hl
+	ld a, [wSkillTarget]
+	call GetBattlerHP
+	pop bc
+	add hl, bc
+;>@cmp     if GetBattlerMaxHP(wSkillTarget) < hp:
+	push hl
+	ld a, [wSkillTarget]
+	call GetBattlerMaxHP
+	pop bc
+	call CompareHLBC
+	jr nc, .apply
+
+;>@cut         wSkillAmount2 -= hp - GetBattlerMaxHP(wSkillTarget)
+	ld a, c
+	sub l
+	ld c, a
+	ld a, b
+	sbc h
+	ld b, a
+;=@cut
+	ld a, [wSkillAmount2]
+	ld l, a
+	ld a, [wSkillAmount2 + 1]
+	ld h, a
+	ld a, l
+	sub c
+;=@cut
+	ld l, a
+	ld a, h
+	sbc b
+	ld h, a
+	ld a, l
+	ld [wSkillAmount2], a
+;=@cut
+	ld a, h
+	ld [wSkillAmount2 + 1], a
+
+.apply
+;>@ad mem16[wBattlerHP + 2 * wSkillTarget] += wSkillAmount2
+	ld a, [wSkillTarget]
+	ld hl, wBattlerHP
+	call IndexWords
+	push hl
+	ld a, [hli]
+	ld h, [hl]
+;=@ad
+	ld l, a
+	ld a, [wSkillAmount2]
+	ld c, a
+	ld a, [wSkillAmount2 + 1]
+	ld b, a
+	add hl, bc
+;=@ad
+	ld b, h
+	ld c, l
+	pop hl
+	ld a, c
+	ld [hli], a
+	ld [hl], b
+;>@ie if wSkillTarget & 4:                              # an enemy
+	ld a, [wSkillAmount2]
+	ld l, a
+	ld a, [wSkillAmount2 + 1]
+	ld h, a
+	ld a, [wSkillTarget]
+	bit 2, a
+;=@ie
+	jr z, .msg
+
+;>     AddJoinPoints(wSkillAmount2 >> 1)
+	ld b, h
+	ld c, l
+	call ShiftBC1
+	call AddJoinPoints
+
+.msg
+;> wBattlerReload = 0x84                             # "X's wound heals!"
+	ld a, $84
+	ld [wBattlerReload], a
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> StartSkillVisual()
+	ld hl, far_StartSkillVisual
+	rst $10
+;> wSkillMsgMode = 0
+	xor a
+	ld [wSkillMsgMode], a
+;> return
+	ret
+
+;@ def ItemHealMP()
+;@ path: battle/item/effects
+;@ Potion and ElfWater ($B4, $B5): restore the target's MP by the item table's amount plus its
+;@ random spread, up to the maximum; ElfWater fills them. At full MP "But nothing happens!".
+;@ Restoring an enemy's MP adds the amount to wJoinPoints. Message "X recovers MP!", sound $70
+;@ for own monsters.
+;@ test: skip far calls into the skill table
 ItemHealMP::
-	db $fa, $78, $db, $fe, $b5, $20, $2b
-	db $fa, $89, $db, $cd, $01, $6a, $ca, $0b, $56, $fa, $89, $db, $21, $c3, $db, $cd
-	db $b8, $6a, $2a, $46, $4f, $fa, $89, $db, $cd, $e1, $2f, $91, $6f, $7c, $98, $67
-	db $7d, $ea, $5a, $db, $7c, $ea, $5b, $db, $c3, $11, $58, $fa, $89, $db, $cd, $01
-	db $6a, $ca, $0b, $56, $fa, $89, $db, $fe, $04, $38, $07, $3e, $10, $ea, $4e, $db
-	db $18, $05, $3e, $0b, $ea, $4e, $db, $21, $01, $54, $d7, $fa, $4c, $db, $6f, $fa
-	db $4d, $db, $67, $cd, $9c, $67, $7d, $ea, $5a, $db, $7c, $ea, $5b, $db, $e5, $fa
-	db $89, $db, $cd, $ef, $2f, $c1, $09, $e5, $fa, $89, $db, $cd, $e1, $2f, $c1, $cd
-	db $45, $2f, $30, $1c, $79, $95, $4f, $78, $9c, $47, $fa, $5a, $db, $6f, $fa, $5b
-	db $db, $67, $7d, $91, $6f, $7c, $98, $67, $7d, $ea, $5a, $db, $7c, $ea, $5b, $db
-	db $fa, $89, $db, $21, $c3, $db, $cd, $b8, $6a, $e5, $2a, $66, $6f, $fa, $5a, $db
-	db $4f, $fa, $5b, $db, $47, $09, $44, $4d, $e1, $79, $22, $70, $fa, $5a, $db, $6f
-	db $fa, $5b, $db, $67, $fa, $89, $db, $cb, $57, $28, $05, $44, $4d, $cd, $d1, $5b
-	db $3e, $76, $ea, $55, $db, $cd, $2c, $56, $cd, $c4, $5b, $c9
+;> if wBattleItemEffect == 0xB5:                     # ElfWater
+	ld a, [wBattleItemEffect]
+	cp $b5
+	jr nz, .normal
 
+;>     if IsMPFull(wSkillTarget):
+;>@e1         return ItemNoEffect()
+	ld a, [wSkillTarget]
+	call IsMPFull
+	jp z, ItemNoEffect
+
+;>@full     wSkillAmount2 = GetBattlerMaxMP(wSkillTarget) - mem16[wBattlerMP + 2 * wSkillTarget]
+	ld a, [wSkillTarget]
+	ld hl, wBattlerMP
+	call IndexWords
+	ld a, [hli]
+	ld b, [hl]
+	ld c, a
+;=@full
+	ld a, [wSkillTarget]
+	call GetBattlerMaxMP
+	sub c
+	ld l, a
+	ld a, h
+	sbc b
+;=@full
+	ld h, a
+	ld a, l
+	ld [wSkillAmount2], a
+	ld a, h
+	ld [wSkillAmount2 + 1], a
+	jp .apply
+
+;> else:
+;>@n1     if IsMPFull(wSkillTarget):
+.normal
+;=@n1
+	ld a, [wSkillTarget]
+	call IsMPFull
+	jp z, ItemNoEffect
+
+;>@n2         return ItemNoEffect()
+;>@n3     wBattleArg2 = 0x10 if wSkillTarget >= 4 else 0x0B
+;=@n3
+	ld a, [wSkillTarget]
+	cp $04
+	jr c, .own
+
+	ld a, $10
+	ld [wBattleArg2], a
+	jr .value
+
+.own
+;=@n3
+	ld a, $0b
+	ld [wBattleArg2], a
+
+.value
+;>     GetSkillValue()
+	ld hl, far_GetSkillValue
+	rst $10
+;>@sp     wSkillAmount2 = AddSkillSpread(wBattleArg0 | wBattleArg1 << 8)
+	ld a, [wBattleArg0]
+	ld l, a
+	ld a, [wBattleArg1]
+	ld h, a
+	call AddSkillSpread
+	ld a, l
+;=@sp
+	ld [wSkillAmount2], a
+	ld a, h
+	ld [wSkillAmount2 + 1], a
+;>@mp     mp = (GetBattlerMP(wSkillTarget) + wSkillAmount2) & 0xFFFF
+	push hl
+	ld a, [wSkillTarget]
+	call GetBattlerMP
+	pop bc
+	add hl, bc
+;>@cmp     if GetBattlerMaxMP(wSkillTarget) < mp:
+	push hl
+	ld a, [wSkillTarget]
+	call GetBattlerMaxMP
+	pop bc
+	call CompareHLBC
+	jr nc, .apply
+
+;>@cut         wSkillAmount2 -= mp - GetBattlerMaxMP(wSkillTarget)
+	ld a, c
+	sub l
+	ld c, a
+	ld a, b
+	sbc h
+	ld b, a
+;=@cut
+	ld a, [wSkillAmount2]
+	ld l, a
+	ld a, [wSkillAmount2 + 1]
+	ld h, a
+	ld a, l
+	sub c
+;=@cut
+	ld l, a
+	ld a, h
+	sbc b
+	ld h, a
+	ld a, l
+	ld [wSkillAmount2], a
+;=@cut
+	ld a, h
+	ld [wSkillAmount2 + 1], a
+
+.apply
+;>@ad mem16[wBattlerMP + 2 * wSkillTarget] += wSkillAmount2
+	ld a, [wSkillTarget]
+	ld hl, wBattlerMP
+	call IndexWords
+	push hl
+	ld a, [hli]
+	ld h, [hl]
+;=@ad
+	ld l, a
+	ld a, [wSkillAmount2]
+	ld c, a
+	ld a, [wSkillAmount2 + 1]
+	ld b, a
+	add hl, bc
+;=@ad
+	ld b, h
+	ld c, l
+	pop hl
+	ld a, c
+	ld [hli], a
+	ld [hl], b
+;>@ie if wSkillTarget & 4:                              # an enemy
+	ld a, [wSkillAmount2]
+	ld l, a
+	ld a, [wSkillAmount2 + 1]
+	ld h, a
+	ld a, [wSkillTarget]
+	bit 2, a
+;=@ie
+	jr z, .msg
+
+;>     AddJoinPoints(wSkillAmount2)
+	ld b, h
+	ld c, l
+	call AddJoinPoints
+
+.msg
+;> wBattlerReload = 0x76                             # "X recovers MP!"
+	ld a, $76
+	ld [wBattlerReload], a
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> return
+	ret
+
+;@ def ItemAntidote()
+;@ path: battle/item/effects
+;@ Antidote ($B6): cures poison (bits 0-1 of status byte 0): "X is no longer poisoned!"; an
+;@ enemy cured adds 100 join points. Not poisoned: "But nothing happens!".
 ItemAntidote::
-	db $3e, $9c, $ea, $55
-	db $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e, $e6, $03, $20, $04, $cd
-	db $b9, $5b, $c9, $7e, $e6, $fc, $77, $cd, $aa, $5b, $cd, $2c, $56, $cd, $c4, $5b
-	db $c9
+;> wBattlerReload = 0x9C                             # "X is no longer poisoned!"
+	ld a, $9c
+	ld [wBattlerReload], a
+;> st = 8 * wSkillTarget
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus
+	call AddEightTimes
+;> if not wBattlerStatus[st] & 0x03:
+;>@u     return ItemUseless()
+	ld a, [hl]
+	and $03
+	jr nz, .cure
 
+	call ItemUseless
+	ret
+
+
+.cure
+;> wBattlerStatus[st] &= 0xFC
+	ld a, [hl]
+	and $fc
+	ld [hl], a
+;> ItemCuredEnemy()
+	call ItemCuredEnemy
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> return
+	ret
+
+;@ def ItemMoonHerb()
+;@ path: battle/item/effects
+;@ MoonHerb ($B7): cures paralysis (bit 6 of status byte 0), the monster loses this turn
+;@ (code at $6B0B): "X is no longer paralyzed!". Not paralyzed: "But nothing happens!".
+;@ test: skip calls code at $6B0B that has no label yet
 ItemMoonHerb::
-	db $3e, $9d, $ea, $55, $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e
-	db $e6, $40, $20, $04, $cd, $b9, $5b, $c9, $cd, $0b, $6b, $7e, $e6, $bf, $77, $cd
-	db $2c, $56, $cd, $c4, $5b, $c9
+;> wBattlerReload = 0x9D                             # "X is no longer paralyzed!"
+	ld a, $9d
+	ld [wBattlerReload], a
+;> st = 8 * wSkillTarget
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus
+	call AddEightTimes
+;> if not wBattlerStatus[st] & 0x40:
+;>@u     return ItemUseless()
+	ld a, [hl]
+	and $40
+	jr nz, .cure
 
+	call ItemUseless
+	ret
+
+
+.cure
+;> TargetLosesTurn()                                 # $6B0B
+	call $6b0b
+;> wBattlerStatus[st] &= 0xBF
+	ld a, [hl]
+	and $bf
+	ld [hl], a
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> return
+	ret
+
+;@ def ItemSkyBell()
+;@ path: battle/item/effects
+;@ SkyBell ($B8): ends confusion (bit 4 of status byte 0), the monster loses this turn: "X
+;@ returns to normal!". Not confused: "But nothing happens!".
+;@ test: skip calls code at $6B0B that has no label yet
 ItemSkyBell::
-	db $3e, $dc, $ea, $55, $db, $fa, $89, $db, $21, $02
-	db $db, $cd, $6c, $2f, $7e, $e6, $10, $20, $04, $cd, $b9, $5b, $c9, $cd, $0b, $6b
-	db $7e, $e6, $ef, $77, $cd, $2c, $56, $cd, $c4, $5b, $c9
+;> wBattlerReload = 0xDC                             # "X returns to normal!"
+	ld a, $dc
+	ld [wBattlerReload], a
+;> st = 8 * wSkillTarget
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus
+	call AddEightTimes
+;> if not wBattlerStatus[st] & 0x10:
+;>@u     return ItemUseless()
+	ld a, [hl]
+	and $10
+	jr nz, .cure
 
+	call ItemUseless
+	ret
+
+
+.cure
+;> TargetLosesTurn()                                 # $6B0B
+	call $6b0b
+;> wBattlerStatus[st] &= 0xEF
+	ld a, [hl]
+	and $ef
+	ld [hl], a
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> return
+	ret
+
+;@ def ItemLaurel()
+;@ path: battle/item/effects
+;@ Laurel ($B9): lifts the curse (bit 5 of status byte 0): "X is no longer cursed!". Not
+;@ cursed: "But nothing happens!".
 ItemLaurel::
-	db $3e, $9f, $ea, $55, $db
-	db $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e, $e6, $20, $20, $04, $cd, $b9
-	db $5b, $c9, $7e, $e6, $df, $77, $cd, $2c, $56, $cd, $c4, $5b, $c9
+;> wBattlerReload = 0x9F                             # "X is no longer cursed!"
+	ld a, $9f
+	ld [wBattlerReload], a
+;> st = 8 * wSkillTarget
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus
+	call AddEightTimes
+;> if not wBattlerStatus[st] & 0x20:
+;>@u     return ItemUseless()
+	ld a, [hl]
+	and $20
+	jr nz, .cure
 
+	call ItemUseless
+	ret
+
+
+.cure
+;> wBattlerStatus[st] &= 0xDF
+	ld a, [hl]
+	and $df
+	ld [hl], a
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> return
+	ret
+
+;@ def ItemAwakeSand()
+;@ path: battle/item/effects
+;@ AwakeSand ($BA): wakes the target (clears the sleep bits $8C of status byte 0), which loses
+;@ this turn: "X wakes up!". Not asleep: "But nothing happens!".
+;@ test: skip calls code at $6B0B that has no label yet
 ItemAwakeSand::
-	db $3e, $db, $ea
-	db $55, $db, $fa, $89, $db, $21, $02, $db, $cd, $6c, $2f, $7e, $e6, $8c, $20, $04
-	db $cd, $b9, $5b, $c9, $cd, $0b, $6b, $7e, $e6, $73, $77, $cd, $2c, $56, $cd, $c4
-	db $5b, $c9
+;> wBattlerReload = 0xDB                             # "X wakes up!"
+	ld a, $db
+	ld [wBattlerReload], a
+;> st = 8 * wSkillTarget
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus
+	call AddEightTimes
+;> if not wBattlerStatus[st] & 0x8C:
+;>@u     return ItemUseless()
+	ld a, [hl]
+	and $8c
+	jr nz, .cure
 
+	call ItemUseless
+	ret
+
+
+.cure
+;> TargetLosesTurn()                                 # $6B0B
+	call $6b0b
+;> wBattlerStatus[st] &= 0x73
+	ld a, [hl]
+	and $73
+	ld [hl], a
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> ItemHealSound()
+	call ItemHealSound
+;> return
+	ret
+
+;@ def ItemWorldLeaf()
+;@ path: battle/item/effects
+;@ WorldLeaf ($BB): brings a fallen monster back with full HP (its skills reloaded by bank
+;@ $51, ResetBattler): "X is revived!". A standing monster or an empty position: "But nothing
+;@ happens!".
+;@ test: skip far call that reloads the battler's skills
 ItemWorldLeaf::
-	db $fa, $77, $db, $cd, $a5, $2f, $30, $31, $28, $2f, $fa, $77, $db, $ea
-	db $4c, $db, $21, $0a, $51, $d7, $fa, $77, $db, $47, $cd, $dd, $51, $78, $21, $a3
-	db $db, $cd, $b8, $6a, $54, $5d, $78, $21, $b3, $db, $cd, $b8, $6a, $2a, $12, $13
-	db $7e, $12, $3e, $9e, $ea, $55, $db, $cd, $2c, $56, $c9, $cd, $b9, $5b, $c9
+;>@st if CheckBattlerPresent(wBattleItemTarget) and wBattlerState[wBattleItemTarget] != 0xFF:
+	ld a, [wBattleItemTarget]
+	call CheckBattlerPresent
+	jr nc, .useless
 
+	jr z, .useless
+
+;>     wBattleArg0 = wBattleItemTarget
+	ld a, [wBattleItemTarget]
+	ld [wBattleArg0], a
+;>     LoadBattlerSkills()
+	ld hl, far_LoadBattlerSkills
+	rst $10
+;>     ResetBattler(wBattleItemTarget)
+	ld a, [wBattleItemTarget]
+	ld b, a
+	call ResetBattler
+;>@hp     mem16[wBattlerHP + 2 * pos] = mem16[wBattlerMaxHP + 2 * pos]
+	ld a, b
+	ld hl, wBattlerHP
+	call IndexWords
+	ld d, h
+	ld e, l
+	ld a, b
+;=@hp
+	ld hl, wBattlerMaxHP
+	call IndexWords
+	ld a, [hli]
+	ld [de], a
+	inc de
+	ld a, [hl]
+;=@hp
+	ld [de], a
+;>     wBattlerReload = 0x9E                         # "X is revived!"
+	ld a, $9e
+	ld [wBattlerReload], a
+;>     return ItemShowUseMessage()
+	call ItemShowUseMessage
+	ret
+
+
+.useless
+;> ItemUseless()
+	call ItemUseless
+;> return
+	ret
+
+;@ def ItemMeat()
+;@ path: battle/item/effects
+;@ FeedMeat, BeefJerky, PorkChop and Sirloin ($C2-$C4, $C6): thrown to an enemy they add the
+;@ item table's value to wJoinPoints (at most 1600); given to an own monster they lower its
+;@ wildness by that value (not below 0). Then the treat message (ItemShowUseMessage).
+;@ test: skip far call into the skill table
 ItemMeat::
-	db $3e
-	db $01, $ea, $8a, $db, $fa, $77, $db, $fe, $04, $38, $38, $d6, $04, $21, $83, $db
-	db $e5, $2a, $66, $6f, $e5, $3e, $0f, $ea, $4e, $db, $21, $01, $54, $d7, $fa, $99
-	db $c8, $6f, $fa, $9a, $c8, $67, $fa, $4c, $db, $4f, $fa, $4d, $db, $47, $e1, $09
-	db $01, $40, $06, $cd, $45, $2f, $44, $4d, $38, $03, $01, $40, $06, $e1, $79, $22
-	db $70, $18, $2c, $21, $23, $dc, $cd, $b8, $6a, $e5, $2a, $66, $6f, $e5, $3e, $0b
-	db $ea, $4e, $db, $21, $01, $54, $d7, $e1, $fa, $4c, $db, $4f, $fa, $4d, $db, $47
-	db $7d, $91, $4f, $7c, $98, $47, $30, $03, $01, $00, $00, $e1, $79, $22, $70, $cd
-	db $2c, $56, $af, $ea, $33, $da, $c9
+;> wSkillId = 1
+	ld a, $01
+	ld [wSkillId], a
+;> if wBattleItemTarget >= 4:                         # an enemy
+	ld a, [wBattleItemTarget]
+	cp $04
+	jr c, .own
 
+;>@pt     points = wJoinPoints
+	sub $04
+	ld hl, wJoinPoints
+	push hl
+	ld a, [hli]
+	ld h, [hl]
+	ld l, a
+;=@pt
+	push hl
+;>     wBattleArg2 = 0x0F
+	ld a, $0f
+	ld [wBattleArg2], a
+;>     GetSkillValue()
+	ld hl, far_GetSkillValue
+	rst $10
+;>@add     wJoinPoints = min(points + (wBattleArg0 | wBattleArg1 << 8), 0x640)
+	ld a, [wRandomHigh]
+	ld l, a
+	ld a, [wRandomLow]
+	ld h, a
+	ld a, [wBattleArg0]
+	ld c, a
+;=@add
+	ld a, [wBattleArg1]
+	ld b, a
+	pop hl
+	add hl, bc
+	ld bc, $0640
+	call CompareHLBC
+;=@add
+	ld b, h
+	ld c, l
+	jr c, .storePoints
+
+	ld bc, $0640
+
+.storePoints
+;=@add
+	pop hl
+	ld a, c
+	ld [hli], a
+	ld [hl], b
+	jr .msg
+
+;> else:
+;>@w1     p = wBattlerWildness + 2 * wBattleItemTarget
+.own
+;=@w1
+	ld hl, wBattlerWildness
+	call IndexWords
+	push hl
+	ld a, [hli]
+	ld h, [hl]
+	ld l, a
+;=@w1
+	push hl
+;>@w2     wBattleArg2 = 0x0B
+;=@w2
+	ld a, $0b
+	ld [wBattleArg2], a
+;>@w3     GetSkillValue()
+;=@w3
+	ld hl, far_GetSkillValue
+	rst $10
+;>@w4     mem16[p] = max(mem16[p] - (wBattleArg0 | wBattleArg1 << 8), 0)
+;=@w4
+	pop hl
+	ld a, [wBattleArg0]
+	ld c, a
+	ld a, [wBattleArg1]
+	ld b, a
+	ld a, l
+;=@w4
+	sub c
+	ld c, a
+	ld a, h
+	sbc b
+	ld b, a
+	jr nc, .storeWild
+
+;=@w4
+	ld bc, $0000
+
+.storeWild
+;=@w4
+	pop hl
+	ld a, c
+	ld [hli], a
+	ld [hl], b
+
+.msg
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> wMonStats = 0
+	xor a
+	ld [wMonStats], a
+;> return
+	ret
+
+;@ def ItemBadMeat()
+;@ path: battle/item/effects
+;@ BadMeat ($C5): an enemy's join points go up by just 5 (at most 1024), an own monster's
+;@ wildness down by 5 (not below 0). Then the treat message.
+;@ test: skip the treat message calls other banks
 ItemBadMeat::
-	db $3e, $01, $ea, $8a, $db, $fa, $77, $db, $fe
-	db $04, $38, $1c, $d6, $04, $21, $83, $db, $e5, $2a, $66, $6f, $01, $05, $00, $09
-	db $01, $00, $04, $cd, $45, $2f, $44, $4d, $38, $1c, $01, $00, $04, $18, $17, $21
-	db $23, $dc, $cd, $b8, $6a, $e5, $2a, $66, $d6, $05, $6f, $7c, $de, $00, $67, $44
-	db $4d, $30, $03, $01, $00, $00, $e1, $79, $22, $70, $cd, $2c, $56, $af, $ea, $33
-	db $da, $c9
+;> wSkillId = 1
+	ld a, $01
+	ld [wSkillId], a
+;> if wBattleItemTarget >= 4:
+	ld a, [wBattleItemTarget]
+	cp $04
+	jr c, .own
 
+;>@pt     wJoinPoints = min(wJoinPoints + 5, 0x400)
+	sub $04
+	ld hl, wJoinPoints
+	push hl
+	ld a, [hli]
+	ld h, [hl]
+	ld l, a
+;=@pt
+	ld bc, $0005
+	add hl, bc
+	ld bc, $0400
+	call CompareHLBC
+	ld b, h
+	ld c, l
+;=@pt
+	jr c, .store
+
+	ld bc, $0400
+	jr .store
+
+;> else:
+;>@w     p = wBattlerWildness + 2 * wBattleItemTarget; mem16[p] = max(mem16[p] - 5, 0)
+.own
+;=@w
+	ld hl, wBattlerWildness
+	call IndexWords
+	push hl
+	ld a, [hli]
+	ld h, [hl]
+	sub $05
+;=@w
+	ld l, a
+	ld a, h
+	sbc $00
+	ld h, a
+	ld b, h
+	ld c, l
+;=@w
+	jr nc, .store
+
+	ld bc, $0000
+
+.store
+;=@pt
+;=@w
+	pop hl
+	ld a, c
+	ld [hli], a
+	ld [hl], b
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> wMonStats = 0
+	xor a
+	ld [wMonStats], a
+;> return
+	ret
+
+;@ def ItemBoltStaff()
+;@ path: battle/item/effects
+;@ BoltStaff ($C7): "The bolt bursts out of the staff": the item table's damage scaled by the
+;@ target's resistance 4 (lightning), then StaffStrike. Nothing when the target is gone.
+;@ ResistDamageA gets hl = 0 from RollStaffDamage instead of the status address, so its
+;@ magic-wall bits come from ROM address 0.
+;@ test: skip far call into the skill table
 ItemBoltStaff::
-	db $fa, $89, $db, $cd, $a5, $2f, $d8, $cd, $b2, $5a, $cd, $c0, $67, $cb
-	db $37, $e6, $03, $cd, $56, $67, $cd, $d4, $5a, $c9
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
+	ret c
 
+;> status = RollStaffDamage()                        # always 0
+	call RollStaffDamage
+;> ResistDamageA(status, (GetResistByte1() >> 4) & 3)
+	call GetResistByte1
+	swap a
+	and $03
+	call ResistDamageA
+;> StaffStrike()
+	call StaffStrike
+;> return
+	ret
+
+;@ def ItemVacuumStaff()
+;@ path: battle/item/effects
+;@ The vacuum staff ($C8, "It creates a whirling vacuum"): damage scaled by resistance 3
+;@ (wind), then StaffStrike.
+;@ test: skip far call into the skill table
 ItemVacuumStaff::
-	db $fa, $89, $db, $cd, $a5, $2f
-	db $d8, $cd, $b2, $5a, $cd, $c0, $67, $07, $07, $e6, $03, $cd, $56, $67, $cd, $d4
-	db $5a, $c9
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
+	ret c
 
+;> status = RollStaffDamage()
+	call RollStaffDamage
+;> ResistDamageA(status, (GetResistByte1() >> 6) & 3)
+	call GetResistByte1
+	rlca
+	rlca
+	and $03
+	call ResistDamageA
+;> StaffStrike()
+	call StaffStrike
+;> return
+	ret
+
+;@ def ItemBlockStaff()
+;@ path: battle/item/effects
+;@ BlockStaff ($C9, "A mysterious mist covers everything"): suspends the target's spells like
+;@ StopSpell when RollStopSpell works: "X's spells are all suspended!", else "Has no effect on
+;@ X!". Nothing when the target is gone or already blocked.
+;@ test: skip the messages call other banks
 ItemBlockStaff::
-	db $fa, $89, $db, $cd, $a5, $2f, $d8, $fa, $89, $db, $21, $03, $db, $cd
-	db $6c, $2f, $cb, $46, $c0, $cd, $bc, $5c, $30, $17, $3e, $01, $ea, $8a, $db, $fa
-	db $77, $db, $21, $03, $db, $cd, $6c, $2f, $cb, $c6, $3e, $88, $ea, $55, $db, $18
-	db $04, $cd, $9e, $5b, $c9, $cd, $2c, $56, $c9
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
+	ret c
 
+;> if wBattlerStatus[8 * wSkillTarget + 1] & 0x01:
+;>     return
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus1
+	call AddEightTimes
+	bit 0, [hl]
+	ret nz
+
+;>@r if not RollStopSpell():
+	call RollStopSpell
+	jr nc, .resisted
+
+;>@r1     return ItemNoEffectOnTarget()
+;> wSkillId = 1
+	ld a, $01
+	ld [wSkillId], a
+;> wBattlerStatus[8 * wBattleItemTarget + 1] |= 0x01
+	ld a, [wBattleItemTarget]
+	ld hl, wBattlerStatus1
+	call AddEightTimes
+	set 0, [hl]
+;> wBattlerReload = 0x88                             # "X's spells are all suspended!"
+	ld a, $88
+	ld [wBattlerReload], a
+	jr .msg
+
+.resisted
+;=@r1
+	call ItemNoEffectOnTarget
+	ret
+
+.msg
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> return
+	ret
+
+;@ def ItemLavaStaff()
+;@ path: battle/item/effects
+;@ LavaStaff ($CA, "Hot lava floods the ground"): damage scaled by resistance 1, then
+;@ StaffStrike.
+;@ test: skip far call into the skill table
 ItemLavaStaff::
-	db $fa, $89, $db, $cd, $a5, $2f, $d8
-	db $cd, $b2, $5a, $cd, $bb, $67, $0f, $0f, $e6, $03, $cd, $56, $67, $cd, $d4, $5a
-	db $c9
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
+	ret c
 
+;> status = RollStaffDamage()
+	call RollStaffDamage
+;> ResistDamageA(status, (GetResistByte0() >> 2) & 3)
+	call GetResistByte0
+	rrca
+	rrca
+	and $03
+	call ResistDamageA
+;> StaffStrike()
+	call StaffStrike
+;> return
+	ret
+
+;@ def ItemSnowStaff()
+;@ path: battle/item/effects
+;@ SnowStaff ($CB, "An icy blizzard blasts out"): damage scaled by resistance 17 (bits 2-3 of
+;@ resistance byte 4, the ice breaths), then StaffStrike.
+;@ test: skip far call into the skill table
 ItemSnowStaff::
-	db $fa, $89, $db, $cd, $a5, $2f, $d8, $cd, $b2, $5a, $cd, $cf, $67, $0f, $0f
-	db $e6, $03, $cd, $56, $67, $cd, $d4, $5a, $c9
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
+	ret c
 
+;> status = RollStaffDamage()
+	call RollStaffDamage
+;> ResistDamageA(status, (GetResistByte4() >> 2) & 3)
+	call GetResistByte4
+	rrca
+	rrca
+	and $03
+	call ResistDamageA
+;> StaffStrike()
+	call StaffStrike
+;> return
+	ret
+
+;@ def ItemFireStaff()
+;@ path: battle/item/effects
+;@ The fire staff (effect $D4, the last entry of BattleItemEffects): damage scaled by
+;@ resistance 0 (Blaze), then StaffStrike.
+;@ test: skip far call into the skill table
 ItemFireStaff::
-	db $fa, $89, $db, $cd, $a5, $2f, $d8
-	db $cd, $b2, $5a, $cd, $bb, $67, $cb, $37, $e6, $03, $cd, $56, $67, $cd, $d4, $5a
-	db $c9
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
+	ld a, [wSkillTarget]
+	call CheckBattlerPresent
+	ret c
 
+;> status = RollStaffDamage()
+	call RollStaffDamage
+;> ResistDamageA(status, (GetResistByte0() >> 4) & 3)
+	call GetResistByte0
+	swap a
+	and $03
+	call ResistDamageA
+;> StaffStrike()
+	call StaffStrike
+;> return
+	ret
+
+;@ def RollStaffDamage() -> hl
+;@ path: battle/item/effects
+;@ A staff's damage: the item table's value (own-side field $0B) plus its random spread into
+;@ wSkillAmount; the message will be $82 ("X takes N damage pts!"). Returns hl = 0.
+;@ test: skip far call into the skill table
 RollStaffDamage::
-	db $3e, $0b, $ea, $4e, $db, $21, $01, $54, $d7, $3e, $82, $ea, $55, $db, $3e
-	db $00, $ea, $54, $db, $fa, $4c, $db, $6f, $fa, $4d, $db, $67, $cd, $9c, $67, $21
-	db $00, $00, $c9
+;> wBattleArg2 = 0x0B
+	ld a, $0b
+	ld [wBattleArg2], a
+;> GetSkillValue()
+	ld hl, far_GetSkillValue
+	rst $10
+;> wBattlerReload = 0x82
+	ld a, $82
+	ld [wBattlerReload], a
+;> wItemMsgGroup = 0
+	ld a, $00
+	ld [wItemMsgGroup], a
+;> AddSkillSpread(wBattleArg0 | wBattleArg1 << 8)
+	ld a, [wBattleArg0]
+	ld l, a
+	ld a, [wBattleArg1]
+	ld h, a
+	call AddSkillSpread
+;> return 0
+	ld hl, $0000
+	ret
 
+;@ def StaffStrike()
+;@ path: battle/item/effects
+;@ A staff hits with wSkillAmount: unless it is 0 or the target's stance takes it all
+;@ (StanceReduceDamage), the damage is dealt (ItemDealDamage), the hit effect starts and the
+;@ skill sound plays; otherwise ItemStaffMisses.
+;@ test: skip starts the hit effects in other banks
 StaffStrike::
-	db $fa, $56, $db, $5f, $fa, $57, $db, $57, $7b, $b2, $28, $12, $cd
-	db $f6, $5a, $38, $0d, $cd, $26, $5b, $21, $04, $5f, $d7, $21, $02, $55, $d7, $18
-	db $03, $cd, $98, $5b, $c9
+;> dmg = wSkillAmount
+	ld a, [wSkillAmount]
+	ld e, a
+	ld a, [wSkillAmount + 1]
+	ld d, a
+;> if dmg and not StanceReduceDamage(dmg):
+	ld a, e
+	or d
+	jr z, .miss
 
+	call StanceReduceDamage
+	jr c, .miss
+
+;>     ItemDealDamage(wSkillAmount)
+	call ItemDealDamage
+;>     StartSkillHitEffect()
+	ld hl, far_StartSkillHitEffect
+	rst $10
+;>     PlaySkillSound2()
+	ld hl, far_PlaySkillSound2
+	rst $10
+	jr .done
+
+;> else:
+;>@m     ItemStaffMisses()
+.miss
+;=@m
+	call ItemStaffMisses
+
+.done
+;> return
+	ret
+
+;@ def StanceReduceDamage(dmg: de) -> carry
+;@ path: battle/item/effects
+;@ The target's defence stance (low bits of status byte 7) cuts a staff's damage: StrongD
+;@ (bit 1) to a tenth, Defence (bit 0) to half; the result goes into wSkillAmount. Carry when
+;@ nothing is left; no carry without a stance.
 StanceReduceDamage::
-	db $fa, $89, $db, $21, $09, $db, $cd, $6c, $2f, $7e, $e6
-	db $03, $28, $20, $62, $6b, $cb, $4f, $20, $05, $cd, $43, $6b, $18, $05, $3e, $0a
-	db $cd, $0d, $1e, $7d, $ea, $56, $db, $7c, $ea, $57, $db, $54, $5d, $7c, $b5, $20
-	db $02, $37, $c9, $af, $c9
+;> stance = wBattlerStatus[8 * wSkillTarget + 7] & 3
+	ld a, [wSkillTarget]
+	ld hl, wBattlerStatus7
+	call AddEightTimes
+	ld a, [hl]
+	and $03
+;> if stance == 0:
+;>@n     return False
+	jr z, .none
 
+;> if not stance & 2:
+;>     dmg >>= 1
+	ld h, d
+	ld l, e
+	bit 1, a
+	jr nz, .tenth
+
+	call ShiftHL1
+	jr .store
+
+;> else:
+;>@t     dmg = dmg // 10
+.tenth
+;=@t
+	ld a, $0a
+	call Divide16
+
+.store
+;> wSkillAmount = dmg
+	ld a, l
+	ld [wSkillAmount], a
+	ld a, h
+	ld [wSkillAmount + 1], a
+;>@z return dmg == 0
+	ld d, h
+	ld e, l
+	ld a, h
+	or l
+	jr nz, .none
+
+;=@z
+	scf
+	ret
+
+.none
+;=@n
+	xor a
+	ret
+
+;@ def ItemDealDamage(dmg: de)
+;@ path: battle/item/effects
+;@ A staff's damage to the target: its HP drop by `dmg` (wSkillAmount2 holds what was taken);
+;@ at 0 the target falls (bit 0 of its wBattlerState). Half the damage comes off wJoinPoints
+;@ (whichever side the target is on). Message $82 with the number (DamageToText).
+;@ test: skip the message calls other banks
 ItemDealDamage::
-	db $3e, $01, $ea, $8a, $db, $fa, $89, $db, $21, $a3, $db
-	db $cd, $b8, $6a, $7d, $ea, $61, $db, $7c, $ea, $62, $db, $2a, $66, $93, $4f, $7c
-	db $9a, $47, $7b, $ea, $5a, $db, $7a, $ea, $5b, $db, $30, $24, $fa, $61, $db, $6f
-	db $fa, $62, $db, $67, $2a, $56, $5f, $7b, $ea, $5a, $db, $7a, $ea, $5b, $db, $01
-	db $00, $00, $fa, $89, $db, $21, $1b, $dd, $85, $6f, $3e, $00, $8c, $67, $cb, $c6
-	db $c5, $fa, $5a, $db, $4f, $fa, $5b, $db, $47, $cd, $32, $6b, $cd, $e3, $5b, $c1
-	db $fa, $61, $db, $6f, $fa, $62, $db, $67, $79, $22, $70, $3e, $82, $ea, $55, $db
-	db $cd, $e9, $50, $cd, $2c, $56, $c9
+;> wSkillId = 1
+	ld a, $01
+	ld [wSkillId], a
+;>@p wSkillStatusPtr = wBattlerHP + 2 * wSkillTarget
+	ld a, [wSkillTarget]
+	ld hl, wBattlerHP
+	call IndexWords
+	ld a, l
+	ld [wSkillStatusPtr], a
+	ld a, h
+;=@p
+	ld [wSkillStatusPtr + 1], a
+;>@h hp = mem16[wSkillStatusPtr] - dmg
+	ld a, [hli]
+	ld h, [hl]
+	sub e
+	ld c, a
+	ld a, h
+	sbc d
+;=@h
+	ld b, a
+;>@a wSkillAmount2 = dmg
+	ld a, e
+	ld [wSkillAmount2], a
+	ld a, d
+	ld [wSkillAmount2 + 1], a
+;> if hp < 0:
+	jr nc, .store
 
+;>@all     wSkillAmount2 = mem16[wSkillStatusPtr]     # all it had
+	ld a, [wSkillStatusPtr]
+	ld l, a
+	ld a, [wSkillStatusPtr + 1]
+	ld h, a
+	ld a, [hli]
+	ld d, [hl]
+;=@all
+	ld e, a
+	ld a, e
+	ld [wSkillAmount2], a
+	ld a, d
+	ld [wSkillAmount2 + 1], a
+;>     hp = 0
+	ld bc, $0000
+;>@f     wBattlerState[wSkillTarget] |= 0x01           # falls
+	ld a, [wSkillTarget]
+	ld hl, wBattlerState
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+;=@f
+	ld h, a
+	set 0, [hl]
+
+.store
+;>@sj SubJoinPoints(wSkillAmount2 >> 1)
+	push bc
+	ld a, [wSkillAmount2]
+	ld c, a
+	ld a, [wSkillAmount2 + 1]
+	ld b, a
+	call ShiftBC1
+;=@sj
+	call SubJoinPoints
+	pop bc
+;>@w mem16[wSkillStatusPtr] = hp
+	ld a, [wSkillStatusPtr]
+	ld l, a
+	ld a, [wSkillStatusPtr + 1]
+	ld h, a
+	ld a, c
+	ld [hli], a
+;=@w
+	ld [hl], b
+;> wBattlerReload = 0x82                             # "X takes N damage pts!"
+	ld a, $82
+	ld [wBattlerReload], a
+;> DamageToText()
+	call DamageToText
+;> ItemShowUseMessage()
+	call ItemShowUseMessage
+;> return
+	ret
+
+;@ def ItemStaffMisses()
+;@ path: battle/item/effects
+;@ A staff that does no damage: 2 join points are lost, then ItemNoEffectOnTarget.
 ItemStaffMisses::
-	db $01, $02, $00, $cd, $e3, $5b
+;> SubJoinPoints(2)
+	ld bc, $0002
+	call SubJoinPoints
+;> ItemNoEffectOnTarget()                            # (falls through)
+;> return
 
+;@ def ItemNoEffectOnTarget()
+;@ path: battle/item/effects
+;@ "Has no effect on X!" ($B8) with the target's name.
 ItemNoEffectOnTarget::
-	db $3e, $b8, $ea
-	db $55, $db, $cd, $23, $6c, $cd, $1b, $56, $c9
+;> wBattlerReload = 0xB8
+	ld a, $b8
+	ld [wBattlerReload], a
+;> TargetNameToArg0()
+	call TargetNameToArg0
+;> ItemShowFailMessage()
+	call ItemShowFailMessage
+;> return
+	ret
 
+;@ def ItemCuredEnemy()
+;@ path: battle/item/effects
+;@ Curing an enemy with an item adds 100 join points.
 ItemCuredEnemy::
-	db $fa, $89, $db, $cb, $57, $28, $07
-	db $01, $64, $00, $cd, $d1, $5b, $c9, $c9
+;> if wSkillTarget & 4:
+;>     AddJoinPoints(100)
+	ld a, [wSkillTarget]
+	bit 2, a
+	jr z, .done
 
+	ld bc, $0064
+	call AddJoinPoints
+	ret
+
+.done
+;> return
+	ret
+
+;@ def ItemUseless()
+;@ path: battle/item/effects
+;@ The item does nothing (ItemNoEffect). It tests whether the target is an enemy, but both
+;@ ways lead to the same call.
 ItemUseless::
-	db $fa, $89, $db, $cb, $57, $28, $00, $cd
-	db $0b, $56, $c9
+;> ItemNoEffect()
+	ld a, [wSkillTarget]
+	bit 2, a
+	jr z, .same
 
+.same
+	call ItemNoEffect
+;> return
+	ret
+
+;@ def ItemHealSound()
+;@ path: battle/item/effects
+;@ Sound $70 when an own monster was healed.
 ItemHealSound::
-	db $fa, $89, $db, $fe, $04, $30, $05, $3e, $70, $cd, $2c, $1b, $c9
+;> if wSkillTarget < 4:
+;>     QueueSound(0x70)
+	ld a, [wSkillTarget]
+	cp $04
+	jr nc, .done
+
+	ld a, $70
+	call QueueSound
+
+.done
+;> return
+	ret
+;@ def AddJoinPoints(points: bc)
+;@ path: battle/item/effects
+;@ wJoinPoints += points.
 AddJoinPoints::
-	db $fa, $83, $db, $6f, $fa, $84, $db, $67, $09, $7d, $ea, $83, $db, $7c, $ea, $84
-	db $db, $c9
+;>@s wJoinPoints = (wJoinPoints + points) & 0xFFFF
+	ld a, [wJoinPoints]
+	ld l, a
+	ld a, [wJoinPoints + 1]
+	ld h, a
+	add hl, bc
+	ld a, l
+;=@s
+	ld [wJoinPoints], a
+	ld a, h
+	ld [wJoinPoints + 1], a
+;> return
+	ret
 
+;@ def SubJoinPoints(points: bc)
+;@ path: battle/item/effects
+;@ wJoinPoints -= points, not below 0.
 SubJoinPoints::
-	db $fa, $83, $db, $6f, $fa, $84, $db, $67, $7d, $91, $6f, $7c, $98, $67
-	db $30, $03, $21, $00, $00, $7d, $ea, $83, $db, $7c, $ea, $84, $db, $c9
+;>@m wJoinPoints = max(wJoinPoints - points, 0)
+	ld a, [wJoinPoints]
+	ld l, a
+	ld a, [wJoinPoints + 1]
+	ld h, a
+	ld a, l
+	sub c
+;=@m
+	ld l, a
+	ld a, h
+	sbc b
+	ld h, a
+	jr nc, .store
 
+	ld hl, $0000
+
+.store
+;=@m
+	ld a, l
+	ld [wJoinPoints], a
+	ld a, h
+	ld [wJoinPoints + 1], a
+;> return
+	ret
+
+;@ def BlazeDamage()
+;@ path: battle/skills/resist
+;@ Damage of the Blaze skills: the skill table's amount (CalcSkillAmount) scaled by the
+;@ target's resistance 0 (bits 4-5 of resistance byte 0) with ResistDamageA.
 BlazeDamage::
+;> status = CalcSkillAmount()                       # hl: the target's status byte 3
 	call CalcSkillAmount
+;> ResistDamageA(status, (GetResistByte0() >> 4) & 3)
 	call GetResistByte0
 	swap a
 	and $03
 	call ResistDamageA
+;> return
 	ret
 
 
+;@ def FirebalDamage()
+;@ path: battle/skills/resist
+;@ Damage of the Firebal skills: the skill table's amount scaled by resistance 1 (bits 2-3 of
+;@ resistance byte 0).
 FirebalDamage::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageA(status, (GetResistByte0() >> 2) & 3)
 	call GetResistByte0
 	rrca
 	rrca
 	and $03
 	call ResistDamageA
+;> return
 	ret
 
 
+;@ def BangDamage()
+;@ path: battle/skills/resist
+;@ Damage of the Bang skills: the skill table's amount scaled by resistance 2 (bits 0-1 of
+;@ resistance byte 0).
 BangDamage::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageA(status, GetResistByte0() & 3)
 	call GetResistByte0
 	and $03
 	call ResistDamageA
+;> return
 	ret
 
 
+;@ def InfernosDamage()
+;@ path: battle/skills/resist
+;@ Damage of the Infernos skills: the skill table's amount scaled by resistance 3
+;@ (InfernosResistDamage).
 InfernosDamage::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> InfernosResistDamage(status)                      # (falls through)
+;> return
 
+;@ def InfernosResistDamage(status: hl)
+;@ path: battle/skills/resist
+;@ Scales wSkillAmount by the target's resistance 3 (bits 6-7 of resistance byte 1); also
+;@ used by other damage routines.
 InfernosResistDamage::
+;> ResistDamageA(status, (GetResistByte1() >> 6) & 3)
 	call GetResistByte1
 	rlca
 	rlca
 	and $03
 	call ResistDamageA
+;> return
 	ret
 
 
+;@ def BoltDamage()
+;@ path: battle/skills/resist
+;@ Damage of the lightning skills: the skill table's amount scaled by resistance 4 (bits 4-5
+;@ of resistance byte 1).
 BoltDamage::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageA(status, (GetResistByte1() >> 4) & 3)
 	call GetResistByte1
 	swap a
 	and $03
 	call ResistDamageA
+;> return
 	ret
 
 
+;@ def IceBoltDamage()
+;@ path: battle/skills/resist
+;@ Damage of the IceBolt skills: the skill table's amount scaled by resistance 5 (bits 2-3 of
+;@ resistance byte 1).
 IceBoltDamage::
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> ResistDamageA(status, (GetResistByte1() >> 2) & 3)
 	call GetResistByte1
 	rrca
 	rrca
 	and $03
 	call ResistDamageA
+;> return
 	ret
 
 
+;@ def RollInstantDeath() -> carry
+;@ path: battle/skills/resist
+;@ Whether an instant-death style skill takes hold (carry): never when CheckSkillAllowed
+;@ refuses it; otherwise by the target's resistance 8 (bits 4-5 of resistance byte 2, also in
+;@ wBattleArg2): skills below $72 (Beat, Defeat, K.O.Dance) with ResistChanceC, UltraDown
+;@ ($82) with ResistChanceB, the others (EerieLite, UltraDown's helpers) with ResistChanceA.
+;@ Clears wSkillAmount.
 RollInstantDeath::
+;> if not CheckSkillAllowed():
+;>     return ReturnNoCarry()
 	call CheckSkillAllowed
 	jp z, ReturnNoCarry
 
+;> wSkillAmount = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> wBattleArg2 = (GetResistByte2() >> 4) & 3
 	call GetResistByte2
 	swap a
 	and $03
 	ld [wBattleArg2], a
+;>@c if wSkillId < 0x72:
 	ld a, [wSkillId]
 	cp $72
-	jr c, jr_052_5c81
+	jr c, .hardest
 
+;>@c1     return ResistChanceC(status, wBattleArg2)
+;>@b if wSkillId == 0x82:
 	cp $82
-	jr z, jr_052_5c88
+	jr z, .ultraDown
 
+;>@b1     return ResistChanceB(status, wBattleArg2)
+;> return ResistChanceA(status, wBattleArg2)
 	ld a, [wBattleArg2]
 	call ResistChanceA
 	ret
 
 
-jr_052_5c81:
+.hardest
+;=@c1
 	ld a, [wBattleArg2]
 	call ResistChanceC
 	ret
 
 
-jr_052_5c88:
+.ultraDown
+;=@b1
 	ld a, [wBattleArg2]
 	call ResistChanceB
 	ret
 
 
+;@ def RollSleep() -> carry
+;@ path: battle/skills/resist
+;@ Whether a sleep skill takes hold (carry), by the target's resistance 7 (bits 6-7 of
+;@ resistance byte 2): always when the user's nudge bit is set (CheckUserNudgeBit2, level not 3), else Sleep ($15) with
+;@ ResistChanceA, SleepAll and SleepAir with ResistChanceC. Clears wSkillAmount.
 RollSleep::
+;> wSkillAmount = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> status = CalcSkillAmount()
 	call CalcSkillAmount
+;> wBattleArg2 = (GetResistByte2() >> 6) & 3
 	call GetResistByte2
 	rlca
 	rlca
 	and $03
 	ld [wBattleArg2], a
+;>@f if not CheckUserNudgeBit2(wBattleArg2):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5cae
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5cae:
+.roll
+;=@f
+;> if wSkillId == 0x15:
+;>     return ResistChanceA(status, wBattleArg2)
 	ld a, [wSkillId]
 	cp $15
 	ld a, [wBattleArg2]
 	jp z, ResistChanceA
 
+;> return ResistChanceC(status, wBattleArg2)
 	jp ResistChanceC
 
 
+;@ def RollStopSpell() -> carry
+;@ path: battle/skills/resist
+;@ Whether StopSpell takes hold (carry), by the target's resistance 10 (bits 0-1 of resistance
+;@ byte 2): always when CheckUserNudgeBit2 allows it, else ResistChanceA. Clears wSkillAmount.
 RollStopSpell::
+;> wSkillAmount = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> level = GetResistByte2() & 3
 	call GetResistByte2
 	and $03
+;>@f if not CheckUserNudgeBit2(level):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5cd6
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5cd6:
+.roll
+;=@f
+;> return ResistChanceA(status, level)
 	call ResistChanceA
 	ret
 
 
+;@ def RollSurround() -> carry
+;@ path: battle/skills/resist
+;@ Whether Surround (and the blinding skills) take hold (carry), by the target's resistance 6
+;@ (bits 0-1 of resistance byte 1): always when CheckUserNudgeBit2 allows it, else SandStorm ($72)
+;@ with ResistChanceC, the others with ResistChanceA. Clears wSkillAmount.
 RollSurround::
+;> wSkillAmount = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> level = GetResistByte1() & 3
 	call GetResistByte1
 	and $03
+;>@f if not CheckUserNudgeBit2(level):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5cf4
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5cf4:
+.roll
+;=@f
+;> if wSkillId != 0x72:
 	ld b, a
 	ld a, [wSkillId]
 	cp $72
 	ld a, b
-	jr z, jr_052_5d01
+	jr z, .sandStorm
 
+;>     return ResistChanceA(status, level)
 	call ResistChanceA
 	ret
 
 
-jr_052_5d01:
+.sandStorm
+;> return ResistChanceC(status, level)
 	call ResistChanceC
 	ret
 
 
+;@ def RollConfusion() -> carry
+;@ path: battle/skills/resist
+;@ Whether a confusing skill takes hold (carry), by the target's resistance 11 (bits 6-7 of
+;@ resistance byte 3): always when CheckUserNudgeBit2 allows it, else ResistChanceC. Clears
+;@ wSkillAmount.
 RollConfusion::
+;> wSkillAmount = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> level = (GetResistByte3() >> 6) & 3
 	call GetResistByte3
 	rlca
 	rlca
 	and $03
+;>@f if not CheckUserNudgeBit2(level):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5d21
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5d21:
+.roll
+;=@f
+;> return ResistChanceC(status, level)
 	call ResistChanceC
 	ret
 
 
+;@ def RollRobMagic() -> carry
+;@ path: battle/skills/resist
+;@ Whether RobMagic or OddDance takes hold (carry), by the target's resistance 9 (bits 2-3 of
+;@ resistance byte 2): always when CheckUserNudgeBit2 allows it, else ResistChanceA. Clears
+;@ wSkillAmount2.
 RollRobMagic::
+;> wSkillAmount2 = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount2], a
 	ld a, h
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> wBattleArg2 = (GetResistByte2() >> 2) & 3
 	call GetResistByte2
 	rrca
 	rrca
 	and $03
 	ld [wBattleArg2], a
+;>@f if not CheckUserNudgeBit2(wBattleArg2):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5d44
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5d44:
+.roll
+;=@f
+;> return ResistChanceA(status, wBattleArg2)
 	call ResistChanceA
 	ret
 
 
+;@ def RobMagic()
+;@ path: battle/skills/effects/status
+;@ RobMagic's transfer: drains MP from the target (DrainTargetMP) and gives them to the user,
+;@ whose MP stop at its maximum.
 RobMagic::
+;> drained = DrainTargetMP()
 	call DrainTargetMP
+;>@a mem16[wBattlerMP + 2 * wSkillUser] += drained
 	ld a, [wSkillUser]
 	ld hl, wBattlerMP
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld h, [hl]
+;=@a
 	ld l, a
 	add hl, bc
 	ld b, h
 	ld c, l
 	pop hl
 	ld a, c
+;=@a
 	ld [hli], a
 	ld [hl], b
+;> if IsMPFull(wSkillUser):                         # over the maximum
 	ld a, [wSkillUser]
 	call IsMPFull
-	jr nc, jr_052_5d79
+	jr nc, .done
 
+;>@m     mem16[wBattlerMP + 2 * wSkillUser] = mem16[wBattlerMaxMP + 2 * wSkillUser]
 	ld a, [wSkillUser]
-	ld bc, $dbd4
+	ld bc, wBattlerMaxMP + 1
 	add a
 	add c
 	ld c, a
 	ld a, $00
+;=@m
 	adc b
 	ld b, a
 	ld a, [bc]
 	ld [hld], a
 	dec bc
 	ld a, [bc]
+;=@m
 	ld [hl], a
 
-jr_052_5d79:
+.done
+;> return
 	ret
 
 
+;@ def DrainTargetMP() -> bc
+;@ path: battle/skills/effects/status
+;@ Takes MP from the target: the user's level / 4 + 5, at most what the target has. The amount
+;@ goes into wSkillAmount and is returned.
 DrainTargetMP::
+;>@m0 mp = mem16[wBattlerMP + 2 * wSkillTarget]
 	ld a, [wSkillTarget]
 	ld hl, wBattlerMP
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld h, [hl]
+;=@m0
 	ld l, a
+;> if mp == 0:
 	or h
-	jr z, jr_052_5db9
+	jr z, .none
 
+;>@n1     drain = 0
+;> else:
+;>@lv     drain = min((wBattlerLevel[wSkillUser] >> 2) + 5, mp)
 	ld a, [wSkillUser]
 	ld de, wBattlerLevel
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@lv
 	ld d, a
 	ld a, [de]
 	srl a
 	srl a
 	add $05
 	ld c, a
+;=@lv
 	ld b, $00
 	call CompareHLBC
-	jr nc, jr_052_5da7
+	jr nc, .keep
 
 	ld b, h
 	ld c, l
 
-jr_052_5da7:
+.keep
+;=@s
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;=@s
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
-	jr jr_052_5dc4
+	jr .sub
 
-jr_052_5db9:
+.none
+;=@n1
 	ld bc, $0000
+;=@s
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_5dc4:
+.sub
+;>@s wSkillAmount = drain
+;> mem16[wBattlerMP + 2 * wSkillTarget] = mp - drain
 	pop hl
 	ld a, [hl]
 	sub c
 	ld [hli], a
 	ld a, [hl]
 	sbc b
+;=@r
 	ld [hl], a
+;>@r return drain
 	ret
 
 
+;@ def RollDefenseDown() -> carry
+;@ path: battle/skills/resist
+;@ Whether Sap, Defence or SickLick take hold (carry), by the target's resistance 12 (bits 4-5
+;@ of resistance byte 3): always when CheckUserNudgeBit2 allows it, else SickLick ($7A) with
+;@ ResistChanceC, the others with ResistChanceA. Clears wSkillAmount2.
 RollDefenseDown::
+;> wSkillAmount2 = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount2], a
 	ld a, h
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> wBattleArg2 = (GetResistByte3() >> 4) & 3
 	call GetResistByte3
 	swap a
 	and $03
 	ld [wBattleArg2], a
+;>@f if not CheckUserNudgeBit2(wBattleArg2):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5deb
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5deb:
+.roll
+;=@f
+;> if wSkillId != 0x7A:
 	ld b, a
 	ld a, [wSkillId]
 	cp $7a
 	ld a, b
-	jr z, jr_052_5df8
+	jr z, .sickLick
 
+;>     return ResistChanceA(status, wBattleArg2)
 	call ResistChanceA
 	ret
 
 
-jr_052_5df8:
+.sickLick
+;> return ResistChanceC(status, wBattleArg2)
 	call ResistChanceC
 	ret
 
 
+;@ def LowerDefense() -> carry
+;@ path: battle/skills/effects/status
+;@ Lowers the target's defense by half its base defense (GetBaseDefense), not below 0, the
+;@ drop into wSkillAmount. No carry (nothing done) when the defense is 1 or less.
 LowerDefense::
+;> if GetBattlerDefense(wSkillTarget) <= 1:
+;>@f     return False
 	ld a, [wSkillTarget]
 	call GetBattlerDefense
 	ld b, h
 	ld c, l
 	ld hl, $0001
 	call CompareHLBC
-	jr c, jr_052_5e0e
+;=@f
+	jr c, .lower
 
 	xor a
 	ret
 
 
-jr_052_5e0e:
+.lower
+;> drop = GetBaseDefense(wSkillTarget) >> 1
 	ld a, [wSkillTarget]
 	call GetBaseDefense
 	call ShiftBC1
+;> p = wBattlerDefense + 2 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerDefense
 	call IndexWords
+;> if mem16[p] == 0:
+;>@z     return False
 	push hl
 	ld a, [hli]
 	ld h, [hl]
 	or h
 	pop hl
-	jr z, jr_052_5e3c
+	jr z, .no
 
+;> wSkillAmount = drop
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@mx mem16[p] = max(mem16[p] - drop, 0)
 	ld a, [hl]
 	sub c
 	ld [hli], a
 	ld a, [hl]
 	sbc b
 	ld [hl], a
-	jr nc, jr_052_5e3a
+;=@mx
+	jr nc, .done
 
 	xor a
 	ld [hld], a
 	ld [hl], a
 
-jr_052_5e3a:
+.done
+;> return True
 	scf
 	ret
 
 
-jr_052_5e3c:
+.no
+;=@z
 	xor a
 	ret
 
 
+;@ def RaiseDefense() -> carry
+;@ path: battle/skills/effects/status
+;@ Raises the target's defense by half its base defense, the rise into wSkillAmount. The
+;@ defense stops at the limit CheckDefenseRaisable gives (the amount shrinks by what is cut
+;@ off). No carry when it is at the limit already.
+;@ test: skip uses the limit CheckDefenseRaisable leaves in bc
 RaiseDefense::
+;> if not CheckDefenseRaisable(wSkillTarget):        # carry and not zero: room to rise
+;>@f     return False
 	ld a, [wSkillTarget]
 	call CheckDefenseRaisable
-	jr nc, jr_052_5e92
+	jr nc, .no
 
-	jr z, jr_052_5e92
+	jr z, .no
 
+;> rise = GetBaseDefense(wSkillTarget) >> 1
 	ld a, [wSkillTarget]
 	call GetBaseDefense
 	call ShiftBC1
+;> wSkillAmount = rise
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@add p = wBattlerDefense + 2 * wSkillTarget; mem16[p] += rise
 	ld a, [wSkillTarget]
 	ld hl, wBattlerDefense
 	call IndexWords
 	ld a, [hl]
 	add c
 	ld [hli], a
+;=@add
 	ld a, [hl]
 	adc b
 	ld [hl], a
+;> if not CheckDefenseRaisable(wSkillTarget):        # above the limit (left in bc as `limit`)
 	ld a, [wSkillTarget]
 	push hl
 	call CheckDefenseRaisable
 	pop hl
-	jr c, jr_052_5e90
+	jr c, .done
 
+;>@cut1     wSkillAmount -= mem16[p] - limit
+;>@cut2     mem16[p] = limit
+;=@cut1
 	ld a, [hld]
 	ld e, [hl]
 	ld d, a
+;=@cut2
 	ld a, c
 	ld [hli], a
 	ld [hl], b
+;=@cut1
 	ld a, e
 	sub c
 	ld e, a
 	ld a, d
 	sbc b
 	ld d, a
+;=@cut1
 	ld a, [wSkillAmount]
 	sub e
 	ld e, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	sbc d
 	ld d, a
+;=@cut1
 	ld a, e
 	ld [wSkillAmount], a
 	ld a, d
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_5e90:
+.done
+;> return True
 	scf
 	ret
 
 
-jr_052_5e92:
+.no
+;=@f
 	xor a
 	ret
 
 
+;@ def RollSlow() -> carry
+;@ path: battle/skills/resist
+;@ Whether Slow or SlowAll takes hold (carry), by the target's resistance 13 (bits 2-3 of
+;@ resistance byte 3): always when CheckUserNudgeBit2 allows it, else ResistChanceA. Clears
+;@ wSkillAmount2.
 RollSlow::
+;> wSkillAmount2 = 0
 	ld hl, $0000
 	ld a, l
 	ld [wSkillAmount2], a
 	ld a, h
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
+;> status = GetTargetStatus3()
 	call GetTargetStatus3
+;> level = (GetResistByte3() >> 2) & 3
 	call GetResistByte3
 	rrca
 	rrca
 	and $03
+;>@f if not CheckUserNudgeBit2(level):
 	call CheckUserNudgeBit2
-	jr z, jr_052_5eb0
+	jr z, .roll
 
+;>     return True
 	scf
 	ret
 
 
-jr_052_5eb0:
+.roll
+;=@f
+;> return ResistChanceA(status, level)
 	call ResistChanceA
 	ret
 
 
+;@ def LowerAgility() -> carry
+;@ path: battle/skills/effects/status
+;@ Lowers the target's agility by half its base agility (one less when that equals the
+;@ agility), not below 1; the drop goes into wSkillAmount. No carry when the agility is below 2.
 LowerAgility::
+;> drop = GetBaseAgility(wSkillTarget) >> 1
 	ld a, [wSkillTarget]
 	call GetBaseAgility
 	call ShiftBC1
+;> p = wBattlerAgility + 2 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerAgility
 	call IndexWords
+;>@e agility = mem16[p]; one = 1 if agility == drop else 0
 	push hl
 	ld d, $00
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	call CompareHLBC
-	jr nz, jr_052_5ed3
+;=@e
+	jr nz, .notEqual
 
 	ld d, $01
 
-jr_052_5ed3:
+.notEqual
+;> if agility < 2:
+;>@f     return False
 	push bc
 	ld bc, $0002
 	call CompareHLBC
 	pop bc
 	pop hl
-	jr c, jr_052_5f06
+	jr c, .no
 
+;>@d drop -= one
 	ld a, c
 	sub d
 	ld c, a
 	ld a, b
 	sbc $00
 	ld b, a
+;> wSkillAmount = drop
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@sb mem16[p] = agility - drop
 	ld a, [hl]
 	ld e, a
 	sub c
 	ld [hli], a
 	ld a, [hl]
 	ld d, a
+;=@sb
 	sbc b
 	ld [hl], a
-	jr nc, jr_052_5f04
+;>@lw if agility < drop:                           # would go below 0: stop at 1
+	jr nc, .done
 
+;>@lw1     mem16[p] = 1
 	xor a
 	ld [hld], a
 	ld [hl], $01
+;>     wSkillAmount = agility - 1
 	dec de
 	ld a, e
 	ld [wSkillAmount], a
 	ld a, d
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_5f04:
+.done
+;> return True
 	scf
 	ret
 
 
-jr_052_5f06:
+.no
+;=@f
 	xor a
 	ret
 
 
+;@ def RaiseAgility() -> carry
+;@ path: battle/skills/effects/status
+;@ Raises the target's agility by half its base agility, the rise into wSkillAmount; it stops
+;@ at the limit CheckAgilityRaisable gives (the amount shrinks by what is cut off). No carry
+;@ when there is no room to rise.
+;@ test: skip uses the limit CheckAgilityRaisable leaves in bc
 RaiseAgility::
+;> if not CheckAgilityRaisable(wSkillTarget):
+;>@f     return False
 	ld a, [wSkillTarget]
 	call CheckAgilityRaisable
-	jr nc, jr_052_5f5c
+	jr nc, .no
 
+;> rise = GetBaseAgility(wSkillTarget) >> 1
 	ld a, [wSkillTarget]
 	call GetBaseAgility
 	call ShiftBC1
+;> wSkillAmount = rise
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;>@add p = wBattlerAgility + 2 * wSkillTarget; mem16[p] += rise
 	ld a, [wSkillTarget]
 	ld hl, wBattlerAgility
 	call IndexWords
 	ld a, [hl]
 	add c
 	ld [hli], a
+;=@add
 	ld a, [hl]
 	adc b
 	ld [hl], a
+;> if not CheckAgilityRaisable(wSkillTarget):        # above the limit (left in bc as `limit`)
 	ld a, [wSkillTarget]
 	push hl
 	call CheckAgilityRaisable
 	pop hl
-	jr c, jr_052_5f5a
+	jr c, .done
 
+;>@cut1     wSkillAmount -= mem16[p] - limit
+;>@cut2     mem16[p] = limit
+;=@cut1
 	dec hl
 	ld a, [hli]
 	sub c
 	ld e, a
 	ld a, [hl]
 	sbc b
+;=@cut1
 	ld d, a
+;=@cut2
 	ld a, b
 	ld [hld], a
 	ld [hl], c
+;=@cut1
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	ld a, c
 	sub e
+;=@cut1
 	ld e, a
 	ld a, b
 	sbc d
 	ld d, a
 	ld a, e
 	ld [wSkillAmount], a
+;=@cut1
 	ld a, d
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
-jr_052_5f5a:
+.done
+;> return True
 	scf
 	ret
 
 
-jr_052_5f5c:
+.no
+;=@f
 	xor a
 	ret
 
 
+;@ def TransformIntoTarget()
+;@ path: battle/skills/effects/special
+;@ Transform's change: the user takes over the target's base maximum HP and MP (its current
+;@ HP and MP cut down to them), attack, defense, agility, resistances (packed into its
+;@ wBattlerResist entry by PackResistancesVia) and skills: up to 8 entries of (skill kind
+;@ from the skill table's word, skill number) in wBattlerSkills; skill $DB is dropped and the
+;@ rest of the list is filled with (0, $FF). Its picture becomes the target's (LoadBattlerPic).
+;@ Only bit 7 of its wBattlerMenuMemory entry is kept.
+;@ test: skip loads monster templates and graphics from other banks
 TransformIntoTarget::
+;>@mm wBattlerMenuMemory[wSkillUser] &= 0x80
 	ld a, [wSkillUser]
 	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@mm
 	ld h, a
 	ld a, [hl]
 	and $80
 	ld [hl], a
+;> maxhp = GetBaseMaxHP(wSkillTarget)
 	ld a, [wSkillTarget]
 	call GetBaseMaxHP
+;>@hp if mem16[wBattlerHP + 2 * wSkillUser] >= maxhp:
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld h, [hl]
+;=@hp
 	ld l, a
 	call CompareHLBC
 	pop hl
-	jr c, jr_052_5f8a
+	jr c, .hpOk
 
+;>     mem16[wBattlerHP + 2 * wSkillUser] = maxhp
 	ld a, c
 	ld [hli], a
 	ld [hl], b
 
-jr_052_5f8a:
+.hpOk
+;> mem16[wBattlerMaxHP + 2 * wSkillUser] = maxhp
 	ld a, [wSkillUser]
 	ld hl, wBattlerMaxHP
 	call IndexWords
 	ld a, c
 	ld [hli], a
 	ld [hl], b
+;> maxmp = GetBaseMaxMP(wSkillTarget)
 	ld a, [wSkillTarget]
 	call GetBaseMaxMP
+;>@mp if mem16[wBattlerMP + 2 * wSkillUser] >= maxmp:
 	ld a, [wSkillUser]
 	ld hl, wBattlerMP
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld h, [hl]
+;=@mp
 	ld l, a
 	call CompareHLBC
 	pop hl
-	jr c, jr_052_5fb2
+	jr c, .mpOk
 
+;>     mem16[wBattlerMP + 2 * wSkillUser] = maxmp
 	ld a, c
 	ld [hli], a
 	ld [hl], b
 
-jr_052_5fb2:
+.mpOk
+;> mem16[wBattlerMaxMP + 2 * wSkillUser] = maxmp
 	ld a, [wSkillUser]
 	ld hl, wBattlerMaxMP
 	call IndexWords
 	ld a, c
 	ld [hli], a
 	ld [hl], b
+;>@at mem16[wBattlerAttack + 2 * wSkillUser] = GetBaseAttack(wSkillTarget)
 	ld a, [wSkillUser]
 	ld hl, wBattlerAttack
 	call IndexWords
 	ld a, [wSkillTarget]
 	call GetBaseAttack
 	ld a, c
+;=@at
 	ld [hli], a
 	ld [hl], b
+;>@df mem16[wBattlerDefense + 2 * wSkillUser] = GetBaseDefense(wSkillTarget)
 	ld a, [wSkillUser]
 	ld hl, wBattlerDefense
 	call IndexWords
 	ld a, [wSkillTarget]
 	call GetBaseDefense
 	ld a, c
+;=@df
 	ld [hli], a
 	ld [hl], b
+;>@ag mem16[wBattlerAgility + 2 * wSkillUser] = GetBaseAgility(wSkillTarget)
 	ld a, [wSkillUser]
 	ld hl, wBattlerAgility
 	call IndexWords
 	ld a, [wSkillTarget]
 	call GetBaseAgility
 	ld a, c
+;=@ag
 	ld [hli], a
 	ld [hl], b
+;> res = LoadBattlerResistances(wSkillTarget)
 	ld a, [wSkillTarget]
 	call LoadBattlerResistances
+;>@rs PackResistancesVia(res, wBattlerResist + 7 * wSkillUser)
 	ld a, [wSkillUser]
 	ld de, wBattlerResist
 	ld b, a
 	add a
 	add b
 	add a
+;=@rs
 	add b
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;=@rs
 	call PackResistancesVia
+;> skills, count = FindBattlerSkills(wSkillTarget)
 	ld a, [wSkillTarget]
 	call FindBattlerSkills
+;>@de dest = wBattlerSkills + 16 * wSkillUser
 	ld a, [wSkillUser]
 	ld de, wBattlerSkills
 	swap a
 	add e
 	ld e, a
 	ld a, $00
+;=@de
 	adc d
 	ld d, a
+;> n = 0
 	ld c, $00
 
-jr_052_6024:
+;>@loop for skill in skills[:count]:
+.copy
+;>     wBattleArg0 = skill
 	ld a, [hl]
 	ld [wBattleArg0], a
+;>     if skill == 0xDB:
+;>         skill = DropSkillDB()                     # $FF: the list ends
 	cp $db
 	call z, DropSkillDB
+;>     if skill == 0xFF:
+;>@br         break
 	cp $ff
-	jr z, jr_052_605d
+	jr z, .fill
 
+;>     wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;>     wBattleArg2 = 1
 	ld a, $01
 	ld [wBattleArg2], a
+;>@gw     GetSkillWord()                            # word 1 of the skill's record
 	push af
 	push bc
 	push de
 	push hl
 	ld hl, far_GetSkillWord
 	rst $10
+;=@gw
 	pop hl
 	pop de
 	pop bc
 	pop af
+;>@k     mem[dest + 2 * n] = (wBattleArg0 >> 4) & 0x0F  # the skill's kind
 	ld a, [wBattleArg0]
 	swap a
 	and $0f
 	ld a, a
 	ld [de], a
 	inc de
+;>     mem[dest + 2 * n + 1] = skill
 	ld a, [hli]
 	ld [de], a
 	inc de
+;>     n += 1
 	inc c
+;=@loop
 	dec b
-	jr nz, jr_052_6024
+	jr nz, .copy
 
+;> if n != 8:
 	ld a, c
 	cp $08
-	jr z, jr_052_606b
+	jr z, .pic
 
-jr_052_605d:
+;>@f     while n != 8:                              # fill with (0, $FF)
+.fill
+;>         mem[dest + 2 * n] = 0
 	ld a, $00
 	ld [de], a
 	inc de
+;>         mem[dest + 2 * n + 1] = 0xFF
 	ld a, $ff
 	ld [de], a
 	inc de
+;>         n += 1
 	inc c
+;=@f
 	ld a, c
 	cp $08
-	jr nz, jr_052_605d
+	jr nz, .fill
 
-jr_052_606b:
+.pic
+;> LoadBattlerPic(wSkillUser, mem[GetTargetSpeciesPtr()])
 	call GetTargetSpeciesPtr
 	ld c, [hl]
 	ld a, [wSkillUser]
 	ld b, a
 	call LoadBattlerPic
+;> return
 	ret
 
 
@@ -10413,26 +12011,46 @@ RunCallHorrorStep::
 	ret
 
 
+;@ def ActionStepFollowUp()
+;@ path: battle/actions
+;@ Action step 4: waits for the text and the animation, then a short delay
+;@ (counted down in wMonStats[0]), then the skill's follow-up (SkillFollowUp).
 ActionStepFollowUp::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> if not wBattleAnimDone:
+;>     return
 	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
+;> if not wMonStats[0]:
+;>     return SkillFollowUp()
 	ld a, [wMonStats]
 	or a
-	jr z, jr_052_6e89
+	jr z, SkillFollowUp
 
+;> wMonStats[0] -= 1
 	dec a
 	ld [wMonStats], a
 	ret
 
 
+;@ def SkillFollowUp()
+;@ path: battle/actions
+;@ What comes after a skill's effect: Farewell and LifeDance, the recoil skills
+;@ ($3B, Kamikaze, Ramming), the hits that also poison, put to sleep or
+;@ paralyse, DeMagic, LifeSong and CHGDRAGON have stages of their own (by
+;@ wBattleSubStep2). A target in the BladeD stance hit by a physical skill
+;@ strikes back (StartBladeCounter). Everything else goes on to step 5.
 SkillFollowUp::
-jr_052_6e89:
+;>@f handler = {0x32: FarewellFollowUp, 0x96: FarewellFollowUp, 0x3B: Skill3BStages, 0x3E: KamikazeStages, 0x3C: RammingStages, 0x67: PoisonHitStages, 0x68: NapAttackStages, 0x69: ParalyzeStages, 0x80: DeMagicStages, 0x95: LifeSongStages, 0xAA: ChgDragonFollowUp, 0xD5: ChgDragonFollowUp}.get(wSkillId)
+;>@g if handler:
+;>@g     return handler()
 	ld a, [wSkillId]
 	cp $32
 	jr z, FarewellFollowUp
@@ -10440,6 +12058,7 @@ jr_052_6e89:
 	cp $96
 	jr z, FarewellFollowUp
 
+;=@g
 	cp $3b
 	jr z, Skill3BStages
 
@@ -10449,6 +12068,7 @@ jr_052_6e89:
 	cp $3c
 	jr z, RammingStages
 
+;=@g
 	cp $67
 	jr z, PoisonHitStages
 
@@ -10458,6 +12078,7 @@ jr_052_6e89:
 	cp $69
 	jp z, ParalyzeStages
 
+;=@g
 	cp $80
 	jp z, DeMagicStages
 
@@ -10467,145 +12088,240 @@ jr_052_6e89:
 	cp $aa
 	jp z, ChgDragonFollowUp
 
+;=@g
 	cp $d5
 	jp z, ChgDragonFollowUp
 
+;> if CheckBladeCounter():
+;>     return BladeCounterFollowUp()
 	call CheckBladeCounter
 	jp nz, BladeCounterFollowUp
 
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> return ActionStepNext()
 	jp ActionStepNext
 
 
-	db $c9
+	db $c9                                  ; unused
 
+;@ def CheckBladeCounter() -> a
+;@ path: battle/actions
+;@ Nonzero (and the zero flag clear) when the target strikes back: it stands in
+;@ the BladeD stance (bit 2 of wBattlerStatus7), the skill is a physical one
+;@ (bit 7 of wSkillFlags1), and the hit was neither intercepted nor itself a
+;@ counter (wReactionKind bit 3).
+;@ test: skip result only in the flags
 CheckBladeCounter::
+;> if wInterceptState:
+;>     return 0
 	ld a, [wInterceptState]
 	or a
-	jr z, jr_052_6ed7
+	jr z, .notIntercepted
 
 	xor a
 	ret
 
 
-jr_052_6ed7:
+.notIntercepted
+;> if wReactionKind & 0x08:
+;>     return 0
 	ld a, [wReactionKind]
 	and $08
 	cp $08
 	ret z
 
+;> if not mem[wBattlerStatus7 + 8 * wSkillTarget] & 0x04:
+;>     return 0
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
 	call AddEightTimes
 	bit 2, [hl]
 	ret z
 
+;> return wSkillFlags1 & 0x80
 	ld a, [wSkillFlags1]
 	bit 7, a
 	ret
 
 
+;@ def FarewellFollowUp()
+;@ path: battle/actions
+;@ Follow-up of Farewell and LifeDance, in bank $53.
 FarewellFollowUp::
+;> Call_53_6A9B()
 	ld hl, far_Call_53_6A9B
 	rst $10
 	ret
 
 
+;@ def Skill3BStages()
+;@ path: battle/actions
+;@ Follow-up stages of skill $3B, by wBattleSubStep2 (Skill3BStageTable).
 Skill3BStages::
+;> return Skill3BStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after skill $3B: the user takes a quarter of the damage back, may go
+;@ down, then the action goes on.
 Skill3BStageTable::
 	dw Skill3BStage0
 	dw Skill3BStage1
 	dw RecoilStageUserDown
 	dw StagesEnd
 
+;@ def KamikazeStages()
+;@ path: battle/actions
+;@ Follow-up stages of Kamikaze, by wBattleSubStep2.
 KamikazeStages::
+;> return KamikazeStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after Kamikaze: the user drops to 1 HP (or falls when it had only 1).
 KamikazeStageTable::
 	dw KamikazeStage0
 	dw KamikazeStage1
 	dw RecoilStageUserDown
 	dw StagesEnd
 
+;@ def RammingStages()
+;@ path: battle/actions
+;@ Follow-up stages of Ramming, by wBattleSubStep2.
 RammingStages::
+;> return RammingStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after Ramming: the user loses 80% of its HP plus one.
 RammingStageTable::
 	dw RammingStage0
 	dw RammingStage1
 	dw RecoilStageUserDown
 	dw StagesEnd
 
+;@ def PoisonHitStages()
+;@ path: battle/actions
+;@ Follow-up stages of PoisonHit, by wBattleSubStep2.
 PoisonHitStages::
+;> return PoisonHitStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after PoisonHit: the target may be poisoned, the message, the end.
 PoisonHitStageTable::
 	dw PoisonHitStage0
 	dw StageShowText
 	dw StagesEnd
 
+;@ def NapAttackStages()
+;@ path: battle/actions
+;@ Follow-up stages of NapAttack, by wBattleSubStep2.
 NapAttackStages::
+;> return NapAttackStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after NapAttack: the target may fall asleep, the message, the end.
 NapAttackStageTable::
 	dw NapAttackStage0
 	dw StageShowText
 	dw StagesEnd
 
+;@ def ParalyzeStages()
+;@ path: battle/actions
+;@ Follow-up stages of the Paralyze hit, by wBattleSubStep2.
 ParalyzeStages::
+;> return ParalyzeStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after the Paralyze hit: the target may be paralysed, the message,
+;@ the end.
 ParalyzeStageTable::
 	dw ParalyzeStage0
 	dw StageShowText
 	dw StagesEnd
 
+;@ def DeMagicStages()
+;@ path: battle/actions
+;@ Follow-up stages of DeMagic, by wBattleSubStep2.
 DeMagicStages::
+;> return DeMagicStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after DeMagic.
 DeMagicStageTable::
 	dw DeMagicStage0
 	dw DeMagicStage1
 	dw StagesEnd
 
+;@ def LifeSongStages()
+;@ path: battle/actions
+;@ Follow-up stages of LifeSong, by wBattleSubStep2.
 LifeSongStages::
+;> return LifeSongStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages after LifeSong: one fallen monster after the other of the side is
+;@ looked at (LifeSongStage0-2).
 LifeSongStageTable::
 	dw LifeSongStage0
 	dw LifeSongStage1
 	dw LifeSongStage2
 	dw StagesEnd
 
+;@ def ChgDragonFollowUp()
+;@ path: battle/actions
+;@ After CHGDRAGON: the changed monster picks its next action
+;@ (ChgDragonPickAction).
 ChgDragonFollowUp::
+;> ChgDragonPickAction()
 	call ChgDragonPickAction
 	ret
 
 
+;@ def BladeCounterFollowUp()
+;@ path: battle/actions
+;@ The target strikes back from its BladeD stance (StartBladeCounter).
 BladeCounterFollowUp::
+;> StartBladeCounter()
 	call StartBladeCounter
 	ret
 
 
+;@ def ActionStepNext()
+;@ path: battle/actions
+;@ Action step 5, in bank $53 (the next hit or target of the action).
 ActionStepNext::
+;> Call_53_5F15()
 	ld hl, far_Call_53_5F15
 	rst $10
 	ret
 
 
+;@ def ActionRepeatCheck(status: hl)
+;@ path: battle/actions
+;@ Clears bit 6 of the user's status byte 4 (`status`); a skill with bit 4 of
+;@ wSkillFlags3 then goes again (step $12) while the far side still has
+;@ monsters, else the action ends.
 ActionRepeatCheck::
+;> mem[status] &= ~0x40
 	res 6, [hl]
+;> if not wSkillFlags3 & 0x10 or CheckFarSideEmpty():
+;>     return EndBattlerAction()
 	ld a, [wSkillFlags3]
 	bit 4, a
 	jp z, EndBattlerAction
@@ -10613,30 +12329,46 @@ ActionRepeatCheck::
 	call CheckFarSideEmpty
 	jp c, EndBattlerAction
 
+;> wBattleSubStep = 0x12
 	ld a, $12
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def QuadHitsNext()
+;@ path: battle/actions
+;@ QuadHits strikes four times, each time at a random enemy.
 QuadHitsNext::
+;> if wHitCount == 4:
+;>     return EndBattlerAction()
 	ld a, [wHitCount]
 	cp $04
 	jp z, EndBattlerAction
 
+;> AITargetRandomEnemy()
 	ld hl, far_AITargetRandomEnemy
 	rst $10
+;> wBattleSubStep = 1
 	ld a, $01
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def BiAttackNext()
+;@ path: battle/actions
+;@ BiAttack strikes twice; when the first target is gone, a random enemy.
 BiAttackNext::
+;> if wHitCount == 2:
+;>     return EndBattlerAction()
 	ld a, [wHitCount]
 	cp $02
 	jp z, EndBattlerAction
 
+;> wBattleSubStep = 1
 	ld a, $01
 	ld [wBattleSubStep], a
+;> if CheckBattlerPresent(wSkillTarget):
+;>     AITargetRandomEnemy()
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	ret nc
@@ -10646,22 +12378,39 @@ BiAttackNext::
 	ret
 
 
+;@ def CallHelpNext()
+;@ path: battle/actions
+;@ The helpers CallHelp brought attack once more each, until a random number
+;@ matches the count (low 2 bits) or the count reaches $13.
 CallHelpNext::
+;> if wHitCount == 0x13:
+;>     return EndBattlerAction()
 	ld a, [wHitCount]
 	cp $13
 	jp z, EndBattlerAction
 
+;> mask = 3
 	ld b, $03
 	jr jr_052_6fb2
 
+;@ def YellHelpNext()
+;@ path: battle/actions
+;@ Like CallHelpNext for YellHelp (low 3 bits, up to $17); the attacks go on
+;@ only while the user has called for help (bit 0 of wBattlerStatus6).
+;@ test: skip shares its end with CallHelpNext
 YellHelpNext::
+;> if wHitCount == 0x17:
+;>     return EndBattlerAction()
 	ld a, [wHitCount]
 	cp $17
 	jp z, EndBattlerAction
 
+;> mask = 7
 	ld b, $07
 
 jr_052_6fb2:
+;> if wHitCount & mask == wRandomLow & mask:
+;>     return EndBattlerAction()
 	and b
 	ld c, a
 	ld a, [wRandomLow]
@@ -10669,88 +12418,130 @@ jr_052_6fb2:
 	cp c
 	jp z, EndBattlerAction
 
+;> if not mem[wBattlerStatus6 + 8 * wSkillUser] & 0x01:
+;>     return EndBattlerAction()
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	bit 0, [hl]
 	jp z, EndBattlerAction
 
+;> AITargetRandomEnemy()
 	ld hl, far_AITargetRandomEnemy
 	rst $10
+;> wBattleSubStep = 1
 	ld a, $01
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def RainSlashNext()
+;@ path: battle/actions
+;@ RainSlash hits up to four times, going through the far side's monsters in
+;@ turn (skipping empty places) until it runs past the last.
 RainSlashNext::
-jr_052_6fd4:
+.loop
+;> while True:
 	ld a, [wHitCount]
+;>     if wHitCount >= 4:
+;>         return EndBattlerAction()
 	cp $04
 	jp nc, EndBattlerAction
 
+;>     wBattlerAction[2 * wSkillUser + 1] += 1          # the next target
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
 	ld a, [hl]
 	inc a
 	ld [hl], a
+;>     if wBattlerAction[2 * wSkillUser + 1] & 3 == 3:
+;>         return EndBattlerAction()
 	and $03
 	cp $03
-	jr z, jr_052_706c
+	jr z, EndBattlerAction
 
+;>     if not CheckBattlerPresent(wBattlerAction[2 * wSkillUser + 1]):
+;>@b         break
 	ld a, [hl]
 	call CheckBattlerPresent
-	jr c, jr_052_6fd4
+	jr c, .loop
 
+;> wBattleSubStep = 1
 	ld a, $01
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def ActionStepEnd()
+;@ path: battle/actions
+;@ Action step 6, after a short delay (wMonStats[0]): puts the target back when
+;@ another monster took the hit in its place (wShieldTarget), redraws the status
+;@ icons, and ends the action when a side is beaten. A reaction of the target
+;@ (CheckTargetReacts) comes first; skills that strike again (BiAttack,
+;@ QuadHits, CallHelp, YellHelp, RainSlash, BIGSLEEP, MP0, METEOR) pick their
+;@ next target; otherwise the user's action is over (EndBattlerAction).
 ActionStepEnd::
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_052_7005
+	jr z, .go
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
 
-jr_052_7005:
+.go
+;> if wShieldTarget != 0xFF:
 	ld a, [wShieldTarget]
 	cp $ff
-	jr z, jr_052_702c
+	jr z, .icons
 
+;>     UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;>     wSkillTarget = wShieldTarget
 	ld a, [wShieldTarget]
 	ld [wSkillTarget], a
+;>@a     wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
 	ld [hl], a
+;>     wShieldTarget = 0xFF
 	ld a, $ff
 	ld [wShieldTarget], a
 
-jr_052_702c:
+.icons
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> PrepareRedirect()
 	call PrepareRedirect
+;> if CheckSideDefeated():
+;>     return FinishActionOrHelp()
 	call CheckSideDefeated
 	jp c, FinishActionOrHelp
 
+;> if CheckTargetReacts():
+;>     return
 	call CheckTargetReacts
 	ret c
 
+;> wSkillMsgMode = 0
 	xor a
 	ld [wSkillMsgMode], a
+;>@h handler = {0x50: BiAttackNext, 0x51: QuadHitsNext, 0x52: CallHelpNext, 0x53: YellHelpNext, 0x57: RainSlashNext, 0xA7: AllPositionsNextTarget, 0xA8: AllPositionsNextTarget, 0xAF: AllPositionsNextTarget}.get(wSkillId)
 	ld a, [wSkillId]
 	cp $50
 	jp z, BiAttackNext
@@ -10758,6 +12549,7 @@ jr_052_702c:
 	cp $51
 	jp z, QuadHitsNext
 
+;=@h
 	cp $52
 	jp z, CallHelpNext
 
@@ -10767,88 +12559,140 @@ jr_052_702c:
 	cp $57
 	jp z, RainSlashNext
 
+;=@h
 	cp $a7
 	jp z, AllPositionsNextTarget
 
 	cp $a8
 	jp z, AllPositionsNextTarget
 
+;> if handler:                               # else it runs on into EndBattlerAction
+;>     return handler()
 	cp $af
 	jp z, AllPositionsNextTarget
 
+;@ def EndBattlerAction()
+;@ path: battle/actions
+;@ The user is done for this turn (wBattlerOrder 3). A skill for a whole group
+;@ goes on to its next target (NextTargetOfGroup), else FinishAction.
 EndBattlerAction::
-jr_052_706c:
+;>@o wBattlerOrder[wSkillUser] = 3
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld a, $03
 	ld [hl], a
+;> if wSkillTargeting & 3 != 1:               # not a single target
+;>     return NextTargetOfGroup()           # else it runs on into FinishAction
 	ld a, [wSkillTargeting]
 	and $03
 	cp $01
 	jp nz, NextTargetOfGroup
 
+;@ def FinishAction()
+;@ path: battle/actions
+;@ After an action: redraws, shows a reflected skill's message, empties the MP
+;@ of Farewell and MegaMagic users, updates an own user's icon and panel. A user
+;@ with bit 6 of status byte 4 may go again (ActionRepeatCheck); an interrupted
+;@ action is taken up again (RestoreInterruptedAction). Otherwise the next
+;@ monster in wTurnOrder that is still in the fight gets its turn; past the end
+;@ of the order the turn is over (NextBattlerTurn).
 FinishAction::
+;> BattleRedraw57()
 	call BattleRedraw57
+;> if wReflectAnim:
+;>     PrintActionMessage()
 	ld a, [wReflectAnim]
 	or a
 	call nz, PrintActionMessage
+;> ClearMPAfterSkill()
 	call ClearMPAfterSkill
+;> wSkillTarget = wSkillUser
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
+;> if wSkillUser < 4:
 	cp $04
-	jr nc, jr_052_70a4
+	jr nc, .repeat
 
+;>     UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;>     PrintPanelHPMP()
 	ld hl, far_PrintPanelHPMP
 	rst $10
 
-jr_052_70a4:
+.repeat
+;> status = GetUserStatus4()
 	call GetUserStatus4
+;> if mem[status] & 0x40:
+;>     return ActionRepeatCheck(status)
 	bit 6, [hl]
 	jp nz, ActionRepeatCheck
 
+;> if not RestoreInterruptedAction():
+;>     return EndBattlerAction()
 	call RestoreInterruptedAction
 	jp nc, EndBattlerAction
 
-jr_052_70b2:
+.next
+;> while True:
+;>@p     wTurnOrderPos += 1
 	ld a, [wTurnOrderPos]
 	inc a
 	ld [wTurnOrderPos], a
+;>     if wTurnOrderPos >= 9:
+;>@n         return NextBattlerTurn()
 	cp $09
 	jr nc, NextBattlerTurn
 
+;>     if CheckSideDefeated():
+;>@q         return FinishActionOrHelp()
 	call CheckSideDefeated
-	jr c, jr_052_70e0
+	jr c, FinishActionOrHelp
 
+;>@r     pos = wTurnOrder[wTurnOrderPos]
 	ld a, [wTurnOrderPos]
 	ld hl, wTurnOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@r
 	ld h, a
 	ld a, [hl]
+;>     if pos == 0xFF:
+;>@s         return NextBattlerTurn()
 	cp $ff
 	jr z, NextBattlerTurn
 
+;>     if pos == 0x10 or not CheckBattlerPresent(pos):   # Terry's item, or a monster in the fight
+;>@t         break
 	cp $10
-	jr z, jr_052_70dc
+	jr z, .found
 
 	call CheckBattlerPresent
-	jr c, jr_052_70b2
+	jr c, .next
 
-jr_052_70dc:
+.found
+;> wBattleStep -= 1                          # the turn step runs once more
+;>@u return FinishActionOrHelp()              # runs on into it
 	ld hl, wBattleStep
 	dec [hl]
 
+;@ def FinishActionOrHelp()
+;@ path: battle/actions
+;@ Closes the action (CloseAction). After CallHelp or YellHelp whose helpers
+;@ came, bank $56 sets them up and message $DA follows (step $1B, battle step
+;@ 7); when none came, the action closes without the check for the battle's
+;@ end.
 FinishActionOrHelp::
-jr_052_70e0:
+;> if wSkillId not in (0x52, 0x53):
+;>     return CloseAction()
 	ld a, [wSkillId]
 	cp $52
 	jr c, CloseAction
@@ -10856,51 +12700,78 @@ jr_052_70e0:
 	cp $54
 	jr nc, CloseAction
 
+;> if not wHitShown:
+;>     return CloseActionNoCheck()             # CloseAction without CheckBattleOver
 	ld a, [wHitShown]
 	or a
 	jr z, jr_052_7111
 
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> wTextIndex = 0xDA
+;> wTextGroup = 0
 	ld a, $da
 	ld [wTextIndex], a
 	ld a, $00
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleSubStep = 0x1B
 	ld a, $1b
 	ld [wBattleSubStep], a
+;> wBattleStep = 7
 	ld a, $07
 	ld [wBattleStep], a
 	ret
 
 
+;@ def CloseAction()
+;@ path: battle/actions
+;@ Checks whether the battle is over, empties the MP of Farewell and MegaMagic
+;@ users and clears the action's step variables (wBattleSubStep up to
+;@ wAbsorbMP). FinishActionOrHelp enters at jr_052_7111, after the check.
 CloseAction::
+;> CheckBattleOver()
 	call CheckBattleOver
 
 jr_052_7111:
+;> ClearMPAfterSkill()
 	call ClearMPAfterSkill
+;>@f fill(wBattleSubStep, 7, 0)
 	xor a
 	ld hl, wBattleSubStep
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
 	ld [hli], a
+;=@f
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
 	ret
 
 
+;@ def NextBattlerTurn()
+;@ path: battle/actions
+;@ The turn order is used up: on to the next battle step, and the bits $50 of
+;@ both sides' flags (wSideFlags) end with the turn (ClearSideBits50).
 NextBattlerTurn::
+;> wTurnOrderPos = 0
 	xor a
 	ld [wTurnOrderPos], a
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
+;> if mem[wSideFlags] & 0x50:
+;>     ClearSideBits50(wSideFlags)
 	ld hl, wSideFlags
 	ld a, [hl]
 	and $50
 	call nz, ClearSideBits50
+;> if mem[wSideFlags + 1] & 0x50:
+;>     ClearSideBits50(wSideFlags + 1)
 	inc hl
 	ld a, [hl]
 	and $50
@@ -10908,17 +12779,24 @@ NextBattlerTurn::
 	ret
 
 
+;@ def ClearSideBits50(flags: hl)
+;@ path: battle/actions
+;@ Clears bits 4 and 6 of a side's flags and all but the low two bits of the
+;@ side's byte $4A further on.
 ClearSideBits50::
+;> mem[flags] &= 0xAF
 	push hl
 	ld a, [hl]
 	and $af
 	ld [hl], a
+;>@b mem[flags + 0x4A] &= 0x03
 	ld a, $4a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@b
 	ld a, [hl]
 	and $03
 	ld [hl], a
@@ -10926,192 +12804,273 @@ ClearSideBits50::
 	ret
 
 
+;@ def AllPositionsNextTarget()
+;@ path: battle/actions
+;@ BIGSLEEP, MP0 and METEOR go through every battle position: the user's target
+;@ (wBattlerAction) steps on, after the fourth hit over to the other side,
+;@ skipping empty places, up to eight.
 AllPositionsNextTarget::
-jr_052_714c:
+.loop
+;> while True:
+;>     ptr = IndexWords(wSkillUser, wBattlerAction + 1)
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
+;>     if wHitCount >= 8:
+;>@e         return EndBattlerAction()
 	ld a, [wHitCount]
 	cp $08
 	jp nc, EndBattlerAction
 
+;>     if wHitCount == 4:
 	cp $04
-	jr nz, jr_052_7169
+	jr nz, .step
 
+;>@w         mem[ptr] = mem[ptr] & 4 ^ 4         # first place of the other side
 	ld a, [hl]
 	and $04
 	xor $04
 	ld [hl], a
-	jr jr_052_7176
+;>@x         break
+	jr .found
 
-jr_052_7169:
+.step
+;>     mem[ptr] += 1
 	inc [hl]
+;>     if not CheckBattlerPresent(mem[ptr]):
+;>@y         break
 	ld a, [hl]
 	call CheckBattlerPresent
-	jr nc, jr_052_7176
+	jr nc, .found
 
+;>     wHitCount += 1
 	ld hl, wHitCount
 	inc [hl]
-	jr jr_052_714c
+	jr .loop
 
-jr_052_7176:
+.found
+;> wBattleSubStep = 1
 	ld a, $01
 	ld [wBattleSubStep], a
+;> wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep2], a
+;> wBattleStepArg0 = 0
 	xor a
 	ld [wBattleStepArg0], a
 	ret
 
 
+;@ def NextTargetOfGroup()
+;@ path: battle/actions
+;@ A skill aimed at a whole side goes on to the next position of that side
+;@ (LifeSong, LifeDance and ALLREVIVE also to empty places); after the last one
+;@ the action is finished. A reaction instead goes back to what it interrupted.
 NextTargetOfGroup::
-jr_052_7184:
+.loop
+;> while True:
 	ld a, [wReactionKind]
+;>     if wReactionKind == 2:
+;>         return InterruptUseSkill()
 	cp $02
 	jp z, InterruptUseSkill
 
+;>     if wReactionKind in (4, 1):
+;>@r         return RestoreInterruptedAction()
 	cp $10
-	jr z, jr_052_719c
+	jr z, .next
 
 	cp $04
-	jr z, jr_052_7198
+	jr z, .restore
 
 	cp $01
-	jr nz, jr_052_719c
+	jr nz, .next
 
-jr_052_7198:
+.restore
+;=@r
 	call RestoreInterruptedAction
 	ret
 
 
-jr_052_719c:
+.next
+;>@l     last = 7 if wSkillTarget & 4 else 3
 	ld a, [wSkillTarget]
 	bit 2, a
 	push af
-	jr z, jr_052_71a8
+	jr z, .own
 
 	ld a, $07
-	jr jr_052_71aa
+	jr .compare
 
-jr_052_71a8:
+.own
+;=@l
 	ld a, $03
 
-jr_052_71aa:
+.compare
+;>     if wSkillTarget == last:
+;>@f         return FinishAction()
 	ld c, a
 	pop af
 	cp c
 	jp z, FinishAction
 
+;>     wSkillTarget += 1
+;>@a     wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	inc a
 	push af
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
 	pop af
+;=@a
 	ld [hl], a
 	ld [wSkillTarget], a
+;>     if wSkillId in (0x95, 0x96, 0xAD) or not CheckBattlerPresent(wSkillTarget):
+;>@b         break
 	ld a, [wSkillId]
 	cp $95
-	jr z, jr_052_71d7
+	jr z, .found
 
 	cp $96
-	jr z, jr_052_71d7
+	jr z, .found
 
+;=@b
 	cp $ad
-	jr z, jr_052_71d7
+	jr z, .found
 
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_7184
+	jr c, .loop
 
-jr_052_71d7:
+.found
+;>@o wBattlerOrder[wSkillUser] = 2
 	ld hl, wBattlerOrder
 	ld a, [wSkillUser]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $02
+;> wBattleSubStep = 1
 	ld a, $01
 	ld [wBattleSubStep], a
+;> wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
 	ld a, [wSkillTarget]
 	ld [hl], a
 	ret
 
 
+;@ def InterruptUseSkill()
+;@ path: battle/actions
+;@ A reaction of kind 2: the target answers with the same skill (message $D7
+;@ with its name and the skill's name), set up in bank $53 with argument $40;
+;@ when it cannot act, the action is just finished.
 InterruptUseSkill::
+;> if CheckBattlerCanAct(wSkillTarget):        # carry: cannot act
+;>     return FinishAction()
 	ld a, [wSkillTarget]
 	call CheckBattlerCanAct
 	jp c, FinishAction
 
+;> TargetNameToArg0()
 	call TargetNameToArg0
+;> CopySystemText(0x0600 | wSkillId, wTextArg1)   # the skill's name
 	ld a, [wSkillId]
 	ld l, a
 	ld h, $06
 	ld de, wTextArg1
 	call CopySystemText
+;> wTextGroup = 0
+;> wTextIndex = 0xD7
 	xor a
 	ld [wTextGroup], a
 	ld a, $d7
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleArg0 = 0x40
 	ld a, $40
 	ld [wBattleArg0], a
+;> StartReactionFar_53()
 	ld hl, far_StartReactionFar_53
 	rst $10
 	ret
 
 
+;@ def ActionStepDone()
+;@ path: battle/actions
+;@ Action step 7: the action is over, on to the next battle step.
 ActionStepDone::
+;> wBattleSubStep = 0
 	xor a
 	ld [wBattleSubStep], a
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
+	; unused: two follow-up stages (bank $5F's routine, a message), each then
+	; wBattleSubStep2 += 1
 	db $21, $06, $5f, $d7, $21, $ee, $d9, $34, $c9, $21, $00, $4c, $d7, $21, $ee, $d9
 	db $34, $c9
 
+;@ def ActionStepDefeat()
+;@ path: battle/actions
+;@ Action step 8: the target is defeated (DefeatBattler). Once the text is out
+;@ (or right away when $C87E is set) the enemy's picture is blanked if asked
+;@ (wBattleStepArg1 1), and the screen is redrawn. After skill $3B and Kamikaze
+;@ the follow-up step (4) comes next.
 ActionStepDefeat::
+;> wBattleArg0 = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wBattleArg0], a
+;> DefeatBattler()
 	ld hl, far_DefeatBattler
 	rst $10
+;> if not mem[0xC87E] and wTextState:
+;>     return
 	ld a, [$c87e]
 	or a
-	jr nz, jr_052_7257
+	jr nz, .shown
 
 	ld a, [wTextState]
 	or a
 	ret nz
 
-jr_052_7257:
+.shown
+;> if wBattleStepArg1 == 1:
+;>     BlankEnemyPicture()
 	ld a, [wBattleStepArg1]
 	cp $01
-	jr nz, jr_052_7262
+	jr nz, .redraw
 
 	ld hl, far_BlankEnemyPicture
 	rst $10
 
-jr_052_7262:
+.redraw
+;> mem[0xC87E] = 0
 	xor a
 	ld [$c87e], a
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> if wSkillId in (0x3B, 0x3E):
 	ld a, [wSkillId]
 	cp $3b
-	jr z, jr_052_7274
+	jr z, .followUp
 
 	cp $3e
 	ret nz
 
-jr_052_7274:
+.followUp
+;>     wBattleSubStep = 4
 	ld a, $04
 	ld [wBattleSubStep], a
 	ret

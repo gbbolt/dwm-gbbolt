@@ -4124,647 +4124,883 @@ Hit_Shield_53::
 	ret
 
 
+;@ def Hit_Intercept_53()
+;@ path: battle/skills
+;@ Stage 7: whether the attack reaches its target or someone or something else gets in the way: a
+;@ target high in the sky cannot be reached by skills with bit 5 of wSkillFlags3 ("But it doesn't
+;@ reach ..."); a breath on a side under SuckAll is sucked in by its user ("... absorbs the attack",
+;@ the user reacts); a protector (Cover, Guardian) steps in ("... protects ..."); a target that
+;@ dodges aside lets the attack hit another monster (DodgeAside_53); a wind blows a breath back
+;@ ("The wind around ... reflects the attack"); Bounce or MagicBack reflect a spell. A reaction is
+;@ not intercepted except by a protector (wReactionKind bit 3).
+;@ test: skip calls routines in other banks
 Hit_Intercept_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wReactionKind & 0x08: return Cover()
 	ld a, [wReactionKind]
 	bit 3, a
-	jp nz, Jump_053_54d6
+	jp nz, .cover
 
+;> LoadSkillFlags(); DrawRandom_53()
 	ld hl, far_LoadSkillFlags
 	rst $10
 	call DrawRandom_53
+;>@n if wBattlerStatus4[8 * wSkillTarget] & 0x0C and wSkillFlags3 & 0x20:   # high in the sky
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
-	jr z, jr_053_5458
+	jr z, .reach
 
+;=@n
 	ld a, [wSkillFlags3]
 	bit 5, a
-	jr z, jr_053_5458
+	jr z, .reach
 
+;>     wBattleSubStep = 5; wBattleSubStep2 = 0      # the skill misses
 	ld a, $05
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
+;>     GetTargetName_53()
 	call GetTargetName_53
+;>     wTextIndex = 0xC1; wTextGroup = 0           # "But it doesn't reach ...!"
 	ld a, $c1
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     QueueSound(0x6F); return
 	ld a, $6f
 	call QueueSound
 	ret
 
 
-jr_053_5458:
+.reach
+;> if not (wSkillFlags1 & 0x10): return Cover()   # not a breath
 	ld a, [wSkillFlags1]
 	bit 4, a
-	jp z, Jump_053_54d6
+	jp z, .cover
 
+;> side = wSkillTarget >> 2 & 1
 	ld a, [wSkillTarget]
 	rrca
 	rrca
 	and $01
 	ld b, a
+;>@f if not (wSideFlags[side] & 0x40): return Cover()   # no SuckAll on that side
 	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@f
 	bit 6, [hl]
-	jp z, Jump_053_54d6
+	jp z, .cover
 
+;> if wReactionKind: return Hit_EasyDodge_53()
 	ld a, [wReactionKind]
 	or a
 	jp nz, Hit_EasyDodge_53
 
+;> if wSkillId == 0x8F: return Hit_EasyDodge_53()  # SuckAll itself
 	ld a, [wSkillId]
 	cp $8f
 	jp z, Hit_EasyDodge_53
 
+;>@u sucker = wSuckAllUsers[side] >> 2 & 3 | wSkillTarget & 4
 	ld a, b
 	ld hl, wSuckAllUsers
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@u
 	ld h, a
 	ld a, [hl]
 	rrca
 	rrca
 	and $03
 	ld c, a
+;=@u
 	ld a, [wSkillTarget]
 	and $04
 	or c
 	ld c, a
+;> if CheckBattlerCanAct(sucker): return Hit_EasyDodge_53()
 	call CheckBattlerCanAct
 	jp c, Hit_EasyDodge_53
 
+;>@e entry = addr(wBattlerAction) + 2 * wSkillUser + 1
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@e
 	adc h
 	ld h, a
+;>@h wHitCount += sucker - mem[entry]; mem[entry] = sucker
 	ld a, [hl]
 	ld [hl], c
 	ld b, a
 	ld a, c
 	sub b
 	ld b, a
+;=@h
 	ld a, [wHitCount]
 	add b
 	ld [wHitCount], a
+;> wSkillTarget = sucker
 	ld a, c
 	ld [wSkillTarget], a
+;> StartReactionKeepTarget_53(2, sucker)      # the sucker answers with the breath
 	ld b, $02
 	call StartReactionKeepTarget_53
+;> GetTargetName_53()
 	call GetTargetName_53
+;> wTextIndex = 0x81; wTextGroup = 0           # "... absorbs the attack!"
 	ld a, $81
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C(); return
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
-Jump_053_54d6:
+.cover
+;> def Cover():
+;>@cv     if wSkillFlags2 & 0x02 and not wInterceptState:
 	ld a, [wSkillFlags2]
 	bit 1, a
 	jr z, Hit_TryDodgeAside_53
 
+;=@cv
 	ld a, [wInterceptState]
 	or a
 	jr nz, Hit_TryDodgeAside_53
 
+;>         if wBattlerStatus6[8 * wSkillTarget] & 0x10:   # protected
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	bit 4, [hl]
 	jr z, Hit_TryDodgeAside_53
 
+;>@pr             protector = wBattlerStatus7[8 * wSkillTarget] >> 4
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
 	call AddEightTimes
 	ld a, [hl]
 	swap a
 	and $0f
+;=@pr
 	ld b, a
+;>             if CheckBattlerCanAct(protector): return Hit_NotProtected_53()
 	call CheckBattlerCanAct
 	jr c, Hit_NotProtected_53
+;>             return ShowProtectMessage_53(protector)
+;>     return Hit_TryDodgeAside_53()
 
+;@ def ShowProtectMessage_53(protector: b)
+;@ path: battle/skills
+;@ `protector` takes the attack in place of the target: "... protects ..." ($80) with both names; the
+;@ protector becomes the target (the old one is kept in wShieldTarget) and wInterceptState 4.
+;@ test: skip calls routines in other banks
 ShowProtectMessage_53::
+;> GetBattlerName_53(protector, addr(wTextArg0))
 	ld a, b
 	ld hl, wTextArg0
 	push bc
 	ld [wNamePos], a
 	call GetBattlerName_53
+;> wShieldTarget = wSkillTarget; GetBattlerName_53(wSkillTarget, addr(wTextArg1))
 	ld a, [wSkillTarget]
 	ld [wShieldTarget], a
 	ld hl, wTextArg1
 	ld [wNamePos], a
 	call GetBattlerName_53
+;> wSkillTarget = protector
 	pop bc
 	ld a, b
 	ld [wSkillTarget], a
+;>@e wBattlerAction[2 * wSkillUser + 1] = protector
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@e
 	adc h
 	ld h, a
 	ld [hl], b
+;> wTextIndex = 0x80; wTextGroup = 0           # "... protects ...!"
 	ld a, $80
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wInterceptState = 4
 	ld a, $04
 	ld [wInterceptState], a
 	ret
 
 
+;@ def Hit_NotProtected_53()
+;@ path: battle/skills
+;@ Part of Hit_Intercept_53: points hl at the target's status byte 6 and goes on with the dodge check.
+;@ test: skip goes on into another routine
 Hit_NotProtected_53::
+;> status6 = addr(wBattlerStatus6) + 8 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
+;> return Hit_TryDodgeAside_53(status6)
 
+;@ def Hit_TryDodgeAside_53(status6: hl)
+;@ path: battle/skills
+;@ Part of Hit_Intercept_53: a physical attack on a target that dodges (by personality,
+;@ wPersonalityNudge bit 5, or Dodge - bit 5 of the byte at `status6`) goes to another monster
+;@ (DodgeAside_53, wInterceptState 2); a wind (TailWind, IsWindReflecting_53) turns a breath back on
+;@ its user; Bounce or MagicBack reflect a reflectable skill (bit 0 of wSkillFlags2; MagicBack is used
+;@ up) - "A wall of light reflects the spell" ($7B/$7C). Otherwise on to Hit_EasyDodge_53.
+;@ test: skip calls routines in other banks
 Hit_TryDodgeAside_53::
+;> if wReactionKind: return Hit_EasyDodge_53()
 	ld a, [wReactionKind]
 	or a
 	jp nz, Hit_EasyDodge_53
 
+;> if wSkillFlags1 & 0x80:                 # a physical attack
 	ld a, [wSkillFlags1]
 	bit 7, a
-	jr z, jr_053_5594
+	jr z, .breath
 
+;>     if CheckBattlerCanAct(wSkillTarget): return Hit_EasyDodge_53()
 	ld a, [wSkillTarget]
 	call CheckBattlerCanAct
 	jp c, Hit_EasyDodge_53
 
+;>@nu     if wPersonalityNudge[wSkillTarget] & 0x20 or mem[status6] & 0x20:
 	push hl
 	ld a, [wSkillTarget]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
+;=@nu
 	ld a, $00
 	adc h
 	ld h, a
 	bit 5, [hl]
 	pop hl
-	jr nz, jr_053_557a
+	jr nz, .dodge
 
+;=@nu
 	bit 5, [hl]
-	jr z, jr_053_5594
+	jr z, .breath
 
-jr_053_557a:
+.dodge
+;>         wBattleTemp = 0; wShieldTarget = wSkillTarget
 	xor a
 	ld [wBattleTemp], a
 	ld a, [wSkillTarget]
 	ld [wShieldTarget], a
+;>         DodgeAside_53()
 	call DodgeAside_53
+;>         if not mem[addr(wSkillStatusPtr)]: return Hit_EasyDodge_53()   # no dodge
 	ld a, [wSkillStatusPtr]
 	or a
 	jp z, Hit_EasyDodge_53
 
+;>         wInterceptState = 2; return
 	ld a, $02
 	ld [wInterceptState], a
 	ret
 
 
-jr_053_5594:
+.breath
+;> if wSkillFlags1 & 0x10:                 # a breath
 	ld a, [wSkillFlags1]
 	bit 4, a
-	jp z, Jump_053_55ca
+	jp z, .reflect
 
+;>     if wReactionKind: return Hit_EasyDodge_53()
 	ld a, [wReactionKind]
 	or a
 	jp nz, Hit_EasyDodge_53
 
+;>     if IsWindReflecting_53():
 	call IsWindReflecting_53
-	jr z, jr_053_55ca
+	jr z, .reflect
 
+;>         mem[addr(wBattlerStatus2) + 8 * wSkillTarget] &= ~0x40     # the wind is used up
 	res 6, [hl]
+;>         GetTargetName_53(); StartReaction_53(1)    # the breath goes back to its user
 	call GetTargetName_53
 	ld a, $01
 	call StartReaction_53
+;>         wReflectAnim = 2; wInterceptState = 2
 	ld a, $02
 	ld [wReflectAnim], a
 	ld a, $02
 	ld [wInterceptState], a
+;>         wTextIndex = 0x7D; wTextGroup = 0        # "The wind around ... reflects the attack!"
 	ld a, $7d
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>         StartText_4C(); return
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
-Jump_053_55ca:
-jr_053_55ca:
+.reflect
+;> if not (wSkillFlags2 & 0x01): return Hit_EasyDodge_53()
 	ld a, [wSkillFlags2]
 	bit 0, a
 	jp z, Hit_EasyDodge_53
 
+;> if wReactionKind: return Hit_EasyDodge_53()
 	ld a, [wReactionKind]
 	or a
 	jp nz, Hit_EasyDodge_53
 
+;> st2 = addr(wBattlerStatus2) + 8 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus2
 	call AddEightTimes
+;> if not (mem[st2] & 0x22): return Hit_EasyDodge_53()   # neither Bounce nor MagicBack
 	ld a, [hl]
 	and $22
 	jp z, Hit_EasyDodge_53
 
+;> wReflectAnim = 0
 	ld a, $00
 	ld [wReflectAnim], a
+;> if not (mem[st2] & 0x02):              # MagicBack: used up
 	bit 1, [hl]
-	jr nz, jr_053_55f8
+	jr nz, .message
 
+;>     mem[st2] &= ~0x20; wReflectAnim = 7
 	res 5, [hl]
 	ld a, $07
 	ld [wReflectAnim], a
 
-jr_053_55f8:
+.message
+;>@sd side = (wSkillUser if wLinkFlags & 0x02 else wSkillTarget) >> 2 & 1
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
-	jr z, jr_053_5605
+	jr z, .side
 
+;=@sd
 	ld a, [wSkillUser]
 
-jr_053_5605:
+.side
+;=@sd
 	rrca
 	rrca
 	and $01
+;> wTextIndex = 0x7B + side; wTextGroup = 0     # "A wall of light reflects the spell" / "The spell is reflected"
 	add $7b
 	ld a, a
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> StartReaction_53(4)                      # the spell goes back to its user
 	ld a, $04
 	call StartReaction_53
+;> wInterceptState = 2
 	ld a, $02
 	ld [wInterceptState], a
 	ret
 
 
+;@ def Hit_EasyDodge_53()
+;@ path: battle/skills
+;@ Stage 8: after a dodge aside the new target may be protected in turn (wInterceptState 3). A
+;@ dodgeable skill (bit 7 of wSkillFlags2) on a monster whose personality lets it dodge easily
+;@ (wPersonalityNudge bit 7) misses: "... easily dodges the attack" ($6E).
+;@ test: skip calls routines in other banks
 Hit_EasyDodge_53::
+;>@st if wInterceptState == 1:
+;>@st1     wBattleSubStep2 += 1; return Hit_CheckMiss_53()
+;=@st
 	ld a, [wInterceptState]
 	or a
-	jr z, jr_053_563c
+	jr z, .easyDodge
 
 	cp $01
-	jr z, jr_053_5636
+	jr z, .done
 
+;>@st2 elif wInterceptState == 2:
+;>@st3     return Covered()
+;=@st2
 	cp $02
-	jr nz, jr_053_563c
+	jr nz, .easyDodge
 
 	cp $04
-	jr z, jr_053_5636
+	jr z, .done
 
-	jr jr_053_5678
+;=@st3
+	jr .covered
+;> return EasyDodgeCheck()
 
-jr_053_5636:
+.done
+;=@st1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	jr Hit_CheckMiss_53
 
-jr_053_563c:
+;> def EasyDodgeCheck():
+;>     wBattleSubStep2 += 1
+.easyDodge
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>     if CheckBattlerCanAct(wSkillTarget): return Hit_CheckMiss_53()
 	ld a, [wSkillTarget]
 	call CheckBattlerCanAct
 	jr c, Hit_CheckMiss_53
 
+;>     if not (wSkillFlags2 & 0x80): return Hit_CheckMiss_53()
 	ld a, [wSkillFlags2]
 	bit 7, a
 	jr z, Hit_CheckMiss_53
 
+;>@nu     if not (wPersonalityNudge[wSkillTarget] & 0x80): return Hit_CheckMiss_53()
 	ld a, [wSkillTarget]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@nu
 	ld h, a
 	bit 7, [hl]
 	jr z, Hit_CheckMiss_53
 
+;>     GetTargetName_53()
 	call GetTargetName_53
+;>     wTextIndex = 0x6E; wTextGroup = 0       # "... easily dodges the attack!"
 	ld a, $6e
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     EndSkillMissed_53(); QueueSound(0x6F)
 	call EndSkillMissed_53
 	ld a, $6f
 	call QueueSound
+;>     return
 	ret
 
 
-jr_053_5678:
+.covered
+;> def Covered():                          # the monster it dodged to may be protected
+;>     if not (wSkillFlags2 & 0x02): return EasyDodgeCheck()
 	ld a, [wSkillFlags2]
 	bit 1, a
-	jr z, jr_053_563c
+	jr z, .easyDodge
 
+;>     if not (wBattlerStatus6[8 * wSkillTarget] & 0x10): return EasyDodgeCheck()
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	bit 4, [hl]
-	jr z, jr_053_563c
+	jr z, .easyDodge
 
+;>@pr     protector = wBattlerStatus7[8 * wSkillTarget] >> 4
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
 	call AddEightTimes
 	ld a, [hl]
 	swap a
 	and $0f
+;=@pr
 	ld b, a
+;>     if CheckBattlerCanAct(protector): return EasyDodgeCheck()
 	call CheckBattlerCanAct
-	jr c, jr_053_563c
+	jr c, .easyDodge
 
+;>     ShowProtectMessage_53(protector); wInterceptState += 1
 	call ShowProtectMessage_53
 	ld hl, wInterceptState
 	inc [hl]
 	ret
 
 
+;@ def Hit_CheckMiss_53()
+;@ path: battle/skills
+;@ Stage 9: a missing target ends the action (except for the revival skills, Farewell, LifeSong,
+;@ LifeDance, ALLREVIVE, SuckAll, Guardian, StormWind). An iron lump is invulnerable to skills with
+;@ bit 2 of wSkillFlags2 (not to the take-off of HighJump; a call for help is "not heard"); a physical
+;@ attack cannot reach a monster high in the sky; a user in an illusion (5 in 8) or blinded (3 in 8)
+;@ misses skills with bit 1 of wSkillFlags1; a dodgeable skill (bit 7 of wSkillFlags2) may be dodged
+;@ - always one in two while side-stepping, else 43, 8 or 2 in 256 by the target's agility (from
+;@ 448, from 32, below). Otherwise straight on to stage 10.
+;@ test: skip calls routines in other banks
 Hit_CheckMiss_53::
+;>@x if wSkillId not in (0x30, 0x31, 0x32, 0x95, 0x96, 0xAD, 0x8F, 0x89, 0x8B):
 	ld a, [wSkillId]
 	cp $30
-	jr z, jr_053_56e1
+	jr z, .check
 
 	cp $31
-	jr z, jr_053_56e1
+	jr z, .check
 
+;=@x
 	cp $32
-	jr z, jr_053_56e1
+	jr z, .check
 
 	cp $95
-	jr z, jr_053_56e1
+	jr z, .check
 
 	cp $96
-	jr z, jr_053_56e1
+	jr z, .check
 
+;=@x
 	cp $ad
-	jr z, jr_053_56e1
+	jr z, .check
 
 	cp $8f
-	jr z, jr_053_56e1
+	jr z, .check
 
 	cp $89
-	jr z, jr_053_56e1
+	jr z, .check
 
+;=@x
 	cp $8b
-	jr z, jr_053_56e1
+	jr z, .check
 
+;>     if CheckBattlerPresent(wSkillTarget):
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr nc, jr_053_56e1
+	jr nc, .check
 
+;>         wBattleSubStep = 6; wBattleSubStep2 = 0
 	ld a, $06
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
+;>         return
 	ret
 
 
-jr_053_56e1:
+.check
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@i if wBattlerStatus[8 * wSkillTarget + 5] & 0xC0 and wSkillFlags2 & 0x04 and not IsHighJumpTakeoff_53():
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
 	ld a, [hl]
 	and $c0
-	jr z, jr_053_5747
+	jr z, .notIron
 
+;=@i
 	ld a, [wSkillFlags2]
 	bit 2, a
-	jr z, jr_053_5747
+	jr z, .notIron
 
-	call IsHighJumpInSky_53
-	jr z, jr_053_5747
+	call IsHighJumpTakeoff_53
+	jr z, .notIron
 
+;>     if wSkillId in (0x52, 0x53): return CallHelp()     # CallHelp, YellHelp
 	ld a, [wSkillId]
 	cp $52
-	jr z, jr_053_5715
+	jr z, .callHelp
 
 	cp $53
-	jr z, jr_053_5715
+	jr z, .callHelp
 
+;>     if wSkillId == 0x14: return                         # Sacrifice
 	cp $14
-	jr z, jr_053_5746
+	jr z, .done
+;>@ir     return IronLump()
+;=@ir
 
-jr_053_570e:
+.iron
+;> def IronLump():
+;>     EndSkillMissed_53()
 	call EndSkillMissed_53
+;>     return ShowFail(0xBA)                # "... turns to iron and becomes invulnerable"
 	ld a, $ba
-	jr jr_053_5731
+	jr .show
 
-jr_053_5715:
+.callHelp
+;> def CallHelp():
+;>     if wHitCount >= 2: return IronLump()
 	ld a, [wHitCount]
 	cp $02
-	jr nc, jr_053_570e
+	jr nc, .iron
 
+;>     wHitShown = 0; wHitCount = 0x10      # no further hits
 	ld a, $00
 	ld [wHitShown], a
 	ld a, $10
 	ld [wHitCount], a
+;>     wBattleSubStep = 6; wBattleSubStep2 = 0
 	ld a, $06
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
+;>     return ShowFail(0xC2)                # "But the call is not heard"
 	ld a, $c2
 
-jr_053_5731:
+.show
+;> def ShowFail(msg):
+;>     GetTargetName_53()
 	push af
 	call GetTargetName_53
 	pop af
+;>     wTextIndex = msg; wTextGroup = 0
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     QueueSound(0x6F)
 	ld a, $6f
 	call QueueSound
 
-jr_053_5746:
+.done
+;>     return
 	ret
 
 
-jr_053_5747:
+.notIron
+;>@s if wSkillFlags1 & 0x80 and wBattlerStatus[8 * wSkillTarget + 4] & 0x04:   # physical, target high in the sky
 	ld a, [wSkillFlags1]
 	bit 7, a
-	jr z, jr_053_5763
+	jr z, .roll
 
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus4
+;=@s
 	call AddEightTimes
 	bit 2, [hl]
-	jr z, jr_053_5763
+	jr z, .roll
 
+;>     GetTargetName_53(); return ShowMissMessage_53(0xC1)    # "But it doesn't reach ...!"
 	call GetTargetName_53
 	ld a, $c1
 	jp ShowMissMessage_53
 
 
-jr_053_5763:
+.roll
+;> DrawRandom_53()
 	call DrawRandom_53
+;> if wSkillFlags1 & 0x02:
 	ld a, [wSkillFlags1]
 	bit 1, a
-	jr z, jr_053_579e
+	jr z, .dodge
 
+;>@il     if wBattlerStatus[8 * wSkillUser + 1] & 0x02 and wRandomHigh < 0xA0:   # in an illusion (Surround)
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 1, [hl]
-	jr z, jr_053_5785
+	jr z, .notIllusion
 
+;=@il
 	ld a, [wRandomHigh]
 	cp $a0
-	jr nc, jr_053_5785
+	jr nc, .notIllusion
 
+;>         ShowMissed_53(); return
 	call ShowMissed_53
 	ret
 
 
-jr_053_5785:
+.notIllusion
+;>@bl     if wBattlerStatus[8 * wSkillUser + 5] & 0x03 and wRandomLow < 0x60:   # blinded (SandStorm)
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
 	ld a, [hl]
 	and $03
-	jr z, jr_053_579e
+	jr z, .dodge
 
+;=@bl
 	ld a, [wRandomLow]
 	cp $60
-	jr nc, jr_053_579e
+	jr nc, .dodge
 
+;>         ShowMissed_53(); return
 	call ShowMissed_53
 	ret
 
 
-jr_053_579e:
+.dodge
+;>@d if wSkillFlags2 & 0x80 and not CheckBattlerCanAct(wSkillTarget) and not IsChargeUpTurn_53():
 	ld a, [wSkillFlags2]
 	bit 7, a
-	jr z, jr_053_57f5
+	jr z, .noDodge
 
 	ld a, [wSkillTarget]
 	call CheckBattlerCanAct
-	jr c, jr_053_57f5
+	jr c, .noDodge
 
-	call IsChargedUp_53
-	jr z, jr_053_57f5
+;=@d
+	call IsChargeUpTurn_53
+	jr z, .noDodge
 
+;>@ss     if wBattlerStatus[8 * wSkillTarget + 5] & 0x0C and not (wRandomHigh & 1):   # side-stepping
+;>@ss2         return ShowEasyDodge_53()
+;=@ss
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
-	jr z, jr_053_57c8
+	jr z, .agility
 
+;=@ss
 	ld a, [wRandomHigh]
 	and $01
-	jp z, Jump_053_57f1
+	jp z, .dodged
 
-jr_053_57c8:
+.agility
+;>     agi = mem16[addr(wBattlerAgility) + 2 * wSkillTarget]
 	ld a, [wSkillTarget]
 	ld hl, wBattlerAgility
 	call ReadWordEntry_53
+;>@b     chance = 0x2B if agi >= 0x1C0 else 0x08 if agi >= 0x20 else 0x02
 	ld bc, $01c0
 	call CompareHLBC
-	jr nc, jr_053_57e5
+	jr nc, .fast
 
 	ld bc, $0020
 	call CompareHLBC
-	jr nc, jr_053_57e9
+	jr nc, .medium
 
+;=@b
 	ld b, $02
-	jr jr_053_57eb
+	jr .compare
 
-jr_053_57e5:
+.fast
+;=@b
 	ld b, $2b
-	jr jr_053_57eb
+	jr .compare
 
-jr_053_57e9:
+.medium
+;=@b
 	ld b, $08
 
-jr_053_57eb:
+.compare
+;>     if wRandomHigh < chance:
 	ld a, [wRandomHigh]
 	cp b
-	jr nc, jr_053_57f5
+	jr nc, .noDodge
+;>         return ShowEasyDodge_53()
 
-Jump_053_57f1:
+.dodged
+;=@ss2
 	call ShowEasyDodge_53
 	ret
 
 
-jr_053_57f5:
+.noDodge
+;> return Hit_Critical_53()
 	jr Hit_Critical_53
 
+;@ def ShowEasyDodge_53()
+;@ path: battle/skills
+;@ "... easily dodges the attack!" ($78) and the skill misses.
+;@ test: skip calls routines in other banks
 ShowEasyDodge_53::
+;> GetTargetName_53()
 	call GetTargetName_53
+;> wTextIndex = 0x78; wTextGroup = 0
 	ld a, $78
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> EndSkillMissed_53()
 	call EndSkillMissed_53
+;> QueueSound(0x6F)
 	ld a, $6f
 	call QueueSound
 	ret
 
 
+;@ def ShowMissed_53()
+;@ path: battle/skills
+;@ The skill misses: "Misses! ... is unharmed!" ($B6) for an enemy target, "Missed ...! No damage!"
+;@ ($B7) for an own one (seen from this Game Boy in a link battle).
+;@ test: skip calls routines in other banks
 ShowMissed_53::
+;> GetTargetName_53()
 	call GetTargetName_53
+;>@sd side = wSkillUser if wLinkFlags & 0x02 else wSkillTarget
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
-	jr z, jr_053_5820
+	jr z, .side
 
+;=@sd
 	ld a, [wSkillUser]
 
-jr_053_5820:
+.side
+;>@m msg = 0xB6 if side >= 4 else 0xB7
 	cp $04
-	jr c, jr_053_5828
+	jr c, .own
 
 	ld a, $b6
-	jr jr_053_582a
+	jr ShowMissMessage_53
 
-jr_053_5828:
+.own
+;=@m
 	ld a, $b7
 
+;> return ShowMissMessage_53(msg)
+
+;@ def ShowMissMessage_53(msg: a)
+;@ path: battle/skills
+;@ Shows message `msg` about the target with the miss sound, and the skill ends (EndSkillMissed_53).
+;@ test: skip calls routines in other banks
 ShowMissMessage_53::
-jr_053_582a:
+;> wTextIndex = msg; wTextGroup = 0
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> QueueSound(0x6F)
 	ld a, $6f
 	call QueueSound
+;> return EndSkillMissed_53()
 
+;@ def EndSkillMissed_53()
+;@ path: battle/skills
+;@ The skill misses: on with action step 5.
+;@ test: wBattleSubStep = 1; wBattleSubStep2 = 9
 EndSkillMissed_53::
+;> wBattleSubStep = 5; wBattleSubStep2 = 0
 	ld a, $05
 	ld [wBattleSubStep], a
 	xor a
@@ -4772,11 +5008,17 @@ EndSkillMissed_53::
 	ret
 
 
-IsHighJumpInSky_53::
+;@ def IsHighJumpTakeoff_53() -> zero
+;@ path: battle/skills
+;@ Zero flag when the skill is HighJump ($42) and the user is still on the ground: its take-off turn.
+;@ test: wSkillId = choice([0x42, 0x3A]); wSkillUser = rand(0, 7)
+IsHighJumpTakeoff_53::
+;> if wSkillId != 0x42: return False
 	ld a, [wSkillId]
 	cp $42
 	ret nz
 
+;>@r return not (wBattlerStatus[8 * wSkillUser + 4] & 0x0C)
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -4785,11 +5027,17 @@ IsHighJumpInSky_53::
 	ret
 
 
-IsChargedUp_53::
+;@ def IsChargeUpTurn_53() -> zero
+;@ path: battle/skills
+;@ Zero flag when the skill is ChargeUP ($41) and the user is not charged yet: its charging turn.
+;@ test: wSkillId = choice([0x41, 0x3A]); wSkillUser = rand(0, 7)
+IsChargeUpTurn_53::
+;> if wSkillId != 0x41: return False
 	ld a, [wSkillId]
 	cp $41
 	ret nz
 
+;>@r return not (wBattlerStatus[8 * wSkillUser + 4] & 0x03)
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -4798,83 +5046,108 @@ IsChargedUp_53::
 	ret
 
 
+;@ def Hit_Critical_53()
+;@ path: battle/skills
+;@ Stage 10: skills with bits 4-6 of wSkillFlags2 may hit critically (not while the attack is doubled
+;@ by TwinHits): always with the personality effect "full force" (wPersonalityNudge bit 0) or under
+;@ ALLCHANGE, else by the species' chance (CheckCriticalHit_53). A critical hit sets bit 7 of status
+;@ byte 2, shows "A critical hit!" ($79/$7A by side) and goes straight on to stage 12.
+;@ test: skip calls routines in other banks
 Hit_Critical_53::
+;> LoadSkillFlags()
 	ld hl, far_LoadSkillFlags
 	rst $10
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if not (wSkillFlags2 & 0x70): return
 	ld a, [wSkillFlags2]
 	and $70
 	ret z
 
+;>@t if wSkillFlags2 & 0x20 and wBattlerStatus[8 * wSkillUser + 1] & 0x04: return   # doubled (TwinHits)
 	bit 5, a
-	jr z, jr_053_588b
+	jr z, .crit
 
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
+;=@t
 	call AddEightTimes
 	bit 2, [hl]
 	ret nz
 
+;> if wSkillFlags2 & 0x10:
 	ld a, [wSkillFlags2]
 
-jr_053_588b:
+.crit
 	bit 4, a
-	jr z, jr_053_58ea
+	jr z, .noCrit
 
+;>@n     if wPersonalityNudge[wSkillUser] & 0x01 or wBattlerStatus[8 * wSkillUser + 1] & 0x08 or CheckCriticalHit_53():
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@n
 	ld h, a
 	bit 0, [hl]
-	jr nz, jr_053_58b4
+	jr nz, .critical
 
+;=@n
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 3, [hl]
-	jr nz, jr_053_58b4
+	jr nz, .critical
 
+;=@n
 	call DrawRandom_53
 	call CheckCriticalHit_53
-	jr nc, jr_053_58ea
+	jr nc, .noCrit
 
-jr_053_58b4:
+.critical
+;>         wBattlerStatus[8 * wSkillUser + 2] |= 0x80      # critical hit
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus2
 	call AddEightTimes
 	set 7, [hl]
+;>@sd         side = (wSkillUser >> 2 & 1) ^ (1 if wLinkFlags & 0x02 else 0)
 	ld a, [wSkillUser]
 	rrca
 	rrca
 	and $01
 	ld d, a
 	ld a, [wLinkFlags]
+;=@sd
 	bit 1, a
 	ld a, d
-	jr z, jr_053_58d1
+	jr z, .msg
 
+;=@sd
 	xor $01
 
-jr_053_58d1:
+.msg
+;>         wTextIndex = 0x79 + side; wTextGroup = 0   # "A critical hit!" / "A pitiful attack!"
 	add $79
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>         StartText_4C(); QueueSound(0x6E)
 	ld hl, far_StartText_4C
 	rst $10
 	ld a, $6e
 	call QueueSound
+;>         wBattleSubStep2 += 1; return Hit_Damage_53()
 	ld hl, wBattleSubStep2
 	inc [hl]
 	jr Hit_Damage_53
 
 	db $c9
 
-jr_053_58ea:
+.noCrit
+;> wBattlerStatus[8 * wSkillUser + 2] &= ~0x80
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus2
 	call AddEightTimes
@@ -4882,214 +5155,289 @@ jr_053_58ea:
 	ret
 
 
+;@ def Hit_WaitFrame_53()
+;@ path: battle/skills
+;@ Stage 11: just one frame (the first turn of HighJump comes here).
+;@ test: wBattleSubStep2 = 11
 Hit_WaitFrame_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def Hit_Damage_53()
+;@ path: battle/skills
+;@ Stage 12: the damage. After a critical hit it waits for its sound; TwinHits doubles wSkillAmount
+;@ for skills with bit 5 of wSkillFlags2; a critical hit instead deals the user's attack (half for
+;@ QuadHits) with a spread of +-5 % (SpreadDamage_53) and result $A8 ("... takes ... damage").
+;@ Then the boosts (Hit_DamageBoost_53) and the target's guard (Hit_DamageGuard_53).
+;@ test: skip calls routines in other banks
 Hit_Damage_53::
+;> if wBattlerStatus[8 * wSkillUser + 2] & 0x80:      # critical: wait for its sound
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus2
 	call AddEightTimes
 	bit 7, [hl]
-	jr z, jr_053_5912
+	jr z, .noCrit
 
+;>     if wSoundChannels & mem[addr(wSoundChannels) + 26] != 0xFF: return
 	ld a, [wSoundChannels]
-	ld hl, $dd9a
+	ld hl, wSoundChannels+26
 	and [hl]
 	cp $ff
 	ret nz
 
-jr_053_5912:
+.noCrit
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@tw if wBattlerStatus[8 * wSkillUser + 1] & 0x04 and wSkillFlags2 & 0x20:   # TwinHits
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 2, [hl]
-	jr z, jr_053_5941
+	jr z, .notDoubled
 
+;=@tw
 	ld a, [wSkillFlags2]
 	bit 5, a
-	jr z, jr_053_5941
+	jr z, .notDoubled
 
+;>@d     wSkillAmount = wSkillAmount * 2 & 0xFFFF
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
 	sla l
 	rl h
+;=@d
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount+1], a
+;>     return Hit_DamageGuard_53()
 	jp Hit_DamageGuard_53
 
 
-jr_053_5941:
+.notDoubled
+;> if wBattlerStatus[8 * wSkillUser + 2] & 0x80:      # a critical hit
 	inc hl
 	bit 7, [hl]
 	jr z, Hit_DamageBoost_53
 
+;>     wBattlerStatus[8 * wSkillUser + 2] &= ~0x80
 	res 7, [hl]
+;>@r     wSkillResult = 0xA8; wSkillResultValue = 0xB682   # message $82, miss message $B6
 	ld hl, $b682
 	ld a, $a8
 	ld [wSkillResult], a
 	ld a, l
 	ld [wSkillResultValue], a
 	ld a, h
+;=@r
 	ld [wSkillMsgMiss], a
+;>     amount = GetBattlerAttack(wSkillUser)
 	ld a, [wSkillUser]
 	call GetBattlerAttack
+;>     if wSkillId == 0x51: amount = HalveHL_53(amount)   # QuadHits
 	ld a, [wSkillId]
 	cp $51
 	call z, HalveHL_53
+;>     wSkillAmount = SpreadDamage_53(amount)
 	call SpreadDamage_53
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
-	jr jr_053_59c3
+	ld [wSkillAmount+1], a
+;>     return Hit_DamageGuard_53()
+	jr Hit_DamageGuard_53
+;> return Hit_DamageBoost_53(addr(wBattlerStatus2) + 8 * wSkillUser)
 
+;@ def HalveHL_53(n: hl) -> hl
+;@ path: battle/skills
+;@ n / 2.
+;@ test: n = rand(0, 0xFFFF)
 HalveHL_53::
+;> return n >> 1
 	srl h
 	rr l
 	ret
 
 
+;@ def Hit_DamageBoost_53(st2: hl)
+;@ path: battle/skills
+;@ Part of stage 12: a charged-up user (ChargeUP, status byte 4 bit 0) boosts skills with bit 6 of
+;@ wSkillFlags2, a held breath (SuckAir, bit 4) boosts the fire and ice breaths $5C-$63 - both to
+;@ 2-2.5 times (BoostDamage_53). `st2` points at the user's status byte 2.
+;@ test: skip calls routines in other banks
 Hit_DamageBoost_53::
+;> st4 = st2 + 2
 	inc hl
 	inc hl
+;>@c if mem[st4] & 0x01 and wSkillFlags2 & 0x40:            # charged up
 	bit 0, [hl]
-	jr z, jr_053_599a
+	jr z, .notCharged
 
 	ld a, [wSkillFlags2]
 	bit 6, a
-	jr z, jr_053_599a
+	jr z, .notCharged
 
+;>@b     wSkillAmount = BoostDamage_53(wSkillAmount)
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
 	call BoostDamage_53
+;=@b
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
-	jr jr_053_59c3
+	ld [wSkillAmount+1], a
+	jr Hit_DamageGuard_53
 
-jr_053_599a:
+.notCharged
+;>@e elif mem[st4] & 0x10 and wSkillFlags1 & 0x10 and 0x5C <= wSkillId < 0x64:   # a held breath
 	bit 4, [hl]
-	jr z, jr_053_59c3
+	jr z, Hit_DamageGuard_53
 
 	ld a, [wSkillFlags1]
 	bit 4, a
-	jr z, jr_053_59c3
+	jr z, Hit_DamageGuard_53
 
+;=@e
 	ld a, [wSkillId]
 	cp $5c
-	jr c, jr_053_59c3
+	jr c, Hit_DamageGuard_53
 
 	cp $64
-	jr nc, jr_053_59c3
+	jr nc, Hit_DamageGuard_53
 
+;>@b2     wSkillAmount = BoostDamage_53(wSkillAmount)
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
 	call BoostDamage_53
+;=@b2
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount+1], a
+;> return Hit_DamageGuard_53()
 
+;@ def Hit_DamageGuard_53()
+;@ path: battle/skills
+;@ Part of stage 12: a battle cry of the user (wPersonalityNudge bit 6) adds half. The target's
+;@ stance (status byte 7): BladeD halves physical attacks, Defence halves and StrongD cuts to a
+;@ tenth skills with bit 0 of wSkillFlags1, and its fear (wPersonalityNudge bit 1) halves again. A
+;@ berserk target (status byte 6 bit 2) takes double from physical attacks (not Ramming, Kamikaze).
+;@ test: skip goes on into another routine
 Hit_DamageGuard_53::
-jr_053_59c3:
+;>@n if wPersonalityNudge[wSkillUser] & 0x40:          # battle cry
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@n
 	ld h, a
 	bit 6, [hl]
-	jr z, jr_053_59ec
+	jr z, .stance
 
+;>@x     wSkillAmount += wSkillAmount >> 1
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
 	ld b, h
 	ld c, l
+;=@x
 	srl h
 	rr l
 	add hl, bc
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
-	jr jr_053_59ec
+;=@x
+	ld [wSkillAmount+1], a
+	jr .stance
 
-jr_053_59ec:
+.stance
+;> stance = wBattlerStatus[8 * wSkillTarget + 7] & 7
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
 	call AddEightTimes
 	ld a, [hl]
 	and $07
-	jr z, jr_053_5a44
+;> if stance:
+	jr z, .noStance
 
+;>     kind = stance & 3
 	and $03
 	ld c, a
+;>     amount = wSkillAmount
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
-	jr nz, jr_053_5a15
+;>     if kind == 0:                     # BladeD
+	jr nz, .defence
 
+;>         if not (wSkillFlags1 & 0x80): return Hit_Result_53()
 	ld a, [wSkillFlags1]
 	bit 7, a
 	jp z, Hit_Result_53
 
-jr_053_5a0f:
+.halve
+;>         amount >>= 1
 	srl h
 	rr l
-	jr jr_053_5a25
+	jr .fear
 
-jr_053_5a15:
+.defence
+;>     else:
+;>         if not (wSkillFlags1 & 0x01): return Hit_Result_53()
 	ld a, [wSkillFlags1]
 	bit 0, a
 	jr z, Hit_Result_53
 
+;>         if kind & 1: amount >>= 1          # Defence: half
 	bit 0, c
-	jr nz, jr_053_5a0f
+	jr nz, .halve
 
+;>         else: amount //= 10                # StrongD: a tenth
 	ld a, $0a
 	call Divide16
 
-jr_053_5a25:
+.fear
+;>@f     if wPersonalityNudge[wSkillTarget] & 0x02: amount >>= 1    # fear boosts its guard
 	ld a, [wSkillTarget]
 	ld de, wPersonalityNudge
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@f
 	ld d, a
 	ld a, [de]
 	bit 1, a
-	jr z, jr_053_5a3a
+	jr z, .store
 
 	srl h
 	rr l
 
-jr_053_5a3a:
+.store
+;>     wSkillAmount = amount; return Hit_Result_53()
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount+1], a
 	jr Hit_Result_53
 
-jr_053_5a44:
+.noStance
+;>@bz elif wBattlerStatus[8 * wSkillTarget + 6] & 0x04 and wSkillFlags1 & 0x80 and wSkillId not in (0x3C, 0x3E):
 	dec hl
 	bit 2, [hl]
 	jr z, Hit_Result_53
@@ -5098,6 +5446,7 @@ jr_053_5a44:
 	bit 7, a
 	jr z, Hit_Result_53
 
+;=@bz
 	ld a, [wSkillId]
 	cp $3c
 	jr z, Hit_Result_53
@@ -5105,211 +5454,285 @@ jr_053_5a44:
 	cp $3e
 	jr z, Hit_Result_53
 
+;>@d2     wSkillAmount = wSkillAmount * 2 & 0xFFFF
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
 	sla l
 	rl h
+;=@d2
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount+1], a
+;> return Hit_Result_53()
 
+;@ def Hit_Result_53()
+;@ path: battle/skills
+;@ Stage 13: wSkillResult (set by the skill effect routines) bit 6 ends the skill here (message
+;@ wSkillResultValue = group, index when bit 7 is set). Bit 5 means the amount is HP damage: bit 4
+;@ is set when there is some. With an effect (bit 4, not bit 2) the hit animation starts.
+;@ test: skip calls routines in other banks
 Hit_Result_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> r = wSkillResult
 	ld a, [wSkillResult]
+;> if r & 0x40:
 	bit 6, a
-	jr z, jr_053_5ab4
+	jr z, .notEnd
 
+;>     wBattleSubStep = 6; wBattleSubStep2 = 0
 	ld a, $06
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
+;>     if not (wSkillResult & 0x80): return
 	ld a, [wSkillResult]
 	bit 7, a
 	ret z
 
+;>     SetDamageMessageArgs_53()
 	call SetDamageMessageArgs_53
+;>@t     wTextGroup = wSkillResultValue & 0xFF; wTextIndex = wSkillResultValue >> 8
 	ld a, [wSkillResultValue]
 	ld l, a
 	ld a, [wSkillMsgMiss]
 	ld h, a
 	ld a, l
 	ld [wTextGroup], a
+;=@t
 	ld a, h
 	ld [wTextIndex], a
+;>     StartText_4C(); PlaySkillSound1()
 	ld hl, far_StartText_4C
 	rst $10
 	ld hl, far_PlaySkillSound1
 	rst $10
+;>     wHitShown = 1
 	ld a, $01
 	ld [wHitShown], a
+;>@tm     if wSkillId == 0x1B: StartSkillVisual()       # TakeMagic
 	ld a, [wSkillId]
 	cp $1b
 	ret nz
 
+;=@tm
 	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
 
-jr_053_5ab4:
+.notEnd
+;> if r & 0x20:                          # HP damage
 	ld a, [wSkillResult]
 	ld b, a
 	bit 5, a
-	jr z, jr_053_5ad2
+	jr z, .effect
 
+;>@a     r = r | 0x10 if wSkillAmount else r & ~0x10
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount+1]
 	ld h, a
 	ld a, h
 	or l
-	jr z, jr_053_5acc
+;=@a
+	jr z, .none
 
+;=@a
 	set 4, b
-	jr jr_053_5ace
+	jr .storeResult
 
-jr_053_5acc:
+.none
+;=@a
 	res 4, b
 
-jr_053_5ace:
+.storeResult
+;>     wSkillResult = r
 	ld a, b
 	ld [wSkillResult], a
 
-jr_053_5ad2:
+.effect
+;> if wSkillResult & 0x10 and not (wSkillResult & 0x04):
 	ld a, [wSkillResult]
 	bit 4, a
-	jr z, jr_053_5aec
+	jr z, .done
 
 	bit 2, a
-	jr nz, jr_053_5aec
+	jr nz, .done
 
+;>     PlaySkillSound1(); StartSkillVisual()
 	ld hl, far_PlaySkillSound1
 	rst $10
 	ld hl, far_StartSkillVisual
 	rst $10
+;>     if wSkillAnimActive == 1: return Hit_Effect_53()
 	ld a, [wSkillAnimActive]
 	cp $01
 	jr z, Hit_Effect_53
 
-jr_053_5aec:
+.done
+;> return
 	ret
 
 
+;@ def Hit_Effect_53()
+;@ path: battle/skills
+;@ Stage 14: for a skill with an effect (wSkillResult bit 4, not bit 2) its hit effect and sound.
+;@ test: skip calls routines in other banks
 Hit_Effect_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wSkillResult & 0x04: return
 	ld a, [wSkillResult]
 	bit 2, a
 	ret nz
 
+;> if not (wSkillResult & 0x10): return
 	bit 4, a
 	ret z
 
+;> PlaySkillSound2(); StartSkillHitEffect()
 	ld hl, far_PlaySkillSound2
 	rst $10
 	ld hl, far_StartSkillHitEffect
 	rst $10
+;> wHitShown = 1
 	ld a, $01
 	ld [wHitShown], a
+;> return Hit_Message_53()
 
+;@ def Hit_Message_53()
+;@ path: battle/skills
+;@ Stage 15: the result message. With an effect: message wSkillResultValue (group 1 with bit 0), a
+;@ TakeMagic glow may absorb MP, bit 3 picks the own-side wording; without one the miss message
+;@ wSkillMsgMiss (group 1 with bit 1) and the action ends. The names and amount are filled in
+;@ (Barrier drops the enemy letter when one enemy is left); message $29 has a fanfare.
+;@ test: skip calls routines in other banks
 Hit_Message_53::
+;>@w if 0x84 <= wSkillId < 0x88 and not wBattleAnimDone: return     # a dragon call waits for its animation
 	ld a, [wSkillId]
 	cp $84
-	jr c, jr_053_5b17
+	jr c, .go
 
 	cp $88
-	jr nc, jr_053_5b17
+	jr nc, .go
 
+;=@w
 	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
-jr_053_5b17:
+.go
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wSkillResult & 0x10:
 	ld a, [wSkillResult]
 	bit 4, a
-	jr z, jr_053_5b4c
+	jr z, .miss
 
+;>     CheckTakeMagic_53()
 	call CheckTakeMagic_53
+;>     wTextIndex = wSkillResultValue & 0xFF
 	ld a, [wSkillResultValue]
 	ld [wTextIndex], a
+;>@o     if wSkillResult & 0x08 and IsTargetOnOwnSide2_53(): OwnSideMessage_53()
 	ld a, [wSkillResult]
 	bit 3, a
-	jr z, jr_053_5b3a
+	jr z, .group
 
 	call IsTargetOnOwnSide2_53
-	jr nc, jr_053_5b3a
+	jr nc, .group
 
+;=@o
 	call OwnSideMessage_53
 
-jr_053_5b3a:
+.group
+;>     wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;>     if wSkillResult & 0x01: wTextGroup = 1
 	ld a, [wSkillResult]
 	bit 0, a
-	jr z, jr_053_5b6f
+	jr z, .adjust
 
 	ld a, $01
 	ld [wTextGroup], a
-	jr jr_053_5b79
+	jr .show
+;>     else: AdjustMiss()
 
-jr_053_5b4c:
+.miss
+;> else:
+;>     PlaySkillSound3()
 	ld hl, far_PlaySkillSound3
 	rst $10
+;>     wBattleSubStep = 6; wBattleSubStep2 = 0
 	ld a, $06
 	ld [wBattleSubStep], a
 	xor a
 	ld [wBattleSubStep2], a
+;>     wTextIndex = wSkillMsgMiss; wTextGroup = 0
 	ld a, [wSkillMsgMiss]
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>     if wSkillResult & 0x02: wTextGroup = 1
 	ld a, [wSkillResult]
 	bit 1, a
-	jr z, jr_053_5b6f
+	jr z, .adjust
 
 	ld a, $01
 	ld [wTextGroup], a
+;>@am     AdjustMiss()
+;=@am
 
-jr_053_5b6f:
+.adjust
+;> def AdjustMiss():
+;>     if wSkillResult & 0x08: OwnSideMissMessage_53()
 	ld a, [wSkillResult]
 	bit 3, a
-	jr z, jr_053_5b79
+	jr z, .show
 
 	call OwnSideMissMessage_53
 
-jr_053_5b79:
+.show
+;> group = wTextGroup; index = wTextIndex; SetDamageMessageArgs_53()
 	ld a, [wTextGroup]
 	ld l, a
 	ld a, [wTextIndex]
 	ld h, a
 	push hl
 	call SetDamageMessageArgs_53
+;> wTextGroup = group; wTextIndex = index
 	pop hl
 	ld a, l
 	ld [wTextGroup], a
 	ld a, h
 	ld [wTextIndex], a
+;> if wSkillId == 0x24: DropEnemyLetter_53()      # Barrier
 	ld a, [wSkillId]
 	cp $24
 	call z, DropEnemyLetter_53
+;>@s if wTextIndex == 0x29 and wTextGroup == 0: QueueSound(0x6D)
 	ld a, [wTextIndex]
 	cp $29
-	jr nz, jr_053_5ba8
+	jr nz, .text
 
 	ld a, [wTextGroup]
 	or a
-	jr nz, jr_053_5ba8
+	jr nz, .text
 
+;=@s
 	ld a, $6d
 	call QueueSound
 
-jr_053_5ba8:
+.text
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret

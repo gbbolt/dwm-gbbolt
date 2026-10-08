@@ -4,9 +4,14 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $055", ROMX[$4000], BANK[$55]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_55::
 	db $55
 
+;@ path: battle/effects
+;@ Entry points of bank $55: skill sounds, the letter tiles of the battle menu windows, and the debug
+;@ menu (game mode $07).
 FarTable_55::
 	dw PlaySkillSound0
 	dw PlaySkillSound1
@@ -24,69 +29,114 @@ FarTable_55::
 	dw DebugMenuInit
 	dw DebugMenuUpdate
 
+;@ def PlaySkillSound0()
+;@ path: battle/effects
+;@ Plays the sound of skill wSkillId from the first pair of SkillSoundTables (when its hit effect starts).
+;@ test: skip calls a routine in another bank
 PlaySkillSound0::
-	ld hl, $4070
+;> PlaySkillSoundFrom(SkillSoundTables + 0)
+	ld hl, SkillSoundTables
 	call PlaySkillSoundFrom
 	ret
 
 
+;@ def PlaySkillSound1()
+;@ path: battle/effects
+;@ Plays the sound of skill wSkillId from the second pair of SkillSoundTables, but only when the
+;@ target position is the fourth of its side (wSkillTarget & 3 == 3).
+;@ test: skip calls a routine in another bank
 PlaySkillSound1::
+;> if wSkillTarget & 3 != 3:
+;>     return
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
 	ret nz
 
-	ld hl, $4074
+;> PlaySkillSoundFrom(SkillSoundTables + 4)
+	ld hl, SkillSoundTables + 4
 	call PlaySkillSoundFrom
 	ret
 
 
+;@ def PlaySkillSound2()
+;@ path: battle/effects
+;@ Plays the sound of skill wSkillId from the third pair of SkillSoundTables.
+;@ test: skip calls a routine in another bank
 PlaySkillSound2::
-	ld hl, $4078
+;> PlaySkillSoundFrom(SkillSoundTables + 8)
+	ld hl, SkillSoundTables + 8
 	call PlaySkillSoundFrom
 	ret
 
 
+;@ def PlaySkillSound3()
+;@ path: battle/effects
+;@ Plays the sound of skill wSkillId from SkillSounds3.
+;@ test: skip calls a routine in another bank
 PlaySkillSound3::
-	ld hl, $407c
+;> PlaySkillSoundFrom(SkillSoundTables + 12)
+	ld hl, SkillSoundTables + 12
 	call PlaySkillSoundFrom
 	ret
 
 
+;@ def PlaySkillSound4()
+;@ path: battle/effects
+;@ Plays the sound of skill wSkillId from SkillSounds4 (when the skill's visual effect starts).
+;@ test: skip calls a routine in another bank
 PlaySkillSound4::
-	ld hl, $4080
+;> PlaySkillSoundFrom(SkillSoundTables + 16)
+	ld hl, SkillSoundTables + 16
 	call PlaySkillSoundFrom
 	ret
 
 
+;@ def PlaySkillSoundFrom(pair: hl)
+;@ path: battle/effects
+;@ `pair` points to two sound tables of SkillSoundTables: the first for a skill used from the own
+;@ side, the second from the enemy side (swapped on the Game Boy that is link master, whose screen
+;@ shows the other side as its own). Queues the table's sound for wSkillId unless it is $FF.
+;@ test: skip calls a routine in another bank
 PlaySkillSoundFrom::
+;>@s side = (wSkillUser & 4) >> 1 ^ (wLinkFlags & 2)   # 0 or 2: which table of the pair
 	ld a, [wLinkFlags]
 	and $02
 	ld b, a
 	ld a, [wSkillUser]
 	and $04
 	srl a
+;=@s
 	xor b
+;>@t sounds = mem16[pair + side]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
+;=@t
 	ld h, [hl]
 	ld l, a
+;> sound = mem[sounds + wSkillId]
 	ld a, [wSkillId]
 	ld c, a
 	ld b, $00
 	add hl, bc
 	ld a, [hl]
+;> if sound == 0xFF:                      # silent
+;>     return
 	cp $ff
 	ret z
 
+;> QueueSound(sound)
 	call QueueSound
 	ret
 
 
+;@ path: battle/effects
+;@ Five pairs of pointers to the skill sound tables (own side, enemy side), one pair per moment of a
+;@ skill's animation (PlaySkillSound0-4).
 SkillSoundTables::
 	dw SkillSounds0Own, SkillSounds0Enemy
 	dw SkillSounds1Own, SkillSounds1Enemy
@@ -94,6 +144,9 @@ SkillSoundTables::
 	dw SkillSounds3, SkillSounds3
 	dw SkillSounds4, SkillSounds4
 
+;@ path: battle/effects
+;@ Sound effect of each skill number ($00-$DD) for PlaySkillSound0 when an own monster uses it
+;@ ($FF = none).
 SkillSounds0Own::
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
@@ -110,6 +163,8 @@ SkillSounds0Own::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $65, $67, $67, $67, $67, $ff, $ff, $ff, $67
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound0 when an enemy uses it ($FF = none).
 SkillSounds0Enemy::
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65, $65
 	db $65, $65, $65, $65, $65, $65, $65, $65, $65, $ff, $65, $65, $65, $65, $65, $65
@@ -126,6 +181,8 @@ SkillSounds0Enemy::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $65, $6b, $6b, $6b, $6b, $65, $6d, $65, $6b
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound1, own side ($FF = none).
 SkillSounds1Own::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $73, $73, $72, $84, $73, $72, $ff, $72, $72, $ff, $ff
@@ -142,6 +199,8 @@ SkillSounds1Own::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $82, $7e, $ff, $78, $81, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $76, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound1, enemy side ($FF = none).
 SkillSounds1Enemy::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $71, $71, $ff, $ff, $71, $71
@@ -158,6 +217,8 @@ SkillSounds1Enemy::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $82, $7e, $ff, $78, $81, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $76, $85, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound2, own side ($FF = none).
 SkillSounds2Own::
 	db $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c
 	db $6c, $6c, $9c, $9c, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $71, $71
@@ -174,6 +235,8 @@ SkillSounds2Own::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $6c, $6c, $ff, $6c, $6c, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $6c, $85, $6c, $6c, $6c, $6c, $ff, $ff, $ff, $6c
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound2, enemy side ($FF = none).
 SkillSounds2Enemy::
 	db $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c, $6c
 	db $6c, $6c, $9c, $9c, $ff, $73, $73, $72, $84, $ff, $ff, $ff, $72, $72, $ff, $ff
@@ -190,6 +253,8 @@ SkillSounds2Enemy::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $6c, $6c, $ff, $6c, $6c, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $6c, $ff, $6c, $6c, $6c, $6c, $73, $ff, $ff, $6c
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound3, both sides ($FF = none).
 SkillSounds3::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -206,6 +271,8 @@ SkillSounds3::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $6f, $6f, $6f, $6f, $ff, $ff, $ff, $6f
 
+;@ path: battle/effects
+;@ Sound effect of each skill number for PlaySkillSound4, both sides ($FF = none).
 SkillSounds4::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
@@ -222,174 +289,285 @@ SkillSounds4::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 
+;@ def LoadWindowLetters_1_9()
+;@ path: battle/menu
+;@ Draws the letters of the battle menu windows: letter set 1 into the tiles at $97C0 (6 letters) and
+;@ letter set 9 into those at $8800 (12 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_1_9::
+;> tiles, size = 0x97C0, 0x0601
 	ld hl, $97c0
 	ld de, $0601
+;> wTextIndex = 1
 	ld a, $01
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
+;> tiles, size = 0x8800, 0x0C01
 	ld hl, $8800
 	ld de, $0c01
+;> wTextIndex = 9
 	ld a, $09
 	ld [wTextIndex], a
+;> wTextGroup = 3
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_3()
+;@ path: battle/menu
+;@ Draws letter set 3 of WindowLetterSets into the tiles at $8850 (24 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_3::
+;> tiles, size = 0x8850, 0x1801             # 24 letters on 1 line
 	ld hl, $8850
 	ld de, $1801
+;> wTextIndex = 3
 	ld a, $03
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_4()
+;@ path: battle/menu
+;@ Draws letter set 4 of WindowLetterSets into the tiles at $8800 (5 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_4::
+;> tiles, size = 0x8800, 0x0501             # 5 letters on 1 line
 	ld hl, $8800
 	ld de, $0501
+;> wTextIndex = 4
 	ld a, $04
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_5()
+;@ path: battle/menu
+;@ Draws letter set 5 of WindowLetterSets into the tiles at $8800 (5 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_5::
+;> tiles, size = 0x8800, 0x0501             # 5 letters on 1 line
 	ld hl, $8800
 	ld de, $0501
+;> wTextIndex = 5
 	ld a, $05
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_6()
+;@ path: battle/menu
+;@ Draws letter set 6 of WindowLetterSets into the tiles at $8850 (6 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_6::
+;> tiles, size = 0x8850, 0x0601             # 6 letters on 1 line
 	ld hl, $8850
 	ld de, $0601
+;> wTextIndex = 6
 	ld a, $06
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_2()
+;@ path: battle/menu
+;@ Draws letter set 2 of WindowLetterSets into the tiles at $8800 (11 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_2::
+;> tiles, size = 0x8800, 0x0B01             # 11 letters on 1 line
 	ld hl, $8800
 	ld de, $0b01
+;> wTextIndex = 2
 	ld a, $02
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_7()
+;@ path: battle/menu
+;@ Draws letter set 7 of WindowLetterSets into the tiles at $8860 (2 letters).
+;@ test: skip runs the text printer
 LoadWindowLetters_7::
+;> tiles, size = 0x8860, 0x0201             # 2 letters on 1 line
 	ld hl, $8860
 	ld de, $0201
+;> wTextIndex = 7
 	ld a, $07
 	ld [wTextIndex], a
+;> wTextGroup = 3                        # (not used by the letter sets)
 	ld a, $03
 	ld [wTextGroup], a
+;> LoadWindowLetters(tiles, size)
 	call LoadWindowLetters
 	ret
 
 
+;@ def LoadWindowLetters_10()
+;@ path: battle/menu
+;@ Draws letter set 10 of WindowLetterSets into the tiles at $8820 (7 letters); runs on into
+;@ LoadWindowLetters.
+;@ test: skip runs the text printer
 LoadWindowLetters_10::
+;> tiles, size = 0x8820, 0x0701
 	ld hl, $8820
 	ld de, $0701
+;> wTextIndex = 10
 	ld a, $0a
 	ld [wTextIndex], a
+;> wTextGroup = 3
+;> LoadWindowLetters(tiles, size)        # (falls through)
 	ld a, $03
 	ld [wTextGroup], a
 
+;@ def LoadWindowLetters(tiles: hl, size: de)
+;@ path: battle/menu
+;@ Draws letter set wTextIndex of WindowLetterSets into the tiles at `tiles` (d letters per line, e
+;@ lines), keeping the text box settings of the current window.
+;@ test: skip runs the text printer
 LoadWindowLetters::
+;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
+;> saved_lines, saved_length = wTextBoxLines, wTextBoxLineLength
 	ld a, [wTextBoxLines]
 	ld c, a
 	ld a, [wTextBoxLineLength]
 	ld b, a
 	push bc
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = size & 0xFF
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = size >> 8
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> DrawLetterSet()
 	call DrawLetterSet
+;> wTextTiles = saved_tiles
 	pop de
 	pop hl
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = saved_length
 	ld a, d
 	ld [wTextBoxLineLength], a
 	ret
 
 
+;@ path: unused
+;@ Four VRAM tile addresses ($96C0, $97C0, $8800, $8850) of the window letters; nothing reads them.
 BattleMenuTileAddrs::
 	dw $96c0, $97c0, $8800, $8850
 
+;@ def DrawLetterSet()
+;@ path: battle/menu
+;@ Prints letter set wTextIndex of WindowLetterSets at once into the text box tiles.
+;@ test: skip runs the text printer
 DrawLetterSet::
-	ld de, $48a9
+;> StartLetterSetText(WindowLetterSets)
+	ld de, WindowLetterSets
 	call StartLetterSetText
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
 
+;@ def StartLetterSetText(table: de)
+;@ path: battle/menu
+;@ Starts the text printer on text wTextIndex of the pointer table `table` in this bank, drawing
+;@ from the start of the text box tiles (wTextTiles).
+;@ test: wTextIndex = rand(0, 10)
 StartLetterSetText::
+;> tiles = wTextTiles
 	push de
 	ld a, [wTextTiles]
 	ld l, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld h, a
+;> wTextCursor = tiles
 	ld a, l
 	ld [wTextCursor], a
 	ld a, h
-	ld [$c82c], a
+	ld [wTextCursor + 1], a
+;> wTextLineStart = tiles
 	ld a, l
 	ld [wTextLineStart], a
 	ld a, h
-	ld [$c830], a
+	ld [wTextLineStart + 1], a
+;> text = GetLetterSetPointer(table)
 	pop de
 	call GetLetterSetPointer
+;> wTextPtr = text
 	ld a, e
 	ld [wTextPtr], a
 	ld a, d
-	ld [$c82e], a
+	ld [wTextPtr + 1], a
+;> wTextStart = text
 	ld a, e
 	ld [wTextStart], a
 	ld a, d
-	ld [$c832], a
+	ld [wTextStart + 1], a
+;> wTextState = 1                         # printing
 	ld a, $01
 	ld [wTextState], a
+;> wTextFlags = 0
 	ld a, $00
 	ld [wTextFlags], a
+;> wTextDelay = 0
 	xor a
 	ld [wTextDelay], a
 	ret
 
 
+;@ path: battle/menu
+;@ Letter sets of the battle menu windows, texts in the game's character set ended by $F0. Each lists
+;@ the different letters a window needs once (set 3: F I G H T E M S R U N O A P L X D C . K); they are
+;@ drawn into consecutive tiles and the window's tile map spells its words from them. $8D and $63 are
+;@ punctuation tiles.
 WindowLetterSets::
 	dw .t0
 	dw .t1
@@ -426,49 +604,80 @@ WindowLetterSets::
 .t10
 	db $3a, $2b, $32, $2c, $31, $29, $32, $32, $2e, $f0
 
+;@ def GetLetterSetPointer(table: de) -> de
+;@ path: battle/menu
+;@ Selects this bank for the text printer and returns entry wTextIndex of the pointer table `table`.
+;@ test: wTextIndex = rand(0, 10)
 GetLetterSetPointer::
+;> wTextBank = mem[BankNumber_55]
 	ld a, [BankNumber_55]
 	ld [wTextBank], a
+;>@ret return mem16[table + 2 * wTextIndex]
 	ld a, [wTextIndex]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	add hl, de
 	ld e, [hl]
+;=@ret
 	inc hl
 	ld d, [hl]
 	ret
 
 
+;@ def DebugMenuInit()
+;@ path: system/debug
+;@ Start of game mode $07, the developers' debug menu (no normal way leads there). Sets up the text box
+;@ tiles from $9000, the palettes, clears the 16 debug values at $C0A0 (wNumberBackup on), sets up
+;@ page wGameModeStep (DebugPageInits) and turns the screen on.
+;@ test: skip calls routines in other banks
 DebugMenuInit::
+;> SetUpTextBox(0x9000, lines=7, line_length=16)
 	ld hl, $9000
 	ld de, $1007
 	call SetUpTextBox
+;> SetSharedBGColors()
 	ld hl, far_SetSharedBGColors
 	rst $10
+;> ClearAttrMap()
 	ld hl, far_ClearAttrMap
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> FillMemory(wNumberBackup, 0x10, 0)    # the debug values
 	ld hl, wNumberBackup
 	ld bc, $0010
 	ld a, $00
 	call FillMemory
+;> wMenuChoice = 0
 	xor a
 	ld [wMenuChoice], a
+;> DebugPageInit()
 	call DebugPageInit
+;> QueueMusic(0)
 	ld a, $00
 	call QueueMusic
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLCDAndInterrupts(1)              # VBlank only
 	ld a, $01
 	jp EnableLCDAndInterrupts
 
 
+;@ def DebugPageInit()
+;@ path: system/debug
+;@ Sets up debug page wGameModeStep (0 main menu, 1 program jump, 2 monster pictures, 3 map edit,
+;@ 4 sound test, 5 battle).
+;@ test: skip jump table dispatch
 DebugPageInit::
+;> DebugPageInits[wGameModeStep]()
 	ld a, [wGameModeStep]
 	rst $00
 
+;@ path: system/debug
+;@ Set-up routine of each debug page.
 DebugPageInits::
 	dw DebugMainInit
 	dw DebugModeJumpInit
@@ -477,241 +686,367 @@ DebugPageInits::
 	dw DebugSoundTestInit
 	dw DebugBattleInit
 
+;@ def DebugMainInit()
+;@ path: system/debug
+;@ Main debug page: prints the "DEBUG MODE / SELECT" list (system text 3) into the tiles at $8800 and
+;@ maps 16 x 2 rows of them at $98A3.
+;@ test: skip calls routines in other banks
 DebugMainInit::
+;> wSGBPalSet[0] = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
+;> wSGBPalSet[1] = 0
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> wTextIndex = 3
 	ld hl, $8800
 	ld a, $03
 	ld [wTextIndex], a
+;> DebugPrintText(0x8800)
 	call DebugPrintText
+;> return FillTileBlock(0x98A3, width=16, height=2, first=0x80)
 	ld hl, $98a3
 	ld bc, $1002
 	ld a, $80
 	jp FillTileBlock
 
 
+;@ def DebugModeJumpInit()
+;@ path: system/debug
+;@ "GOTOPRG" page: prints the hex digits (text 5) and the page texts, and loads the four values (game
+;@ mode, its step, opening scene, logo) from the mode saved when the menu was opened.
+;@ test: skip calls routines in other banks
 DebugModeJumpInit::
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> wTextIndex = 5                         # "0123456789ABCDEF": the digit tiles
 	ld a, $05
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextIndex = 7                         # "GOTOPRG / PRGNO..."
 	ld hl, $9120
 	ld de, $1006
 	ld a, $07
 	ld [wTextIndex], a
+;> DebugPrintTextBox(0x9120, lines=6, line_length=16)
 	call DebugPrintTextBox
+;> wTextIndex = 8                         # the names of the game modes
 	ld hl, $8800
 	ld a, $08
 	ld [wTextIndex], a
+;> DebugPrintText(0x8800)
 	call DebugPrintText
+;>@4 for i in range(4): mem[0xC0A0 + i] = wDebugSavedMode[i]
 	ld hl, wNumberBackup
 	ld a, [wDebugSavedMode]
 	ld [hli], a
-	ld a, [$c8ae]
+	ld a, [wDebugSavedMode + 1]
 	ld [hli], a
-	ld a, [$c8af]
+;=@4
+	ld a, [wDebugSavedMode + 2]
 	ld [hli], a
-	ld a, [$c8b0]
+	ld a, [wDebugSavedMode + 3]
 	ld [hli], a
+;> return FillTileBlock(0x9884, width=16, height=6, first=0x12)
 	ld hl, $9884
 	ld bc, $1006
 	ld a, $12
 	jp FillTileBlock
 
 
+;@ def DebugMonsterViewInit()
+;@ path: system/debug
+;@ Monster picture page: loads the digit tiles and a font (compressed entry $2F:$11) to $8800,
+;@ clears the background map, maps a 6 x 6 tile picture frame from tile $80 at $9887 and a 9-tile
+;@ name line from $A4, then shows monster 0.
+;@ test: skip calls routines in other banks
 DebugMonsterViewInit::
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> wTextIndex = 5
 	ld a, $05
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> Decompress(0x2F, 0x11, 0x8800)
 	ld de, $2f11
 	ld hl, $8800
 	call Decompress
+;> FillMemory(0x9800, 0x400, 0)
 	ld hl, $9800
 	ld bc, $0400
 	ld a, $00
 	call FillMemory
+;> tile = 0x80
 	ld hl, $9887
 	ld a, $80
+;>@rows for row in range(6): tile = WriteTileRun(0x9887 + row * 0x20, tile, 6)
 	ld b, $06
 	call WriteTileRun
+;=@rows
 	ld hl, $98a7
 	ld b, $06
 	call WriteTileRun
+;=@rows
 	ld hl, $98c7
 	ld b, $06
 	call WriteTileRun
+;=@rows
 	ld hl, $98e7
 	ld b, $06
 	call WriteTileRun
+;=@rows
 	ld hl, $9907
 	ld b, $06
 	call WriteTileRun
+;=@rows
 	ld hl, $9927
 	ld b, $06
 	call WriteTileRun
+;> WriteTileRun(0x9967, 0xA4, 9)          # the name line
 	ld hl, $9967
 	ld a, $a4
 	ld b, $09
 	call WriteTileRun
+;> wMenuChoice = 0
 	xor a
 	ld [wMenuChoice], a
+;> ShowDebugMonster()
 	call ShowDebugMonster
 	ret
 
 
+;@ def WriteTileRun(pos: hl, tile: a, count: b) -> a
+;@ path: system/debug
+;@ Writes `count` consecutive tile numbers from `tile` on to the background map at `pos`.
+;@ test: skip polls the LCD
 WriteTileRun::
+;> for _ in range(count):
+;>     pos = WriteVRAMInc(tile, pos); tile += 1
 	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, WriteTileRun
 
+;> return tile
 	ret
 
 
+;@ def DebugWarpInit()
+;@ path: system/debug
+;@ "EDIT" page (warp anywhere): prints the digits and the page text, and loads its 8 values from the
+;@ game: floor flag, map, party count, the three party slots, 0, debug set-up flag.
+;@ test: skip calls routines in other banks
 DebugWarpInit::
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> wTextIndex = 5
 	ld a, $05
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextIndex = 4                         # "EDIT / MAPTYPE / FLOOR ..."
 	ld hl, $9120
 	ld de, $0a0a
 	ld a, $04
 	ld [wTextIndex], a
+;> DebugPrintTextBox(0x9120, lines=10, line_length=10)
 	call DebugPrintTextBox
+;> mem[0xC0A0] = wOnGateFloor
 	ld hl, wNumberBackup
 	ld a, [wOnGateFloor]
 	ld [hli], a
+;> mem[0xC0A1] = wMapId
 	ld a, [wMapId]
 	ld [hli], a
+;> mem[0xC0A2] = wPartyCount
 	ld a, [wPartyCount]
 	ld [hli], a
+;> for i in range(3): mem[0xC0A3 + i] = wParty[i]
 	ld a, [wParty]
 	ld [hli], a
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld [hli], a
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld [hli], a
+;> mem[0xC0A6] = 0
 	ld a, $00
 	ld [hli], a
+;> mem[0xC0A7] = wDebugSetup
 	ld a, [wDebugSetup]
 	ld [hl], a
+;> hScrollX = hScrollX & 0xFF00 | 0x1C    # (only the low byte)
 	ld a, $1c
 	ldh [hScrollX], a
+;> FillTileBlock(0x9885, width=10, height=10, first=0x12)
 	ld hl, $9885
 	ld bc, $0a0a
 	ld a, $12
 	call FillTileBlock
+;> return DebugWarpRefresh()
 	jp DebugWarpRefresh
 
 
+;@ def DebugSoundTestInit()
+;@ path: system/debug
+;@ "SOUND" page: prints the digits and the page text (BGM / SE) and starts both numbers at 0.
+;@ test: skip calls routines in other banks
 DebugSoundTestInit::
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> wTextIndex = 5
 	ld a, $05
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextIndex = 6                         # "SOUND / BGM / SE"
 	ld hl, $9120
 	ld de, $1006
 	ld a, $06
 	ld [wTextIndex], a
+;> DebugPrintTextBox(0x9120, lines=6, line_length=16)
 	call DebugPrintTextBox
+;> mem[0xC0A0] = mem[0xC0A1] = 0          # song and sound effect numbers
 	xor a
 	ld [wNumberBackup], a
-	ld [$c0a1], a
+	ld [wNumberBackup + 1], a
+;> return FillTileBlock(0x9884, width=16, height=6, first=0x12)
 	ld hl, $9884
 	ld bc, $1006
 	ld a, $12
 	jp FillTileBlock
 
 
+;@ def DebugBattleInit()
+;@ path: system/debug
+;@ "BATTLE" page: prints the digits and the page text and loads its values from the current
+;@ encounter: group size, then the three monster numbers (u16 each), then 0.
+;@ test: skip calls routines in other banks
 DebugBattleInit::
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> wTextIndex = 5
 	ld a, $05
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
+;> wTextIndex = 9                         # "BATTLE / ENEMY / MONST..."
 	ld hl, $9120
 	ld de, $0a0a
 	ld a, $09
 	ld [wTextIndex], a
+;> DebugPrintTextBox(0x9120, lines=10, line_length=10)
 	call DebugPrintTextBox
+;> mem[0xC0A0] = wEncCount
 	ld hl, wNumberBackup
 	ld a, [wEncCount]
 	ld [hli], a
+;>@6 for i in range(6): mem[0xC0A1 + i] = wEncSpecies[i]
 	ld a, [wEncSpecies]
 	ld [hli], a
-	ld a, [$da04]
+	ld a, [wEncSpecies + 1]
 	ld [hli], a
-	ld a, [$da05]
+;=@6
+	ld a, [wEncSpecies + 2]
 	ld [hli], a
-	ld a, [$da06]
+	ld a, [wEncSpecies + 3]
 	ld [hli], a
-	ld a, [$da07]
+;=@6
+	ld a, [wEncSpecies + 4]
 	ld [hli], a
-	ld a, [$da08]
+	ld a, [wEncSpecies + 5]
 	ld [hli], a
+;> mem[0xC0A7] = 0
 	ld a, $00
 	ld [hli], a
+;> hScrollX = hScrollX & 0xFF00 | 0x24    # (only the low byte)
 	ld a, $24
 	ldh [hScrollX], a
+;> FillTileBlock(0x9885, width=10, height=10, first=0x12)
 	ld hl, $9885
 	ld bc, $0a0a
 	ld a, $12
 	call FillTileBlock
+;> return DebugBattleRefresh()
 	jp DebugBattleRefresh
 
 
+;@ def DebugPrintTextBox(tiles: hl, lines: e, line_length: d)
+;@ path: system/debug
+;@ Sets the text box size, then prints system text wTextIndex of group 0 into the tiles at `tiles`
+;@ (DebugPrintText).
+;@ test: skip calls a routine in another bank
 DebugPrintTextBox::
+;> wTextBoxLines = lines
 	ld a, e
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = line_length
 	ld a, d
 	ld [wTextBoxLineLength], a
 
+;@ def DebugPrintText(tiles: hl)
+;@ path: system/debug
+;@ Prints system text wTextIndex of group 0 (the debug texts) into the text tiles at `tiles`.
+;@ test: skip calls a routine in another bank
 DebugPrintText::
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
 	ret
 
 
+;@ def FillTileBlock(pos: hl, width: b, height: c, first: a)
+;@ path: system/debug
+;@ Fills a `width` x `height` block of the background map at `pos` with consecutive tile numbers from
+;@ `first` on, row by row (the screen must be off).
+;@ test: width = rand(1, 20); height = rand(1, 18); pos = 0x9800 + rand(0, 0x100)
 FillTileBlock::
+;>@loop for _ in range(height):
 	push hl
 	ld d, b
 
-jr_055_4b35:
+.col
+;>     for i in range(width): mem[pos + i] = first; first = (first + 1) & 0xFF
 	ld [hli], a
 	inc a
 	dec b
-	jr nz, jr_055_4b35
+	jr nz, .col
 
 	ld b, d
+;>@p     pos += 0x20
 	ld e, a
 	pop hl
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
+;=@p
 	adc $00
 	ld h, a
 	ld a, e
+;=@loop
 	dec c
 	jr nz, FillTileBlock
 

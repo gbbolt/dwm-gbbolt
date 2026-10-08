@@ -5583,151 +5583,220 @@ UnusedRandomSkill::
 	db $4d, $fa, $99, $c8, $e6, $07, $87, $85, $6f, $3e, $00, $8c, $67, $7e, $fe, $ff
 	db $20, $07, $0a, $fe, $ff, $20, $02, $3e, $3a, $4f, $e1, $71, $c9
 
+;@ def BlankEnemyPicture()
+;@ path: battle/screen
+;@ Far entry 1: wipes the picture of the opposing monster at wSkillTarget (the far side: positions
+;@ 4-6, for the link master 0-2) - its 36 tiles at $9000, $9240 or $9480 become plain colour 1 - and
+;@ sets wBattleSubStep to 5. Nothing happens for a position on the near side.
+;@ test: skip writes VRAM while waiting for the LCD
 BlankEnemyPicture::
+;> wBattleStepArg1 = 2
 	ld a, $02
 	ld [wBattleStepArg1], a
+;> if wLinkActive and wLinkFlags & 2:            # link master: the partner's monsters are 0-2
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_058_5766
+	jr z, .normal
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_058_5766
+	jr z, .normal
 
+;>     if wSkillTarget & 4:
+;>         return
 	ld a, [wSkillTarget]
 	bit 2, a
 	ret nz
 
+;>@sl     slot = wSkillTarget
 	ld a, [wSkillTarget]
-	jr jr_058_5771
+	jr .slot
 
-jr_058_5766:
+.normal:
+;> else:
+;>     if not wSkillTarget & 4:
+;>         return
 	ld a, [wSkillTarget]
 	bit 2, a
 	ret z
 
+;>     slot = wSkillTarget - 4
 	ld a, [wSkillTarget]
 	sub $04
 
-jr_058_5771:
+.slot:
+;> if slot == 2:
+;>@t2     dest = 0x9480
 	cp $02
-	jr z, jr_058_5783
+	jr z, .third
 
+;> elif slot == 1:
+;>@t1     dest = 0x9240
 	cp $01
-	jr z, jr_058_577e
+	jr z, .second
 
+;> else:
+;>     dest = 0x9000
 	ld hl, $9000
-	jr jr_058_5786
+	jr .fill
 
-jr_058_577e:
+.second:
+;=@t1
 	ld hl, $9240
-	jr jr_058_5786
+	jr .fill
 
-jr_058_5783:
+.third:
+;=@t2
 	ld hl, $9480
 
-jr_058_5786:
+.fill:
+;>@o for _ in range(0x24):
 	ld c, $24
 
-jr_058_5788:
+.tile:
+;>@i     for _ in range(8):
 	ld b, $08
 
-jr_058_578a:
+.row:
+;>         disable_interrupts()
 	di
 
-jr_058_578b:
+.wait:
+;>         while rSTAT & 0x02:                    # VRAM busy
+;>             wait_hblank()
 	ldh a, [rSTAT]
 	bit 1, a
-	jr nz, jr_058_578b
+	jr nz, .wait
 
+;>         mem[dest] = 0xFF; mem[dest + 1] = 0x00; dest += 2
 	ld a, $ff
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
+;>         enable_interrupts()
 	ei
+;=@i
 	dec b
-	jr nz, jr_058_578a
+	jr nz, .row
 
+;=@o
 	dec c
-	jr nz, jr_058_5788
+	jr nz, .tile
 
+;> wBattleSubStep = 5
 	ld a, $05
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def GetItemMessage()
+;@ path: battle/items
+;@ Far entry 7: the battle message number (wBattleArg0) for Terry's item: for the meats FEEDMEAT ..
+;@ SIRLOIN (effects $C2-$C6) text group 1 and MeatMessage (by the number of enemies fed); for the
+;@ other items the entry of SkillMessages for the item's effect.
+;@ test: skip reads the message tables
 GetItemMessage::
+;> if not 0xC2 <= wBattleItemEffect < 0xC7:
 	ld a, [wBattleItemEffect]
 	cp $c2
-	jr c, jr_058_57e6
+	jr c, GetSkillMessage.lookup
 
 	cp $c7
-	jr nc, jr_058_57e6
+	jr nc, GetSkillMessage.lookup
 
+;>     wBattleArg0 = mem[SkillMessages + wBattleItemEffect]; return   # (GetSkillMessage's lookup)
+;> wTextGroup = 1
 	ld b, a
 	ld a, $01
 	ld [wTextGroup], a
+;> if wBattleItemTarget < 4:                     # a meat for the own monster
 	ld a, [wBattleItemTarget]
 	cp $04
-	jr nc, jr_058_57c2
+	jr nc, .enemies
 
+;>     CountTargetsOne()
 	call CountTargetsOne
+;>     MeatMessage()
 	jp MeatMessage
 
 
-jr_058_57c2:
+.enemies:
+;> else:
+;>     MeatMessageEnemies()
 	jp MeatMessageEnemies
 
 
+;@ def GetSkillMessage()
+;@ path: battle/messages
+;@ Far entry 6: the battle message number (wBattleArg0) for the skill monster wSkillUser uses:
+;@ $33 while it is high in the sky (HighJump), $4F during LifeSong, else its entry of SkillMessages.
+;@ test: wSkillUser = rng.randint(0, 7)
 GetSkillMessage::
+;> if wBattlerStatus[8 * wSkillUser + 4] & 0x0C:   # high in the sky
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
-	jr nz, jr_058_57f4
+	jr nz, .sky
 
+;>@sy     wBattleArg0 = 0x33
+;> elif wBattlerStatus[8 * wSkillUser + 5] & 0x10:   # LifeSong
+;>@ls     wBattleArg0 = 0x4F
 	inc hl
 	bit 4, [hl]
-	jr nz, jr_058_57fa
+	jr nz, .song
 
+;> else:
+;>@sk     skill = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sk
 	adc h
 	ld h, a
 	ld a, [hl]
 
-jr_058_57e6:
-	ld hl, $5806
+.lookup:
+;>@lu     wBattleArg0 = mem[SkillMessages + skill]
+	ld hl, SkillMessages
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@lu
 	ld a, [hl]
 	ld [wBattleArg0], a
 	ret
 
 
-jr_058_57f4:
+.sky:
+;=@sy
 	ld a, $33
 	ld [wBattleArg0], a
 	ret
 
 
-jr_058_57fa:
+.song:
+;=@ls
 	ld a, $4f
 	ld [wBattleArg0], a
 	ret
 
 
+;@ path: unused
+;@ Leftover code nothing calls: wBattleArg0 = $FF (ld a, $FF / ld [wBattleArg0], a / ret).
 UnusedClearArg0::
 	db $3e, $ff, $ea, $4c, $db, $c9
 
+;@ path: battle/messages
+;@ The battle message number (text group 0) shown when each skill is used, by skill number $00-$E1
+;@ (GetSkillMessage; the items read it by their effect number): $22-$77, $FF none. Most spells share
+;@ $23, the weapon skills $24/$25.
 SkillMessages::
 	db $23, $23, $23, $23, $23, $23, $23, $23, $23, $23
 	db $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23, $23
@@ -5745,75 +5814,125 @@ SkillMessages::
 	db $64, $65, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $66, $23, $24, $24, $24, $24
 	db $23, $29, $23, $44, $67, $68, $ff, $6a
 
+;@ def MeatMessageEnemies()
+;@ path: battle/items
+;@ A meat thrown to the enemies: counts them for the name form (CountTargetNames on the enemy side),
+;@ then MeatMessage.
+;@ test: skip copies names in another bank
 MeatMessageEnemies::
+;> saved = wSkillTarget
 	ld a, [wSkillTarget]
 	push af
+;> wSkillTarget = 4
 	ld a, $04
 	ld [wSkillTarget], a
+;> CountTargetNames()
 	call CountTargetNames
+;> wSkillTarget = saved
 	pop af
 	ld [wSkillTarget], a
 
+;> MeatMessage()                                  # runs into it
+
+;@ def MeatMessage()
+;@ path: battle/items
+;@ The message number of a meat: MeatMessages[wBattleTemp] (0 one monster, 1 several of one kind, 2
+;@ mixed), three further for BADMEAT ($C5).
+;@ test: wBattleTemp = rng.randint(0, 2)
 MeatMessage::
+;> if wBattleItemEffect == 0xC5:                  # BADMEAT
+;>     wBattleTemp += 3
 	ld a, [wBattleItemEffect]
 	cp $c5
-	jr nz, jr_058_5907
+	jr nz, .lookup
 
 	ld a, [wBattleTemp]
 	add $03
 	ld [wBattleTemp], a
 
-jr_058_5907:
+.lookup:
+;>@lu wBattleArg0 = mem[MeatMessages + wBattleTemp]
 	ld a, [wBattleTemp]
-	ld hl, $5918
+	ld hl, MeatMessages
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@lu
 	ld h, a
 	ld a, [hl]
 	ld [wBattleArg0], a
 	ret
 
 
+;@ path: battle/items
+;@ Message numbers (text group 1) of a meat by MeatMessage's index: 0-2 for the good meats, 3-5 for
+;@ BADMEAT (one monster, several of one kind, mixed).
 MeatMessages::
 	db $00, $01, $02, $00, $01, $02
 
+;@ def SetNameFormMessage()
+;@ path: battle/messages
+;@ Far entry 9: picks the message (wTextIndex) by the name form in wBattleTemp from NameFormMessages;
+;@ for an enemy (as the message side sees it) the position letter is cut from wTextArg0 first.
+;@ test: wBattleTemp = rng.randint(0, 5)
 SetNameFormMessage::
+;> if GetMessageSidePos() >= 4:
+;>     StripLetterArg0()
 	call GetMessageSidePos
 	cp $04
 	call nc, StripLetterArg0
+;>@lu wTextIndex = mem[NameFormMessages + wBattleTemp]
 	ld a, [wBattleTemp]
-	ld hl, $5937
+	ld hl, NameFormMessages
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@lu
 	ld h, a
 	ld a, [hl]
 	ld [wTextIndex], a
 	ret
 
 
+;@ path: battle/messages
+;@ Message numbers of SetNameFormMessage, by wBattleTemp (0-5).
 NameFormMessages::
 	db $03, $05, $07, $04, $06, $08
 
+;@ def StripLetterArg0()
+;@ path: battle/messages
+;@ Cuts the position letter (a last character below $24) from the name in wTextArg0.
+;@ test: wTextArg0[0] = 0x30
 StripLetterArg0::
+;> p = addr(wTextArg0)
 	ld hl, wTextArg0
-	jr jr_058_5945
+;> pass                                          # goes on in StripLetterArg2 (.find) with this p
+	jr StripLetterArg2.find
 
+;@ def StripLetterArg2()
+;@ path: battle/messages
+;@ Cuts the position letter (a last character below $24) from the name in wTextArg2: finds the $F0
+;@ end mark and ends the text one character earlier when that character is below $24.
+;@ test: wTextArg2[0] = 0x30
 StripLetterArg2::
+;> p = addr(wTextArg2)
 	ld hl, wTextArg2
 
-jr_058_5945:
+.find:
+;> while mem[p] != 0xF0:
+;>     p += 1
 	ld a, [hl]
 	cp $f0
-	jr z, jr_058_594d
+	jr z, .found
 
 	inc hl
-	jr jr_058_5945
+	jr .find
 
-jr_058_594d:
+.found:
+;> if mem[p - 1] < 0x24:
+;>     mem[p - 1] = 0xF0
 	dec hl
 	ld a, [hl]
 	cp $24
@@ -5823,177 +5942,251 @@ jr_058_594d:
 	ret
 
 
+;@ def CountTargetNames()
+;@ path: battle/messages
+;@ Far entry 2: the name form of the side of wSkillTarget for a message, in wBattleTemp: own side
+;@ (and link battles) 0 for one monster, 1 for more; enemy side 0 for one, 1 when all are of one
+;@ species (then the letter is cut from wTextArg2), 2 for mixed species.
+;@ test: wSkillTarget = rng.randint(0, 7)
 CountTargetNames::
+;> wBattleTemp = 0                               # monsters standing
+;> wBattleTempHigh = 0                           # species among them
 	xor a
 	ld [wBattleTemp], a
 	ld [wBattleTempHigh], a
+;> side = wSkillTarget & 4
 	ld a, [wSkillTarget]
 	and $04
 	ld c, a
 	ld b, $03
+;> if wLinkActive or side < 4:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_058_596f
+	jr nz, .own
 
 	ld a, c
 	cp $04
-	jr nc, jr_058_5988
+	jr nc, .enemies
 
-jr_058_596f:
+.own:
+;>@lo     for c in range(side, side + 3):
+;>         if not CheckBattlerPresent(c):
+;>             wBattleTemp += 1
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_058_5979
+	jr c, .nextOwn
 
 	ld hl, wBattleTemp
 	inc [hl]
 
-jr_058_5979:
+.nextOwn:
+;=@lo
 	inc c
 	dec b
-	jr nz, jr_058_596f
+	jr nz, .own
 
+;>     wBattleTemp = 0 if wBattleTemp == 1 else 1    # (stored by CountTargetsOne's tail)
 	ld a, [wBattleTemp]
 	dec a
 	or a
-	jr z, jr_058_59d8
+	jr z, CountTargetsOne.store
 
 	ld a, $01
-	jr jr_058_59d8
+	jr CountTargetsOne.store
 
-jr_058_5988:
+.enemies:
+;>@le else:
+;>@e1     for c in range(side, side + 3):
+;>         if not CheckBattlerPresent(c):
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_058_59b9
+	jr c, .nextEnemy
 
+;>             wBattleTemp += 1
 	ld hl, wBattleTemp
 	inc [hl]
+;>             if wBattleTempHigh == 0:
 	ld hl, wBattleTempHigh
 	ld a, [hl]
 	or a
-	jr nz, jr_058_59a8
+	jr nz, .compare
 
+;>@e5                 first = wBattlerSpecies[c]; wBattleTempHigh = 1
 	ld a, c
 	ld de, wBattlerSpecies
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@e5
 	ld d, a
 	ld a, [de]
 	ld d, a
 	inc [hl]
-	jr jr_058_59b9
+	jr .nextEnemy
 
-jr_058_59a8:
+.compare:
+;>@e6             elif wBattlerSpecies[c] != first:
 	push bc
 	ld a, c
 	ld bc, wBattlerSpecies
 	add c
 	ld c, a
 	ld a, $00
+;=@e6
 	adc b
 	ld b, a
 	ld a, [bc]
 	pop bc
 	cp d
-	jr z, jr_058_59b9
+	jr z, .nextEnemy
 
+;>                 wBattleTempHigh += 1
 	inc [hl]
 
-jr_058_59b9:
+.nextEnemy:
+;=@e1
 	inc c
 	dec b
-	jr nz, jr_058_5988
+	jr nz, .enemies
 
+;>     if wBattleTemp == 1:
+;>         return CountTargetsOne()
 	ld a, [wBattleTemp]
 	cp $01
 	jr z, CountTargetsOne
 
+;>     if wBattleTempHigh == 1:                 # all of one species: "the Slimes", no letter
+;>         StripLetterArg2(); wBattleTemp = 1   # (CountTargetsOne's tail)
 	ld a, [wBattleTempHigh]
 	cp $01
-	jr z, jr_058_59d3
+	jr z, CountTargetsOne.same
 
+;>     else:
+;>         wBattleTemp = 2
 	ld a, $02
-	jr jr_058_59d8
+	jr CountTargetsOne.store
 
+;@ def CountTargetsOne()
+;@ path: battle/messages
+;@ The name form of a single monster: wBattleTemp = 0. Its tail (.same: cut the letter from
+;@ wTextArg2, form 1; .store: wBattleTemp = a) also ends CountTargetNames.
 CountTargetsOne::
+;> wBattleTemp = 0
 	ld a, $00
-	jr jr_058_59d8
+	jr .store
 
-jr_058_59d3:
+.same:
 	call StripLetterArg2
 	ld a, $01
 
-jr_058_59d8:
+.store:
 	ld [wBattleTemp], a
 	ret
 
 
+;@ def NameTargetForMessage()
+;@ path: battle/messages
+;@ Far entry 3: copies the name of the monster at wSkillTarget into wTextArg0 - the species name for
+;@ an enemy (position 3 and up, normal battles), else the party monster's name - and works out the
+;@ name form (CountTargetNames).
+;@ test: skip copies names from another bank
 NameTargetForMessage::
+;>@i if not wLinkActive and wSkillTarget >= 3:
 	ld hl, wTextArg0
+;=@i
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_058_59f1
+	jr nz, .party
 
 	ld a, [wSkillTarget]
 	cp $03
-	jr c, jr_058_59f1
+	jr c, .party
 
+;>@sp     CopySpeciesName(wSkillTarget, addr(wTextArg0))
+;> else:
+;>@pn     CopyName(PartyMonsterField(wSkillTarget, addr(wMonName)), addr(wTextArg0))
+;=@sp
 	call CopySpeciesName
-	jr jr_058_59fe
+	jr .count
 
-jr_058_59f1:
+.party:
+;=@pn
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@pn
 	call CopyName
 
-jr_058_59fe:
+.count:
+;> CountTargetNames()
 	call CountTargetNames
 	ret
 
 
+;@ def CopySpeciesName(pos: a, dest: hl)
+;@ path: battle/messages
+;@ Copies the species name of the monster at `pos` (system text group 5) to `dest`; wNameBattler
+;@ and wNameDest are set for the enemy letter.
+;@ test: skip copies a text from another bank
 CopySpeciesName::
+;> wNameBattler = pos
 	ld [wNameBattler], a
+;>@sp species = wBattlerSpecies[pos]
 	push hl
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sp
 	ld h, a
 	ld a, [hl]
+;>@wd wNameDest = dest
 	ld l, a
 	ld h, $05
 	pop de
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
+;=@wd
 	ld [$db5f], a
+;> CopySystemText(0x0500 + species, dest)
 	call CopySystemText
 	ret
 
 
+;@ def MaybeForceSkill()
+;@ path: battle/turn
+;@ When wGameModeStep is set: with a chance of (wOpeningScene + 1) / 256 (always when it is 0) the
+;@ skill of monster wSkillUser is replaced by wOpeningLogo - the two bytes of the mode that started
+;@ the battle hold a chance and a skill then.
+;@ test: skip draws random numbers through the link generator
 MaybeForceSkill::
+;> BattleRandom_58()
 	call BattleRandom_58
+;> if wOpeningScene and wOpeningScene < wRandomHigh:
+;>     return
 	ld a, [wOpeningScene]
 	or a
-	jr z, jr_058_5a2e
+	jr z, .force
 
 	ld hl, wRandomHigh
 	cp [hl]
 	ret c
 
-jr_058_5a2e:
+.force:
+;>@ac wBattlerAction[2 * wSkillUser] = wOpeningLogo
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@ac
 	adc h
 	ld h, a
 	ld a, [wOpeningLogo]
@@ -6035,7 +6228,7 @@ jr_058_5a63:
 
 	ld a, [hl]
 	and $0c
-	jp nz, Jump_058_5b1e
+	jp nz, NotePersonality3Low
 
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
@@ -6056,13 +6249,13 @@ jr_058_5a63:
 	ret z
 
 	cp $1e
-	jr c, jr_058_5afb
+	jr c, NoteStat67High
 
 	cp $20
-	jr z, jr_058_5afb
+	jr z, NoteStat67High
 
 	cp $21
-	jr z, jr_058_5afb
+	jr z, NoteStat67High
 
 	cp $2b
 	ret c
@@ -6071,10 +6264,10 @@ jr_058_5a63:
 	ret z
 
 	cp $37
-	jr c, jr_058_5b09
+	jr c, NotePersonality2High
 
 	cp $3a
-	jr z, jr_058_5aed
+	jr z, NotePersonality1High
 
 	cp $44
 	ret c
@@ -6083,100 +6276,100 @@ jr_058_5a63:
 	ret z
 
 	cp $52
-	jr c, jr_058_5aed
+	jr c, NotePersonality1High
 
 	cp $55
-	jr z, jr_058_5aed
+	jr z, NotePersonality1High
 
 	cp $67
 	ret c
 
 	cp $6a
-	jr c, jr_058_5aed
+	jr c, NotePersonality1High
 
 	cp $77
 	jr z, jr_058_5b1e
 
 	cp $7e
-	jr c, jr_058_5afb
+	jr c, NoteStat67High
 
 	cp $81
-	jr z, jr_058_5b09
+	jr z, NotePersonality2High
 
 	cp $82
-	jr z, jr_058_5afb
+	jr z, NoteStat67High
 
 	cp $8c
-	jr z, jr_058_5b10
+	jr z, NotePersonality2Low
 
 	cp $8d
-	jr z, jr_058_5af4
+	jr z, NotePersonality1Low
 
 	cp $8e
-	jr z, jr_058_5af4
+	jr z, NotePersonality1Low
 
 	cp $90
-	jr z, jr_058_5af4
+	jr z, NotePersonality1Low
 
 	ret c
 
 	cp $93
-	jr c, jr_058_5afb
+	jr c, NoteStat67High
 
 	cp $96
-	jr c, jr_058_5b09
+	jr c, NotePersonality2High
 
 	cp $d6
 	ret c
 
 	cp $d9
-	jr c, jr_058_5aed
+	jr c, NotePersonality1High
 
 	ret
 
 
-jr_058_5aed:
+NotePersonality1High::
 	ld hl, wBattlerPersonality1
 	ld d, $01
-	jr jr_058_5b25
+	jr NoteIfHigh
 
-jr_058_5af4:
+NotePersonality1Low::
 	ld hl, wBattlerPersonality1
 	ld d, $02
-	jr jr_058_5b63
+	jr NoteIfLow
 
-jr_058_5afb:
+NoteStat67High::
 	ld hl, wBattlerStat67
 	ld d, $04
-	jr jr_058_5b25
+	jr NoteIfHigh
 
 NoteStat67Low::
 	ld hl, wBattlerStat67
 	ld d, $08
-	jr jr_058_5b63
+	jr NoteIfLow
 
-jr_058_5b09:
+NotePersonality2High::
 	ld hl, wBattlerPersonality2
 	ld d, $10
-	jr jr_058_5b25
+	jr NoteIfHigh
 
-jr_058_5b10:
+NotePersonality2Low::
 	ld hl, wBattlerPersonality2
 	ld d, $20
-	jr jr_058_5b63
+	jr NoteIfLow
 
 NotePersonality3High::
 	ld hl, wBattlerPersonality3
 	ld d, $40
-	jr jr_058_5b25
+	jr NoteIfHigh
 
-Jump_058_5b1e:
+NotePersonality3Low::
 jr_058_5b1e:
 	ld hl, wBattlerPersonality3
 	ld d, $80
-	jr jr_058_5b63
+	jr NoteIfLow
 
-jr_058_5b25:
+NoteIfHigh::
 	ld a, [wSkillUser]
 	add l
 	ld l, a
@@ -6231,7 +6424,7 @@ jr_058_5b4e:
 	ret
 
 
-jr_058_5b63:
+NoteIfLow::
 	ld a, [wSkillUser]
 	add l
 	ld l, a
