@@ -9942,153 +9942,209 @@ ClearBGMap::
 	ret
 
 
+;@ def UpdatePagedCursor(cursor: hl, spots: de, count: c, rows: b)
+;@ path: battle/screen/cursor
+;@ Moves the cursor of a paged list of `count` entries with `rows` rows per page: mem[cursor] is the
+;@ row, mem[cursor + 1] the page. Left / right turn the page (wrapping, keeping the row inside the
+;@ last page); otherwise the page number is drawn and up / down / A are handled like a plain menu
+;@ with as many rows as the page holds. The first spot of `spots` is the page-number spot.
+;@ test: skip draws to VRAM
 UpdatePagedCursor::
+;> wListLastRows = count
 	ld a, c
 	ld [wListLastRows], a
+;> spots += 2; page = -1
 	inc de
 	inc de
+;> if wTextState == 0 and wJoyRepeat & 0x20:                # left: previous page
 	ld a, [wTextState]
 	or a
-	jp nz, Jump_051_74b1
+	jp nz, .draw
 
 	ld a, [wJoyRepeat]
 	bit 5, a
-	jr z, jr_051_7477
+	jr z, .right
 
+;>     page = mem[cursor + 1] - 1
 	inc hl
 	ld a, [hl]
 	dec a
+;>@a     pages = (count - 1) // rows + 1
 	push af
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
+;=@a
 	call Divide8
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>     if page >= pages: page = pages - 1                    # wraps to the last page
 	pop af
 	cp c
-	jr c, jr_051_7495
+	jr c, .store
 
 	ld a, c
 	dec a
-	jr jr_051_7495
+	jr .store
 
-jr_051_7477:
+;> elif wTextState == 0 and wJoyRepeat & 0x10:              # right: next page
+.right:
 	ld a, [wJoyRepeat]
 	bit 4, a
-	jr z, jr_051_74b1
+	jr z, .draw
 
+;>     page = mem[cursor + 1] + 1
 	inc hl
 	ld a, [hl]
 	inc a
+;>@b     pages = (count - 1) // rows + 1
 	push af
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
+;=@b
 	call Divide8
 	ld a, b
 	inc a
 	pop bc
 	pop de
 	ld c, a
+;>     if page >= pages: page = 0                            # wraps to the first page
 	pop af
 	cp c
-	jr c, jr_051_7495
+	jr c, .store
 
 	ld a, $00
 
-jr_051_7495:
+;> if page >= 0:
+;>     mem[cursor + 1] = page
+.store:
 	ld [hld], a
+;>     if page == pages - 1:
 	dec c
 	cp c
-	jr nz, jr_051_74f4
+	jr nz, FinishCursorMove
 
+;>@l         left = wListLastRows % rows                     # entries on the last page
 	ld a, [wListLastRows]
 	ld c, a
 	push de
 	push bc
 	ld a, b
 	ld b, c
+;=@l
 	call Divide8
 	pop bc
 	pop de
+;>         if left and left - 1 < mem[cursor]:
 	or a
-	jr z, jr_051_74f4
+	jr z, FinishCursorMove
 
 	dec a
 	cp [hl]
-	jr nc, jr_051_74f4
+	jr nc, FinishCursorMove
 
+;>             mem[cursor] = left - 1
 	ld [hl], a
-	jr jr_051_74f4
+;>     return FinishCursorMove(cursor, spots)
+	jr FinishCursorMove
 
-Jump_051_74b1:
-jr_051_74b1:
+;> DrawBattlePageNumber(cursor, spots, count, rows)
+.draw:
 	push bc
 	push de
 	push hl
 	call DrawBattlePageNumber
 	pop hl
 	pop de
+;>@d last = (count - 1) // rows; wListLastRows = (count - 1) % rows
 	pop bc
 	push de
 	push bc
 	ld a, b
 	ld b, c
 	dec b
+;=@d
 	call Divide8
 	ld [wListLastRows], a
 	ld a, b
 	pop bc
 	pop de
 	ld c, a
+;> if mem[cursor + 1] == last:
 	inc hl
 	ld a, [hld]
 	cp c
 	jr nz, UpdateBattleMenuCursor
 
+;>     rows = wListLastRows + 1
 	ld a, [wListLastRows]
 	inc a
 	ld b, a
 
+;> return UpdateBattleMenuCursor(cursor, spots, rows)
+
+;@ def UpdateBattleMenuCursor(cursor: hl, spots: de, n: b)
+;@ path: battle/screen/cursor
+;@ Moves the cursor mem[cursor] of a menu with `n` rows on up / down (wrapping), sets bit 7 when A is
+;@ pressed and draws the cursor at the menu's spots.
+;@ test: skip draws to VRAM
 UpdateBattleMenuCursor::
+;> mem[cursor] &= 0x7F
 	res 7, [hl]
+;> if wJoyRepeat & 0x40:                                    # up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_051_74e5
+	jr z, .down
 
+;>     row = mem[cursor] - 1
 	ld a, [hl]
 	dec a
+;>     if row >= n: row = n - 1
 	cp b
-	jr c, jr_051_74f3
+	jr c, .store
 
 	dec b
 	ld a, b
-	jr jr_051_74f3
+	jr .store
 
-jr_051_74e5:
+;> elif wJoyRepeat & 0x80:                                  # down
+.down:
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_051_74fc
+	jr z, ConfirmCursorChoice
 
+;>     row = mem[cursor] + 1
 	ld a, [hl]
 	inc a
+;>     if row >= n: row = 0
 	cp b
-	jr c, jr_051_74f3
+	jr c, .store
 
 	ld a, $00
 
-jr_051_74f3:
+;> else:
+;>     return ConfirmCursorChoice(cursor, spots)
+;> mem[cursor] = row
+.store:
 	ld [hl], a
 
-jr_051_74f4:
+;> return FinishCursorMove(cursor, spots)
+
+;@ def FinishCursorMove(cursor: hl, spots: de)
+;@ path: battle/screen/cursor
+;@ After the cursor moved: restarts the blink so the cursor shows at once, then goes on to
+;@ ConfirmCursorChoice.
+;@ test: skip draws to VRAM
+FinishCursorMove::
+;> wCursorBlinkTimer = 0
 	xor a
 	ld [wCursorBlinkTimer], a
 	push hl
@@ -10096,691 +10152,926 @@ jr_051_74f4:
 	pop de
 	pop hl
 
-jr_051_74fc:
+;> return ConfirmCursorChoice(cursor, spots)
+
+;@ def ConfirmCursorChoice(cursor: hl, spots: de)
+;@ path: battle/screen/cursor
+;@ Sets bit 7 of mem[cursor] when A is pressed, then draws the cursor at the menu's spots.
+;@ test: skip draws to VRAM
+ConfirmCursorChoice::
+;> if wJoyPressed & 1:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jr z, jr_051_7505
+	jr z, .draw
 
+;>     mem[cursor] |= 0x80
 	set 7, [hl]
 
-jr_051_7505:
+;> DrawBattleMenuCursor(mem[cursor], spots)
+.draw:
 	ld a, [hl]
 	call DrawBattleMenuCursor
+;> return
 	ret
 
-
+; Unused: cursor movement for a 2 x 2 grid (up / down flip bit 0, left / right flip bit 1).
 	db $cb, $be, $fa, $47, $c8, $e6, $c0, $28, $05, $7e, $ee, $01, $18, $db, $fa, $47
 	db $c8, $e6, $30, $28, $dd, $7e, $ee, $02, $18, $cf
 
+;@ def ResetBattleCursorBlink()
+;@ path: battle/screen/cursor
+;@ Restarts the cursor blink so the cursor shows at once.
 ResetBattleCursorBlink::
+;> wCursorBlinkTimer = 0
 	xor a
 	ld [wCursorBlinkTimer], a
+;> return
 	ret
 
 
+;@ def DrawBattleMenuCursor(cursor: a, spots: de)
+;@ path: battle/screen/cursor
+;@ Draws the cursor at every spot of `spots` (blank tile $E0 at the others) on the BG map and in
+;@ wTilemapBuffer: $E9 when chosen (bit 7), otherwise $E8 blinking every 16 frames. While nothing
+;@ was chosen the spots are only redrawn every 16th call.
+;@ test: skip draws to VRAM
 DrawBattleMenuCursor::
+;> if not cursor & 0x80:
 	ld c, a
 	bit 7, a
-	jr nz, jr_051_753e
+	jr nz, .draw
 
+;>     t = wCursorBlinkTimer & 0x0F
 	ld a, [wCursorBlinkTimer]
 	and $0f
+;>     wCursorBlinkTimer += 1
 	push af
 	ld a, [wCursorBlinkTimer]
 	inc a
 	ld [wCursorBlinkTimer], a
+;>     if t: return
 	pop af
 	ld a, c
 	ret nz
 
-jr_051_753e:
+;> i = 0
+.draw:
 	ld c, a
 	ld b, $00
 
-jr_051_7541:
+;> while True:
+;>     pos = mem16[spots]; spots += 2
+.loop:
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
 	inc de
+;>     if pos & 0xFF == 0xFF and pos >> 8 == 0xFF: return
 	and l
 	cp $ff
 	ret z
 
+;>     wLayoutRow = pos
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
+;>     bg = OffsetToBGAddress(pos)
 	push de
 	push bc
 	call OffsetToBGAddress
 	pop bc
 	pop de
+;>     if cursor & 0x7F != i: tile = 0xE0
 	ld a, c
 	and $7f
 	cp b
 	ld a, $e0
-	jr nz, jr_051_7573
+	jr nz, .put
 
+;>     elif cursor & 0x80: tile = 0xE9
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_051_7573
+	jr nz, .put
 
+;>     elif wCursorBlinkTimer & 0x10: tile = 0xE0
 	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_051_7573
+	jr nz, .put
 
+;>     else: tile = 0xE8
 	ld a, $e8
 
-jr_051_7573:
+;>     WriteVRAM(tile, bg)
+.put:
 	call WriteVRAM
+;>@b     wTilemapBuffer[wLayoutRow] = tile
 	push af
 	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
+;>     i += 1
 	inc b
-	jr jr_051_7541
+	jr .loop
 
+;@ def DrawBattlePageNumber(cursor: hl, spots: de, count: c, rows: b)
+;@ path: battle/screen/cursor
+;@ When the list has more than one page, draws the page number (tile $F1 + page) left of the
+;@ page-number spot (the word before `spots`), on the BG map and in wTilemapBuffer.
+;@ test: skip draws to VRAM
 DrawBattlePageNumber::
+;> if rows >= count: return
 	ld a, b
 	cp c
 	ret nc
 
+;> page = mem[cursor + 1]
 	inc hl
 	ld c, [hl]
+;>@s pos = mem16[spots - 2]
 	dec de
 	dec de
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
+;=@s
 	ld h, a
 	inc de
+;> if pos == 0xFFFF: return
 	and l
 	cp $ff
 	ret z
 
+;> hNumber = pos - 1
 	dec hl
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
 	ldh [$ffd6], a
+;> bg = OffsetToBGAddress(pos - 1)
 	push de
 	push bc
 	call OffsetToBGAddress
 	pop bc
 	pop de
+;> tile = (page & 0x7F) + 0xF1
 	ld a, c
 	and $7f
 	add $f1
+;> WriteVRAM(tile, bg)
 	call WriteVRAM
+;>@b wTilemapBuffer[hNumber] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
 	ldh a, [$ffd6]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def DrawPagedCursor(cursor: hl, spots: de, count: c, rows: b)
+;@ path: battle/screen/cursor
+;@ Draws the cursor of a paged list into wTilemapBuffer: at the page-number spot (first word of
+;@ `spots`) tile $E7 with the page number ($F1 + page) to its left when there is more than one page,
+;@ else tile $EE; then the row cursor via DrawBattleCursorAt.
 DrawPagedCursor::
+;> row = mem[cursor]
 	ld a, [hli]
 	push af
 	push hl
+;>@p p = BattleBufferAddress(mem16[spots]); spots += 2
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	inc de
 	ld h, a
+;=@p
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;> mem[p] = 0xE7 if rows < count else 0xEE
 	ld a, b
 	cp c
 	ld a, $ee
-	jr nc, jr_051_75de
+	jr nc, .mark
 
 	ld a, $e7
 
-jr_051_75de:
+.mark:
 	ld [hld], a
+;> if rows < count:
 	pop bc
-	jr nc, jr_051_75e6
+	jr nc, .row
 
+;>     mem[p - 1] = mem[cursor + 1] + 0xF1
 	ld a, [bc]
 	add $f1
 	ld [hl], a
 
-jr_051_75e6:
+;> return DrawBattleCursorAt(spots, row)
+.row:
 	pop af
 
+;@ def DrawBattleCursorAt(spots: de, index: a)
+;@ path: battle/screen/cursor
+;@ Puts the cursor tile at spot `index` & $7F of `spots` in wTilemapBuffer: $E9 when chosen (bit 7),
+;@ otherwise $E8 or blank $E0 by the blink timer.
 DrawBattleCursorAt::
+;>@p pos = mem16[spots + 2*(index & 0x7F)]
 	ld c, a
 	add a
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@p
 	ld d, a
 	ld a, [de]
 	ld l, a
 	inc de
 	ld a, [de]
 	ld h, a
+;> wLayoutRow = pos
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
 	ld [$d9eb], a
+;> OffsetToBGAddress(pos)                                  # result not used
 	push de
 	push bc
 	call OffsetToBGAddress
 	pop bc
 	pop de
+;> if index & 0x80: tile = 0xE9
 	ld a, $e9
 	bit 7, c
-	jr nz, jr_051_7614
+	jr nz, .put
 
+;> elif wCursorBlinkTimer & 0x10: tile = 0xE0
 	ld a, [wCursorBlinkTimer]
 	bit 4, a
 	ld a, $e0
-	jr nz, jr_051_7614
+	jr nz, .put
 
+;> else: tile = 0xE8
 	ld a, $e8
 
-jr_051_7614:
+;>@b wTilemapBuffer[wLayoutRow] = tile
+.put:
 	push af
 	ld a, [wLayoutRow]
 	ld l, a
 	ld a, [$d9eb]
 	ld h, a
 	ld a, l
+;=@b
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
 	pop af
+;=@b
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def PlaceEnemyPics()
+;@ path: battle/screen/pictures
+;@ Puts the tiles of the enemy pictures (or in a link battle seen from the other side, the party's)
+;@ into wTilemapBuffer: one in the middle, two or three spread out. All use tiles from $00 on.
 PlaceEnemyPics::
+;> if wLinkActive and wLinkFlags & 2:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_763a
+	jr z, .enemies
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_763a
+	jr z, .enemies
 
+;>     n = wPartyBattlers
 	ld a, [wPartyBattlers]
-	jr jr_051_763d
+	jr .count
 
-jr_051_763a:
+;> else:
+;>     n = wEnemyCount
+.enemies:
 	ld a, [wEnemyCount]
 
-jr_051_763d:
+;> if n != 3 and n != 2:
+.count:
 	cp $03
-	jr z, jr_051_765d
+	jr z, .three
 
 	cp $02
-	jr z, jr_051_764e
+	jr z, .two
 
+;>     PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;>     return
 	ret
 
-
-jr_051_764e:
+;> if n == 2:
+;>     t = PlacePicTiles(0, 0x00C4)
+.two:
 	ld a, $00
 	ld hl, $00c4
 	call PlacePicTiles
+;>     PlacePicTiles(t, 0x00CA)
 	ld hl, $00ca
 	call PlacePicTiles
+;>     return
 	ret
 
-
-jr_051_765d:
+;> t = PlacePicTiles(0, 0x00C1)
+.three:
 	ld a, $00
 	ld hl, $00c1
 	call PlacePicTiles
+;> t = PlacePicTiles(t, 0x00C7)
 	ld hl, $00c7
 	call PlacePicTiles
+;> PlacePicTiles(t, 0x00CD)
 	ld hl, $00cd
 	call PlacePicTiles
+;> return
 	ret
 
 
+;@ def PlacePicTiles(tile: a, offset: hl) -> a
+;@ path: battle/screen/pictures
+;@ Puts a 6 x 6 block of consecutive tiles starting at `tile` into wTilemapBuffer at `offset`;
+;@ returns the tile after the last one.
 PlacePicTiles::
+;>@r for row in range(6):
 	ld c, $06
 
-jr_051_7674:
+;>@p     p = BattleBufferAddress(offset + 0x20*row)
+.row:
 	push hl
 	push af
 	call BattleBufferAddress
 	pop af
+;>@c     for col in range(6):
 	ld b, $06
 
-jr_051_767c:
+;>         mem[p + col] = tile; tile += 1
+.column:
 	ld [hli], a
 	inc a
+;=@c
 	dec b
-	jr nz, jr_051_767c
+	jr nz, .column
 
+;=@p
 	pop hl
 	ld de, $0020
 	add hl, de
+;=@r
 	dec c
-	jr nz, jr_051_7674
+	jr nz, .row
 
+;> return tile
 	ret
 
 
+;@ def DrawBattlePartyPanel()
+;@ path: battle/screen/panel
+;@ Draws the message window and the party panel at the bottom of the battle screen into
+;@ wTilemapBuffer: with HP / MP numbers (wPanelMode 0) or with levels and ailment icons.
 DrawBattlePartyPanel::
+;> DrawBattleWindow(MessageWindowLayout)
 	ld de, $2e07
 	call DrawBattleWindow
+;> if wPanelMode: return DrawPanelLevels(wPanelMode)
 	ld a, [wPanelMode]
 	or a
-	jp nz, Jump_051_7763
+	jp nz, DrawPanelLevels
 
+;> return DrawPartyHPMP()
+
+;@ def DrawPartyHPMP()
+;@ path: battle/screen/panel
+;@ Draws the party panel frame with the HP and MP of the monsters in battle (unless the party is
+;@ empty outside a link battle).
 DrawPartyHPMP::
+;> if not wLinkActive and wPartyCount == 0: return
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_76a2
+	jr nz, .draw
 
 	ld a, [wPartyCount]
 	or a
 	ret z
 
-jr_051_76a2:
+;> DrawPartyPanelFrame()
+.draw:
 	call DrawPartyPanelFrame
-	jr jr_051_76c7
+;> return DrawPanelHPMPNumbers()
+	jr DrawPanelHPMPNumbers
 
+;@ def DrawPartyPanelFrame()
+;@ path: battle/screen/panel
+;@ Draws the panel window for 1-3 monsters (PanelWindowTable by wPartyBattlers, or by wEnemyCount in a
+;@ link battle seen from the other side) into wTilemapBuffer.
 DrawPartyPanelFrame::
-	ld hl, $775b
+;> if wLinkFlags & 2: n = wEnemyCount
+	ld hl, PanelWindowTable
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_76b6
+	jr z, .party
 
 	ld a, [wEnemyCount]
-	jr jr_051_76b9
+	jr .draw
 
-jr_051_76b6:
+;> else: n = wPartyBattlers
+.party:
 	ld a, [wPartyBattlers]
 
-jr_051_76b9:
+;>@w DrawBattleWindow(mem16[PanelWindowTable + 2*n])
+.draw:
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@w
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
 	call DrawBattleWindow
+;> return
 	ret
 
 
-jr_051_76c7:
+;@ def DrawPanelHPMPNumbers()
+;@ path: battle/screen/panel
+;@ Prints the HP and MP of the panel's monsters (positions 0-2, or 4-6 in a link battle seen from the
+;@ other side) as 3 digits into wTilemapBuffer, as many as wPanelCount.
+DrawPanelHPMPNumbers::
+;> side = 4 if wLinkFlags & 2 else 0
 	ld hl, wBattlerHP
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_76d4
+	jr z, .first
 
 	ld hl, $dbab
 
-jr_051_76d4:
+;>@h PrintNumber3(BattleBufferAddress(0x62), mem16[addr(wBattlerHP) + 2*side])
+.first:
 	push hl
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld hl, $0062
 	call BattleBufferAddress
+;=@h
 	call PrintNumber3
+;>@m PrintNumber3(BattleBufferAddress(0x82), mem16[addr(wBattlerMP) + 2*side])
 	pop hl
 	ld bc, $0020
 	add hl, bc
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;=@m
 	ld hl, $0082
 	call BattleBufferAddress
 	call PrintNumber3
+;> if wPanelCount == 1: return
 	ld a, [wPanelCount]
 	cp $01
 	ret z
 
+;> side = 4 if wLinkFlags & 2 else 0
 	ld hl, $dba5
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_7705
+	jr z, .second
 
 	ld hl, $dbad
 
-jr_051_7705:
+;>@h2 PrintNumber3(BattleBufferAddress(0x68), mem16[addr(wBattlerHP) + 2*side + 2])
+.second:
 	push hl
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld hl, $0068
 	call BattleBufferAddress
+;=@h2
 	call PrintNumber3
+;>@m2 PrintNumber3(BattleBufferAddress(0x88), mem16[addr(wBattlerMP) + 2*side + 2])
 	pop hl
 	ld bc, $0020
 	add hl, bc
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;=@m2
 	ld hl, $0088
 	call BattleBufferAddress
 	call PrintNumber3
+;> if wPanelCount == 2: return
 	ld a, [wPanelCount]
 	cp $02
 	ret z
 
+;> side = 4 if wLinkFlags & 2 else 0
 	ld hl, $dba7
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_7736
+	jr z, .third
 
 	ld hl, $dbaf
 
-jr_051_7736:
+;>@h3 PrintNumber3(BattleBufferAddress(0x6E), mem16[addr(wBattlerHP) + 2*side + 4])
+.third:
 	push hl
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld hl, $006e
 	call BattleBufferAddress
+;=@h3
 	call PrintNumber3
+;>@m3 PrintNumber3(BattleBufferAddress(0x8E), mem16[addr(wBattlerMP) + 2*side + 4])
 	pop hl
 	ld bc, $0020
 	add hl, bc
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;=@m3
 	ld hl, $008e
 	call BattleBufferAddress
 	call PrintNumber3
+;> return
 	ret
 
 
+;@ path: battle/screen/panel
+;@ Unused: the entry points of DrawPanelHPMPNumbers for the first, second and third monster.
 UnusedPanelJumps::
-	db $c7, $76, $f2, $76, $23, $77
+	dw DrawPanelHPMPNumbers, $76f2, $7723
 
+;@ path: battle/screen/panel
+;@ The panel window by number of monsters (0 and 1 share the one-monster panel).
 PanelWindowTable::
-	db $76, $6b, $76, $6b, $1a, $6b, $9a, $6a
+	dw PanelWindow1, PanelWindow1, PanelWindow2, PanelWindow3
 
-Jump_051_7763:
+;@ def DrawPanelLevels(mode: a)
+;@ path: battle/screen/panel
+;@ The panel with levels instead of HP / MP. Mode 1 draws the frame, an "absent" mark for monsters
+;@ out of the fight and the "Lv" tiles, copies them to the screen, loads the ailment icon tiles and
+;@ moves on to mode 2; modes 1 and 2 then print the levels and the ailment icons. Mode 3 turns the
+;@ panel back: the position marks and HP / MP labels, fresh status icons, then the HP / MP numbers
+;@ (mode 0).
+DrawPanelLevels::
+;> if mode == 3: return RestorePanel()
 	cp $03
-	jp z, Jump_051_786b
+	jp z, .restore
 
+;> DrawPartyPanelFrame()
 	call DrawPartyPanelFrame
+;> wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
+;>@d side = 4 if wLinkFlags & 2 else 0
 	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_7785
+	jr z, .marks
 
+;=@d
 	ld c, $04
 
-jr_051_7785:
-	ld hl, $78ca
+;>@k for pos in range(side, side + wPanelCount):
+;>     p = PanelSlotAddress(PanelMarkSpots, pos)
+.marks:
+	ld hl, PanelMarkSpots
 	call PanelSlotAddress
+;>@x     mem[p] = 0xD9 if CheckBattlerPresent(pos) else 0xE0       # carry: out of the fight
 	push hl
 	ld a, c
 	call CheckBattlerPresent
-	jr nc, jr_051_7796
+	jr nc, .present
 
+;=@x
 	ld a, $d9
-	jr jr_051_7798
+	jr .mark
 
-jr_051_7796:
+.present:
 	ld a, $e0
 
-jr_051_7798:
+.mark:
 	pop hl
 	ld [hl], a
-	ld hl, $78d0
+;>     q = PanelSlotAddress(PanelLevelSpots, pos)
+	ld hl, PanelLevelSpots
 	call PanelSlotAddress
+;>     mem[q] = 0xDE; mem[q + 1] = 0xE4
 	ld [hl], $de
 	inc hl
 	ld a, $e4
 	ld [hld], a
+;>     q += 0x20
 	ld a, $20
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>     mem[q] = 0xE0; mem[q + 1] = 0xE0
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
+;>     mem[q + 2] = 0xE0; mem[q + 3] = 0xE0
 	ld [hli], a
 	ld [hl], a
+;=@k
 	inc c
 	dec b
-	jr nz, jr_051_7785
+	jr nz, .marks
 
+;> if wPanelMode != 2:
 	ld a, [wPanelMode]
 	cp $02
-	jr z, jr_051_77e6
+	jr z, .levels
 
+;>     CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;>     LoadStatusIconTiles(2, 0x8DA0)
 	ld hl, $8da0
 	ld a, $02
 	call LoadStatusIconTiles
+;>     LoadStatusIconTiles(4, 0x8DB0)
 	ld hl, $8db0
 	ld a, $04
 	call LoadStatusIconTiles
+;>     LoadStatusIconTiles(6, 0x8DC0)
 	ld hl, $8dc0
 	ld a, $06
 	call LoadStatusIconTiles
+;>     LoadStatusIconTiles(3, 0x8DD0)
 	ld hl, $8dd0
 	ld a, $03
 	call LoadStatusIconTiles
+;>     wPanelMode += 1
 	ld hl, wPanelMode
 	inc [hl]
 
-jr_051_77e6:
+;>@e side = 4 if wLinkFlags & 2 else 0
+.levels:
 	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_77f5
+	jr z, .level
 
+;=@e
 	ld c, $04
 
-jr_051_77f5:
-	ld hl, $78d0
+;>@l for pos in range(side, side + wPanelCount):
+;>     q = PanelSlotAddress(PanelLevelSpots, pos) + 2
+.level:
+	ld hl, PanelLevelSpots
 	call PanelSlotAddress
 	inc hl
 	inc hl
+;>@n     PrintNumber2(q, wBattlerLevel[pos])
 	push bc
 	ld a, c
 	ld bc, wBattlerLevel
 	add c
 	ld c, a
 	ld a, $00
+;=@n
 	adc b
 	ld b, a
 	ld a, [bc]
 	ld c, a
 	ld b, $00
 	call PrintNumber2
+;>     if not CheckBattlerPresent(pos):
 	pop bc
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_051_7863
+	jr c, .next
 
-	ld hl, $78d6
+;>         d = PanelSlotAddress(PanelAilmentSpots, pos)
+	ld hl, PanelAilmentSpots
 	call PanelSlotAddress
+;>         s = wBattlerStatus[8*pos]
 	push hl
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	pop de
+;>         if s:
 	ld a, [hl]
 	or a
-	jr z, jr_051_7863
+	jr z, .next
 
+;>             if s & 0x40: PutAilmentIcon(0, d)
 	bit 6, [hl]
-	jr z, jr_051_7832
+	jr z, .bit5
 
 	ld a, $00
 	call PutAilmentIcon
 
-jr_051_7832:
+;>             if s & 0x20: PutAilmentIcon(1, d + 1)
+.bit5:
 	inc de
 	bit 5, [hl]
-	jr z, jr_051_783c
+	jr z, .bit4
 
 	ld a, $01
 	call PutAilmentIcon
 
-jr_051_783c:
+;>             if s & 0x10: PutAilmentIcon(2, d + 2)
+.bit4:
 	inc de
 	bit 4, [hl]
-	jr z, jr_051_7846
+	jr z, .bit7
 
 	ld a, $02
 	call PutAilmentIcon
 
-jr_051_7846:
+;>             if s & 0x80: PutAilmentIcon(3, d + 3)
+.bit7:
 	inc de
 	bit 7, [hl]
-	jr z, jr_051_7850
+	jr z, .bit1
 
 	ld a, $03
 	call PutAilmentIcon
 
-jr_051_7850:
+;>             if s & 0x02: PutAilmentIcon(4, d + 4)
+.bit1:
 	inc de
 	bit 1, [hl]
-	jr z, jr_051_785a
+	jr z, .bit0
 
 	ld a, $04
 	call PutAilmentIcon
 
-jr_051_785a:
+;>             if s & 0x01: PutAilmentIcon(5, d + 4)
+.bit0:
 	bit 0, [hl]
-	jr z, jr_051_7863
+	jr z, .next
 
 	ld a, $05
 	call PutAilmentIcon
 
-jr_051_7863:
+.next:
+;=@l
 	inc c
 	dec b
-	jr nz, jr_051_77f5
+	jr nz, .level
 
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
-
-Jump_051_786b:
+;>@f side = 4 if wLinkFlags & 2 else 0          # RestorePanel (mode 3)
+.restore:
 	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_787a
+	jr z, .slot
 
+;=@f
 	ld c, $04
 
-jr_051_787a:
-	ld hl, $78ca
+;>@s for pos in range(side, side + wPanelCount):
+;>     mem[PanelSlotAddress(PanelMarkSpots, pos)] = 0xDA + (pos & 3)
+.slot:
+	ld hl, PanelMarkSpots
 	call PanelSlotAddress
 	ld a, c
 	and $03
 	add $da
 	ld [hl], a
-	ld hl, $78d0
+;>     q = PanelSlotAddress(PanelLevelSpots, pos); mem[q] = 0xE1
+	ld hl, PanelLevelSpots
 	call PanelSlotAddress
 	ld [hl], $e1
+;>     q += 0x20
 	ld a, $20
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>     mem[q] = 0xE2; mem[q + 1] = 0xE0
 	ld a, $e2
 	ld [hli], a
 	ld a, $e0
 	ld [hli], a
+;>     mem[q + 2] = 0xE0; mem[q + 3] = 0xE0
 	ld [hli], a
 	ld [hl], a
+;>     wSkillUser = pos; wSkillTarget = pos
 	ld a, c
 	ld [wSkillUser], a
 	ld [wSkillTarget], a
+;>@i     wStatusIconShown[pos] = 0xFF
 	push af
 	push bc
 	push de
 	push hl
 	ld hl, wStatusIconShown
 	add l
+;=@i
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld [hl], $ff
+;>     UpdateStatusIcon()
 	call UpdateStatusIcon
 	pop hl
 	pop de
 	pop bc
 	pop af
+;=@s
 	inc c
 	dec b
-	jr nz, jr_051_787a
+	jr nz, .slot
 
+;> wPanelMode = 0
 	xor a
 	ld [wPanelMode], a
+;> DrawPartyHPMP()
 	call DrawPartyHPMP
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ path: battle/screen/panel
+;@ Buffer offsets of the position mark of each panel slot.
 PanelMarkSpots::
-	db $25, $00, $2b, $00, $31, $00
+	dw $0025, $002b, $0031
 
+;@ path: battle/screen/panel
+;@ Buffer offsets of the level ("Lv") of each panel slot.
 PanelLevelSpots::
-	db $61, $00, $67, $00, $6d, $00
+	dw $0061, $0067, $006d
 
+;@ path: battle/screen/panel
+;@ Buffer offsets of the ailment icons of each panel slot.
 PanelAilmentSpots::
-	db $81, $00, $87, $00
-	db $8d, $00
+	dw $0081, $0087, $008d
 
+;@ path: battle/screen/panel
+;@ The tiles of the six ailment icons drawn by PutAilmentIcon.
 AilmentIconTiles::
 	db $dc, $d7, $db, $dd, $da, $d8
 
@@ -11027,7 +11318,7 @@ jr_051_79e1:
 
 GetBattlerName::
 	cp $03
-	jr nc, jr_051_7a28
+	jr nc, GetEnemyName
 
 GetPartyMonName::
 	push hl
@@ -11048,12 +11339,12 @@ jr_051_7a1d:
 	inc hl
 	jr jr_051_7a1d
 
-jr_051_7a24:
+GetLinkEnemyName::
 	ld a, b
 	pop bc
 	jr GetPartyMonName
 
-jr_051_7a28:
+GetEnemyName::
 	push bc
 	ld b, a
 	and $03
@@ -11066,7 +11357,7 @@ jr_051_7a28:
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_051_7a24
+	jr nz, GetLinkEnemyName
 
 	push hl
 	ld a, b
@@ -11086,7 +11377,7 @@ jr_051_7a28:
 
 jr_051_7a4e:
 	pop bc
-	jr nz, jr_051_7a79
+	jr nz, GetMorphEnemyName
 
 jr_051_7a51:
 	push af
@@ -11118,7 +11409,7 @@ GetSpeciesName::
 	ret
 
 
-jr_051_7a79:
+GetMorphEnemyName::
 	call GetPartyMonName
 	ld a, $2f
 	ld [hli], a

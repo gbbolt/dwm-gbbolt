@@ -46,7 +46,7 @@ TextGroup_49_0::
 ;@ def StartText_49()
 ;@ path: text/dialogue
 ;@ Starts printing text wTextGroup / wTextIndex of bank $49. Some text numbers of this bank are
-;@ kept in bank $567F: those are renumbered and handed to that bank.
+;@ kept in bank $18: those are renumbered and handed to StartText_18.
 ;@ test: skip runs the text code with this bank switched in
 StartText_49::
 ;> if wTextIndex >= 0x9E:
@@ -76,7 +76,7 @@ jr_049_415b:
 ;@ def CopyText_49()
 ;@ path: text/dialogue
 ;@ Copies (to wTextCopyDest) text wTextGroup / wTextIndex of bank $49. Some text numbers of this bank are
-;@ kept in bank $5686: those are renumbered and handed to that bank.
+;@ kept in bank $18: those are renumbered and handed to CopyText_18.
 ;@ test: skip runs the text code with this bank switched in
 CopyText_49::
 ;> if wTextIndex >= 0x9E:
@@ -106,7 +106,7 @@ jr_049_4178:
 ;@ def PrintText_49()
 ;@ path: text/dialogue
 ;@ Prints at once (and waits for the end of) text wTextGroup / wTextIndex of bank $49. Some text numbers of this bank are
-;@ kept in bank $568D: those are renumbered and handed to that bank.
+;@ kept in bank $18: those are renumbered and handed to PrintText_18.
 ;@ test: skip runs the text code with this bank switched in
 PrintText_49::
 ;> if wTextIndex >= 0x9E:

@@ -352,8 +352,8 @@ BattleMenuInput::
 	inc [hl]
 	ld hl, wCommandSubStep
 	inc [hl]
-;> Call_50_5708()
-	call Call_50_5708
+;> RedrawBattleBase()
+	call RedrawBattleBase
 ;> wCommandSubStep += 1
 	ld hl, wCommandSubStep
 	inc [hl]
@@ -1116,8 +1116,8 @@ TacticsWhoInput::
 ;>     wConfirmChoice2 = mem[wSkillStatusPtr]
 	ld a, [wSkillStatusPtr]
 	ld [wConfirmChoice2], a
-;>     Call_50_5708()
-	call Call_50_5708
+;>     RedrawBattleBase()
+	call RedrawBattleBase
 
 .done
 	ret
@@ -1397,8 +1397,8 @@ UnusedTacticBack::
 ;> wCommandStep = 1
 	ld a, $01
 	ld [wCommandStep], a
-;> Call_50_5708()
-	call Call_50_5708
+;> RedrawBattleBase()
+	call RedrawBattleBase
 ;> return BattleMenuOpen()
 	jp BattleMenuOpen
 
@@ -2578,8 +2578,8 @@ OrderSkillInput::
 ;> GetSkillWord()                         # wBattleArg0 = the skill's target flags
 	ld hl, far_GetSkillWord
 	rst $10
-;> Call_50_56EB()
-	call Call_50_56EB
+;> ClearLetterTiles()
+	call ClearLetterTiles
 ;> if PickSkillTarget():                  # a fixed target: done
 ;>     return
 	call PickSkillTarget
@@ -2734,8 +2734,8 @@ OrderSkillSelf::
 ;> wOrderStep = 11
 	ld a, $0b
 	ld [wOrderStep], a
-;> Call_50_56EB()
-	call Call_50_56EB
+;> ClearLetterTiles()
+	call ClearLetterTiles
 ;> LoadWindowLetters_3()
 	ld hl, far_LoadWindowLetters_3
 	rst $10
@@ -2753,8 +2753,8 @@ OrderSkillSide::
 ;> wOrderStep = 11
 	ld a, $0b
 	ld [wOrderStep], a
-;> Call_50_56EB()
-	call Call_50_56EB
+;> ClearLetterTiles()
+	call ClearLetterTiles
 ;> LoadWindowLetters_3()
 	ld hl, far_LoadWindowLetters_3
 	rst $10
@@ -3085,277 +3085,406 @@ SkillListCursors::
 	dw $0201                     ; row 16, column 1
 	dw $ffff
 
+;@ def AllyTargetOpen()
+;@ path: battle/orders
+;@ Opens the window that picks an own monster as the skill's target: the names (absent
+;@ ones blanked), the cursor on the first own monster present.
+;@ test: skip calls routines in other banks
 AllyTargetOpen::
+;> wTargetSkill = wSkillId
 	ld a, [wSkillId]
 	ld [wTargetSkill], a
+;> wTargetCursorSkill = wSkillId
 	ld a, a
 	ld [wTargetCursorSkill], a
+;> LoadWindowLetters_7()
 	ld hl, far_LoadWindowLetters_7
 	rst $10
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
 	call DrawEnemyPictures
+;> DrawBattlePanel()
 	call DrawBattlePanel
-	ld de, $70c9
+;> DrawWindowLayout_50(SkillAllyTargetWindow)
+	ld de, SkillAllyTargetWindow
 	call DrawWindowLayout_50
+;> BlankAbsentTargetNames()
 	call BlankAbsentTargetNames
+;> ResetCursorBlink_50()
 	call ResetCursorBlink_50
-	ld de, $5339
+;> pos = 4 if wLinkFlags & 0x02 else 0    # the own side
+	ld de, AllyTargetCursors
 	ld a, [wLinkFlags]
 	rlca
 	and $04
 	ld b, a
+;> for i in range(2):                     # the first one present (else the third)
+;>     if not CheckBattlerPresent(pos): break
 	call CheckBattlerPresent
-	jr nc, jr_050_4d10
+	jr nc, .found
 
+;>     pos += 1
 	inc b
 	ld a, b
 	call CheckBattlerPresent
-	jr nc, jr_050_4d10
+	jr nc, .found
 
 	inc b
 
-jr_050_4d10:
+.found
+;> wBattleTemp = (pos & ~4) | 0x80
 	res 2, b
 	set 7, b
 	ld a, b
 	ld [wBattleTemp], a
+;> DrawCursorAt_50(wBattleTemp, AllyTargetCursors)
 	call DrawCursorAt_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wOrderStep += 1
 	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
+;@ def AllyTargetInput()
+;@ path: battle/orders
+;@ Picks the own target with the cursor (UpdateTargetCursor skips absent places, except
+;@ for revival skills). B goes back to the skill list; A takes the monster, or prints that
+;@ it is not there (TargetGone) unless the skill ($30, $31) revives.
+;@ test: skip draws to the screen
 AllyTargetInput::
-	ld de, $5339
+;> if wConfirmChoice2 >= 4:
+	ld de, AllyTargetCursors
 	ld hl, wBattleTemp
 	ld a, [wConfirmChoice2]
 	cp $04
-	jr c, jr_050_4d35
+	jr c, .own
 
+;>     n = wEnemyCount
 	ld a, [wEnemyCount]
-	jr jr_050_4d38
+	jr .count
 
-jr_050_4d35:
+.own
+;> else:
+;>     n = wPartyBattlers
 	ld a, [wPartyBattlers]
 
-jr_050_4d38:
+.count
+;> UpdateTargetCursor(wBattleTemp, AllyTargetCursors, n, 4 if wLinkFlags & 0x02 else 0)
 	ld b, a
 	ld a, [wLinkFlags]
 	rlca
 	and $04
 	ld c, a
 	call UpdateTargetCursor
+;> if wJoyPressed & 0x02:                 # B: back to the skill list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_050_4d51
+	jr z, .a
 
+;>     wOrderStep = 3
+;>     return
 	ld a, $03
 	ld [wOrderStep], a
-	jr jr_050_4d9b
+	jr .done
 
-jr_050_4d51:
+.a
+;> if not wJoyPressed & 0x01:
+;>     return
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_050_4d9b
+	jp z, .done
 
+;> target = wBattleTemp & 0x7F
 	ld a, [wBattleTemp]
 	res 7, a
 	ld c, a
+;> if wLinkFlags & 0x02:
+;>     target |= 4
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_050_4d68
+	jr z, .check
 
 	set 2, c
 
-jr_050_4d68:
+.check
+;> if CheckBattlerPresent(target):
 	ld a, c
 	call CheckBattlerPresent
-	jr nc, jr_050_4d84
+	jr nc, .take
 
+;>@s     skill = mem[wBattlerAction + 2 * wConfirmChoice2]
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@s
 	adc h
 	ld h, a
 	ld a, [hl]
+;>     if skill not in (0x30, 0x31):      # only revival skills take one who is down
+;>         return TargetGone(target)
 	cp $30
-	jr z, jr_050_4d84
+	jr z, .take
 
 	cp $31
-	jr nz, jr_050_4d9c
+	jr nz, TargetGone
 
-jr_050_4d84:
+.take
+;> SetActionTarget(target)
 	call SetActionTarget
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> MarkOrderGiven()
 	call MarkOrderGiven
+;> wOrderStep = 11
 	ld a, $0b
 	ld [wOrderStep], a
-	call Call_50_56EB
+;> ClearLetterTiles()
+	call ClearLetterTiles
+;> LoadWindowLetters_3()
 	ld hl, far_LoadWindowLetters_3
 	rst $10
 
-Jump_050_4d9b:
-jr_050_4d9b:
+.done
 	ret
 
 
+;@ def TargetGone(target: c)
+;@ path: battle/orders
+;@ The chosen target is not in the fight: prints message $00FA with its name and waits
+;@ (order step 10, then back to the order window or the skill list).
+;@ test: skip prints through another bank
 TargetGone::
-jr_050_4d9c:
+;> wNamePos = target
 	ld a, c
 	ld hl, wTextArg0
 	ld [wNamePos], a
+;> GetBattlerName_50(target, wTextArg0)
 	call GetBattlerName_50
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
 	call DrawEnemyPictures
+;> DrawBattlePanel()
 	call DrawBattlePanel
+;> wOrderStep = 10
 	ld hl, $fa00
 	ld a, $0a
 	ld [wOrderStep], a
+;> wTextGroup = 0x00
 	ld a, l
 	ld [wTextGroup], a
+;> wTextIndex = 0xFA
 	ld a, h
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> DrawWindowLayout_50(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
 	ret
 
 
+;@ def EnemyTargetOpen()
+;@ path: battle/orders
+;@ Opens the window that picks an enemy as the target: the enemy names (PrintEnemyTargetNames),
+;@ the cursor on the first enemy present.
+;@ test: skip calls routines in other banks
 EnemyTargetOpen::
+;> wTargetSkill = wSkillId
 	ld a, [wSkillId]
 	ld [wTargetSkill], a
+;> wTargetCursorSkill = wSkillId
 	ld a, a
 	ld [wTargetCursorSkill], a
-	call Call_50_53DC
+;> PrintEnemyTargetNames()
+	call PrintEnemyTargetNames
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
 	call DrawEnemyPictures
+;> DrawBattlePanel()
 	call DrawBattlePanel
-	ld de, $7113
+;> DrawWindowLayout_50(EnemyTargetWindow)
+	ld de, EnemyTargetWindow
 	call DrawWindowLayout_50
+;> ResetCursorBlink_50()
 	call ResetCursorBlink_50
-	ld de, $5664
+;> pos = 0 if wLinkFlags & 0x02 else 4    # the other side
+	ld de, EnemyTargetCursors
 	ld a, [wLinkFlags]
 	rlca
 	and $04
 	xor $04
 	ld b, a
+;> for i in range(2):                     # the first one present (else the third)
+;>     if not CheckBattlerPresent(pos): break
 	call CheckBattlerPresent
-	jr nc, jr_050_4e05
+	jr nc, .found
 
+;>     pos += 1
 	inc b
 	ld a, b
 	call CheckBattlerPresent
-	jr nc, jr_050_4e05
+	jr nc, .found
 
 	inc b
 
-jr_050_4e05:
+.found
+;> wBattleTemp = (pos & ~4) | 0x80
 	res 2, b
 	set 7, b
 	ld a, b
 	ld [wBattleTemp], a
+;> DrawCursorAt_50(wBattleTemp, EnemyTargetCursors)
 	call DrawCursorAt_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wOrderStep += 1
 	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
+;@ def EnemyTargetInput()
+;@ path: battle/orders
+;@ Picks the enemy target with the cursor. B goes back (to the order window after attack,
+;@ to the skill list after a skill); A takes the enemy, or prints that it is not there.
+;@ test: skip draws to the screen
 EnemyTargetInput::
-	ld de, $5664
+;> if wConfirmChoice2 >= 4:
+	ld de, EnemyTargetCursors
 	ld hl, wBattleTemp
 	ld a, [wConfirmChoice2]
 	cp $04
-	jr c, jr_050_4e2a
+	jr c, .enemies
 
+;>     n = wPartyBattlers
 	ld a, [wPartyBattlers]
-	jr jr_050_4e2d
+	jr .count
 
-jr_050_4e2a:
+.enemies
+;> else:
+;>     n = wEnemyCount
 	ld a, [wEnemyCount]
 
-jr_050_4e2d:
+.count
+;>@u UpdateTargetCursor(wBattleTemp, EnemyTargetCursors, n, 0 if wLinkFlags & 0x02 else 4)
 	ld b, a
 	ld a, [wLinkFlags]
 	rlca
 	and $04
 	xor $04
 	ld c, a
+;=@u
 	call UpdateTargetCursor
+;> if wJoyPressed & 0x02:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_050_4e54
+	jr z, .a
 
+;>     wOrderStep = 1 if wMenuChoice3 == 0x80 else 3
 	ld a, [wMenuChoice3]
 	cp $80
 	ld a, $01
-	jr z, jr_050_4e4c
+	jr z, .back
 
 	ld a, $03
 
-jr_050_4e4c:
+.back
 	ld [wOrderStep], a
-	call Call_50_56EB
-	jr jr_050_4e89
+;>     ClearLetterTiles()
+;>     return
+	call ClearLetterTiles
+	jr .done
 
-jr_050_4e54:
+.a
+;> if not wJoyPressed & 0x01:
+;>     return
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_050_4e89
+	jp z, .done
 
+;> target = wBattleTemp & 0x7F
 	ld a, [wBattleTemp]
 	res 7, a
 	ld c, a
+;> if not wLinkFlags & 0x02:
+;>     target |= 4
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_050_4e6b
+	jr nz, .check
 
 	set 2, c
 
-jr_050_4e6b:
+.check
+;> if CheckBattlerPresent(target):
+;>     return TargetGone(target)
 	ld a, c
 	call CheckBattlerPresent
 	jp c, TargetGone
 
+;> SetActionTarget(target)
 	call SetActionTarget
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> MarkOrderGiven()
 	call MarkOrderGiven
+;> wOrderStep = 11
 	ld a, $0b
 	ld [wOrderStep], a
-	call Call_50_56EB
+;> ClearLetterTiles()
+	call ClearLetterTiles
+;> LoadWindowLetters_3()
 	ld hl, far_LoadWindowLetters_3
 	rst $10
 
-Jump_050_4e89:
-jr_050_4e89:
+.done
 	ret
 
 
+;@ def OrdersWaitText()
+;@ path: battle/orders
+;@ Order step 9: once the message is read, back to the order window.
 OrdersWaitText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> wOrderStep = 1
 	ld a, $01
 	ld [wOrderStep], a
 	ret
 
 
+;@ def OrdersWaitTextBack()
+;@ path: battle/orders
+;@ Order step 10: once the message is read, back to the order window (after attack) or
+;@ the skill list (after a skill).
 OrdersWaitTextBack::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> wOrderStep = 2 * (wMenuChoice3 & 1) + 1
 	ld a, [wMenuChoice3]
 	and $01
 	add a
@@ -3364,139 +3493,208 @@ OrdersWaitTextBack::
 	ret
 
 
+;@ def OrdersNextMon()
+;@ path: battle/orders
+;@ Order step 11: the monster's order is given. One by one (from the tactic window): its
+;@ tactic is set and the next monster's tactic window follows. For the whole party: the
+;@ orders go on with the next monster that can take them; monsters that can't act attack
+;@ on their own (action $3A), busy ones are passed over (wBattlerOrder 2); after the last,
+;@ the orders are done (OrdersDone).
+;@ test: skip calls routines in other banks
 OrdersNextMon::
+;> if wMenuChoice2 != 0x80:               # one by one
 	ld a, [wMenuChoice2]
 	cp $80
-	jr z, jr_050_4ed7
+	jr z, .find
 
+;>     wMenuChoice = 0x81
 	ld a, $81
 	ld [wMenuChoice], a
+;>     wCommandSubStep = 4
 	ld a, $04
 	ld [wCommandSubStep], a
+;>     SetMonTactic()
 	call SetMonTactic
-	call Call_50_56EB
+;>     ClearLetterTiles()
+	call ClearLetterTiles
+;>     LoadWindowLetters_3()
+;>     return
 	ld hl, far_LoadWindowLetters_3
 	rst $10
 	jp Jump_050_4f61
 
-
-jr_050_4ec9:
+.passed
+;=@pa
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@pa
 	ld h, a
 	ld [hl], $02
 
-jr_050_4ed7:
+.find
+;> while True:
+;>@od     if wSkillUser == 1 or wConfirmChoice2 & 3 == wSkillUser: return OrdersDone()
 	ld a, [wSkillUser]
 	cp $01
-	jr z, jr_050_4f36
+	jr z, OrdersDone
 
 	ld b, a
 	ld a, [wConfirmChoice2]
+;=@od
 	and $03
 	cp b
-	jr z, jr_050_4f36
+	jr z, OrdersDone
 
+;>     wConfirmChoice2 += 1
 	ld hl, wConfirmChoice2
 	inc [hl]
+;>     if wConfirmChoice2 & 3 == 3:
+;>         return OrdersDone()
 	ld a, [hl]
 	and $03
 	cp $03
-	jr z, jr_050_4f36
+	jr z, OrdersDone
 
+;>     if CheckBattlerPresent(wConfirmChoice2):
+;>         continue
 	ld a, [hl]
 	call CheckBattlerPresent
-	jr c, jr_050_4ed7
+	jr c, .find
 
+;>     if CheckBattlerCanAct(wConfirmChoice2):
+;>@au         mem16[wBattlerAction + 2 * wConfirmChoice2] = 0x3A | wConfirmChoice2 << 8   # attacks by itself
 	ld a, [hl]
 	call CheckBattlerCanAct
-	jr c, jr_050_4f16
+	jr c, .auto
 
+;>@au2         wBattlerOrder[wConfirmChoice2] = 1; continue
+;>     s = wBattlerStatus4 + 8 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
+;>     if mem[s] & 0x04 or mem[s + 1] & 0x10:
+;>@pa         wBattlerOrder[wConfirmChoice2] = 2; continue      # passed over
 	bit 2, [hl]
-	jr nz, jr_050_4ec9
+	jr nz, .passed
 
 	inc hl
 	bit 4, [hl]
-	jr nz, jr_050_4ec9
+	jr nz, .passed
 
+;>     wOrderStep = 0                     # orders for this monster
+;>     return
 	xor a
 	ld [wOrderStep], a
-	jr jr_050_4f61
+	jr Jump_050_4f61
 
-jr_050_4f16:
+.auto
+;=@au
 	ld a, [hl]
 	push bc
 	ld b, a
 	ld hl, wBattlerAction
 	add a
 	add l
+;=@au
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, $3a
 	ld [hli], a
+;=@au
 	ld a, b
 	ld [hl], a
 	pop bc
+;=@au2
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@au2
 	ld [hl], $01
-	jr jr_050_4ed7
+	jr .find
 
+;@ def OrdersDone()
+;@ path: battle/orders
+;@ The direct orders are complete: back to the tactics command (step 4), which then marks
+;@ the held monsters (TacticsMarkUnable) and ends.
+;@ test: skip calls routines with side effects
 OrdersDone::
-jr_050_4f36:
+;> wMenuChoice = 0x81
 	ld a, $81
 	ld [wMenuChoice], a
+;> wCommandSubStep = 4
 	ld a, $04
 	ld [wCommandSubStep], a
+;> TacticsMarkUnable()
 	call TacticsMarkUnable
-	jr jr_050_4f61
+	jr Jump_050_4f61
 
+;@ def MarkOrderGiven()
+;@ path: battle/orders
+;@ Monster wConfirmChoice2 is decided and acts on direct orders (tactic 3).
 MarkOrderGiven::
+;>@o wBattlerOrder[wConfirmChoice2] = 1
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $01
+;>@t wBattlerTactic[wConfirmChoice2] = 3
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t
 	ld h, a
 	ld [hl], $03
 
 Jump_050_4f61:
-jr_050_4f61:
 	ret
 
 
+;@ def UnusedRedrawBattleWindows()
+;@ path: unused
+;@ Unused: redraws the battle screen into the buffer (clear, enemy pictures, panel),
+;@ followed by two stray ret bytes.
+;@ test: skip draws to the screen
 UnusedRedrawBattleWindows::
-	db $cd, $4e, $77, $cd, $4c, $79, $cd, $b4, $79, $c9, $c9, $c9
+;> ClearTilemapBuffer_50()
+	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
+	call DrawEnemyPictures
+;> DrawBattlePanel()
+	call DrawBattlePanel
+	ret
 
+	ret
+	ret
+
+;@ def ClearMonAction()
+;@ path: battle/orders
+;@ Clears the action of monster wConfirmChoice2 ($FF $FF: the tactic decides).
 ClearMonAction::
+;>@a mem16[wBattlerAction + 2 * wConfirmChoice2] = 0xFFFF
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld a, $ff
@@ -3505,522 +3703,759 @@ ClearMonAction::
 	ret
 
 
+;@ def SetActionSkillTarget(skill: b, target: c)
+;@ path: battle/orders
+;@ Sets the action of monster wConfirmChoice2: `skill` on `target`.
 SetActionSkillTarget::
+;> SetActionSkill(skill)
 	call SetActionSkill
+;> mem[wBattlerAction + 2 * wConfirmChoice2 + 1] = target
 	inc hl
 	ld [hl], c
 	ret
 
 
+;@ def SetActionSkill(skill: b) -> hl
+;@ path: battle/orders
+;@ Sets the skill of monster wConfirmChoice2's action; returns its address.
 SetActionSkill::
+;>@a p = wBattlerAction + 2 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
+;> mem[p] = skill
 	ld [hl], b
 	ret
 
 
+;@ def SetActionTarget(target: c)
+;@ path: battle/orders
+;@ Sets the target of monster wConfirmChoice2's action.
 SetActionTarget::
+;>@a mem[wBattlerAction + 1 + 2 * wConfirmChoice2] = target
 	ld a, [wConfirmChoice2]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld [hl], c
 	ret
 
 
+;@ def CountPresentOnSide(first: a) -> (b, c)
+;@ path: battle/orders
+;@ Counts the monsters in the fight at positions first .. first + 2; returns the count and
+;@ the last of them (0 when none).
 CountPresentOnSide::
+;> n = 0; last = 0
 	push de
 	ld c, a
 	ld b, $03
 	ld de, $0000
-
-jr_050_4fab:
+.loop
+;>@f for p in range(first, first + 3):
+;>     if not CheckBattlerPresent(p):
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_050_4fb3
+	jr c, .next
 
+;>         n += 1; last = p
 	inc d
 	ld e, c
 
-jr_050_4fb3:
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_050_4fab
+	jr nz, .loop
 
+;> return n, last
 	ld b, d
 	ld c, e
 	pop de
 	ret
 
 
+;@ def ItemCommand()
+;@ path: battle/item
+;@ The item command: while no message prints, runs step wCommandSubStep of
+;@ ItemCommandSteps.
+;@ test: skip jump table
 ItemCommand::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> return ItemCommandSteps[wCommandSubStep]()
 	ld a, [wCommandSubStep]
 	rst $00
 
+;@ path: battle/item
+;@ Steps of the item command: 0 check the bag, 1 open the item list, 2 choose an item,
+;@ 3-4 choose the side, 5-6 an own monster, 7-8 an enemy, 9 done, 10-13 wait for a message
+;@ and go back (to the list, the menu, the own or the enemy target window), 14 clear the
+;@ name letters.
 ItemCommandSteps::
-	dw Jump_50_4FE2
-	dw Jump_50_5040
-	dw Jump_50_50C5
-	dw Jump_50_51CC
-	dw Jump_50_5207
-	dw Jump_50_528E
-	dw Jump_50_52D7
-	dw Jump_50_5372
-	dw Jump_50_5602
-	dw Jump_50_5697
-	dw Jump_50_56AC
-	dw Jump_50_56BA
-	dw Jump_50_56CB
-	dw Jump_50_56D9
-	dw Call_50_56EB
+	dw ItemStart
+	dw ItemListOpen
+	dw BattleItemListInput
+	dw ItemSideOpen
+	dw ItemSideInput
+	dw ItemAllyOpen
+	dw ItemAllyInput
+	dw ItemEnemyOpen
+	dw ItemEnemyInput
+	dw ItemDone
+	dw ItemWaitToList
+	dw ItemWaitToMenu
+	dw ItemWaitToAlly
+	dw ItemWaitToEnemy
+	dw ClearLetterTiles
 
-Jump_50_4FE2::
+;@ def ItemStart()
+;@ path: battle/item
+;@ Items can't be used in tournament battles (message $F4). Otherwise the item list
+;@ opens if one of the carried items (up to the first empty bag slot) can be used in
+;@ battle (skill word $0A of its effect $AF + item is not 1); else message $00F3.
+;@ test: skip calls routines in other banks
+ItemStart::
+;> if wBattleType == 2:
+;>@t     return ShowMenuMessage(0xF4)
 	ld a, [wBattleType]
 	cp $02
-	jr z, jr_050_503a
+	jr z, .tournament
 
+;>@f for slot in range(20):
 	ld bc, $1400
-
-jr_050_4fec:
+.loop
+;>@i     item = wBagItems[slot]
 	ld hl, wBagItems
 	ld a, c
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@i
 	ld h, a
 	ld a, [hl]
+;>     if item in (0xFF, 0):
+;>         break
 	cp $ff
-	jr z, jr_050_5020
+	jr z, .none
 
 	or a
-	jr z, jr_050_5020
+	jr z, .none
 
+;>     wBattleArg0 = 0xAF + item
 	push bc
 	ld a, [hl]
 	add $af
 	ld a, a
 	ld [wBattleArg0], a
+;>     wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;>     wBattleArg2 = 0x0A
 	ld a, $0a
 	ld [wBattleArg2], a
+;>     GetSkillWord()
 	ld hl, far_GetSkillWord
 	rst $10
+;>     if wBattleArg0 != 1:               # usable in battle
+;>@u         wCommandSubStep += 1; return
 	ld a, [wBattleArg0]
 	cp $01
 	pop bc
-	jr nz, jr_050_5035
+	jr nz, .usable
 
+;=@f
 	inc c
 	dec b
-	jr nz, jr_050_4fec
+	jr nz, .loop
 
-jr_050_5020:
+.none
+;> RedrawBattleBase()
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
+;> ShowItemMessage(0xF300)                # nothing to use
 	ld hl, $f300
-	call Call_50_51AA
+	call ShowItemMessage
+;> wCommandSubStep = 11
 	ld a, $0b
 	ld [wCommandSubStep], a
 	ret
 
-
-jr_050_5035:
+.usable
+;=@u
 	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
-
-jr_050_503a:
+.tournament
+;=@t
 	ld a, $f4
 	call ShowMenuMessage
 	ret
 
 
-Jump_50_5040::
-	call Call_50_50AC
-	call Call_50_506F
+;@ def ItemListOpen()
+;@ path: battle/item
+;@ Opens the item list: the names of page wConfirmChoice, the list cursor on wMenuChoice2.
+;@ test: skip prints through another bank
+ItemListOpen::
+;> CountBagItems_50()
+	call CountBagItems_50
+;> PrintItemPage()
+	call PrintItemPage
+;> RedrawBattleBase()
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
-	ld de, $6fce
+;> DrawWindowLayout_50(BattleItemWindow)
+	ld de, BattleItemWindow
 	call DrawWindowLayout_50
+;> ResetCursorBlink_50()
 	call ResetCursorBlink_50
-	ld de, $51c0
+;> DrawListCursor_50(wMenuChoice2, ItemListCursors, 4, wBattleListCount)
+	ld de, ItemListCursors
 	ld b, $04
 	ld a, [wBattleListCount]
 	ld c, a
 	ld hl, wMenuChoice2
 	call DrawListCursor_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wCommandSubStep += 1
 	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
 
-Call_50_506F::
+;@ def PrintItemPage()
+;@ path: battle/item
+;@ Prints the names of the four bag items of page wConfirmChoice into the letter tiles from
+;@ $88C0 (9 tiles each).
+;@ test: skip prints through another bank
+PrintItemPage::
+;>@i item = wBagItems + 4 * wConfirmChoice
 	ld de, wBagItems
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	add e
 	ld e, a
+;=@i
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x88C0
 	ld hl, $88c0
-	call Call_50_5089
-	call Call_50_5089
-	call Call_50_5089
+;> for i in range(4):
+;>     tiles, item = PrintItemName(tiles, item)
+	call PrintItemName
+	call PrintItemName
+	call PrintItemName
 
-Call_50_5089::
+;@ def PrintItemName(tiles: hl, item: de) -> (hl, de)
+;@ path: battle/item
+;@ Prints the name of the item at `item` (text $08xx; $FF prints $0800, a blank) into 9
+;@ letter tiles at `tiles`; returns the next tiles and the next bag slot.
+;@ test: skip prints through another bank
+PrintItemName::
+;> n = mem[item]
 	push de
 	push hl
 	ld a, [de]
+;> if n == 0xFF:
+;>     n = 0
 	cp $ff
-	jr nz, jr_050_5092
+	jr nz, .print
 
 	ld a, $00
 
-jr_050_5092:
+.print
+;> wTextIndex = n
 	ld [wTextIndex], a
+;> wTextGroup = 8
 	ld a, $08
 	ld [wTextGroup], a
+;> PrintTextToTiles_50(tiles, 1, 9)
 	ld de, $0901
 	call PrintTextToTiles_50
+;>@r return tiles + 0x90, item + 1
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
 	ret
 
 
-Call_50_50AC::
+;@ def CountBagItems_50()
+;@ path: battle/item
+;@ Counts the bag items up to the first empty slot into wBattleListCount.
+CountBagItems_50::
+;> n = 0
 	ld hl, wBagItems
 	ld b, $14
 	ld c, $00
-
-jr_050_50b3:
+.loop
+;>@f for slot in range(20):
+;>     if wBagItems[slot] in (0, 0xFF): break
 	ld a, [hli]
 	cp $00
-	jr z, jr_050_50c0
+	jr z, .done
 
 	cp $ff
-	jr z, jr_050_50c0
+	jr z, .done
 
+;>     n += 1
 	inc c
+;=@f
 	dec b
-	jr nz, jr_050_50b3
+	jr nz, .loop
 
-jr_050_50c0:
+.done
+;> wBattleListCount = n
 	ld a, c
 	ld [wBattleListCount], a
 	ret
 
 
-Jump_50_50C5::
-	ld de, $51c0
+;@ def BattleItemListInput()
+;@ path: battle/item
+;@ The item list: Left / Right turn the page, Up / Down pick an item, B goes back to the
+;@ menu. A asks GetBattleItemTarget for the item's target kind (0: can't be used now,
+;@ message $00F2): $11 one enemy (the target window unless only one is left), $12 all
+;@ enemies, $21 one own monster, $22 the whole own side, others let the player choose the
+;@ side first.
+;@ test: skip draws to the screen
+BattleItemListInput::
+;>@p page = wConfirmChoice
+	ld de, ItemListCursors
 	ld hl, wMenuChoice2
 	ld a, [wBattleListCount]
 	ld c, a
 	ld b, $04
 	inc hl
+;=@p
 	ld a, [hld]
+;> UpdateListCursor_50(wMenuChoice2, ItemListCursors, 4, wBattleListCount)
 	push af
 	call UpdateListCursor_50
+;> if wConfirmChoice != page:
+;>     PrintItemPage()
 	pop af
 	ld hl, wConfirmChoice
 	cp [hl]
-	jr z, jr_050_50e1
+	jr z, .keys
 
-	call Call_50_506F
+	call PrintItemPage
 
-jr_050_50e1:
+.keys
+;> if wJoyPressed & 0x02:                 # B: back to the menu
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_050_50f4
+	jr z, .a
 
+;>     LoadWindowLetters_5()
 	ld hl, far_LoadWindowLetters_5
 	rst $10
+;>     wCommandStep = 1
+;>     return
 	ld a, $01
 	ld [wCommandStep], a
-	jp Jump_050_517a
+	jp .done
 
-
-jr_050_50f4:
+.a
+;> if not wJoyPressed & 0x01:
+;>     return
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_050_517a
+	jp z, .done
 
+;> wMenuChoice2 &= 0x7F
 	ld hl, wMenuChoice2
 	res 7, [hl]
+;>@e wBattleArg0 = 0xAF + wBagItems[4 * wConfirmChoice + wMenuChoice2]    # the item's effect
 	ld a, [wConfirmChoice]
 	add a
 	add a
 	add [hl]
 	ld hl, wBagItems
 	add l
+;=@e
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, $af
 	add [hl]
+;=@e
 	ld [wBattleArg0], a
+;> GetBattleItemTarget()
 	ld hl, far_GetBattleItemTarget
 	rst $10
+;> if wBattleArg0 == 0:                   # not usable now
+;>     return ItemNotUsable()
 	ld a, [wBattleArg0]
 	or a
-	jr z, jr_050_5199
+	jr z, ItemNotUsable
 
+;> wBattleItemTarget = wBattleArg0
 	ld a, [wBattleArg0]
 	ld [wBattleItemTarget], a
+;> wBattleItemEffect = wBattleArg1
 	ld a, [wBattleArg1]
 	ld [wBattleItemEffect], a
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> LoadWindowLetters_6()
 	ld hl, far_LoadWindowLetters_6
 	rst $10
+;>@k1 if wBattleItemTarget == 0x11:       # one enemy
+;>@k1b     if FindSingleEnemy(): wCommandSubStep = 9     # only one left: it is the target
 	ld a, [wBattleItemTarget]
 	cp $11
-	jr z, jr_050_514e
+	jr z, .oneEnemy
 
+;>@k1c     else: ClearLetterTiles(); wCommandSubStep = 7
+;>@k2 elif wBattleItemTarget == 0x12:     # all enemies
 	cp $12
-	jr z, jr_050_515d
+	jr z, .allEnemies
 
+;>@k2b     wBattleItemTarget = 4; wCommandSubStep = 9
+;>@k3 elif wBattleItemTarget == 0x21:     # one own monster
 	cp $21
-	jr z, jr_050_5169
+	jr z, .oneAlly
 
+;>@k3b     wCommandSubStep = 5
+;>@k4 elif wBattleItemTarget == 0x22:     # the own side
 	cp $22
-	jr z, jr_050_5170
+	jr z, .allAllies
 
+;>@k4b     wBattleItemTarget = 0; wCommandSubStep = 9
+;> else:                                  # the player chooses the side
+;>     wCommandSubStep += 1
 	ld hl, wCommandSubStep
 	inc [hl]
-	jr jr_050_517a
+	jr .done
 
-jr_050_514e:
-	call Call_50_517B
-	jr z, jr_050_5175
+.oneEnemy
+;=@k1b
+	call FindSingleEnemy
+	jr z, .decided
 
-	call Call_50_56EB
+;=@k1c
+	call ClearLetterTiles
 	ld a, $07
 	ld [wCommandSubStep], a
-	jr jr_050_517a
+	jr .done
 
-jr_050_515d:
+.allEnemies
+;=@k2b
 	ld a, $04
 	ld [wBattleItemTarget], a
 	ld a, $09
 	ld [wCommandSubStep], a
-	jr jr_050_517a
+	jr .done
 
-jr_050_5169:
+.oneAlly
+;=@k3b
 	ld a, $05
 	ld [wCommandSubStep], a
-	jr jr_050_517a
+	jr .done
 
-jr_050_5170:
+.allAllies
+;=@k4b
 	ld a, $00
 	ld [wBattleItemTarget], a
 
-jr_050_5175:
+.decided
+;=@k1b
 	ld a, $09
 	ld [wCommandSubStep], a
 
-Jump_050_517a:
-jr_050_517a:
+.done
 	ret
 
 
-Call_50_517B::
+;@ def FindSingleEnemy() -> zero
+;@ path: battle/item
+;@ Zero when exactly one enemy is still standing (wEnemyDown 0); its position then goes to
+;@ wBattleItemTarget.
+FindSingleEnemy::
+;> n = 0; pos = 4
 	ld hl, wEnemyDown
 	ld a, [wEnemyCount]
 	ld b, a
 	ld c, $00
 	ld d, $04
-
-jr_050_5186:
+.loop
+;>@f for i in range(wEnemyCount):
+;>     if not wEnemyDown[i]:
 	ld a, [hli]
 	or a
-	jr nz, jr_050_518c
+	jr nz, .next
 
+;>         n += 1; last = 4 + i
 	inc c
 	ld e, d
 
-jr_050_518c:
+.next
+;=@f
 	inc d
 	dec b
-	jr nz, jr_050_5186
+	jr nz, .loop
 
+;> if n != 1:
+;>     return False
 	ld a, c
 	cp $01
 	ret nz
 
+;> wBattleItemTarget = last
+;> return True
 	ld a, e
 	ld [wBattleItemTarget], a
 	ret
 
 
-jr_050_5199:
+;@ def ItemNotUsable()
+;@ path: battle/item
+;@ The item can't be used now: message $00F2, then back to the list (item step 10).
+;@ test: skip prints through another bank
+ItemNotUsable::
+;> RedrawBattleBase()
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
+;> wCommandSubStep = 10
 	ld hl, $f200
 	ld a, $0a
 	ld [wCommandSubStep], a
+;> ShowItemMessage(0xF200)
 
-Call_50_51AA::
+;@ def ShowItemMessage(text: hl)
+;@ path: battle/item
+;@ Starts message `text` (low byte group, high byte entry) in the message window and shows
+;@ the screen.
+;@ test: skip prints through another bank
+ShowItemMessage::
+;> wTextGroup = lo(text)
 	ld a, l
 	ld [wTextGroup], a
+;> wTextIndex = hi(text)
 	ld a, h
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> DrawWindowLayout_50(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
 	ret
 
 
+;@ path: battle/item
+;@ Cursor table of the item list: the page marker position, then the four rows.
 ItemListCursors::
-	db $2a, $02, $41, $01, $81, $01, $c1, $01, $01, $02, $ff, $ff
+	dw $022a                     ; row 17, column 10
+	dw $0141                     ; row 10, column 1
+	dw $0181                     ; row 12, column 1
+	dw $01c1                     ; row 14, column 1
+	dw $0201                     ; row 16, column 1
+	dw $ffff
 
-Jump_50_51CC::
+;@ def ItemSideOpen()
+;@ path: battle/item
+;@ Opens the window that chooses the side an item is used on: row 0 the own side, row 1
+;@ the enemies (the cursor starts there for the effects $C2-$C6).
+;@ test: skip reads layouts from ROM
+ItemSideOpen::
+;> RedrawBattleBase()
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
-	ld de, $7045
+;> DrawWindowLayout_50(ItemUseWindow)
+	ld de, ItemUseWindow
 	call DrawWindowLayout_50
+;> ResetCursorBlink_50()
 	call ResetCursorBlink_50
-	ld de, $5288
+;> wConfirmChoice2 = 0
+	ld de, ItemUseCursors
 	xor a
 	ld [wConfirmChoice2], a
 	ld a, [wConfirmChoice2]
 	ld b, a
+;> if 0xC2 <= wBattleItemEffect < 0xC7:
 	ld a, [wBattleItemEffect]
 	cp $c2
-	jr c, jr_050_51fb
+	jr c, .draw
 
 	cp $c7
-	jr nc, jr_050_51fb
+	jr nc, .draw
 
+;>     wConfirmChoice2 = 1
 	ld a, $01
 	ld [wConfirmChoice2], a
 	ld b, $01
 
-jr_050_51fb:
+.draw
+;> DrawCursorAt_50(wConfirmChoice2, ItemUseCursors)
 	ld a, b
 	call DrawCursorAt_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wCommandSubStep += 1
 	ld hl, wCommandSubStep
 	inc [hl]
 	ret
 
 
-Jump_50_5207::
-	ld de, $5288
+;@ def ItemSideInput()
+;@ path: battle/item
+;@ Chooses the side: B goes back to the list. Own side: the own target window when the
+;@ target kind's bit 0 is set, else the whole side (position 0). Enemies: the enemy target
+;@ window when bit 0 is set (and the effect is not $C2-$C6), else the whole enemy side
+;@ (position 4).
+;@ test: skip draws to the screen
+ItemSideInput::
+;> UpdateMenuCursor_50(wConfirmChoice2, 2, ItemUseCursors)
+	ld de, ItemUseCursors
 	ld hl, wConfirmChoice2
 	ld b, $02
 	call UpdateMenuCursor_50
+;> if wJoyPressed & 0x02:                 # B: the item list
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_050_5227
+	jr z, .a
 
+;>     wCommandSubStep -= 3
 	ld hl, wCommandSubStep
 	dec [hl]
 	ld hl, wCommandSubStep
 	dec [hl]
 	ld hl, wCommandSubStep
 	dec [hl]
-	jr jr_050_5287
+;>     return
+	jr .done
 
-jr_050_5227:
+.a
+;> if not wJoyPressed & 0x01:
+;>     return
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_050_5287
+	jp z, .done
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> LoadWindowLetters_2()
 	ld hl, far_LoadWindowLetters_2
 	rst $10
+;> wMenuChoice3 = 0x80
 	ld a, $80
 	ld [wMenuChoice3], a
+;> if wConfirmChoice2 == 0x80:            # the own side
+;>@own     if wBattleItemTarget & 0x01:
+;>@o5         wCommandSubStep = 5            # the own target window
+;>@o5r         return
+;>@own2     wCommandSubStep = 9                # the whole own side
+;>@o0     wBattleItemTarget = 0
+;>@o0r     return
 	ld a, [wConfirmChoice2]
 	cp $80
-	jr z, jr_050_526d
+	jr z, .own
 
+;> if wBattleItemEffect < 0xC2 or wBattleItemEffect >= 0xC7:
 	ld a, [wBattleItemEffect]
 	cp $c2
-	jr c, jr_050_524f
+	jr c, .check
 
 	cp $c7
-	jr c, jr_050_525f
+	jr c, .wholeEnemies
 
-jr_050_524f:
+.check
+;>     if wBattleItemTarget & 0x01:
 	ld a, [wBattleItemTarget]
 	and $0f
 	bit 0, a
-	jr z, jr_050_525f
+	jr z, .wholeEnemies
 
+;>         wCommandSubStep = 7            # the enemy target window
 	ld a, $07
 	ld [wCommandSubStep], a
-	jr jr_050_5287
+;>         return
+	jr .done
 
-jr_050_525f:
+.wholeEnemies
+;> wBattleItemTarget = 4                  # all enemies
 	ld a, $04
 	ld [wBattleItemTarget], a
+;> wCommandSubStep = 9
 	ld a, $09
 	ld [wCommandSubStep], a
-	jr jr_050_5287
+;> return
+	jr .done
 
-	db $18, $1a
+	db $18, $1a                  ; a stray jr nothing reaches
 
-jr_050_526d:
+.own
+;=@own
 	ld a, [wBattleItemTarget]
 	and $0f
 	bit 0, a
-	jr z, jr_050_527d
+	jr z, .wholeOwn
 
+;=@o5
 	ld a, $05
 	ld [wCommandSubStep], a
-	jr jr_050_5287
+;=@o5r
+	jr .done
 
-jr_050_527d:
+.wholeOwn
+;=@own2
 	ld a, $09
 	ld [wCommandSubStep], a
+;=@o0
 	ld a, $00
 	ld [wBattleItemTarget], a
 
-Jump_050_5287:
-jr_050_5287:
+.done
+;=@o0r
 	ret
 
 
+;@ path: battle/item
+;@ Cursor places of the side choice: own side (row 14), enemies (row 16).
 ItemUseCursors::
-	db $c1, $01, $01, $02, $ff, $ff
+	dw $01c1                     ; row 14, column 1
+	dw $0201                     ; row 16, column 1
+	dw $ffff
 
-Jump_50_528E::
+ItemAllyOpen::
 	ld a, [wBattleItemEffect]
 	ld [wTargetSkill], a
 	ld a, a
@@ -4059,7 +4494,7 @@ jr_050_52c4:
 	ret
 
 
-Jump_50_52D7::
+ItemAllyInput::
 	ld de, $5339
 	ld hl, wMenuChoice3
 	ld a, [wPartyBattlers]
@@ -4145,12 +4580,12 @@ ItemAllyTargetGone::
 	ret
 
 
-Jump_50_5372::
+ItemEnemyOpen::
 	ld a, [wBattleItemEffect]
 	ld [wTargetSkill], a
 	ld a, a
 	ld [wTargetCursorSkill], a
-	call Call_50_53DC
+	call PrintEnemyTargetNames
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
@@ -4185,7 +4620,7 @@ jr_050_53aa:
 	ret
 
 
-Call_50_53BD::
+SetEnemySideBase::
 	ld a, [wLinkFlags]
 	rlca
 	and $04
@@ -4194,7 +4629,7 @@ Call_50_53BD::
 	ret
 
 
-Call_50_53C9::
+CheckNoRevival::
 	ld a, [wTargetSkill]
 	cp $30
 	jr z, jr_050_53da
@@ -4214,14 +4649,14 @@ jr_050_53da:
 	ret
 
 
-Call_50_53DC::
+PrintEnemyTargetNames::
 	ld a, [wLinkActive]
 	or a
-	jp nz, Jump_050_549e
+	jp nz, PrintLinkTargetNames
 
-	call Call_50_53BD
+	call SetEnemySideBase
 	call CheckBattlerPresent
-	call c, Call_50_53C9
+	call c, CheckNoRevival
 	jr c, jr_050_53fe
 
 	xor a
@@ -4230,18 +4665,18 @@ Call_50_53DC::
 	cp $ff
 	jr z, jr_050_5403
 
-	call Call_50_5530
+	call PrintEnemyName1
 	jr jr_050_540e
 
 jr_050_53fe:
-	call Call_50_547E
+	call BlankEnemyName1
 	jr jr_050_540e
 
 jr_050_5403:
-	call Call_50_547E
+	call BlankEnemyName1
 	ld a, $01
 	ld [wBattleArg2], a
-	call Call_50_5530
+	call PrintEnemyName1
 
 jr_050_540e:
 	xor a
@@ -4250,33 +4685,33 @@ jr_050_540e:
 	cp $00
 	jr nz, jr_050_541e
 
-	call Call_50_5485
-	jr Call_50_548C
+	call BlankEnemyName2
+	jr BlankEnemyName3
 
 jr_050_541e:
 	ld a, [wBattleTempHigh]
 	inc a
 	ld [wBattleTempHigh], a
 	call CheckBattlerPresent
-	call c, Call_50_53C9
+	call c, CheckNoRevival
 	jr c, jr_050_5439
 
 	ld a, [$c1cb]
 	cp $ff
 	jr z, jr_050_543e
 
-	call Call_50_553D
+	call PrintEnemyName2
 	jr jr_050_5449
 
 jr_050_5439:
-	call Call_50_5485
+	call BlankEnemyName2
 	jr jr_050_5449
 
 jr_050_543e:
-	call Call_50_5485
+	call BlankEnemyName2
 	ld a, $01
 	ld [wBattleArg2], a
-	call Call_50_553D
+	call PrintEnemyName2
 
 jr_050_5449:
 	xor a
@@ -4285,166 +4720,166 @@ jr_050_5449:
 	cp $01
 	jr nz, jr_050_5456
 
-	jr Call_50_548C
+	jr BlankEnemyName3
 
 jr_050_5456:
 	ld a, [wBattleTempHigh]
 	inc a
 	ld [wBattleTempHigh], a
 	call CheckBattlerPresent
-	call c, Call_50_53C9
+	call c, CheckNoRevival
 	jr c, jr_050_5470
 
 	ld a, [$c1cc]
 	cp $ff
 	jr z, jr_050_5472
 
-	call Call_50_554A
+	call PrintEnemyName3
 	ret
 
 
 jr_050_5470:
-	jr Call_50_548C
+	jr BlankEnemyName3
 
 jr_050_5472:
-	call Call_50_548C
+	call BlankEnemyName3
 	ld a, $01
 	ld [wBattleArg2], a
-	call Call_50_554A
+	call PrintEnemyName3
 	ret
 
 
-Call_50_547E::
+BlankEnemyName1::
 	ld hl, $88c0
 	ld b, $a0
-	jr Call_50_5491
+	jr FillLetterTiles
 
-Call_50_5485::
+BlankEnemyName2::
 	ld hl, $8960
 	ld b, $a0
-	jr Call_50_5491
+	jr FillLetterTiles
 
-Call_50_548C::
+BlankEnemyName3::
 	ld hl, $8a00
 	ld b, $a0
 
-Call_50_5491::
+FillLetterTiles::
 	ld a, $ff
 	call WriteVRAMInc
 	xor a
 	call WriteVRAMInc
 	dec b
-	jr nz, Call_50_5491
+	jr nz, FillLetterTiles
 
 	ret
 
 
-Jump_050_549e:
+PrintLinkTargetNames::
 	xor a
-	ld [$c1d7], a
+	ld [wTargetNamePos], a
 	ld a, [wPartyBattlers]
-	ld [$c1d8], a
+	ld [wTargetNameCount], a
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr nz, jr_050_54ba
 
 	ld a, $04
-	ld [$c1d7], a
+	ld [wTargetNamePos], a
 	ld a, [wEnemyCount]
-	ld [$c1d8], a
+	ld [wTargetNameCount], a
 
 jr_050_54ba:
-	ld a, [$c1d7]
+	ld a, [wTargetNamePos]
 	call CheckBattlerPresent
-	call c, Call_50_53C9
+	call c, CheckNoRevival
 	jr nc, jr_050_54ca
 
-	call Call_50_547E
+	call BlankEnemyName1
 	jr jr_050_54d9
 
 jr_050_54ca:
-	ld a, [$c1d7]
-	call Call_50_55F9
-	ld a, [$c1d7]
+	ld a, [wTargetNamePos]
+	call GetPartyMonNameAddr
+	ld a, [wTargetNamePos]
 	ld hl, $88c0
-	call Call_50_5557
+	call PrintLinkEnemyName
 
 jr_050_54d9:
-	ld a, [$c1d8]
+	ld a, [wTargetNameCount]
 	cp $01
 	jr nz, jr_050_54e5
 
-	call Call_50_5485
-	jr Call_50_548C
+	call BlankEnemyName2
+	jr BlankEnemyName3
 
 jr_050_54e5:
-	ld hl, $c1d7
+	ld hl, wTargetNamePos
 	inc [hl]
 	ld a, [hl]
 	call CheckBattlerPresent
-	call c, Call_50_53C9
+	call c, CheckNoRevival
 	jr nc, jr_050_54f7
 
-	call Call_50_5485
+	call BlankEnemyName2
 	jr jr_050_5506
 
 jr_050_54f7:
-	ld a, [$c1d7]
-	call Call_50_55F9
-	ld a, [$c1d7]
+	ld a, [wTargetNamePos]
+	call GetPartyMonNameAddr
+	ld a, [wTargetNamePos]
 	ld hl, $8960
-	call Call_50_5557
+	call PrintLinkEnemyName
 
 jr_050_5506:
-	ld a, [$c1d8]
+	ld a, [wTargetNameCount]
 	cp $02
 	jr nz, jr_050_5510
 
-	jp Call_50_548C
+	jp BlankEnemyName3
 
 
 jr_050_5510:
-	ld hl, $c1d7
+	ld hl, wTargetNamePos
 	inc [hl]
 	ld a, [hl]
 	call CheckBattlerPresent
-	call c, Call_50_53C9
+	call c, CheckNoRevival
 	jr nc, jr_050_5520
 
-	jp Call_50_548C
+	jp BlankEnemyName3
 
 
 jr_050_5520:
-	ld a, [$c1d7]
-	call Call_50_55F9
-	ld a, [$c1d7]
+	ld a, [wTargetNamePos]
+	call GetPartyMonNameAddr
+	ld a, [wTargetNamePos]
 	ld hl, $8a00
-	call Call_50_5557
+	call PrintLinkEnemyName
 	ret
 
 
-Call_50_5530::
-	call Call_50_55F9
+PrintEnemyName1::
+	call GetPartyMonNameAddr
 	ld hl, $88c0
 	ld a, $00
 	ld [wBattleArg0], a
-	jr jr_050_556a
+	jr PrintEnemyNameAt
 
-Call_50_553D::
-	call Call_50_55F9
+PrintEnemyName2::
+	call GetPartyMonNameAddr
 	ld hl, $8960
 	ld a, $01
 	ld [wBattleArg0], a
-	jr jr_050_556a
+	jr PrintEnemyNameAt
 
-Call_50_554A::
-	call Call_50_55F9
+PrintEnemyName3::
+	call GetPartyMonNameAddr
 	ld hl, $8a00
 	ld a, $02
 	ld [wBattleArg0], a
-	jr jr_050_556a
+	jr PrintEnemyNameAt
 
-Call_50_5557::
+PrintLinkEnemyName::
 	push hl
 	call PrintNameToTiles_50
 	pop hl
@@ -4455,11 +4890,11 @@ Call_50_5557::
 	adc $00
 	ld h, a
 	ld b, $30
-	call Call_50_5491
+	call FillLetterTiles
 	ret
 
 
-jr_050_556a:
+PrintEnemyNameAt::
 	push hl
 	push hl
 	ld a, [wBattleArg0]
@@ -4547,11 +4982,11 @@ jr_050_55e3:
 	ld b, $10
 
 jr_050_55f5:
-	call Call_50_5491
+	call FillLetterTiles
 	ret
 
 
-Call_50_55F9::
+GetPartyMonNameAddr::
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
@@ -4559,7 +4994,7 @@ Call_50_55F9::
 	ret
 
 
-Jump_50_5602::
+ItemEnemyInput::
 	ld de, $5664
 	ld hl, wMenuChoice3
 	ld a, [wEncCount]
@@ -4585,7 +5020,7 @@ Jump_50_5602::
 	jr jr_050_5663
 
 jr_050_5630:
-	call Call_50_56EB
+	call ClearLetterTiles
 	ld a, $01
 	ld [wCommandSubStep], a
 	jr jr_050_5663
@@ -4627,7 +5062,7 @@ ItemEnemyTargetGone::
 	ld hl, wTextArg0
 	ld [wNamePos], a
 	call GetBattlerName_50
-	call Call_50_5708
+	call RedrawBattleBase
 	ld hl, $fa00
 	ld a, $0d
 	ld [wCommandSubStep], a
@@ -4643,7 +5078,7 @@ ItemEnemyTargetGone::
 	ret
 
 
-Jump_50_5697::
+ItemDone::
 	ld hl, wBattlerOrder
 	ld a, [wPartyBattlers]
 	ld b, a
@@ -4660,7 +5095,7 @@ jr_050_56a0:
 	ret
 
 
-Jump_50_56AC::
+ItemWaitToList::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4671,7 +5106,7 @@ Jump_50_56AC::
 	ret
 
 
-Jump_50_56BA::
+ItemWaitToMenu::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4684,7 +5119,7 @@ Jump_50_56BA::
 	ret
 
 
-Jump_50_56CB::
+ItemWaitToAlly::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4695,7 +5130,7 @@ Jump_50_56CB::
 	ret
 
 
-Jump_50_56D9::
+ItemWaitToEnemy::
 	ld a, [wTextState]
 	or a
 	ret nz
@@ -4709,11 +5144,11 @@ Jump_50_56D9::
 UnusedFarCall55::
 	db $21, $06, $55, $d7
 
-Call_50_56EB::
-	call Call_50_5708
+ClearLetterTiles::
+	call RedrawBattleBase
 	ld hl, $88c0
 
-Call_50_56F1::
+ClearLetterTilesAt::
 	ld c, $02
 
 jr_050_56f3:
@@ -4734,7 +5169,7 @@ jr_050_56f5:
 	ret
 
 
-Call_50_5708::
+RedrawBattleBase::
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
@@ -5432,18 +5867,18 @@ RunPersonalityChanges::
 ;@ def BattleMenuClearTiles()
 ;@ path: battle/menu
 ;@ Step 10 of the command menu: redraws the battle screen, fills tiles from the VRAM address
-;@ kept in wTargetScores (Call_50_56F1) and goes on with command step wSkillAmount2. No code
+;@ kept in wTargetScores (ClearLetterTilesAt) and goes on with command step wSkillAmount2. No code
 ;@ was found that selects this step.
 ;@ test: skip writes VRAM
 BattleMenuClearTiles::
-;> Call_50_5708()
-	call Call_50_5708
-;> Call_50_56F1(mem16[addr(wTargetScores)])
+;> RedrawBattleBase()
+	call RedrawBattleBase
+;> ClearLetterTilesAt(mem16[addr(wTargetScores)])
 	ld a, [wTargetScores]
 	ld l, a
 	ld a, [wTargetScores + 1]
 	ld h, a
-	call Call_50_56F1
+	call ClearLetterTilesAt
 ;> wCommandStep = wSkillAmount2 & 0xFF
 	ld a, [wSkillAmount2]
 	ld [wCommandStep], a
@@ -7176,504 +7611,717 @@ BattleStepCommandMenu::
 	ret
 
 
+;@ def BattleStepPlanTurn()
+;@ path: battle/flow
+;@ Battle step 5: once the text is printed, the targets and the order of the turn are worked
+;@ out (ChooseTargetsAndOrder, which moves on to the next step).
+;@ test: skip runs the turn planning of another bank
 BattleStepPlanTurn::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ChooseTargetsAndOrder()
 	ld hl, far_ChooseTargetsAndOrder
 	rst $10
 	ret
 
 
+;@ def BattleStepActStart()
+;@ path: battle/flow
+;@ Battle step 6, the start of the actions: clears the action sub-steps and the reaction
+;@ state. In a link battle both Game Boys then draw the next number of their shared random
+;@ generator (wLinkRandom), so they carry out the actions alike. Runs on into BattleStepAct.
+;@ test: skip runs the actions of another bank
 BattleStepActStart::
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
+;> wBattleSubStep = 0; wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep], a
 	ld [wBattleSubStep2], a
+;> mem[0xDD75] = 0; wReactionKind = 0; wSkillAnimPhase = 0
 	ld [$dd75], a
 	ld [wReactionKind], a
 	ld [wSkillAnimPhase], a
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
 	jr z, BattleStepAct
 
+;>@r     wRandomHigh = wLinkRandom & 0xFF; wRandomLow = wLinkRandom >> 8
 	ld a, [wLinkRandom]
 	ld l, a
-	ld a, [$c1ee]
+	ld a, [wLinkRandom + 1]
 	ld h, a
+;=@r
 	ld a, l
 	ld [wRandomHigh], a
 	ld a, h
 	ld [wRandomLow], a
+;>     Random()
 	call Random
+;>@w     wLinkRandom = wRandomHigh | wRandomLow << 8
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;=@w
 	ld a, l
 	ld [wLinkRandom], a
 	ld a, h
-	ld [$c1ee], a
+	ld [wLinkRandom + 1], a
+;> BattleStepAct()                                # runs on into it
 
+;@ def BattleStepAct()
+;@ path: battle/flow
+;@ Battle step 7: the next part of the actions (RunActionStep in another bank) and the party
+;@ panel with its numbers. When that has moved on to step 8 a short pause starts and
+;@ BattleStepActDone follows at once.
+;@ test: skip runs the actions of another bank
 BattleStepAct::
+;> RunActionStep()
 	ld hl, far_RunActionStep
 	rst $10
+;> DrawBattlePanel(); RefreshPanelDigits()
 	call DrawBattlePanel
 	call RefreshPanelDigits
+;> if wBattleStep != 8:
+;>     return
 	ld a, [wBattleStep]
 	cp $08
 	ret nz
 
+;> wMonStats[0] = 5                              # a short pause
 	ld a, $05
 	ld [wMonStats], a
+;> BattleStepActDone()                            # runs on into it
 
+;@ def BattleStepActDone()
+;@ path: battle/flow
+;@ Battle step 8: after the pause the actions are over; the helper bytes are cleared, the
+;@ battle screen is redrawn and the end of the turn begins (BattleStepTurnEnd, step 9).
+;@ test: skip draws the battle screen
 BattleStepActDone::
+;> if wMonStats[0]:
+;>     wMonStats[0] -= 1
 	ld a, [wMonStats]
 	or a
-	jr z, jr_050_60d6
+	jr z, .done
 
 	dec a
 	ld [wMonStats], a
+;>     return
 	ret
 
 
-jr_050_60d6:
+.done
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
+;> wBattleArg0 = 0; wBattleArg1 = 0
 	xor a
 	ld [wBattleArg0], a
 	ld [wBattleArg1], a
+;> wBattleArg2 = 0; wBattleSubStep = 0
 	ld [wBattleArg2], a
 	ld [wBattleSubStep], a
+;> RedrawBattleScreen()
 	call RedrawBattleScreen
+;> return BattleStepTurnEnd()
 	jp BattleStepTurnEnd
 
 
+;@ def BattleStepEnd()
+;@ path: battle/end
+;@ Battle step $0A, the end of the battle. The Game Boy palettes are set back. Right after
+;@ the last enemy (or own monster) fell (wBattleArg2 2) the battle's end is handled in
+;@ another bank (CheckBattleOver) and a short pause starts. Then the message window and the
+;@ party panel are redrawn. A link battle goes on with step $10. Otherwise the reward is
+;@ added up and the results kept (SaveBattleResults). After a defeat the next step comes
+;@ with wJoinCandidate 0. After a win with a reward the experience is shared out
+;@ (GiveBattleExp) and "Each monster gets N EXP" (system text $0B0E) - or, with only one
+;@ living party monster, "X gets N EXP" ($0B23) - is shown.
+;@ test: skip runs routines of other banks
 BattleStepEnd::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wBGP = 0xD2; wOBP0 = 0xD2
 	ld hl, wBGP
 	ld a, $d2
 	ld [hli], a
 	ld a, $d2
 	ld [hli], a
+;> wOBP1 = 0xE2
 	ld [hl], $e2
+;> if wBattleArg2 == 2:                          # the battle has just been decided
 	ld a, [wBattleArg2]
 	cp $02
-	jr nz, jr_050_6112
+	jr nz, .pause
 
+;>     CheckBattleOver()
 	ld hl, far_CheckBattleOver
 	rst $10
+;>     wBattleArg2 = 0
 	xor a
 	ld [wBattleArg2], a
+;>     wMonStats[0] = 5                          # a short pause
+;>     return
 	ld a, $05
 	ld [wMonStats], a
 	ret
 
 
-jr_050_6112:
+.pause
+;> if wMonStats[0]:
+;>     wMonStats[0] -= 1
 	ld a, [wMonStats]
 	or a
-	jr z, jr_050_611d
+	jr z, .redraw
 
 	dec a
 	ld [wMonStats], a
+;>     return
 	ret
 
 
-jr_050_611d:
+.redraw
+;> ClearTilemapBuffer_50(); DrawMessageWindowAndPanel()
 	call ClearTilemapBuffer_50
 	call DrawMessageWindowAndPanel
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_050_6139
+	jr z, .local
 
+;>     wLinkNoEnd = 1
 	ld a, $01
 	ld [wLinkNoEnd], a
+;>     wBattleStep = 0x10                        # the end of a link battle
+;>     return
 	ld a, $10
 	ld [wBattleStep], a
-	jp Jump_050_6196
+	jp .done
 
 
-jr_050_6139:
+.local
+;> SumBattleReward()
 	call SumBattleReward
+;> SaveBattleResults()
 	ld hl, far_SaveBattleResults
 	rst $10
+;> if wBattlerReload:                            # lost
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_050_6150
+	jr z, .won
 
+;>     wJoinCandidate = 0
 	xor a
 	ld [wJoinCandidate], a
+;>     wBattleStep += 1
+;>     return
 	ld hl, wBattleStep
 	inc [hl]
-	jr jr_050_6196
+	jr .done
 
-jr_050_6150:
+.won
+;> if wRewardTotal[0] | wRewardTotal[1] | wRewardTotal[2]:
 	ld hl, wRewardTotal
 	ld a, [hli]
 	or [hl]
 	inc hl
 	or [hl]
-	jr z, jr_050_6192
+	jr z, .next
 
+;>     GiveBattleExp()
 	call GiveBattleExp
+;>     PruneLearnableSkills()
 	ld hl, far_PruneLearnableSkills
 	rst $10
+;>@s     share = GetExpShare()                  # experience of each party monster
 	call GetExpShare
 	ld a, l
 	ldh [hNumber], a
+;=@s
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	ld a, e
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
+;>     Number24ToDecimal(addr(wTextArg0))        # hNumber holds the share
 	ld hl, wTextArg0
 	call Number24ToDecimal
+;>     count, last = CountLivingParty()
 	call CountLivingParty
+;>     text = 0x0B0E                             # "each monster gets"
 	ld a, b
 	ld hl, $0b0e
+;>     if count == 1:
 	cp $01
-	jr nz, jr_050_618f
+	jr nz, .print
 
+;>@cn         CopyName(MonsterField(last, addr(wMonName)), addr(wTextArg1))
 	ld a, c
 	ld hl, wMonName
 	call MonsterField
 	ld e, l
 	ld d, h
+;=@cn
 	ld hl, wTextArg1
 	call CopyName
+;>         text = 0x0B23                         # "X gets"
 	ld hl, $0b23
 
-jr_050_618f:
+.print
+;>     PrintSystemText(text)
 	call PrintSystemText
 
-jr_050_6192:
+.next
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
 
-Jump_050_6196:
-jr_050_6196:
+.done
 	ret
 
 
+;@ def GetExpShare() -> (e, hl)
+;@ path: battle/end
+;@ The experience each living party monster gets (24-bit, e:hl): the total reward divided
+;@ by the number of living party monsters - one less when one monster gets it all, one
+;@ more when three share it.
+;@ test: skip depends on the party records
 GetExpShare::
+;> count, last = CountLivingParty()
 	call CountLivingParty
+;>@d share = (wRewardTotal[0] | wRewardTotal[1] << 8 | wRewardTotal[2] << 16) // count    # Divide24
 	ld a, [wRewardTotal]
 	ld l, a
-	ld a, [$dd24]
+	ld a, [wRewardTotal + 1]
 	ld h, a
-	ld a, [$dd25]
+	ld a, [wRewardTotal + 2]
 	ld e, a
+;=@d
 	ld a, b
 	push af
 	call Divide24
 	pop af
+;> if count == 2:
+;>     return (share >> 16, share & 0xFFFF)
 	cp $02
 	ret z
 
+;> if count == 3:
+;>@p     share += 1
 	cp $03
-	jr z, jr_050_61c0
+	jr z, .three
 
+;> else:
+;>@m     share = (share - 1) & 0xFFFFFF          # alone: one less
 	ld a, l
 	sub $01
 	ld l, a
 	ld a, h
 	sbc $00
 	ld h, a
+;=@m
 	ld a, e
 	sbc $00
 	ld e, a
+;>@r return (share >> 16, share & 0xFFFF)
 	ret
 
 
-jr_050_61c0:
+.three
+;=@p
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@p
 	ld a, e
 	adc $00
 	ld e, a
+;=@r
 	ret
 
 
+;@ def CountLivingParty() -> (b, c)
+;@ path: battle/end
+;@ Counts the living monsters of the party (b) and returns the slot of the last one (c).
+;@ test: skip depends on the party records
 CountLivingParty::
+;> count = 0
 	ld b, $00
+;> for slot in wParty[0:3]:
+;>@p     count, last = CountIfAlive(slot, count, last)
 	ld a, [wParty]
 	call CountIfAlive
-	ld a, [$ca8f]
+;=@p
+	ld a, [wParty + 1]
 	call CountIfAlive
-	ld a, [$ca90]
+;=@p
+	ld a, [wParty + 2]
 	call CountIfAlive
+;> return (count, last)
 	ret
 
 
+;@ def GiveBattleExp()
+;@ path: battle/end
+;@ Shares out the experience of a won battle among all 20 monster records. A living party
+;@ monster gets the party share (GetExpShare); a monster on the farm that is not an egg gets
+;@ a sixteenth of the total reward. Monsters at level 99 or at their highest level get
+;@ nothing. The experience stops at 9,999,999, and CapExpAtMaxLevel keeps a party monster at
+;@ its highest level from collecting more than that level allows.
+;@ test: skip runs the level tables of another bank
 GiveBattleExp::
+;>@ps party_share = GetExpShare()
 	call GetExpShare
 	ld a, l
 	ldh [$ffd8], a
+;=@ps
 	ld a, h
 	ldh [$ffd9], a
 	ld a, e
 	ldh [$ffda], a
+;>@fs farm_share = (wRewardTotal[0] | wRewardTotal[1] << 8 | wRewardTotal[2] << 16) // 16
 	ld a, [wRewardTotal]
 	ld l, a
-	ld a, [$dd24]
+	ld a, [wRewardTotal + 1]
 	ld h, a
-	ld a, [$dd25]
+	ld a, [wRewardTotal + 2]
 	ld e, a
+;=@fs
 	ld a, $10
 	call Divide24
 	ld a, l
 	ldh [hDivisorHigh], a
 	ld a, h
 	ldh [$ffdc], a
+;=@fs
 	ld a, e
 	ldh [hFindY], a
+;> wCurPartyMember = 0
+;>@f for i in range(20):
 	ld hl, wMonsters
 	ld b, $14
 	xor a
 	ld [wCurPartyMember], a
 
-Jump_050_6211:
+.loop
+;>     rec = addr(wMonsters) + 0x95 * i
 	push hl
+;>     state = mem[rec]
 	ld a, [hl]
+;>     if state != 0:
 	or a
-	jp z, Jump_050_62c4
+	jp z, .next
 
+;>         if state != 2:                        # on the farm
 	cp $02
-	jr z, jr_050_6272
+	jr z, .party
 
+;>@eg             if not mem[rec + 0x63]:           # not an egg
 	ld a, l
 	add $63
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@eg
 	ld a, [hl]
 	or a
-	jp nz, Jump_050_62c4
+	jp nz, .next
 
+;>@lv                 level = mem[rec + 0x4B]
 	ld a, l
 	add $e8
 	ld l, a
 	ld a, h
 	adc $ff
 	ld h, a
+;=@lv
 	ld a, [hl]
+;>@lc                 if level != 99 and level < mem[rec + 0x4C]:
 	cp $63
-	jp z, Jump_050_62c4
+	jp z, .next
 
 	push af
+;=@lc
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@lc
 	pop af
 	cp [hl]
-	jp nc, Jump_050_62c4
+	jp nc, .next
 
+;>@ad                     mem24[rec + 0x4D] = min(mem24[rec + 0x4D] + farm_share, 9999999)
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@ad
 	ldh a, [hDivisorHigh]
 	add [hl]
 	ld [hli], a
 	ld e, a
+;=@ad
 	ldh a, [$ffdc]
 	adc [hl]
 	ld [hli], a
 	ld d, a
 	ldh a, [hFindY]
 	adc [hl]
+;=@ad
 	ld [hl], a
 	ld c, a
 	ld a, e
 	sub $7f
 	ld a, d
 	sbc $96
+;=@ad
 	ld a, c
 	sbc $98
-	jr c, jr_050_62c4
+	jr c, .next
 
+;=@ad
 	ld de, $967f
 	ld c, $98
 	ld [hl], c
 	dec hl
 	ld [hl], d
 	dec hl
+;=@ad
 	ld [hl], e
-	jr jr_050_62c4
+	jr .next
 
-jr_050_6272:
+.party
+;>         else:                                 # in the party
+;>@dd             if not mem[rec + 0x4A] & 0x80:    # alive
 	ld a, l
 	add $4a
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@dd
 	bit 7, [hl]
-	jr nz, jr_050_62c4
+	jr nz, .next
 
+;>@lp                 level = mem[rec + 0x4B]
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@lp
 	ld a, [hl]
+;>@lq                 if level != 99 and level < mem[rec + 0x4C]:
 	cp $63
-	jr z, jr_050_62c4
+	jr z, .next
 
 	push af
+;=@lq
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@lq
 	pop af
 	cp [hl]
-	jr nc, jr_050_62c4
+	jr nc, .next
 
+;>@pa                     mem24[rec + 0x4D] = min(mem24[rec + 0x4D] + party_share, 9999999)
 	ld a, l
 	add $01
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@pa
 	ldh a, [$ffd8]
 	add [hl]
 	ld [hli], a
 	ld e, a
+;=@pa
 	ldh a, [$ffd9]
 	adc [hl]
 	ld [hli], a
 	ld d, a
 	ldh a, [$ffda]
 	adc [hl]
+;=@pa
 	ld [hl], a
 	ld c, a
 	ld a, e
 	sub $7f
 	ld a, d
 	sbc $96
+;=@pa
 	ld a, c
 	sbc $98
-	jr c, jr_050_62c4
+	jr c, .next
 
+;=@pa
 	ld de, $967f
 	ld c, $98
 	ld [hl], c
 	dec hl
 	ld [hl], d
 	dec hl
+;=@pa
 	ld [hl], e
 
-Jump_050_62c4:
-jr_050_62c4:
+.next
+;>     CapExpAtMaxLevel(rec)
 	pop hl
 	push bc
 	push hl
 	call CapExpAtMaxLevel
+;>     wCurPartyMember += 1
 	ld hl, wCurPartyMember
 	inc [hl]
 	pop hl
 	pop bc
+;=@f
 	ld a, l
 	add $95
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;=@f
 	dec b
-	jp nz, Jump_050_6211
+	jp nz, .loop
 
 	ret
 
 
+;@ def CountIfAlive(slot: a, count: b, last: c) -> (b, c)
+;@ path: battle/end
+;@ Counts party slot `slot` when it holds a living monster: returns count + 1 and the slot,
+;@ else count and last unchanged.
+;@ test: slot = rng.choice([0xFF, rand(0, 19)])
 CountIfAlive::
+;> if slot == 0xFF:
+;>     return (count, last)
 	cp $ff
 	ret z
 
+;>@d if mem[MonsterField(slot, addr(wMonStatus))] & 0x80:    # dead
 	ld hl, wMonStatus
 	push af
 	push bc
 	call MonsterField
 	pop bc
 	pop af
+;=@d
 	bit 7, [hl]
+;>     return (count, last)
 	ret nz
 
+;> return (count + 1, slot)
 	ld c, a
 	inc b
 	ret
 
 
+;@ def BattleStepLevelUps()
+;@ path: battle/end
+;@ Battle step $0B. When a party monster has the experience for its next level, the level-up
+;@ screen follows (step $0C, which comes back here). Otherwise any other monster (on the
+;@ farm) with enough experience goes up a level in silence, one level per frame
+;@ (RollLevelUpGains, ApplyLevelUp). When no monster is left to go up, step $0D follows,
+;@ where a defeated monster may ask to join (CheckEnemyJoins).
+;@ test: skip runs the level-up code of other banks
 BattleStepLevelUps::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;>@pd if not CheckLevelUpDue(wParty[0]) or not CheckLevelUpDue(wParty[1]) or not CheckLevelUpDue(wParty[2]):
 	ld a, [wParty]
 	call CheckLevelUpDue
-	jr nc, jr_050_630d
+	jr nc, .screen
 
-	ld a, [$ca8f]
+;=@pd
+	ld a, [wParty + 1]
 	call CheckLevelUpDue
-	jr nc, jr_050_630d
+	jr nc, .screen
 
-	ld a, [$ca90]
+;=@pd
+	ld a, [wParty + 2]
 	call CheckLevelUpDue
-	jr c, jr_050_6316
+	jr c, .others
 
-jr_050_630d:
+.screen
+;>     wBattleStep += 1                          # the level-up screen
 	ld hl, wBattleStep
 	inc [hl]
+;>     wCommandStep = 0
+;>     return
 	xor a
 	ld [wCommandStep], a
 	ret
 
 
-jr_050_6316:
+.others
+;>@f for slot in range(20):
 	ld b, $00
 
-jr_050_6318:
+.loop
+;>     if not CheckLevelUpDue(slot):
+;>@lu         RollLevelUpGains(); ApplyLevelUp(); return    # one level, no screen
 	push bc
 	ld a, b
 	call CheckLevelUpDue
 	pop bc
-	jr nc, jr_050_6337
+	jr nc, .levelUp
 
+;=@f
 	inc b
 	ld a, b
 	cp $14
-	jr nz, jr_050_6318
+	jr nz, .loop
 
+;> wBattleStep += 2                               # past the level-up screen
 	ld hl, wBattleStep
 	inc [hl]
 	ld hl, wBattleStep
 	inc [hl]
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> CheckEnemyJoins()
 	ld hl, far_CheckEnemyJoins
 	rst $10
 	ret
 
 
-jr_050_6337:
+.levelUp
+;=@lu
 	ld hl, far_RollLevelUpGains
 	rst $10
 	ld hl, far_ApplyLevelUp
@@ -7681,266 +8329,431 @@ jr_050_6337:
 	ret
 
 
+;@ def ShowPersonalityChange(slot: a, i: b) -> zero
+;@ path: unused
+;@ Code that nothing calls: works out the personality of monster `slot` (party place `i`)
+;@ again and, when it differs from the one it had at the start of the battle
+;@ (wPartyPersonality), keeps the new one and shows system text $0B21 with the monster's name
+;@ and the name of the new personality (text $0Axx). Zero when nothing was shown.
+;@ test: skip calls routines of other banks
 ShowPersonalityChange::
-	db $fe, $ff, $c8, $ea, $c0, $ca, $78, $21, $15, $da, $85, $6f, $3e, $00, $8c, $67
-	db $e5, $fa, $c0, $ca, $57, $21, $07, $01, $d7, $7a, $e1, $be, $c8, $77, $6f, $26
-	db $0a, $11, $90, $c1, $cd, $7a, $09, $fa, $c0, $ca, $21, $c2, $ca, $cd, $3b, $22
-	db $5d, $54, $21, $80, $c1, $cd, $80, $0c, $21, $21, $0b, $cd, $6d, $09, $fa, $25
-	db $c8, $b7, $c9
-
-CheckLevelUpDue::
+;> if slot == 0xFF:
+;>     return True
 	cp $ff
-	jr z, jr_050_63a2
+	ret z
 
+;> wCurPartyMember = slot
 	ld [wCurPartyMember], a
+;>@p old = addr(wPartyPersonality) + i
+	ld a, b
+	ld hl, wPartyPersonality
+	add l
+	ld l, a
+	ld a, $00
+	adc h
+;=@p
+	ld h, a
+	push hl
+;> new = GetMonsterPersonality(wCurPartyMember)
+	ld a, [wCurPartyMember]
+	ld d, a
+	ld hl, far_GetMonsterPersonality
+	rst $10
+;> if new == mem[old]:
+;>     return True
+	ld a, d
+	pop hl
+	cp [hl]
+	ret z
+
+;> mem[old] = new
+	ld [hl], a
+;> CopySystemText(0x0A00 + new, addr(wTextArg1))    # the personality's name
+	ld l, a
+	ld h, $0a
+	ld de, wTextArg1
+	call CopySystemText
+;>@n CopyName(MonsterField(wCurPartyMember, addr(wMonName)), addr(wTextArg0))
+	ld a, [wCurPartyMember]
+	ld hl, wMonName
+	call MonsterField
+	ld e, l
+	ld d, h
+;=@n
+	ld hl, wTextArg0
+	call CopyName
+;> PrintSystemText(0x0B21)
+	ld hl, $0b21
+	call PrintSystemText
+;> return not wTextState
+	ld a, [wTextState]
+	or a
+	ret
+
+;@ def CheckLevelUpDue(slot: a) -> carry
+;@ path: battle/end
+;@ Carry when monster `slot` cannot go up a level now: an empty slot ($FF), level 99, an
+;@ empty record, or less experience than its next level needs (GetExpForNextLevel, in
+;@ hNumber). Sets wCurPartyMember to the slot.
+;@ test: skip runs the level tables of another bank
+CheckLevelUpDue::
+;> if slot != 0xFF:
+	cp $ff
+	jr z, .no
+
+;>     wCurPartyMember = slot
+	ld [wCurPartyMember], a
+;>@c     if mem[MonsterField(slot, addr(wMonLevel))] != 99 and mem[MonsterField(slot, addr(wMonsters))]:
+;>@b         return mem24[MonsterField(slot, addr(wMonExp))] < GetExpForNextLevel()
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
 	cp $63
-	jr z, jr_050_63a2
+	jr z, .no
 
+;=@c
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld a, [hl]
 	or a
-	jr nz, jr_050_63a4
+	jr nz, .check
 
-jr_050_63a2:
+.no
+;> return True
 	scf
 	ret
 
 
-jr_050_63a4:
+.check
+;=@b
 	ld hl, far_GetExpForNextLevel
 	rst $10
 	ld a, [wCurPartyMember]
 	ld hl, wMonExp
 	call MonsterField
+;=@b
 	ldh a, [hNumber]
 	ld b, a
 	ld a, [hli]
 	sub b
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
+	ld b, a
+;=@b
+	ld a, [hli]
+	sbc b
+	ldh a, [hNumber + 2]
 	ld b, a
 	ld a, [hli]
 	sbc b
-	ldh a, [$ffd7]
-	ld b, a
-	ld a, [hli]
-	sbc b
+;=@b
 	ret
 
 
+;@ def BattleStepLevelUpScreen()
+;@ path: battle/end
+;@ Battle step $0C: the level-up screen of a party monster (LevelUpScreen in another bank);
+;@ after a defeat straight on to step $0E, back to the field.
+;@ test: skip runs the level-up screen of another bank
 BattleStepLevelUpScreen::
+;> if not wBattlerReload:
 	ld a, [wBattlerReload]
 	or a
-	jr nz, jr_050_63cc
+	jr nz, .lost
 
+;>     LevelUpScreen()
+;>     return
 	ld hl, far_LevelUpScreen
 	rst $10
 	ret
 
 
-jr_050_63cc:
+.lost
+;> wBattleStep = 0x0E
 	ld a, $0e
 	ld [wBattleStep], a
 	ret
 
 
+;@ def BattleStepRecruit()
+;@ path: battle/recruit
+;@ Battle step $0D: when a defeated enemy may ask to join (wJoinCandidate, battle position
+;@ 4-6), its species from the encounter group is turned into the monster to make
+;@ (RemapMonId) and the joining screen runs (RecruitScreen); otherwise step $0E follows. The
+;@ text is waited for, except while wCommandStep is $24.
+;@ test: skip runs the joining screen of another bank
 BattleStepRecruit::
+;>@w if wCommandStep != 0x24 and wTextState:
+;>     return
 	ld a, [wCommandStep]
 	cp $24
-	jr z, jr_050_63de
+	jr z, .go
 
+;=@w
 	ld a, [wTextState]
 	or a
 	ret nz
 
-jr_050_63de:
+.go
+;> if wJoinCandidate == 0xFF:
+;>     wBattleStep += 1
 	ld a, [wJoinCandidate]
 	cp $ff
-	jr nz, jr_050_63ea
+	jr nz, .join
 
 	ld hl, wBattleStep
 	inc [hl]
+;>     return
 	ret
 
 
-jr_050_63ea:
+.join
+;> k = 2 * (wJoinCandidate - 4)
 	ld a, [wJoinCandidate]
 	sub $04
 	add a
+;>@s2 wNewMonId = wEncSpecies[k] | wEncSpecies[k + 1] << 8
 	ld hl, wEncSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@s2
 	ld a, [hli]
 	ld [wNewMonId], a
 	ld a, [hl]
-	ld [$da13], a
+	ld [wNewMonId + 1], a
+;> RemapMonId()
 	ld hl, far_RemapMonId
 	rst $10
+;> RecruitScreen()
 	ld hl, far_RecruitScreen
 	rst $10
 	ret
 
 
+;@ def BattleStepExit()
+;@ path: battle/end
+;@ Battle step $0E, back to the field (game mode 1, after a fade). In the Starry Night arena
+;@ (map $5D) the next opponents are loaded (LoadArenaOpponents): a class match lost sends
+;@ Terry out to map 6, the special fight (wArenaFight 2) or a later class match lost sends
+;@ him home. In the battle room of a gate world (map $52) the next team is set up. After a
+;@ battle of kind 2 lost with the whole party down, the lead monster gets 1 HP back. All
+;@ other battles end in FinishBattleExit.
+;@ test: skip runs routines of other banks
 BattleStepExit::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PruneLearnableSkills()
 	ld hl, far_PruneLearnableSkills
 	rst $10
+;> wGameStarted |= 0x80
 	ld hl, wGameStarted
 	set 7, [hl]
+;> StartFade(4)
 	ld a, $04
 	call StartFade
+;> wGameMode = 1                                 # the field
+;> wGameModeStep = 0
 	ld a, $01
 	ld [wGameMode], a
 	ld a, $00
 	ld [wGameModeStep], a
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningScene], a
 	ld a, $00
 	ld [wOpeningLogo], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> if wMapId == 0x5D:                            # the Starry Night arena
 	ld a, [wMapId]
 	cp $5d
-	jp nz, Jump_050_64e0
+	jp nz, .notArena
 
+;>     wGameStarted &= ~0x80
 	ld hl, wGameStarted
 	res 7, [hl]
+;>     if wArenaFight not in (1, 2):             # a class match
 	ld a, [wArenaFight]
 	cp $02
-	jr z, jr_050_64a0
+	jr z, .special
 
 	cp $01
-	jr z, jr_050_6486
+	jr z, .match1
 
+;>         LoadArenaOpponents()
 	call LoadArenaOpponents
+;>         wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;>         if wBattlerReload != 1:               # won
+;>             return
 	ld a, [wBattlerReload]
 	cp $01
 	ret nz
 
+;>         wArenaRound = 0xFF
 	ld a, $ff
 	ld [wArenaRound], a
+;>         wWarpMap = 6; wWarpOnGateFloor = 0    # out of the arena
 	ld hl, $0006
 	ld a, l
 	ld [wWarpMap], a
 	ld a, h
 	ld [wWarpOnGateFloor], a
+;>         wWarpX = 0x00E8
 	ld hl, $00e8
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
+;>         wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
+;>         wWarpPending = 1
+;>         return
 	ld a, $01
 	ld [wWarpPending], a
 	ret
 
 
-jr_050_6486:
+.match1
+;>     elif wArenaFight == 1:
+;>         LoadArenaOpponents()
 	call LoadArenaOpponents
+;>         wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;>         if wBattlerReload != 1:               # won
 	ld a, [wBattlerReload]
 	cp $01
-	jr z, jr_050_64af
+	jr z, .lostHome
 
+;>             if wArenaRound == 2:
 	ld a, [wArenaRound]
 	cp $02
 	ret nz
 
+;>                 wArenaFight = 2               # the special fight comes next
 	ld a, $02
 	ld [wArenaFight], a
+;>             return
 	ret
 
 
-jr_050_64a0:
+.special
+;>     else:                                     # the special fight
+;>         wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;>         wArenaFight = 3
 	ld a, $03
 	ld [wArenaFight], a
+;>         if wBattlerReload != 1:
+;>             return
 	ld a, [wBattlerReload]
 	cp $01
 	ret nz
 
-jr_050_64af:
+.lostHome
+;>     wHomeWarpCause = 8                        # lost: back home
 	ld a, $08
 	ld [wHomeWarpCause], a
+;>     wWarpMap = 0; wWarpOnGateFloor = 0
 	ld hl, $0000
 	ld a, l
 	ld [wWarpMap], a
 	ld a, h
 	ld [wWarpOnGateFloor], a
+;>     wWarpX = 0x00E8
 	ld hl, $00e8
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
+;>     wWarpY = 0x0058
 	ld hl, $0058
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
+;>     wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;>     wGameStarted &= ~0x80
+;>     return
 	ld hl, wGameStarted
 	res 7, [hl]
 	ret
 
 
-Jump_050_64e0:
+.notArena
+;> if wMapId == 0x52:                            # the battle room of a gate world
 	ld a, [wMapId]
 	cp $52
-	jr nz, jr_050_64f5
+	jr nz, .otherMap
 
+;>     LoadNextRoomTeam()
 	call LoadNextRoomTeam
+;>     wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;>     wGameStarted &= ~0x80
 	ld hl, wGameStarted
 	res 7, [hl]
+;>     return FinishBattleExit()
 	jr FinishBattleExit
 
-jr_050_64f5:
+.otherMap
+;> if wBattleKind != 2:
+;>     return FinishBattleExit()
 	ld a, [wBattleKind]
 	cp $02
 	jr nz, FinishBattleExit
 
+;> if wBattlerReload != 1:
+;>     return
 	ld a, [wBattlerReload]
 	cp $01
 	ret nz
 
+;> count, dead = 0, 0
 	ld b, $00
 	ld c, $00
+;> for slot in wParty[0:3]:
+;>@p     count, dead = ClearPartyAilments(slot, count, dead)
 	ld a, [wParty]
 	call ClearPartyAilments
-	ld a, [$ca8f]
+;=@p
+	ld a, [wParty + 1]
 	call ClearPartyAilments
-	ld a, [$ca90]
+;=@p
+	ld a, [wParty + 2]
 	call ClearPartyAilments
+;> if count != dead:
+;>     return
 	ld a, b
 	cp c
 	ret nz
 
+;> mem16[MonsterField(wParty[0], addr(wMonHP))] = 1    # the lead monster gets up again
 	ld a, [wParty]
 	ld hl, wMonHP
 	call MonsterField
 	ld [hl], $01
 	inc hl
 	ld [hl], $00
+;> mem[MonsterField(wParty[0], addr(wMonStatus))] = 0
 	ld a, [wParty]
 	ld hl, wMonStatus
 	call MonsterField
@@ -7948,203 +8761,293 @@ jr_050_64f5:
 	ret
 
 
+;@ def ClearPartyAilments(slot: a, count: b, dead: c) -> (b, c)
+;@ path: battle/end
+;@ Clears the ailments of the party monster in `slot` (keeping only its dead bit) and counts
+;@ it: count + 1, and dead + 1 when it is dead. An empty slot ($FF) is passed over.
+;@ test: slot = rng.choice([0xFF, rand(0, 19)])
 ClearPartyAilments::
+;> if slot == 0xFF:
+;>     return (count, dead)
 	cp $ff
 	ret z
 
+;> count += 1
 	inc b
+;> status = MonsterField(slot, addr(wMonStatus))
 	ld hl, wMonStatus
 	call MonsterField
+;> mem[status] &= 0x80
 	ld a, [hl]
 	and $80
 	ld [hl], a
+;> if not mem[status]:
+;>     return (count, dead)
 	ret z
 
+;> return (count, dead + 1)
 	inc c
 	ret
 
 
+;@ def FinishBattleExit()
+;@ path: battle/end
+;@ The end of an ordinary battle. After a defeat Terry is sent home (wHomeWarpCause 8, map 0
+;@ at 232, 88), loses half his gold and every item in the bag that is not marked to be kept
+;@ (item flags bit 2). After a won battle of kind 3 the party followers stay hidden
+;@ (wHiddenSprites $0E).
+;@ test: skip runs the item code of another bank
 FinishBattleExit::
+;> if wBattlerReload != 1:                       # won
 	ld a, [wBattlerReload]
 	cp $01
-	jr z, jr_050_6559
+	jr z, .lost
 
+;>     if wBattleKind == 3:
 	ld a, [wBattleKind]
 	cp $03
 	ret nz
 
+;>         wHiddenSprites = 0x0E                 # the followers are not drawn
 	ld a, $0e
 	ld [wHiddenSprites], a
+;>     return
 	ret
 
 
-jr_050_6559:
+.lost
+;> wHomeWarpCause = 8
 	ld a, $08
 	ld [wHomeWarpCause], a
+;> wWarpMap = 0; wWarpOnGateFloor = 0            # back home
 	ld hl, $0000
 	ld a, l
 	ld [wWarpMap], a
 	ld a, h
 	ld [wWarpOnGateFloor], a
+;> wWarpX = 0x00E8
 	ld hl, $00e8
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
+;> wWarpY = 0x0058
 	ld hl, $0058
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
+;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
+;> wGameStarted &= ~0x80
 	ld hl, wGameStarted
 	res 7, [hl]
+;>@g gold = (wGold[0] | wGold[1] << 8 | wGold[2] << 16) // 2    # half the gold is lost
 	ld a, [wGold]
 	ld l, a
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	ld h, a
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	ld e, a
+;=@g
 	ld a, $02
 	call Divide24
+;> wGold[0] = gold & 0xFF; wGold[1] = (gold >> 8) & 0xFF
 	ld a, l
 	ld [wGold], a
 	ld a, h
-	ld [$ca4c], a
+	ld [wGold + 1], a
+;> wGold[2] = gold >> 16
 	ld a, e
-	ld [$ca4d], a
+	ld [wGold + 2], a
+;>@f for i in range(20):
 	ld hl, wBagItems
 	ld b, $14
 
-jr_050_65ab:
+.loop
+;>     if wBagItems[i] not in (0, 0xFF):
 	ld a, [hl]
 	or a
-	jr z, jr_050_65c7
+	jr z, .next
 
 	cp $ff
-	jr z, jr_050_65c7
+	jr z, .next
 
+;>         wItemId = wBagItems[i]
 	ld [wItemId], a
+;>         GetItemData()
 	push hl
 	push bc
 	ld hl, far_GetItemData
 	rst $10
 	pop bc
 	pop hl
+;>         if not wItemFlags & 0x04:             # not kept
 	ld a, [wItemFlags]
 	bit 2, a
-	jr nz, jr_050_65c7
+	jr nz, .next
 
+;>             wBagItems[i] = 0xFF
 	ld [hl], $ff
 
-jr_050_65c7:
+.next
+;=@f
 	inc hl
 	dec b
-	jr nz, jr_050_65ab
+	jr nz, .loop
 
+;> CompactBag()
 	ld hl, far_CompactBag
 	rst $10
+;> hPlayerFlags = 0
 	xor a
 	ldh [hPlayerFlags], a
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
+;> wFieldFlags &= ~0x01
 	ld hl, wFieldFlags
 	res 0, [hl]
 	ret
 
 
+;@ def BattleStepLinkEnd()
+;@ path: link/battle
+;@ Battle step $10, the end of a link battle: sends the end byte 1 to the partner.
 BattleStepLinkEnd::
+;> wLinkSendByte = 1
 	ld a, $01
 	ld [wLinkSendByte], a
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
 	ret
 
 
+;@ def BattleStepLinkResult()
+;@ path: link/battle
+;@ Battle step $11: once the partner has answered with 1, its name is kept
+;@ (wLinkPartnerName, from the master's name of its team's first record). When a prize monster
+;@ was at stake (wLinkPrizeSlot) and this player lost, the monster records and the party are
+;@ read back from the save, the prize monster's record is copied to wBreedParent1 and emptied,
+;@ the records are compacted and saved and the VS team slots corrected. Then the link state
+;@ is cleared and game mode 6 starts after a fade.
+;@ test: skip reads the cartridge RAM
 BattleStepLinkResult::
+;> if wLinkReceivedLast != 1:
+;>     return
 	ld a, [wLinkReceivedLast]
 	cp $01
 	ret nz
 
+;>@n name = addr(wMonMaster) if wLinkFlags & 0x02 else addr(wMon4Master)    # the partner's team
 	ld hl, wMonMaster
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_050_65f9
+	jr nz, .copyName
 
+;=@n
 	ld hl, wMon4Master
 
-jr_050_65f9:
+.copyName
+;> CopyBytes_50(name, addr(wLinkPartnerName), 8)
 	ld de, wLinkPartnerName
 	ld b, $08
 	call CopyBytes_50
+;>@pr if wLinkPrizeSlot != 0xFF and wBattlerReload:    # the prize is lost
 	ld a, [wLinkPrizeSlot]
 	cp $ff
-	jr z, jr_050_6663
+	jr z, .leave
 
+;=@pr
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_050_6663
+	jr z, .leave
 
+;>     disable_interrupts()
+;>     CopyFromSave(addr(wMonsters), addr(sMonsters), 0xBA4)
 	di
 	ld hl, wMonsters
 	ld de, sMonsters
 	ld bc, $0ba4
 	call CopyFromSave
+;>     enable_interrupts()
 	ei
+;>     CopyBytes_50(MonsterField(wLinkPrizeSlot, addr(wMonsters)), addr(wBreedParent1), 0x95)
 	ld a, [wLinkPrizeSlot]
 	ld hl, wMonsters
 	call MonsterField
 	ld de, wBreedParent1
 	ld b, $95
 	call CopyBytes_50
+;>     mem[MonsterField(wLinkPrizeSlot, addr(wMonsters))] = 0    # the record is emptied
 	ld a, [wLinkPrizeSlot]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
+;>     disable_interrupts()
+;>     CopyFromSave(addr(wPartyCount), addr(sPartyCount), 7)
 	di
 	ld hl, wPartyCount
 	ld de, sPartyCount
 	ld bc, $0007
 	call CopyFromSave
+;>     enable_interrupts()
 	ei
+;>     CompactMonsters()
 	ld hl, far_CompactMonsters
 	rst $10
+;>     disable_interrupts(); SaveMonsters(); enable_interrupts()
 	di
 	call SaveMonsters
 	ei
+;>@fx     for i in range(3):
+;>         FixVSTeamSlot(i)
 	ld a, $00
 	call FixVSTeamSlot
+;=@fx
 	ld a, $01
 	call FixVSTeamSlot
+;=@fx
 	ld a, $02
 	call FixVSTeamSlot
+;>     wLinkPrizeSlot = 0x14                     # none
 	ld a, $14
 	ld [wLinkPrizeSlot], a
 
-jr_050_6663:
+.leave
+;> StartFade(4)
 	ld a, $04
 	call StartFade
+;> wGameMode = 6
+;> wGameModeStep = 0
 	ld a, $06
 	ld [wGameMode], a
 	ld a, $00
 	ld [wGameModeStep], a
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningScene], a
 	ld a, $00
 	ld [wOpeningLogo], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wLinkMode = 0; wLinkPhase = 0
 	xor a
 	ld [wLinkMode], a
 	ld [wLinkPhase], a
+;> wLinkFlags = 0; wSerialLock = 0
 	xor a
 	ld [wLinkFlags], a
 	ld [wSerialLock], a
+;> wLinkActive = 0; wLinkReceivedLast = 0
 	xor a
 	ld [wLinkActive], a
 	xor a
 	ld [wLinkReceivedLast], a
+;> wLinkSendByte = 0; wLinkCommand = 0
 	xor a
 	ld [wLinkSendByte], a
 	xor a
@@ -8152,52 +9055,80 @@ jr_050_6663:
 	ret
 
 
+;@ def FixVSTeamSlot(i: a)
+;@ path: link/battle
+;@ Corrects VS team slot `i` after the prize monster's record was removed and the records
+;@ compacted: the prize's own slot becomes $14 (none), the slots after it move down by one.
+;@ test: i = rand(0, 2); wLinkPrizeSlot = rand(0, 19)
 FixVSTeamSlot::
+;>@s slot = addr(wVSTeamSlots) + i
 	ld c, a
 	ld hl, wVSTeamSlots
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
+;> if mem[slot] == 0xFF:
+;>     return
 	ld a, $ff
 	cp [hl]
 	ret z
 
+;> if mem[slot] == wLinkPrizeSlot:
+;>@x     mem[slot] = 0x14
 	ld a, [wLinkPrizeSlot]
 	cp [hl]
-	jr z, jr_050_66b6
+	jr z, .prize
 
+;> elif mem[slot] > wLinkPrizeSlot:
+;>     mem[slot] -= 1
 	ret nc
 
 	dec [hl]
 	ret
 
 
-jr_050_66b6:
+.prize
+;=@x
 	ld [hl], $14
 	ret
 
 
+;@ def CopyFromSave(dest: hl, src: de, count: bc)
+;@ path: save/game
+;@ Copies `count` bytes from the cartridge RAM to `dest`, with the cartridge RAM switched on
+;@ for the copy.
+;@ test: skip reads the cartridge RAM
 CopyFromSave::
+;> mem[0x0100] = 0x0A                            # cartridge RAM on
 	ld a, $0a
 	ld [$0100], a
 
-jr_050_66be:
+.loop
+;>@cp copy(dest, src, count)
 	ld a, [de]
 	ld [hli], a
 	inc de
 	dec bc
 	ld a, b
 	or c
-	jr nz, jr_050_66be
+;=@cp
+	jr nz, .loop
 
+;> mem[0x0100] = 0                               # and off again
 	ld a, $00
 	ld [$0100], a
 	ret
 
 
+;@ def CopyBytes_50(src: hl, dest: de, count: b)
+;@ path: system/memory
+;@ Copies `count` bytes (1-256, 0 copies 256) from `src` to `dest`.
+;@ test: count = rand(1, 32); src = 0xC100; dest = 0xC200
 CopyBytes_50::
+;> copy(dest, src, count)
 	ld a, [hli]
 	ld [de], a
 	inc de

@@ -639,3 +639,5 @@ DEF wShieldTarget EQU $C1C8 ;@ u8 The original target while another monster take
 DEF wHitShown EQU $C1C9 ;@ u8 Set once the hit of the skill was shown (damage or effect)
 DEF wAbsorbMP EQU $D9F2 ;@ u8 Low byte of the MP a monster glowing with TakeMagic absorbs from a spell (the high byte goes to the next byte, wPanelMode)
 DEF wHomeWarpCause EQU $D92B ;@ u8 Why the pending warp sends Terry home: 6 an item, 8 a lost battle or the end of an event (the field code also tests 1-5 and 7)
+DEF wTargetNamePos EQU $C1D7 ;@ u8 Battle position whose name the link target window prints next
+DEF wTargetNameCount EQU $C1D8 ;@ u8 Number of monsters on the side the link target window names

@@ -6194,31 +6194,53 @@ MaybeForceSkill::
 	ret
 
 
+;@ def NotePersonalitySkill()
+;@ path: battle/personality
+;@ After a monster's skill is chosen: for the player's own monsters (positions 0-2; in link battles
+;@ every position but slot 3) that can act and are not high in the sky, notes a possible personality
+;@ change in wPersonalityNudge by the kind of skill - side-stepping: personality 3 down; healing and
+;@ support spells ($2B-$36, Surge, $93-$95): personality 2 up; Dodge: personality 2 down; Attack, the
+;@ weapon skills and blows ($3A, $44-$51, SquallHit, $67-$69, $D6-$D8): personality 1 up; the defence
+;@ stances: personality 1 down; status spells and breaths: byte +$67 up. A chance decides
+;@ (NoteIfHigh / NoteIfLow with the random number drawn here).
+;@ test: skip draws random numbers through the link generator
 NotePersonalitySkill::
+;> if CheckBattlerCanAct(wSkillUser):
+;>     return
 	ld a, [wSkillUser]
 	call CheckBattlerCanAct
 	ret c
 
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_058_5a5a
+	jr z, .normal
 
+;>     LinkRandom()
 	call LinkRandom
+;>     if wSkillUser & 3 == 3:
+;>         return
 	ld a, [wSkillUser]
 	and $03
 	cp $03
 	ret z
 
-	jr jr_058_5a63
+	jr .check
 
-jr_058_5a5a:
+.normal:
+;> else:
+;>     if wSkillUser >= 3:
+;>         return
 	ld a, [wSkillUser]
 	cp $03
 	ret nc
 
+;>     BattleRandom_58()
 	call BattleRandom_58
 
-jr_058_5a63:
+.check:
+;> if wBattlerStatus[8 * wSkillUser + 4] & 0x0C:   # high in the sky
+;>     return
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -6226,19 +6248,24 @@ jr_058_5a63:
 	and $0c
 	ret nz
 
+;> if wBattlerStatus[8 * wSkillUser + 5] & 0x0C:   # side-stepping
+;>     return NotePersonality3Low()
 	ld a, [hl]
 	and $0c
 	jp nz, NotePersonality3Low
 
+;>@sk skill = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sk
 	adc h
 	ld h, a
 	ld a, [hl]
+;> if skill < 0x12 or skill in (0x14, 0x1B): return
 	cp $12
 	ret c
 
@@ -6248,6 +6275,7 @@ jr_058_5a63:
 	cp $1b
 	ret z
 
+;> if skill < 0x1E or skill in (0x20, 0x21): return NoteStat67High()
 	cp $1e
 	jr c, NoteStat67High
 
@@ -6257,39 +6285,49 @@ jr_058_5a63:
 	cp $21
 	jr z, NoteStat67High
 
+;> if skill < 0x2B or skill == 0x32: return
 	cp $2b
 	ret c
 
 	cp $32
 	ret z
 
+;> if skill < 0x37: return NotePersonality2High()
 	cp $37
 	jr c, NotePersonality2High
 
+;> if skill == 0x3A: return NotePersonality1High()
 	cp $3a
 	jr z, NotePersonality1High
 
+;> if skill < 0x44 or skill == 0x4F: return
 	cp $44
 	ret c
 
 	cp $4f
 	ret z
 
+;> if skill < 0x52 or skill == 0x55: return NotePersonality1High()
 	cp $52
 	jr c, NotePersonality1High
 
 	cp $55
 	jr z, NotePersonality1High
 
+;> if skill < 0x67: return
 	cp $67
 	ret c
 
+;> if skill < 0x6A: return NotePersonality1High()
 	cp $6a
 	jr c, NotePersonality1High
 
+;> if skill == 0x77: return NotePersonality3Low()     # SideStep
 	cp $77
 	jr z, jr_058_5b1e
 
+;> if skill < 0x7E or skill == 0x82: return NoteStat67High()
+;> if skill == 0x81: return NotePersonality2High()
 	cp $7e
 	jr c, NoteStat67High
 
@@ -6299,6 +6337,8 @@ jr_058_5a63:
 	cp $82
 	jr z, NoteStat67High
 
+;> if skill == 0x8C: return NotePersonality2Low()     # Dodge
+;> if skill in (0x8D, 0x8E, 0x90): return NotePersonality1Low()
 	cp $8c
 	jr z, NotePersonality2Low
 
@@ -6308,17 +6348,22 @@ jr_058_5a63:
 	cp $8e
 	jr z, NotePersonality1Low
 
+;=@p1
 	cp $90
 	jr z, NotePersonality1Low
 
+;>@p1 if skill < 0x90: return
 	ret c
 
+;> if skill < 0x93: return NoteStat67High()
+;> if skill < 0x96: return NotePersonality2High()
 	cp $93
 	jr c, NoteStat67High
 
 	cp $96
 	jr c, NotePersonality2High
 
+;> if 0xD6 <= skill < 0xD9: return NotePersonality1High()
 	cp $d6
 	ret c
 
@@ -6328,95 +6373,154 @@ jr_058_5a63:
 	ret
 
 
+;@ def NotePersonality1High()
+;@ path: battle/personality
+;@ Notes bit 0 (personality 1 up) through NoteIfHigh.
+;@ test: skip uses the random number drawn before
 NotePersonality1High::
+;> NoteIfHigh(addr(wBattlerPersonality1), 0x01)
 	ld hl, wBattlerPersonality1
 	ld d, $01
 	jr NoteIfHigh
 
+;@ def NotePersonality1Low()
+;@ path: battle/personality
+;@ Notes bit 1 (personality 1 down) through NoteIfLow.
+;@ test: skip uses the random number drawn before
 NotePersonality1Low::
+;> NoteIfLow(addr(wBattlerPersonality1), 0x02)
 	ld hl, wBattlerPersonality1
 	ld d, $02
 	jr NoteIfLow
 
+;@ def NoteStat67High()
+;@ path: battle/personality
+;@ Notes bit 2 (record byte +$67 up) through NoteIfHigh.
+;@ test: skip uses the random number drawn before
 NoteStat67High::
+;> NoteIfHigh(addr(wBattlerStat67), 0x04)
 	ld hl, wBattlerStat67
 	ld d, $04
 	jr NoteIfHigh
 
+;@ def NoteStat67Low()
+;@ path: battle/personality
+;@ Notes bit 3 (record byte +$67 down) through NoteIfLow.
+;@ test: skip uses the random number drawn before
 NoteStat67Low::
+;> NoteIfLow(addr(wBattlerStat67), 0x08)
 	ld hl, wBattlerStat67
 	ld d, $08
 	jr NoteIfLow
 
+;@ def NotePersonality2High()
+;@ path: battle/personality
+;@ Notes bit 4 (personality 2 up) through NoteIfHigh.
+;@ test: skip uses the random number drawn before
 NotePersonality2High::
+;> NoteIfHigh(addr(wBattlerPersonality2), 0x10)
 	ld hl, wBattlerPersonality2
 	ld d, $10
 	jr NoteIfHigh
 
+;@ def NotePersonality2Low()
+;@ path: battle/personality
+;@ Notes bit 5 (personality 2 down) through NoteIfLow.
+;@ test: skip uses the random number drawn before
 NotePersonality2Low::
+;> NoteIfLow(addr(wBattlerPersonality2), 0x20)
 	ld hl, wBattlerPersonality2
 	ld d, $20
 	jr NoteIfLow
 
+;@ def NotePersonality3High()
+;@ path: battle/personality
+;@ Notes bit 6 (personality 3 up) through NoteIfHigh.
+;@ test: skip uses the random number drawn before
 NotePersonality3High::
+;> NoteIfHigh(addr(wBattlerPersonality3), 0x40)
 	ld hl, wBattlerPersonality3
 	ld d, $40
 	jr NoteIfHigh
 
+;@ def NotePersonality3Low()
+;@ path: battle/personality
+;@ Notes bit 7 (personality 3 down) through NoteIfLow.
+;@ test: skip uses the random number drawn before
 NotePersonality3Low::
 jr_058_5b1e:
+;> NoteIfLow(addr(wBattlerPersonality3), 0x80)
 	ld hl, wBattlerPersonality3
 	ld d, $80
 	jr NoteIfLow
 
+;@ def NoteIfHigh(table: hl, flag: d)
+;@ path: battle/personality
+;@ When the user's byte in `table` is $81 or more, sets `flag` in its wPersonalityNudge with a chance
+;@ that grows with the value: 1, 2, 4 or 8 in 256 (below $A2, $C3, $E4, from $E4), tested against the
+;@ random number drawn before.
+;@ test: wSkillUser = rng.randint(0, 7)
 NoteIfHigh::
+;>@v v = mem[table + wSkillUser]
 	ld a, [wSkillUser]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@v
 	ld a, [hl]
+;> if v < 0x81:
+;>     return
 	cp $81
 	ret c
 
+;>@ch chance = 1 if v < 0xA2 else 2 if v < 0xC3 else 4 if v < 0xE4 else 8
 	cp $a2
-	jr c, jr_058_5b40
+	jr c, .one
 
 	cp $c3
-	jr c, jr_058_5b44
+	jr c, .two
 
 	cp $e4
-	jr c, jr_058_5b48
+	jr c, .four
 
-	jr jr_058_5b4c
+;=@ch
+	jr .eight
 
-jr_058_5b40:
+.one:
+;=@ch
 	ld b, $01
-	jr jr_058_5b4e
+	jr .roll
 
-jr_058_5b44:
+.two:
+;=@ch
 	ld b, $02
-	jr jr_058_5b4e
+	jr .roll
 
-jr_058_5b48:
+.four:
+;=@ch
 	ld b, $04
-	jr jr_058_5b4e
+	jr .roll
 
-jr_058_5b4c:
+.eight:
+;=@ch
 	ld b, $08
 
-jr_058_5b4e:
+.roll:
+;> if wRandomHigh < chance:
 	ld a, [wRandomHigh]
 	cp b
 	ret nc
 
+;>@nd     wPersonalityNudge[wSkillUser] |= flag
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@nd
 	ld h, a
 	ld a, [hl]
 	or d
@@ -6424,54 +6528,72 @@ jr_058_5b4e:
 	ret
 
 
+;@ def NoteIfLow(table: hl, flag: d)
+;@ path: battle/personality
+;@ When the user's byte in `table` is below $80, sets `flag` in its wPersonalityNudge with a chance
+;@ that grows as the value falls: 2, 4, 8 or 16 in 256 (from $60, $3F, $1E, below $1E).
+;@ test: wSkillUser = rng.randint(0, 7)
 NoteIfLow::
+;>@v v = mem[table + wSkillUser]
 	ld a, [wSkillUser]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@v
 	ld a, [hl]
+;> if v >= 0x80:
+;>     return
 	cp $80
 	ret nc
 
+;>@ch chance = 2 if v >= 0x60 else 4 if v >= 0x3F else 8 if v >= 0x1E else 16
 	cp $60
-	jr nc, jr_058_5b7e
+	jr nc, .two
 
 	cp $3f
-	jr nc, jr_058_5b82
+	jr nc, .four
 
 	cp $1e
-	jr nc, jr_058_5b86
+	jr nc, .eight
 
-	jr jr_058_5b8a
+;=@ch
+	jr .sixteen
 
-jr_058_5b7e:
+.two:
+;=@ch
 	ld b, $02
-	jr jr_058_5b8c
+	jr .roll
 
-jr_058_5b82:
+.four:
+;=@ch
 	ld b, $04
-	jr jr_058_5b8c
+	jr .roll
 
-jr_058_5b86:
+.eight:
+;=@ch
 	ld b, $08
-	jr jr_058_5b8c
+	jr .roll
 
-jr_058_5b8a:
+.sixteen:
+;=@ch
 	ld b, $10
 
-jr_058_5b8c:
+.roll:
+;> if wRandomHigh < chance:
 	ld a, [wRandomHigh]
 	cp b
 	ret nc
 
+;>@nd     wPersonalityNudge[wSkillUser] |= flag
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@nd
 	ld h, a
 	ld a, [hl]
 	or d
@@ -6479,31 +6601,49 @@ jr_058_5b8c:
 	ret
 
 
+;@ def NotePersonalityAttack()
+;@ path: battle/personality
+;@ The second personality note after a skill is chosen (same monsters as NotePersonalitySkill, not
+;@ in the sky and not side-stepping): BladeD notes byte +$67 down, the attack spells (below $12),
+;@ Attack, the weapon skills ($44-$51), $55-$69 and $D6-$D9 note personality 3 up.
+;@ test: skip draws random numbers through the link generator
 NotePersonalityAttack::
+;> if CheckBattlerCanAct(wSkillUser):
+;>     return
 	ld a, [wSkillUser]
 	call CheckBattlerCanAct
 	ret c
 
+;> if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_058_5bbb
+	jr z, .normal
 
+;>     LinkRandom()
 	call LinkRandom
+;>     if wSkillUser & 3 == 3:
+;>         return
 	ld a, [wSkillUser]
 	and $03
 	cp $03
 	ret z
 
-	jr jr_058_5bc4
+	jr .check
 
-jr_058_5bbb:
+.normal:
+;> else:
+;>     if wSkillUser >= 3:
+;>         return
 	ld a, [wSkillUser]
 	cp $03
 	ret nc
 
+;>     BattleRandom_58()
 	call BattleRandom_58
 
-jr_058_5bc4:
+.check:
+;> if wBattlerStatus[8 * wSkillUser + 4] & 0x0C or wBattlerStatus[8 * wSkillUser + 5] & 0x0C:
+;>     return
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -6511,170 +6651,238 @@ jr_058_5bc4:
 	and $0c
 	ret nz
 
+;=@x
 	ld a, [hl]
 	and $0c
 	ret nz
 
+;>@x skill = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@x
 	adc h
 	ld h, a
 	ld a, [hl]
+;> if skill == 0x90:                            # BladeD
+;>@bd     return NoteStat67Low()
 	cp $90
-	jr z, jr_058_5c07
+	jr z, .blade
 
+;> if skill < 0x12 or skill == 0x3A: return NotePersonality3High()
 	cp $12
-	jr c, jr_058_5c03
+	jr c, .high
 
 	cp $3a
-	jr z, jr_058_5c03
+	jr z, .high
 
+;> if skill < 0x44: return
+;> if skill < 0x52: return NotePersonality3High()
 	cp $44
 	ret c
 
 	cp $52
-	jr c, jr_058_5c03
+	jr c, .high
 
+;> if skill < 0x55: return
+;> if skill < 0x6A: return NotePersonality3High()
 	cp $55
 	ret c
 
 	cp $6a
-	jr c, jr_058_5c03
+	jr c, .high
 
+;> if not 0xD6 <= skill < 0xDA: return
 	cp $d6
 	ret c
 
 	cp $da
 	ret nc
 
-jr_058_5c03:
+.high:
+;> NotePersonality3High()
 	call NotePersonality3High
 	ret
 
 
-jr_058_5c07:
+.blade:
+;=@bd
 	call NoteStat67Low
 	ret
 
 
+;@ def GetMessageSidePos() -> a
+;@ path: battle/messages
+;@ The position a message is told from: wSkillUser for the link master, else wSkillTarget.
+;@ test: wSkillUser = rng.randint(0, 7)
 GetMessageSidePos::
+;> if not wLinkFlags & 2:
+;>     return wSkillTarget
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
 	ret z
 
+;> return wSkillUser
 	ld a, [wSkillUser]
 	ret
 
 
+;@ def LinkRandom()
+;@ path: battle/link
+;@ Draws a random number from the generator both Game Boys share in a link battle: wLinkRandom is
+;@ loaded into wRandomHigh/wRandomLow, stepped by Random and stored back.
+;@ test: skip steps the shared random generator
 LinkRandom::
+;> wRandomHigh = lo(wLinkRandom); wRandomLow = hi(wLinkRandom)
 	push hl
 	ld a, [wLinkRandom]
 	ld l, a
 	ld a, [$c1ee]
 	ld h, a
 	ld a, l
+;=@lr
 	ld [wRandomHigh], a
 	ld a, h
 	ld [wRandomLow], a
+;> Random()
 	call Random
+;>@lr wLinkRandom = wRandomHigh + 256 * wRandomLow
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, l
 	ld [wLinkRandom], a
+;=@lr
 	ld a, h
 	ld [$c1ee], a
 	pop hl
 	ret
 
 
+;@ def BattleRandom_58()
+;@ path: battle/link
+;@ A random number for the battle: from the shared link generator in a link battle, else Random.
+;@ test: skip steps the random generators
 BattleRandom_58::
+;> if wLinkActive:
+;>     return LinkRandom()
 	ld a, [wLinkActive]
 	or a
 	jr nz, LinkRandom
 
+;> Random()
 	call Random
 	ret
 
 
+;@ def PickTargetForSkill()
+;@ path: battle/turn
+;@ Far entry 12: aims the skill of wSkillUser again (RunTargetPicker), loads wSkillId and
+;@ wSkillTarget from its action and sets up the next battle steps (wBattleStepArg0 1 when called in
+;@ sub-step $17, else 2; wBattleSubStep2 2, or 3 for a smart monster when wBattleTemp is 0).
+;@ test: skip runs the target pickers
 PickTargetForSkill::
+;> RunTargetPicker()
 	call RunTargetPicker
+;>@ac wSkillId = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@ac
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld [wSkillId], a
+;> wSkillTarget = wBattlerAction[2 * wSkillUser + 1]
 	ld a, [hl]
 	ld [wSkillTarget], a
+;>@w0 wBattleStepArg0 = 1 if wBattleSubStep == 0x17 else 2
 	ld a, [wBattleSubStep]
 	cp $17
-	jr z, jr_058_5c6e
+	jr z, .seventeen
 
 	ld a, $02
 	ld [wBattleStepArg0], a
-	jr jr_058_5c73
+;=@w0
+	jr .steps
 
-jr_058_5c6e:
+.seventeen:
 	ld a, $01
 	ld [wBattleStepArg0], a
 
-jr_058_5c73:
+.steps:
+;> wBattleSubStep = 0
 	xor a
 	ld [wBattleSubStep], a
+;> wBattleSubStep2 = 2
 	ld a, $02
 	ld [wBattleSubStep2], a
+;>@cl if wBattlerIntClass[wSkillUser] == 2 and wBattleTemp == 0:
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@cl
 	ld h, a
 	ld a, [hl]
 	cp $02
 	ret nz
 
+;=@cl
 	ld a, [wBattleTemp]
 	or a
 	ret nz
 
+;>     wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def GetBaseDefense_58(pos: a) -> bc
+;@ path: battle/ai/targets
+;@ The normal (unboosted) defense of the monster at `pos`: the party record's for the player's
+;@ positions 0-2, the monster template of the encounter's species for enemies 4-6, the species
+;@ template for slot 3 / 7 (in link battles the party record for all but slot 3).
+;@ test: skip loads monster templates through far calls
 GetBaseDefense_58::
+;> if not wLinkActive:
 	push hl
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_058_5ccf
+	jr nz, .link
 
+;>     if pos < 3:
+;>@pm         return GetPartyMonsterWord(pos, addr(wMonDefense))
 	ld a, b
 	cp $03
-	jr c, jr_058_5cd6
+	jr c, .party
 
+;>     if pos & 3 == 3:
+;>@sp         template = 0x100 + wBattlerSpecies[pos]
 	and $03
 	cp $03
-	jr z, jr_058_5cde
+	jr z, .species
 
+;>@en     template = mem16[addr(wEncSpecies) + 2 * (pos - 4)]
 	ld a, b
 	sub $04
 	ld hl, wEncSpecies
 	add a
 	add l
 	ld l, a
+;=@en
 	ld a, $00
 	adc h
 	ld h, a
@@ -6682,253 +6890,328 @@ GetBaseDefense_58::
 	ld h, [hl]
 	ld l, a
 
-jr_058_5cb9:
+.load:
+;>@ld     wNewMonId = template & 0xFF; mem[0xDA13] = template >> 8
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;>     LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
+;>     return wTemplateDefense + 256 * mem[0xDA24]
 	ld a, [wTemplateDefense]
 	ld c, a
 	ld a, [$da24]
 	ld b, a
-	jr jr_058_5ced
+	jr .done
 
-jr_058_5ccf:
+.link:
+;> elif pos & 3 == 3:
+;>@ls     template = 0x100 + wBattlerSpecies[pos]   # then as above
 	ld a, b
 	and $03
 	cp $03
-	jr z, jr_058_5cde
+	jr z, .species
 
-jr_058_5cd6:
+.party:
+;> else:
+;>     return GetPartyMonsterWord(pos, addr(wMonDefense))
+;=@pm
 	ld hl, wMonDefense
 	call GetPartyMonsterWord
-	jr jr_058_5ced
+	jr .done
 
-jr_058_5cde:
+.species:
+;=@sp
 	ld a, b
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sp
 	ld h, a
 	ld l, [hl]
 	ld h, $01
-	jr jr_058_5cb9
+	jr .load
 
-jr_058_5ced:
+.done:
 	pop hl
 	ret
 
 
+;@ def AIPickBestKeyLowScore()
+;@ path: battle/ai/targets
+;@ Picks the best of three candidates into wNameBattler (index 0-2): the lowest key (wNamePos..+2),
+;@ between equal keys the lowest score (wSkillAmount, wTargetScores, wSkillAmount2), a tie of both
+;@ decided at random (a number is drawn for every comparison).
+;@ test: skip draws random numbers through the link generator
 AIPickBestKeyLowScore::
+;> wNameDest = addr(wTargetScores)                # pointer to the next score
 	ld hl, wTargetScores
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;> wNameBattler = 0                                # best index
 	ld a, $00
 	ld [wNameBattler], a
+;> best = wSkillAmount                             # score 0
 	ld hl, wSkillAmount
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@lp for e in (1, 2):
 	ld de, $0201
 
-jr_058_5d08:
+.loop:
+;>     BattleRandom_58()
 	push hl
 	push de
 	push bc
 	call BattleRandom_58
+;>@kb     kb = mem[addr(wNamePos) + (wNameBattler & 3)]
 	ld a, [wNameBattler]
 	ld hl, wNamePos
 	and $03
 	add l
 	ld l, a
 	ld a, $00
+;=@kb
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld b, a
+;>@ke     ke = mem[addr(wNamePos) + (e & 3)]
 	ld a, e
 	and $03
 	ld hl, wNamePos
 	add l
 	ld l, a
+;=@ke
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@cp     s = mem16[wNameDest]
+;>     if ke < kb:
+;>@tk         best = s; wNameBattler = e
 	cp b
 	pop bc
 	pop de
 	pop hl
-	jr c, jr_058_5d50
+	jr c, .lower
 
-	jr nz, jr_058_5d61
+;>     elif ke == kb:
+	jr nz, .next
 
+;=@cp
 	push hl
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, [hli]
+;=@cp
 	ld b, [hl]
 	ld c, a
 	pop hl
+;>@ti         if s < best or (s == best and wRandomHigh >= 0x80):
+;>             best = s; wNameBattler = e
 	call CompareHLBC
-	jr c, jr_058_5d61
+	jr c, .next
 
-	jr nz, jr_058_5d5b
+	jr nz, .take
 
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, jr_058_5d61
+	jr c, .next
 
-	jr jr_058_5d5b
+;=@ti
+	jr .take
 
-jr_058_5d50:
+.lower:
+;=@cp
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
+;=@cp
 	ld c, a
 
-jr_058_5d5b:
+.take:
+;=@tk
 	ld h, b
 	ld l, c
 	ld a, e
 	ld [wNameBattler], a
 
-jr_058_5d61:
+.next:
+;>@nx     wNameDest += 2
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
+;=@nx
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
+;=@lp
 	inc e
 	dec d
-	jr nz, jr_058_5d08
+	jr nz, .loop
 
 	ret
 
 
+;@ def AIPickBestKeyHighScore()
+;@ path: battle/ai/targets
+;@ Like AIPickBestKeyLowScore, but between equal keys the highest score wins.
+;@ test: skip draws random numbers through the link generator
 AIPickBestKeyHighScore::
+;> wNameDest = addr(wTargetScores)                # pointer to the next score
 	ld hl, wTargetScores
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;> wNameBattler = 0                                # best index
 	ld a, $00
 	ld [wNameBattler], a
+;> best = wSkillAmount                             # score 0
 	ld hl, wSkillAmount
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@lp for e in (1, 2):
 	ld de, $0201
 
-jr_058_5d9f:
+.loop:
+;>     BattleRandom_58()
 	push hl
 	push de
 	push bc
 	call BattleRandom_58
+;>@kb     kb = mem[addr(wNamePos) + (wNameBattler & 3)]
 	ld a, [wNameBattler]
 	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
+;=@kb
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld b, a
+;>@ke     ke = mem[addr(wNamePos) + (e & 3)]
 	ld a, e
 	ld hl, wNamePos
 	add l
 	ld l, a
+;=@ke
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@cp     s = mem16[wNameDest]
+;>     if ke < kb:
+;>@tk         best = s; wNameBattler = e
 	cp b
 	pop bc
 	pop de
 	pop hl
-	jr c, jr_058_5de3
+	jr c, .lower
 
-	jr nz, jr_058_5df4
+;>     elif ke == kb:
+	jr nz, .next
 
+;=@cp
 	push hl
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, [hli]
+;=@cp
 	ld b, [hl]
 	ld c, a
 	pop hl
+;>@ti         if s > best or (s == best and wRandomHigh >= 0x80):
+;>             best = s; wNameBattler = e
 	call CompareHLBC
-	jr c, jr_058_5dee
+	jr c, .take
 
-	jr nz, jr_058_5df4
+	jr nz, .next
 
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, jr_058_5df4
+	jr c, .next
 
-	jr jr_058_5dee
+;=@ti
+	jr .take
 
-jr_058_5de3:
+.lower:
+;=@cp
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
+;=@cp
 	ld c, a
 
-jr_058_5dee:
+.take:
+;=@tk
 	ld h, b
 	ld l, c
 	ld a, e
 	ld [wNameBattler], a
 
-jr_058_5df4:
+.next:
+;>@nx     wNameDest += 2
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
+;=@nx
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
+;=@lp
 	inc e
 	dec d
-	jr nz, jr_058_5d9f
+	jr nz, .loop
 
 	ret
 
 
+;@ def AIStartScoresAlt() -> c
+;@ path: battle/ai/targets
+;@ Starts a score list at wSkillAmount (pointer in wNameDest) and returns the first position of the
+;@ enemy side in c (and 3 in b).
+;@ test: wSkillUser = rng.randint(0, 7)
 AIStartScoresAlt::
+;> wNameDest = addr(wSkillAmount)
 	ld hl, wSkillAmount
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;> return (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
@@ -6937,7 +7220,13 @@ AIStartScoresAlt::
 	ret
 
 
+;@ def CheckReflects(pos: c) -> a
+;@ path: battle/ai/targets
+;@ Nonzero when the monster at `pos` sends spells or attacks back (Bounce or MagicBack, bits $22 of
+;@ status byte 2).
+;@ test: pos = rng.randint(0, 7)
 CheckReflects::
+;> return wBattlerStatus[8 * pos + 2] & 0x22
 	ld a, c
 	ld hl, wBattlerStatus2
 	call AddEightTimes
@@ -6946,20 +7235,28 @@ CheckReflects::
 	ret
 
 
+;@ def AISetTargetFromBest()
+;@ path: battle/ai/targets
+;@ Makes enemy position wNameBattler (0-2 on the enemy side) the target of the user.
+;@ test: wNameBattler = rng.randint(0, 2)
 AISetTargetFromBest::
+;> wSkillTarget = ((wSkillUser & 4) ^ 4) + wNameBattler
 	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	add c
+;=@st
 	ld [wSkillTarget], a
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -6967,33 +7264,53 @@ AISetTargetFromBest::
 	ret
 
 
+;@ def AIListPresentEnemies() -> d
+;@ path: battle/ai/targets
+;@ Lists the enemy positions still standing in wBattleArg0.. and returns their number; the score of
+;@ an empty position is moved to the end of the list at wSkillAmount (AIDropScore), so the scores
+;@ stay beside their positions.
+;@ test: wSkillUser = rng.randint(0, 7)
 AIListPresentEnemies::
+;> p, c = AIListStart()
 	call AIListStart
+;> d = 0
 	ld b, $03
 	ld d, $00
 
-jr_058_5e62:
+.loop:
+;>@lp for c in range(c, c + 3):
+;>     if not CheckBattlerPresent(c):
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_058_5e6d
+	jr c, .empty
 
+;>         mem[p] = c; p += 1; d += 1
 	ld a, c
 	ld [hli], a
 	inc d
-	jr jr_058_5e70
+	jr .next
 
-jr_058_5e6d:
+.empty:
+;>     else:
+;>         AIDropScore(c)
 	call AIDropScore
 
-jr_058_5e70:
+.next:
+;=@lp
 	inc c
 	dec b
-	jr nz, jr_058_5e62
+	jr nz, .loop
 
+;> return d
 	ret
 
 
+;@ def AIListStart() -> (hl, c)
+;@ path: battle/ai/targets
+;@ Returns the list address wBattleArg0 and the first enemy position.
+;@ test: wSkillUser = rng.randint(0, 7)
 AIListStart::
+;> return addr(wBattleArg0), (wSkillUser & 4) ^ 4
 	ld hl, wBattleArg0
 	ld a, [wSkillUser]
 	and $04
@@ -7002,45 +7319,59 @@ AIListStart::
 	ret
 
 
+;@ def AISortFirst()
+;@ path: battle/ai/targets
+;@ Moves the candidate with the lowest score to the front: clears the keys, picks with
+;@ AIPickBestKeyLowScore and swaps position and score with entry 0.
+;@ test: skip draws random numbers through the link generator
 AISortFirst::
+;> mem[addr(wNamePos)] = 0; mem[addr(wNamePos) + 1] = 0; mem[addr(wNamePos) + 2] = 0
 	xor a
 	ld hl, wNamePos
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
+;> AIPickBestKeyLowScore()
 	call AIPickBestKeyLowScore
+;>@sw i = wNameBattler; swap(mem[addr(wBattleArg0)], mem[addr(wBattleArg0) + i])
 	ld a, [wNameBattler]
 	ld hl, wBattleArg0
 	ld de, wBattleArg0
 	add e
 	ld e, a
 	ld a, $00
+;=@sw
 	adc d
 	ld d, a
 	ld a, [de]
 	ld b, a
 	ld a, [hl]
 	ld [de], a
+;=@sw
 	ld a, b
 	ld [hl], a
+;>@sc swap(mem16[addr(wSkillAmount)], mem16[addr(wSkillAmount) + 2 * i])
 	ld hl, wSkillAmount
 	ld a, [wNameBattler]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sc
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld d, [hl]
 	push hl
 	ld e, a
+;=@sc
 	ld hl, wSkillAmount
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld a, d
 	ld [hld], a
+;=@sc
 	ld [hl], e
 	pop hl
 	ld a, b
@@ -7049,40 +7380,53 @@ AISortFirst::
 	ret
 
 
+;@ def AISortSecond()
+;@ path: battle/ai/targets
+;@ Moves the candidate with the highest score to the end: picks with AIPickBestKeyHighScore and
+;@ swaps position and score with entry 2.
+;@ test: skip draws random numbers through the link generator
 AISortSecond::
+;> AIPickBestKeyHighScore()
 	call AIPickBestKeyHighScore
+;>@sw i = wNameBattler; swap(mem[addr(wBattleArg2)], mem[addr(wBattleArg0) + i])
 	ld a, [wNameBattler]
 	ld hl, wBattleArg2
 	ld de, wBattleArg0
 	add e
 	ld e, a
 	ld a, $00
+;=@sw
 	adc d
 	ld d, a
 	ld a, [de]
 	ld b, a
 	ld a, [hl]
 	ld [de], a
+;=@sw
 	ld a, b
 	ld [hl], a
+;>@sc swap(mem16[addr(wSkillAmount2)], mem16[addr(wSkillAmount) + 2 * i])
 	ld hl, wSkillAmount
 	ld a, [wNameBattler]
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@sc
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld d, [hl]
 	push hl
 	ld e, a
+;=@sc
 	ld hl, wSkillAmount2
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
 	ld a, d
 	ld [hld], a
+;=@sc
 	ld [hl], e
 	pop hl
 	ld a, b
@@ -7091,70 +7435,100 @@ AISortSecond::
 	ret
 
 
+;@ path: unused
+;@ Leftover code nothing calls: e:hl = hl + bc with the carry in e (ld a, l / add c / ld l, a /
+;@ ld a, h / adc b / ld h, a / xor a / adc 0 / ld c, a / ret - the result lands in c, not e).
 UnusedAddHLBC24::
 	db $7d, $81, $6f, $7c, $88, $67, $af, $ce, $00, $4f, $c9
 
+;@ def Add16To24(x: bc, y: de) -> (e, bc)
+;@ path: system/math
+;@ 16-bit add with the carry as a third byte: e:bc = x + y.
+;@ test: x = rng.randint(0, 0xFFFF)
 Add16To24::
+;> s = x + y
 	ld a, c
 	add e
 	ld c, a
 	ld a, b
 	adc d
 	ld b, a
+;> return s >> 16, s & 0xFFFF
 	xor a
 	adc $00
 	ld e, a
 	ret
 
 
+;@ def AIPickLowestKey(pos: c, count: b)
+;@ path: battle/ai/targets
+;@ Goes on with a lowest-key choice: wBattleArg0 / wBattleArg1 hold the best position and its key so
+;@ far; each of the `count` positions from `pos` with a lower key (an equal one at random) takes
+;@ over. The winner becomes the user's target.
+;@ test: skip draws random numbers through the link generator
 AIPickLowestKey::
+.loop:
+;>@lp for c in range(pos, pos + count):
+;>@k     key = mem[addr(wNamePos) + (c & 3)]
 	ld a, c
 	and $03
 	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
+;=@k
 	adc h
 	ld h, a
 	ld d, [hl]
+;>     take = key < wBattleArg1
 	ld a, [wBattleArg1]
 	cp d
-	jr c, jr_058_5f3b
+	jr c, .next
 
-	jr nz, jr_058_5f33
+;>     if key == wBattleArg1:
+	jr nz, .take
 
+;>@rn         BattleRandom_58()
 	push af
 	push bc
 	push de
 	push hl
 	call BattleRandom_58
+;=@rn
 	pop hl
 	pop de
 	pop bc
 	pop af
+;>         take = wRandomHigh >= 0x80
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, jr_058_5f3b
+	jr c, .next
 
-jr_058_5f33:
+.take:
+;>     if take:
+;>         wBattleArg0 = c; wBattleArg1 = key
 	ld a, c
 	ld [wBattleArg0], a
 	ld a, d
 	ld [wBattleArg1], a
 
-jr_058_5f3b:
+.next:
+;=@lp
 	inc c
 	dec b
-	jr nz, AIPickLowestKey
+	jr nz, .loop
 
+;> wSkillTarget = wBattleArg0
 	ld a, [wBattleArg0]
 	ld [wSkillTarget], a
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -7162,171 +7536,225 @@ jr_058_5f3b:
 	ret
 
 
+;@ def AIScoreHPDef(pos: c) -> de
+;@ path: battle/ai/targets
+;@ Score of `pos` for the slash pickers: HP + defense ($FFFF when it overflows); for an empty
+;@ position $FFFF and wBattleArg0 = $FF (its "resistance").
+;@ test: pos = rng.randint(0, 7)
 AIScoreHPDef::
+;> if not CheckBattlerPresent(pos):
 	push hl
 	push bc
 	ld a, c
 	call CheckBattlerPresent
 	pop bc
-	jr c, jr_058_5f77
+	jr c, .none
 
+;>@hp     s = mem16[addr(wBattlerHP) + 2 * pos] + GetBattlerDefense(pos)
 	ld a, c
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@hp
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
+;=@hp
 	ld a, c
 	call GetBattlerDefense
 	add hl, de
-	jr nc, jr_058_5f7f
+;>@ov     return min(s, 0xFFFF)
+	jr nc, .done
 
-	jr jr_058_5f7c
+	jr .full
 
-jr_058_5f77:
+.none:
+;>@n1 wBattleArg0 = 0xFF; return 0xFFFF
 	ld a, $ff
 	ld [wBattleArg0], a
 
-jr_058_5f7c:
+.full:
+;=@n1
 	ld hl, $ffff
 
-jr_058_5f7f:
+.done:
+;=@ov
 	ld d, h
 	ld e, l
 	pop hl
 	ret
 
 
+;@ def AIScoreHP(pos: c) -> de
+;@ path: battle/ai/targets
+;@ Score of `pos` for WindBeast and GigaSlash: its HP; for an empty position $FFFF and wBattleArg0 =
+;@ $FF.
+;@ test: pos = rng.randint(0, 7)
 AIScoreHP::
+;> if not CheckBattlerPresent(pos):
 	push hl
 	push bc
 	ld a, c
 	call CheckBattlerPresent
 	pop bc
-	jr c, jr_058_5f9c
+	jr c, .none
 
+;>@hp     return mem16[addr(wBattlerHP) + 2 * pos]
 	ld a, c
 	ld hl, wBattlerHP
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@hp
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
-	jr jr_058_5fa4
+	jr .done
 
-jr_058_5f9c:
+.none:
+;> wBattleArg0 = 0xFF; return 0xFFFF
 	ld a, $ff
 	ld [wBattleArg0], a
 	ld de, $ffff
 
-jr_058_5fa4:
+.done:
 	pop hl
 	ret
 
 
+;@ def AITargetResistHPDef(pos: c, count: b)
+;@ path: battle/ai/targets
+;@ Shared end of the slash pickers: for the `count` positions from `pos`, key = resistance byte
+;@ wBattleArg2 masked with wBattleArg3 ($FF masked for an empty position), score = HP + defense (AIScoreHPDef); the
+;@ lowest key wins, between equal keys the lowest score, a full tie at random. The winner becomes
+;@ the user's target.
+;@ test: skip far calls into the resistance table
 AITargetResistHPDef::
+;> wNameBattler = pos                               # best position so far
 	ld a, c
 	ld [wNameBattler], a
+;> wBattleArg0 = wBattleArg2; wSkillTarget = pos
 	push bc
 	ld a, [wBattleArg2]
 	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
+;> GetResistByte()
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
+;> s = AIScoreHPDef(pos)
 	call AIScoreHPDef
+;> wNamePos = wBattleArg0 & wBattleArg3               # best key
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
 	ld [wNamePos], a
+;> wSkillAmount = s                                  # best score
 	ld hl, wSkillAmount
 	ld a, e
 	ld [hli], a
 	ld [hl], d
+;>@lp for c in range(pos + 1, pos + count):
 	inc c
 	dec b
 
-jr_058_5fcf:
+.loop:
+;>     wBattleArg0 = wBattleArg2; wSkillTarget = c
 	push bc
 	ld a, [wBattleArg2]
 	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
+;>     GetResistByte()
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
+;>     s = AIScoreHPDef(c)
 	call AIScoreHPDef
+;>@ky     key = wBattleArg0 & wBattleArg3
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
 	ld h, a
+;>@cm     take = key < wNamePos or (key == wNamePos and s < wSkillAmount)
 	ld a, [wNamePos]
 	cp h
-	jr c, jr_058_6027
+	jr c, .next
 
-	jr nz, jr_058_6013
+	jr nz, .take
 
+;=@cm
 	ld hl, $db57
 	ld a, [hld]
 	cp d
-	jr c, jr_058_6027
+	jr c, .next
 
-	jr nz, jr_058_6013
+	jr nz, .take
 
+;=@cm
 	ld a, [hl]
 	cp e
-	jr c, jr_058_6027
+	jr c, .next
 
-	jr nz, jr_058_6013
+	jr nz, .take
 
+;>     if key == wNamePos and s == wSkillAmount:
+;>@rn         BattleRandom_58()
 	push af
 	push bc
 	push de
 	push hl
 	call BattleRandom_58
+;=@rn
 	pop hl
 	pop de
 	pop bc
 	pop af
+;>         take = wRandomHigh >= 0x80
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, jr_058_6027
+	jr c, .next
 
-jr_058_6013:
+.take:
+;>     if take:
+;>@tk         wNamePos = key; wSkillAmount = s; wNameBattler = c
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
 	ld [wNamePos], a
 	ld hl, wSkillAmount
 	ld a, e
+;=@tk
 	ld [hli], a
 	ld [hl], d
 	ld a, c
 	ld [wNameBattler], a
 
-jr_058_6027:
+.next:
+;=@lp
 	inc c
 	dec b
-	jr nz, jr_058_5fcf
+	jr nz, .loop
 
+;> wSkillTarget = wNameBattler
 	ld a, [wNameBattler]
 	ld [wSkillTarget], a
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -7334,100 +7762,132 @@ jr_058_6027:
 	ret
 
 
+;@ def AITargetResistHP(pos: c, count: b)
+;@ path: battle/ai/targets
+;@ Shared end of the slash pickers: for the `count` positions from `pos`, key = resistance byte
+;@ wBattleArg2 masked with wBattleArg3 ($FF masked for an empty position), score = HP (AIScoreHP); the
+;@ lowest key wins, between equal keys the lowest score, a full tie at random. The winner becomes
+;@ the user's target.
+;@ test: skip far calls into the resistance table
 AITargetResistHP::
+;> wNameBattler = pos                               # best position so far
 	ld a, c
 	ld [wNameBattler], a
+;> wBattleArg0 = wBattleArg2; wSkillTarget = pos
 	push bc
 	ld a, [wBattleArg2]
 	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
+;> GetResistByte()
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
+;> s = AIScoreHP(pos)
 	call AIScoreHP
+;> wNamePos = wBattleArg0 & wBattleArg3               # best key
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
 	ld [wNamePos], a
+;> wSkillAmount = s                                  # best score
 	ld hl, wSkillAmount
 	ld a, e
 	ld [hli], a
 	ld [hl], d
+;>@lp for c in range(pos + 1, pos + count):
 	inc c
 	dec b
 
-jr_058_606c:
+.loop:
+;>     wBattleArg0 = wBattleArg2; wSkillTarget = c
 	push bc
 	ld a, [wBattleArg2]
 	ld [wBattleArg0], a
 	ld a, c
 	ld [wSkillTarget], a
+;>     GetResistByte()
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
+;>     s = AIScoreHP(c)
 	call AIScoreHP
+;>@ky     key = wBattleArg0 & wBattleArg3
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
 	ld h, a
+;>@cm     take = key < wNamePos or (key == wNamePos and s < wSkillAmount)
 	ld a, [wNamePos]
 	cp h
-	jr c, jr_058_60c4
+	jr c, .next
 
-	jr nz, jr_058_60b0
+	jr nz, .take
 
+;=@cm
 	ld hl, $db57
 	ld a, [hld]
 	cp d
-	jr c, jr_058_60c4
+	jr c, .next
 
-	jr nz, jr_058_60b0
+	jr nz, .take
 
+;=@cm
 	ld a, [hl]
 	cp e
-	jr c, jr_058_60c4
+	jr c, .next
 
-	jr nz, jr_058_60b0
+	jr nz, .take
 
+;>     if key == wNamePos and s == wSkillAmount:
+;>@rn         BattleRandom_58()
 	push af
 	push bc
 	push de
 	push hl
 	call BattleRandom_58
+;=@rn
 	pop hl
 	pop de
 	pop bc
 	pop af
+;>         take = wRandomHigh >= 0x80
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, jr_058_60c4
+	jr c, .next
 
-jr_058_60b0:
+.take:
+;>     if take:
+;>@tk         wNamePos = key; wSkillAmount = s; wNameBattler = c
 	ld a, [wBattleArg0]
 	ld hl, wBattleArg3
 	and [hl]
 	ld [wNamePos], a
 	ld hl, wSkillAmount
 	ld a, e
+;=@tk
 	ld [hli], a
 	ld [hl], d
 	ld a, c
 	ld [wNameBattler], a
 
-jr_058_60c4:
+.next:
+;=@lp
 	inc c
 	dec b
-	jr nz, jr_058_606c
+	jr nz, .loop
 
+;> wSkillTarget = wNameBattler
 	ld a, [wNameBattler]
 	ld [wSkillTarget], a
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -7435,50 +7895,70 @@ jr_058_60c4:
 	ret
 
 
+;@ def IsAtMostOne(x: hl) -> carry
+;@ path: battle/ai/targets
+;@ Carry when `x` is 0 or 1.
+;@ test: x = rng.choice([0, 1, 2, 0x100, 0x101, rng.randint(0, 0xFFFF)])
 IsAtMostOne::
+;> if x >> 8:
+;>     return False
 	ld a, h
 	or a
-	jr nz, jr_058_60ee
+	jr nz, .no
 
+;>@r return x & 0xFF <= 1
 	ld a, l
 	or a
-	jr z, jr_058_60ec
+	jr z, .yes
 
 	cp $01
-	jr nz, jr_058_60ee
+	jr nz, .no
 
-jr_058_60ec:
+.yes:
+;=@r
 	scf
 	ret
 
 
-jr_058_60ee:
+.no:
+;=@r
 	ld a, $02
 	cp $01
 	ret
 
 
+;@ def GetBaseAgility_58(pos: a) -> bc
+;@ path: battle/ai/targets
+;@ The normal (unboosted) agility of the monster at `pos`, found like GetBaseDefense_58.
+;@ test: skip loads monster templates through far calls
 GetBaseAgility_58::
+;> if not wLinkActive:
 	push hl
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_058_612c
+	jr nz, .link
 
+;>     if pos < 3:
+;>@pm         return GetPartyMonsterWord(pos, addr(wMonAgility))
 	ld a, b
 	cp $03
-	jr c, jr_058_6132
+	jr c, .party
 
+;>     if pos & 3 == 3:
+;>@sp         template = 0x100 + wBattlerSpecies[pos]
 	and $03
 	cp $03
-	jr z, jr_058_613a
+	jr z, .species
 
+;>@en     template = mem16[addr(wEncSpecies) + 2 * (pos - 4)]
 	ld a, b
 	sub $04
 	ld hl, wEncSpecies
 	add a
 	add l
 	ld l, a
+;=@en
 	ld a, $00
 	adc h
 	ld h, a
@@ -7486,59 +7966,78 @@ GetBaseAgility_58::
 	ld h, [hl]
 	ld l, a
 
-jr_058_6116:
+.load:
+;>     wNewMonId = template & 0xFF; mem[0xDA13] = template >> 8
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
 	ld [$da13], a
+;>     LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
+;>     return wTemplateAgility + 256 * mem[0xDA26]
 	ld a, [wTemplateAgility]
 	ld c, a
 	ld a, [$da26]
 	ld b, a
-	jr jr_058_6149
+	jr .done
 
-jr_058_612c:
+.link:
+;> elif wLinkActive & 3 == 3:                    # (tests wLinkActive, not pos: a bug)
+;>     template = 0x100 + wBattlerSpecies[pos]   # then as above
 	and $03
 	cp $03
-	jr z, jr_058_613a
+	jr z, .species
 
-jr_058_6132:
+.party:
+;> else:
+;>     return GetPartyMonsterWord(pos, addr(wMonAgility))
+;=@pm
 	ld hl, wMonAgility
 	call GetPartyMonsterWord
-	jr jr_058_6149
+	jr .done
 
-jr_058_613a:
+.species:
+;=@sp
 	ld a, b
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@sp
 	ld h, a
 	ld l, [hl]
 	ld h, $01
-	jr jr_058_6116
+	jr .load
 
-jr_058_6149:
+.done:
 	pop hl
 	ret
 
 
+;@ path: unused
+;@ Code nothing calls (61 bytes): the average agility of the enemies still standing, returned in bc
+;@ (sum of wBattlerAgility, count in wNamePos, divided with the routine at $1E0D).
 UnusedAverageEnemyAgility::
 	db $e5, $01, $00, $00, $fa, $88, $db, $e6, $04, $ee, $04, $5f, $16, $03, $af, $ea
 	db $50, $db, $7b, $cd, $a5, $2f, $38, $15, $7b, $21, $03, $dc, $87, $85, $6f, $3e
 	db $00, $8c, $67, $2a, $66, $6f, $09, $44, $4d, $21, $50, $db, $34, $1c, $15, $20
 	db $e1, $fa, $50, $db, $60, $69, $cd, $0d, $1e, $44, $4d, $e1, $c9
 
+;@ def AIFlipTargetSide()
+;@ path: battle/ai/targets
+;@ Moves the user's target to the same slot on the other side.
+;@ test: wSkillUser = rng.randint(0, 7)
 AIFlipTargetSide::
+;>@t wBattlerAction[2 * wSkillUser + 1] ^= 4
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@t
 	adc h
 	ld h, a
 	ld a, [hl]
@@ -7547,84 +8046,109 @@ AIFlipTargetSide::
 	ret
 
 
+;@ def AIPickHighestScore()
+;@ path: battle/ai/targets
+;@ Targets the enemy with the highest of the three scores at wSkillAmount, wTargetScores and
+;@ wSkillAmount2 (a tie decided at random).
+;@ test: skip draws random numbers through the link generator
 AIPickHighestScore::
+;> wNameDest = addr(wTargetScores)
 	ld hl, wTargetScores
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;> wNameBattler = 0
 	ld a, $00
 	ld [wNameBattler], a
+;> best = wSkillAmount
 	ld hl, wSkillAmount
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@lp for e in (1, 2):
 	ld de, $0201
 
-jr_058_61b3:
+.loop:
+;>@s     s = mem16[wNameDest]
 	push hl
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, [hli]
+;=@s
 	ld b, [hl]
 	ld c, a
 	pop hl
+;>     take = best < s
 	call CompareHLBC
-	jr c, jr_058_61d9
+	jr c, .take
 
-	jr nz, jr_058_61df
+;>     if best == s:
+	jr nz, .next
 
+;>@rn         BattleRandom_58()
 	push af
 	push bc
 	push de
 	push hl
 	call BattleRandom_58
+;=@rn
 	pop hl
 	pop de
 	pop bc
 	pop af
+;>         take = wRandomHigh >= 0x80
 	ld a, [wRandomHigh]
 	cp $80
-	jr c, jr_058_61df
+	jr c, .next
 
-jr_058_61d9:
+.take:
+;>     if take:
+;>         best = s; wNameBattler = e
 	ld h, b
 	ld l, c
 	ld a, e
 	ld [wNameBattler], a
 
-jr_058_61df:
+.next:
+;>@nx     wNameDest += 2
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
+;=@nx
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
 	adc $00
 	ld [$db5f], a
+;=@lp
 	inc e
 	dec d
-	jr nz, jr_058_61b3
+	jr nz, .loop
 
+;> wSkillTarget = ((wSkillUser & 4) ^ 4) + wNameBattler
 	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	add c
+;=@st
 	ld [wSkillTarget], a
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -7632,20 +8156,28 @@ jr_058_61df:
 	ret
 
 
+;@ def AIPickLowestOwnScore()
+;@ path: battle/ai/targets
+;@ Targets the monster of the user's own side with the lowest of the three scores at wTargetScores,
+;@ wSkillAmount2 and wSkillTempPtr (on a tie the later one).
+;@ test: wSkillUser = rng.randint(0, 7)
 AIPickLowestOwnScore::
+;> wNameBattler = 0; low = wTargetScores
 	ld a, $00
 	ld [wNameBattler], a
 	ld a, [wTargetScores]
 	ld l, a
 	ld a, [$db59]
 	ld h, a
+;> if not low < wSkillAmount2:
 	ld a, [wSkillAmount2]
 	ld c, a
 	ld a, [$db5b]
 	ld b, a
 	call CompareHLBC
-	jr c, jr_058_624b
+	jr c, .third
 
+;>     wNameBattler = 1; low = wSkillAmount2
 	ld a, $01
 	ld [wNameBattler], a
 	ld a, [wSkillAmount2]
@@ -7653,30 +8185,36 @@ AIPickLowestOwnScore::
 	ld a, [$db5b]
 	ld h, a
 
-jr_058_624b:
+.third:
+;> if not low < wSkillTempPtr:
+;>@w2     wNameBattler = 2
 	ld a, [wSkillTempPtr]
 	ld c, a
 	ld a, [$db5d]
 	ld b, a
 	call CompareHLBC
-	jr c, jr_058_625d
+	jr c, .done
 
+;=@w2
 	ld a, $02
 	ld [wNameBattler], a
 
-jr_058_625d:
+.done:
+;> wSkillTarget = (wSkillUser & 4) + wNameBattler
 	ld a, [wNameBattler]
 	ld c, a
 	ld a, [wSkillUser]
 	and $04
 	add c
 	ld [wSkillTarget], a
+;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
 	ld hl, $dced
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@st
 	adc h
 	ld h, a
 	ld a, [wSkillTarget]
@@ -7684,12 +8222,19 @@ jr_058_625d:
 	ret
 
 
+;@ def AIStartScores() -> c
+;@ path: battle/ai/targets
+;@ Starts a score list at wSkillAmount (pointer in wNameDest, filled by AIStoreScore) and returns
+;@ the first enemy position in c (and 3 in b).
+;@ test: wSkillUser = rng.randint(0, 7)
 AIStartScores::
+;> wNameDest = addr(wSkillAmount)
 	ld hl, wSkillAmount
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
 	ld [$db5f], a
+;> return (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
@@ -7698,25 +8243,34 @@ AIStartScores::
 	ret
 
 
+;@ def AIStoreScore(score: de)
+;@ path: battle/ai/targets
+;@ Stores `score` at the score list pointer wNameDest and moves it on by 2.
+;@ test: skip writes through the pointer in wNameDest
 AIStoreScore::
+;>@w mem16[wNameDest] = score
 	ld a, [wNameDest]
 	ld l, a
 	ld a, [$db5f]
 	ld h, a
 	ld a, e
 	ld [hli], a
+;=@w
 	ld a, d
 	ld [hl], a
+;>@n wNameDest += 2
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
+;=@n
 	adc $00
 	ld [$db5f], a
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
 	ld a, [$db5f]
+;=@n
 	adc $00
 	ld [$db5f], a
 	ret

@@ -6763,7 +6763,8 @@ MovePagedListCursor_15::
 
 ;>             cur[0] = left - 1
 	ld [hl], a
-;>     return MenuCursorFinish_15(cur, marks)   # the end of MoveMenuCursor_15: blink, A, marks
+;>     wTitleBlink = 0; cur[0] |= 0x80 if wJoyPressed & 0x01 else 0   # the shared end of MoveMenuCursor_15
+;>     return MenuDrawCursorMarks_15(cur[0], marks)
 	jr jr_015_5fab
 
 .noTurn
@@ -6776,7 +6777,7 @@ MovePagedListCursor_15::
 	pop de
 ;=@lpn
 	pop bc
-;>@lp last_page, left = divmod(count - 1, rows)
+;>@lp last_page = (count - 1) // rows; left = (count - 1) % rows
 	push de
 	push bc
 	ld a, b
@@ -6861,7 +6862,7 @@ jr_015_5fab:
 	pop hl
 
 jr_015_5fb3:
-;> if wJoyPressed & A_BUTTON:
+;> if wJoyPressed & 0x01:             # A
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, .draw

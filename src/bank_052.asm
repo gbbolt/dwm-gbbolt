@@ -335,6 +335,7 @@ SkillBolt::
 ;@ Effect of Beat, Defeat and K.O.Dance (skills $12, $13, $71): if the instant-death roll
 ;@ against the target's resistance works, the target is knocked out (state 1, HP 0) with
 ;@ "X is finished!"; otherwise "Has no effect on X!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillBeat::
 ;> wBattleStepArg1 = 0
 	xor a
@@ -399,6 +400,7 @@ SkillSacrifice::
 ;@ into the message; a target already asleep gives "X is already sleeping!", a resisted roll
 ;@ "X doesn't fall asleep!"; otherwise "X is sent to sleep!" and the sleep bits
 ;@ ($8C of status byte 0) are set (PutTargetToSleep).
+;@ test: wSkillTarget = rand(0, 7)
 SkillSleep::
 ;> wBattleArg2 = lo(wTextArg0)
 	ld hl, wTextArg0
@@ -410,7 +412,7 @@ SkillSleep::
 ;> wNamePos = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-;> GetBattlerNameTo()
+;> GetBattlerNameTo(wSkillTarget, wTextArg0)
 	call GetBattlerNameTo
 ;>@slp if wBattlerStatus[8 * wSkillTarget] & 0x8C:     # already asleep
 	ld a, [wSkillTarget]
@@ -436,6 +438,7 @@ SkillSleep::
 ;@ path: battle/skills/effects/status
 ;@ Sets the sleep bits ($8C) of the target's status byte 0. The end of SkillSleep; the
 ;@ battle flow of this bank also calls it on its own.
+;@ test: wSkillTarget = rand(0, 7)
 PutTargetToSleep::
 ;> wBattlerStatus[8 * wSkillTarget] |= 0x8C
 	ld a, [wSkillTarget]
@@ -467,6 +470,7 @@ SleepAlready:
 ;@ Effect of StopSpell (skill $17): suspends the target's spells (bit 0 of status byte 1,
 ;@ wBattlerStatus1) when the roll against its resistance works: "X's spells are all
 ;@ suspended!", else "Has no effect on X!". Already suspended: ends without a message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillStopSpell::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x01:
 	ld a, [wSkillTarget]
@@ -510,6 +514,7 @@ SkillStopSpell::
 ;@ path: battle/skills/effects/status
 ;@ Effect of Surround (skill $18): an illusion engulfs the target (bit 1 of status byte 1)
 ;@ when the roll works: "An illusion engulfs X!", else "Has no effect on X!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillSurround::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x02:
 	ld a, [wSkillTarget]
@@ -554,6 +559,7 @@ SkillSurround::
 ;@ Effect of PanicAll, PaniDance and LIFE (skills $19, $6E, $DA): confuses the target (bit 4
 ;@ of status byte 0): "X is confused!". An already confused target gives "X becomes more
 ;@ confused!", a resisted roll "Has no effect on X!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillPanicAll::
 ;>@on if wBattlerStatus[8 * wSkillTarget] & 0x10:
 	ld a, [wSkillTarget]
@@ -598,6 +604,7 @@ SkillPanicAll::
 ;@ Effect of RobMagic and RobDance (skills $1A, $76): when the target has MP and the roll
 ;@ works, drains MP from it into the user (RobMagic): "X's MP is drained by Y!". A target
 ;@ without MP: "But nothing happens!"; resisted: "Has no effect on X!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillRobMagic::
 ;>@mp0 if mem16[wBattlerMP + 2 * wSkillTarget] == 0:
 	ld a, [wSkillTarget]
@@ -640,6 +647,7 @@ SkillRobMagic::
 ;@ path: battle/skills/effects/status
 ;@ Effect of TakeMagic (skill $1B): the user starts to glow (bit 0 of status byte 2); the
 ;@ message "X starts to glow faintly!" is shown at once. Already glowing: no message.
+;@ test: wSkillUser = rand(0, 7)
 SkillTakeMagic::
 ;>@on if wBattlerStatus[8 * wSkillUser + 2] & 0x01:
 	ld a, [wSkillUser]
@@ -669,6 +677,7 @@ SkillTakeMagic::
 ;@ Effect of Sap and Defence (skills $1C, $1D): when the roll against the target's resistance
 ;@ works, its defense drops by half its base defense (LowerDefense): "X loses N defense!".
 ;@ A defense that cannot drop further: "But nothing happens!"; resisted: "Has no effect on X!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillSap::
 ;>@res if not RollDefenseDown():
 	call RollDefenseDown
@@ -872,6 +881,7 @@ SkillBarrier::
 ;@ path: battle/skills/effects/status
 ;@ Effect of TwinHits (skill $25): doubles the target's attack power (bit 2 of status byte 1):
 ;@ "X's attack power is doubled!". Already doubled: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillTwinHits::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x04:
 	ld a, [wSkillTarget]
@@ -938,6 +948,7 @@ SkillMagicWall::
 ;@ reflects spells (MagicBack, bit 5 of status byte 2: "A wall of light rises before X!") or
 ;@ attacks (Bounce, bit 1: "A wall of light is created before X!"); the other wall goes away.
 ;@ The same wall again: "But nothing happens!".
+;@ test: wSkillUser = rand(0, 7)
 SkillMagicBack::
 ;> st = 8 * wSkillUser + 2
 	ld a, [wSkillUser]
@@ -994,6 +1005,7 @@ SkillMagicBack::
 ;@ path: battle/skills/effects/special
 ;@ Effect of Transform (skill $29): marks the user's stats as changed both ways and shows
 ;@ "Y turns into X!" (taking over the target's form happens in TransformIntoTarget).
+;@ test: wSkillUser = rand(0, 7)
 SkillTransform::
 ;> MarkStatsChanged(wSkillUser)
 	ld a, [wSkillUser]
@@ -1296,6 +1308,7 @@ SkillFarewell::
 ;@ path: battle/skills/effects/heal
 ;@ Effect of Antidote (skill $33): cures the target's poison (bits 0-1 of status byte 0):
 ;@ "X is no longer poisoned!"; not poisoned: "But nothing happens!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillAntidote::
 ;> status = ClearDamageGetStatus()                  # status byte 0 of the target
 	call ClearDamageGetStatus
@@ -1327,6 +1340,7 @@ SkillAntidote::
 ;@ Effect of NumbOff (skill $34): ends paralysis (bit 6 of status byte 0: "X is no longer
 ;@ paralyzed!") and sleep (bits $8C: "X wakes up!"); the cured monster loses this turn
 ;@ (wBattlerOrder 3). Neither: "But nothing happens!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillNumbOff::
 ;> status = ClearDamageGetStatus()
 	call ClearDamageGetStatus
@@ -1382,6 +1396,7 @@ SkillNumbOff::
 ;@ path: battle/skills/effects/heal
 ;@ Effect of DeChaos (skill $35): ends confusion (bit 4 of status byte 0); the monster loses
 ;@ this turn. "X returns to normal!"; not confused: "But nothing happens!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillDeChaos::
 ;> status = ClearDamageGetStatus()
 	call ClearDamageGetStatus
@@ -1422,6 +1437,7 @@ SkillDeChaos::
 ;@ path: battle/skills/effects/heal
 ;@ Effect of CurseOff (skill $36): lifts the curse (bit 5 of status byte 0): "X is no longer
 ;@ cursed!"; not cursed: "But nothing happens!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillCurseOff::
 ;> status = ClearDamageGetStatus()
 	call ClearDamageGetStatus
@@ -1522,6 +1538,7 @@ SkillRamming::
 ;@ path: battle/skills/effects/attacks
 ;@ Effect of Beserker (skill $3D): the user goes berserk (bit 2 of status byte 6) and attacks
 ;@ for double damage.
+;@ test: wSkillUser = rand(0, 7)
 SkillBeserker::
 ;> wBattlerStatus[8 * wSkillUser + 6] |= 0x04
 	ld a, [wSkillUser]
@@ -1619,6 +1636,7 @@ SkillMassacre::
 ;@ path: battle/skills/effects/attacks
 ;@ Effect of ChargeUP (skill $41): the user charges its attack (bits 0-1 of status byte 4);
 ;@ no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillChargeUp::
 ;> wBattlerStatus[8 * wSkillUser + 4] |= 0x03
 	ld a, [wSkillUser]
@@ -1638,6 +1656,7 @@ SkillChargeUp::
 ;@ Effect of HighJump (skill $42), two turns: the first use takes the user high into the sky
 ;@ (bits 2-3 of status byte 4) and ends the action (battle sub-step 6); the next one brings it
 ;@ down with a normal attack doing 1.5 times the damage.
+;@ test: wSkillUser = rand(0, 7)
 SkillHighJump::
 ;> st = 8 * wSkillUser + 4
 	ld a, [wSkillUser]
@@ -1693,6 +1712,7 @@ SkillHighJump::
 ;@ path: battle/skills/effects/attacks
 ;@ Effect of SuckAir (skill $43): the user takes a deep breath (bits 4-5 of status byte 4);
 ;@ no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillSuckAir::
 ;> wBattlerStatus[8 * wSkillUser + 4] |= 0x30
 	ld a, [wSkillUser]
@@ -1984,6 +2004,8 @@ RetargetSkill::
 ;@ (CallHelp) or $11 (YellHelp); otherwise "But the call is not heard!". Each later run is one
 ;@ helper's hit on the action's target (CalcLevelDamageRes24), or ends the help
 ;@ (EndCalledHelp) when that target is gone.
+;@ test: wSkillTarget = rand(0, 7)
+;@ test: wSkillUser = rand(0, 7)
 SkillCallHelp::
 ;>@first if wHitCount == 1:
 	ld a, [wHitCount]
@@ -2086,6 +2108,7 @@ SkillCallHelp::
 ;@ path: battle/skills/effects/attacks
 ;@ Effect of Focus (skill $54): the user calms itself and focuses (bit 7 of status byte 4);
 ;@ no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillFocus::
 ;> wBattlerStatus[8 * wSkillUser + 4] |= 0x80
 	ld a, [wSkillUser]
@@ -2358,6 +2381,7 @@ SkillPalsyAir::
 ;@ bit 0 of status byte 0 ("X is poisoned!"), PoisonAir bit 1 ("X is severely poisoned!"),
 ;@ each clearing the other. Resisted: "X dodges the air attack!". Already poisoned (any
 ;@ poison for PoisonGas, the severe one for PoisonAir): no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillPoisonGas::
 ;> st = 8 * wSkillTarget
 	ld a, [wSkillTarget]
@@ -2444,6 +2468,7 @@ SkillPoisonGas::
 ;@ path: battle/skills/effects/status
 ;@ Effect of Curse (skill $6F): curses the target (bit 5 of status byte 0): "X is cursed!";
 ;@ resisted: "Has no effect on X!". Already cursed: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillCurse::
 ;>@on if wBattlerStatus[8 * wSkillTarget] & 0x20:
 	ld a, [wSkillTarget]
@@ -2486,6 +2511,7 @@ SkillCurse::
 ;@ path: battle/skills/effects/status
 ;@ Effect of Ahhh (skill $70): the target feels good (bit 5 of status byte 3): "X seems to be
 ;@ feeling good!"; resisted: "Has no effect on X!". Already: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillAhhh::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x20:
 	call TargetStatus3
@@ -2526,6 +2552,7 @@ SkillAhhh::
 ;@ Effect of SandStorm and Radiant (skills $72, $73): blinds the target (bits 0-1 of status
 ;@ byte 5) when the roll works: "X gets sand in its eyes!" / "X is blinded!" (message
 ;@ wSkillId + $30); resisted: "Has no effect on X!". Already blinded: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillSandStorm::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 5] & 0x03:
 	ld a, [wSkillTarget]
@@ -2575,6 +2602,7 @@ SkillSandStorm::
 ;@ Effect of EerieLite (skill $74): leaves the target open to spells (bit 7 of status byte
 ;@ 3) when the roll works: "X is now vulnerable to magic spells!"; resisted: "Has no effect
 ;@ on X!"; already: "But nothing happens!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillEerieLite::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x80:
 	call TargetStatus3
@@ -2616,6 +2644,7 @@ SkillEerieLite::
 ;@ Effect of OddDance (skill $75): when the target has MP and the roll works, it loses MP
 ;@ (DrainTargetMP): "X lost N MP!". No MP: "But nothing happens!"; resisted: "Has no
 ;@ effect on X!".
+;@ test: wSkillTarget = rand(0, 7)
 SkillOddDance::
 ;>@mp0 if mem16[wBattlerMP + 2 * wSkillTarget] == 0:
 	ld a, [wSkillTarget]
@@ -2658,6 +2687,7 @@ SkillOddDance::
 ;@ path: battle/skills/effects/status
 ;@ Effect of SideStep (skill $77): unless the user is already side-stepping, bits 2-3 of its
 ;@ status byte 5 become 1 or 2 at random; no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillSideStep::
 ;> BattleRandom()
 	call BattleRandom
@@ -2692,6 +2722,7 @@ SkillSideStep::
 ;@ path: battle/skills/effects/status
 ;@ Effect of LureDance (skill $78): lures the target into dancing (bit 1 of status byte 3):
 ;@ "X is lured into dancing!"; resisted: "X isn't lured in!". Already: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillLureDance::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x02:
 	call TargetStatus3
@@ -2732,6 +2763,7 @@ SkillLureDance::
 ;@ Effect of LushLicks and SickLick (skills $79, $7A): licks the target (bit 3 of status byte
 ;@ 3): "X gets goose bumps!". SickLick (rolled like Sap) also drops its defense to 1 ("... X's
 ;@ defense drops to 1"). Resisted: "X isn't affected!"; already licked: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillLushLicks::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x08:
 	call TargetStatus3
@@ -2808,6 +2840,7 @@ SkillLushLicks::
 ;@ Effect of LegSweep and BigTrip (skills $7B, $7C): the target stumbles (bit 2 of status byte
 ;@ 3): "X stumbles!". Resisted: "But it doesn't reach X!" for a target with bit 4 of its type
 ;@ bits (a flier), else "But X dodges easily!". Already stumbling: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillLegSweep::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x04:
 	call TargetStatus3
@@ -2913,6 +2946,7 @@ SkillWarCry::
 ;@ def SkillImitate()
 ;@ path: battle/skills/effects/special
 ;@ Effect of Imitate (skill $7F): marks the user (bit 3 of status byte 6); no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillImitate::
 ;> wBattlerStatus[8 * wSkillUser + 6] |= 0x08
 	ld a, [wSkillUser]
@@ -2945,8 +2979,8 @@ SkillDeMagic::
 ;@ Effect of Surge (skill $81): the far routine of bank $53 does the curing; "X is
 ;@ completely cured!".
 SkillSurge::
-;> Call_53_601C()
-	ld hl, far_Call_53_601C
+;> CureAilments_53()
+	ld hl, far_CureAilments_53
 	rst $10
 ;> SkillWorks(0xAEAE)                                # "X is completely cured!"
 	ld hl, $aeae
@@ -2992,6 +3026,8 @@ SkillUltraDown::
 ;@ (SetUpCalledMonster picks the free position, wBattleArg0): it is put in the fight as species
 ;@ wSkillId + $54 and becomes the target: "Wow! X joined the battle!". Already called: "But
 ;@ nothing happens!"; random byte $C0 or more: "But the prayer isn't heard!".
+;@ test: wSkillTarget = rand(0, 7)
+;@ test: wSkillUser = rand(0, 7)
 SkillTatsuCall::
 ;> BattleRandom()
 	call BattleRandom
@@ -3022,7 +3058,7 @@ SkillTatsuCall::
 ;>@rnd1     return SkillFails(0xCB)                  # "But the prayer isn't heard!"
 ;> wSideFlags[side] |= 0x04
 	set 2, [hl]
-;> SetUpCalledMonster(wSkillId)
+;> SetUpCalledMonster()                   # the one for wSkillId
 	ld a, [wSkillId]
 	call SetUpCalledMonster
 ;>@st wBattlerState[wBattleArg0] = 0
@@ -3092,6 +3128,7 @@ SkillCover::
 ;@ status byte 2). StormWind covers every position of the target's side from the target up
 ;@ to the third (wSkillTarget ends there) and marks the side (bit 5 of wSideFlags). No
 ;@ message here.
+;@ test: wSkillTarget = rand(0, 7)
 SkillTailWind::
 ;>@loop for _ in forever():
 ;>     wBattlerStatus[8 * wSkillTarget + 2] |= 0x40
@@ -3147,6 +3184,7 @@ SkillTailWind::
 ;@ path: battle/skills/effects/status
 ;@ Effect of Dodge (skill $8C): the user gets ready to dodge (bit 5 of status byte 6); no
 ;@ message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillDodge::
 ;> wBattlerStatus[8 * wSkillUser + 6] |= 0x20
 	ld a, [wSkillUser]
@@ -3163,6 +3201,7 @@ SkillDodge::
 ;@ path: battle/skills/effects/status
 ;@ Effect of the stances Defence, StrongD and BladeD (skills $8D, $8E, $90): the low nibble of
 ;@ the user's status byte 7 becomes 1, 2 or 4; no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillDefence::
 ;> st = 8 * wSkillUser + 7
 	ld a, [wSkillUser]
@@ -3204,6 +3243,7 @@ SkillDefence::
 ;@ Effect of SuckAll (skill $8F): once per side (bit 6 of wSideFlags) the user opens its mouth
 ;@ to suck everything in: its position is noted in wSuckAllUsers (bit 2 + position) and it
 ;@ is marked (bit 1 of status byte 6). No message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillSuckAll::
 ;> side = 1 if wSkillUser >= 4 else 0
 	ld a, [wSkillUser]
@@ -3257,6 +3297,7 @@ SkillSuckAll::
 ;@ path: battle/skills/effects/status
 ;@ Effect of DanceShut (skill $91): stops the target's dancing (bit 6 of status byte 1):
 ;@ "X's hypnotic dance is stopped!"; resisted: "Has no effect on X!". Already: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillDanceShut::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x40:
 	ld a, [wSkillTarget]
@@ -3300,6 +3341,7 @@ SkillDanceShut::
 ;@ path: battle/skills/effects/status
 ;@ Effect of MouthShut (skill $92): binds the target's mouth (bit 7 of status byte 1): "X's
 ;@ mouth is bound shut!"; resisted: "But X dodges easily!". Already: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillMouthShut::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 1] & 0x80:
 	ld a, [wSkillTarget]
@@ -3343,6 +3385,7 @@ SkillMouthShut::
 ;@ path: battle/skills/effects/heal
 ;@ Effect of Meditate (skill $93): the user heals 500 HP (up to its maximum): "X's wound
 ;@ heals!"; at full HP "But nothing happens!".
+;@ test: wSkillUser = rand(0, 7)
 SkillMeditate::
 ;>@mx wSkillAmount2 = mem16[wBattlerMaxHP + 2 * wSkillUser]
 	ld a, [wSkillUser]
@@ -3420,6 +3463,7 @@ SkillMeditate::
 ;@ first use starts the song (state 2) without a message. The next one ends it; then, half
 ;@ the time and only if a monster of the user's side has fallen (wBattlerState 1), the battle
 ;@ goes on with sub-step 4 (the revival), else "But the prayer isn't heard!".
+;@ test: wSkillUser = rand(0, 7)
 SkillLifeSong::
 ;> st = 8 * wSkillUser + 5
 	ld a, [wSkillUser]
@@ -3750,6 +3794,8 @@ SkillHitEnemy::
 ;@ path: battle/skills/effects/attacks
 ;@ Effect of HitRandom (skill $9B, "attacks wildly - but it hits itself"): the user attacks
 ;@ itself (also stored as its action's target).
+;@ test: wSkillTarget = rand(0, 7)
+;@ test: wSkillUser = rand(0, 7)
 SkillHitSelf::
 ;> wSkillTarget = wSkillUser
 	ld a, [wSkillUser]
@@ -3772,6 +3818,7 @@ SkillHitSelf::
 ;@ path: battle/skills/effects/status
 ;@ Effect of Trip (skill $9E, a monster that stumbles): the user is marked as stumbling (bit 2
 ;@ of status byte 3); no message here.
+;@ test: wSkillUser = rand(0, 7)
 SkillTrip::
 ;> wBattlerStatus[8 * wSkillUser + 3] |= 0x04
 	ld a, [wSkillUser]
@@ -3796,6 +3843,7 @@ SkillNoEffect::
 ;@ path: battle/skills/effects/status
 ;@ Effect of Paralyze and CANTMOVE (skills $9F, $A0): the user is paralyzed (bit 6 of status
 ;@ byte 0); "X is paralyzed!" is shown at once.
+;@ test: wSkillUser = rand(0, 7)
 SkillCantMove::
 ;> wBattlerStatus[8 * wSkillUser] |= 0x40
 	ld a, [wSkillUser]
@@ -3993,6 +4041,8 @@ SkillMP0::
 ;@ Effect of CALLEVIL (skill $AB): the summoned devil strikes the action's target
 ;@ (CalcAttack400Damage) and the user is marked (bit 0 of status byte 6). No target: no
 ;@ message.
+;@ test: wSkillTarget = rand(0, 7)
+;@ test: wSkillUser = rand(0, 7)
 SkillCallEvil::
 ;> wSkillTarget = mem[wBattlerAction + 1 + 2 * wSkillUser]
 	ld a, [wSkillUser]
@@ -4029,6 +4079,7 @@ SkillCallEvil::
 ;@ path: battle/skills/effects/status
 ;@ Effect of FREEZY (skill $AC): freezes the target (bit 0 of status byte 3) without a roll:
 ;@ "X is frozen!". Already frozen: no message.
+;@ test: wSkillTarget = rand(0, 7)
 SkillFreezy::
 ;>@on if wBattlerStatus[8 * wSkillTarget + 3] & 0x01:
 	call TargetStatus3
@@ -4084,6 +4135,7 @@ UnusedRevivedCheck::
 ;@ Effect of RESTOREMP (skill $AE): fills the target's MP: "X recovers MP!". It is meant to do
 ;@ nothing at full MP, but the check compares the two bytes of the current MP with each other,
 ;@ so it ends quietly only when they happen to be equal.
+;@ test: wSkillTarget = rand(0, 7)
 SkillRestoreMP::
 ;> mx = GetBattlerMaxMP(wSkillTarget)
 	ld a, [wSkillTarget]
@@ -4124,6 +4176,8 @@ SkillRestoreMP::
 ;@ pts!"). When the target is gone the star goes to position (wHitCount & 3) - of the
 ;@ opposing side for the first three, of the user's own side after that - which becomes the
 ;@ action's target, and the skill steps start over. From the ninth run: nothing.
+;@ test: wSkillTarget = rand(0, 7)
+;@ test: wSkillUser = rand(0, 7)
 SkillMeteor::
 ;> n = wHitCount
 	ld a, [wHitCount]
@@ -4558,6 +4612,7 @@ UnusedRollSideStepMiss::
 ;@ path: battle/skills/effects/heal
 ;@ Puts battle position `pos` back into the fight with all 8 status bytes cleared, and draws
 ;@ its monster picture again (LoadBattlerPic with its species).
+;@ test: pos = rand(0, 7)
 ResetBattler::
 ;>@st wBattlerState[pos] = 0
 	push hl
@@ -4984,6 +5039,7 @@ FindBattlerSkills::
 ;@ def MarkStatUp(pos: a)
 ;@ path: battle/skills/effects/status
 ;@ Notes that a stat of battle position `pos` went up (bit 6 of status byte 6).
+;@ test: pos = rand(0, 7)
 MarkStatUp::
 ;> wBattlerStatus[8 * pos + 6] |= 0x40
 	push hl
@@ -4998,6 +5054,7 @@ MarkStatUp::
 ;@ def MarkStatDown(pos: a)
 ;@ path: battle/skills/effects/status
 ;@ Notes that a stat of battle position `pos` went down (bit 7 of status byte 6).
+;@ test: pos = rand(0, 7)
 MarkStatDown::
 ;> wBattlerStatus[8 * pos + 6] |= 0x80
 	push hl
@@ -5013,6 +5070,7 @@ MarkStatDown::
 ;@ path: battle/skills/effects/status
 ;@ Notes that stats of battle position `pos` went both up and down (bits 6-7 of status
 ;@ byte 6), as after Transform.
+;@ test: pos = rand(0, 7)
 MarkStatsChanged::
 ;> wBattlerStatus[8 * pos + 6] |= 0xC0
 	push hl
@@ -5021,9 +5079,8 @@ MarkStatsChanged::
 	ld a, [hl]
 	or $c0
 	ld [hl], a
-;=@x
+;> return
 	pop hl
-;>@x return
 	ret
 
 
@@ -5181,8 +5238,9 @@ SkillDamageRoutines::
 ;@ def TargetStatus3() -> hl
 ;@ path: battle/state
 ;@ Address of the target's status byte 3 (the same as GetTargetStatus3).
+;@ test: wSkillTarget = rand(0, 7)
 TargetStatus3::
-;> return wBattlerStatus3 + 8 * wSkillTarget       # address
+;> return wBattlerStatus + 8 * wSkillTarget + 3    # address of status byte 3
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus3
 	call AddEightTimes
@@ -5513,6 +5571,7 @@ ShowIronizeMessage::
 ;@ path: battle/skills/damage
 ;@ Halves wSkillAmount when the target is behind a veil of light (Barrier, bit 2 of status
 ;@ byte 2).
+;@ test: wSkillTarget = rand(0, 7)
 HalveDamageBehindVeil::
 ;> if not wBattlerStatus[8 * wSkillTarget + 2] & 0x04:
 ;>     return
@@ -5738,7 +5797,7 @@ ItemShowUseMessage::
 ;> wSkillId = 1
 	ld a, $01
 	ld [wSkillId], a
-;> UpdateStatusIcon_50(wSkillTarget)
+;> UpdateStatusIcon_50()
 	ld a, [wSkillTarget]
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
@@ -6843,6 +6902,7 @@ StaffStrike::
 ;@ The target's defence stance (low bits of status byte 7) cuts a staff's damage: StrongD
 ;@ (bit 1) to a tenth, Defence (bit 0) to half; the result goes into wSkillAmount. Carry when
 ;@ nothing is left; no carry without a stance.
+;@ test: wSkillTarget = rand(0, 7)
 StanceReduceDamage::
 ;> stance = wBattlerStatus[8 * wSkillTarget + 7] & 3
 	ld a, [wSkillTarget]
@@ -7463,6 +7523,7 @@ RollRobMagic::
 ;@ path: battle/skills/effects/status
 ;@ RobMagic's transfer: drains MP from the target (DrainTargetMP) and gives them to the user,
 ;@ whose MP stop at its maximum.
+;@ test: wSkillUser = rand(0, 7)
 RobMagic::
 ;> drained = DrainTargetMP()
 	call DrainTargetMP
@@ -7514,6 +7575,8 @@ RobMagic::
 ;@ path: battle/skills/effects/status
 ;@ Takes MP from the target: the user's level / 4 + 5, at most what the target has. The amount
 ;@ goes into wSkillAmount and is returned.
+;@ test: wSkillTarget = rand(0, 7)
+;@ test: wSkillUser = rand(0, 7)
 DrainTargetMP::
 ;>@m0 mp = mem16[wBattlerMP + 2 * wSkillTarget]
 	ld a, [wSkillTarget]
@@ -11930,7 +11993,7 @@ ActionStepDamage::
 ;@ (Sacrifice, DeMagic, ThickFog and FILTHZONE, UltraDown, Cover and Guardian,
 ;@ CALLHOROR and Smashed); all others skip to the end of the action (step 6).
 ActionStepSpecial::
-;>@h handler = {0x14: Call_53_670E, 0x80: Call_53_60B3, 0x82: Call_53_65AC, 0x83: Call_53_60B3, 0xA5: Call_53_60B3, 0x88: RunCoverStages_53, 0x89: RunCoverStages_53, 0xA2: RunCallHorrorStep, 0xA4: RunCallHorrorStep}.get(wSkillId)
+;>@h handler = {0x14: RunDeathStages_53, 0x80: RunDispelStages_53, 0x82: RunWeakenStages_53, 0x83: RunDispelStages_53, 0xA5: RunDispelStages_53, 0x88: RunCoverStages_53, 0x89: RunCoverStages_53, 0xA2: RunCallHorrorStep, 0xA4: RunCallHorrorStep}.get(wSkillId)
 	ld a, [wSkillId]
 	cp $14
 	jr z, .sacrifice
@@ -11975,21 +12038,21 @@ ActionStepSpecial::
 
 .deMagic
 ;=@r
-	ld hl, far_Call_53_60B3
+	ld hl, far_RunDispelStages_53
 	rst $10
 	ret
 
 
 .sacrifice
 ;=@r
-	ld hl, far_Call_53_670E
+	ld hl, far_RunDeathStages_53
 	rst $10
 	ret
 
 
 .ultraDown
 ;=@r
-	ld hl, far_Call_53_65AC
+	ld hl, far_RunWeakenStages_53
 	rst $10
 	ret
 
@@ -12005,8 +12068,8 @@ ActionStepSpecial::
 ;@ path: battle/actions
 ;@ The own steps of CALLHOROR and Smashed, in bank $53.
 RunCallHorrorStep::
-;> Call_53_6BE2()
-	ld hl, far_Call_53_6BE2
+;> ShowShockedNext_53()
+	ld hl, far_ShowShockedNext_53
 	rst $10
 	ret
 
@@ -12150,8 +12213,8 @@ CheckBladeCounter::
 ;@ path: battle/actions
 ;@ Follow-up of Farewell and LifeDance, in bank $53.
 FarewellFollowUp::
-;> Call_53_6A9B()
-	ld hl, far_Call_53_6A9B
+;> RunReviveAllStages_53()
+	ld hl, far_RunReviveAllStages_53
 	rst $10
 	ret
 
@@ -12306,8 +12369,8 @@ BladeCounterFollowUp::
 ;@ path: battle/actions
 ;@ Action step 5, in bank $53 (the next hit or target of the action).
 ActionStepNext::
-;> Call_53_5F15()
-	ld hl, far_Call_53_5F15
+;> RunHitWakeStages_53()
+	ld hl, far_RunHitWakeStages_53
 	rst $10
 	ret
 
@@ -13076,95 +13139,139 @@ ActionStepDefeat::
 	ret
 
 
+;@ def ActionStepItem()
+;@ path: battle/items
+;@ Action step 9: Terry uses an item. Sets up the message "<Terry> used <item>
+;@ on <target>" (the item's name is system text group 8, item - $AF), with a
+;@ delay, and goes on to the item's effect (step 10). The meats ($C2-$C6) use
+;@ text group 1; thrown at the enemy species $D7 in the first enemy place they
+;@ go to step $14 instead. Item $D5 has its own routine (UseBeastTail).
 ActionStepItem::
+;> if wBattleItemEffect == 0xD5:
 	ld a, [wBattleItemEffect]
 	cp $d5
-	jr nz, jr_052_7286
+	jr nz, .normal
 
+;>     return UseBeastTail()
 	ld hl, far_UseBeastTail
 	rst $10
 	ret
 
 
-jr_052_7286:
+.normal
+;> wBattleStepArg0 = 0
+;> wBattleStepArg1 = 0
 	xor a
 	ld [wBattleStepArg0], a
 	xor a
 	ld [wBattleStepArg1], a
+;> wMenuChoice = 0x80
+;> wSkillUser = 0x10                        # Terry
 	ld a, $80
 	ld [wMenuChoice], a
 	ld a, $10
 	ld [wSkillUser], a
+;> FixActionTarget()
 	ld hl, far_FixActionTarget
 	rst $10
+;> wSkillId = 0
 	ld a, $00
 	ld [wSkillId], a
+;> CopyName(wPlayerName, wTextArg0)
 	ld de, wPlayerName
 	ld hl, wTextArg0
 	call CopyName
+;>@n CopySystemText(0x0800 | wBattleItemEffect - 0xAF, wTextArg1)   # the item's name
 	ld a, [wBattleItemEffect]
 	sub $af
 	ld l, a
 	ld h, $08
 	ld de, wTextArg1
+;=@n
 	call CopySystemText
+;> wNamePos = wBattleItemTarget
+;> GetBattlerNameTo(wBattleItemTarget, wTextArg2)
 	ld hl, wTextArg2
 	ld a, [wBattleItemTarget]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;> GetItemMessage()
 	ld hl, far_GetItemMessage
 	rst $10
+;> wMonStats[0] = 0x18                      # delay
 	ld a, $18
 	ld [wMonStats], a
+;> wTextIndex = wBattleArg0
+;> wTextGroup = 0
 	ld a, [wBattleArg0]
 	ld [wTextIndex], a
 	ld a, $00
 	ld [wTextGroup], a
+;> if 0xC2 <= wBattleItemEffect < 0xC7:    # the meats
 	ld a, [wBattleItemEffect]
 	cp $c2
-	jr c, jr_052_72fb
+	jr c, .text
 
 	cp $c7
-	jr nc, jr_052_72fb
+	jr nc, .text
 
+;>     wTextGroup = 1
 	ld a, $01
 	ld [wTextGroup], a
+;>     if wBattleItemTarget == 4 and wBattlerSpecies[4] == 0xD7:
 	ld a, [wBattleItemTarget]
 	cp $04
-	jr nz, jr_052_72fb
+	jr nz, .text
 
-	ld a, [$dc40]
+	ld a, [wBattlerSpecies + 4]
 	cp $d7
-	jr nz, jr_052_72fb
+	jr nz, .text
 
+;>         wBattleSubStep = 0x14
 	ld a, $14
 	ld [wBattleSubStep], a
 
-jr_052_72fb:
+.text
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> mem[0xDB52] = wBattleItemTarget
 	ld a, [wBattleItemTarget]
 	ld [$db52], a
+;> wSkillUser = 0x10
 	ld a, $10
 	ld [wSkillUser], a
 	ret
 
 
+;@ def ItemTargetUnfit()
+;@ path: battle/items
+;@ The item cannot be used on its target: message $BA with the target's name,
+;@ then step $0C. After a meat wSkillId becomes 1.
 ItemTargetUnfit::
+;> wNamePos = wSkillTarget
+;> GetBattlerNameTo(wSkillTarget, wTextArg0)
 	ld hl, wTextArg0
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;> wTextIndex = 0xBA
+;> wTextGroup = 0
 	ld a, $ba
 	ld [wTextIndex], a
 	ld a, $00
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleSubStep = 0x0C
 	ld a, $0c
 	ld [wBattleSubStep], a
+;> if wBattleItemEffect >= 0xC2:
+;>     wSkillId = 1
 	ld a, [wBattleItemEffect]
 	cp $c2
 	ret c
@@ -13174,7 +13281,13 @@ ItemTargetUnfit::
 	ret
 
 
+;@ def ItemCheckTarget()
+;@ path: battle/items
+;@ Item stage 3: a target turned into an iron lump (Ironize, wBattlerStatus5
+;@ bits 6-7) takes no item; else the item works (UseBattleItem).
 ItemCheckTarget::
+;> if mem[wBattlerStatus5 + 8 * wBattleItemTarget] & 0xC0:
+;>     return ItemTargetUnfit()
 	ld a, [wBattleItemTarget]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
@@ -13182,58 +13295,80 @@ ItemCheckTarget::
 	and $c0
 	jr nz, ItemTargetUnfit
 
+;> wBattleStepArg0 += 1
 	ld hl, wBattleStepArg0
 	inc [hl]
+;> UseBattleItem()
 	call UseBattleItem
 	ret
 
 
+;@ def ActionStepItemEffect()
+;@ path: battle/items
+;@ Action step 10, after the delay, by stage (wBattleStepArg0): 0 checks the
+;@ target (gone, and the item is not WARLDLEAF: message $BB "no effect"; a meat
+;@ looks for a target with FindMeatTarget), 1 starts the item's animation, 2
+;@ moves on to the next target of an item for several (wBattleStepArg1
+;@ counts them up to wBattleItemUsedUp), 3 uses it (ItemCheckTarget), then the
+;@ result message (step 11) or, with wSkillMsgMode set, the animation again.
+;@ test: skip calls routines in other banks
 ActionStepItemEffect::
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_052_735b
+	jr z, .stage
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
 
-jr_052_735b:
+.stage
+;>@s stage = wBattleStepArg0
 	ld a, [wBattleStepArg0]
 	or a
-	jr z, jr_052_7375
+	jr z, .check
 
 	cp $01
-	jr z, jr_052_73b3
+	jr z, .anim
 
+;=@s
 	cp $02
-	jr z, jr_052_73bc
+	jr z, .nextTarget
 
 	cp $03
 	jr z, ItemCheckTarget
 
+;=@s
 	cp $04
-	jp z, Jump_052_73f0
+	jp z, .done
 
-	jp Jump_052_73f0
+	jp .done
 
 
-jr_052_7375:
+.check
+;> if stage == 0:
+;>     if CheckBattlerPresent(wBattleItemTarget) and wBattleItemEffect != 0xBB:   # gone, and not WARLDLEAF
+;>@f         return ItemNoEffect()
 	ld a, [wBattleItemTarget]
 	call CheckBattlerPresent
-	jr nc, jr_052_739d
+	jr nc, .begin
 
 	ld a, [wBattleItemEffect]
 	cp $bb
-	jr z, jr_052_739d
+	jr z, .begin
 
-jr_052_7384:
+.noEffect
+;=@f
 	ld a, $00
 	ld [wTextGroup], a
 	ld a, $bb
 	ld [wTextIndex], a
 	ld hl, far_StartText_4C
 	rst $10
+;=@f
 	ld a, $0c
 	ld [wBattleSubStep], a
 	ld a, $00
@@ -13241,53 +13376,75 @@ jr_052_7384:
 	ret
 
 
-jr_052_739d:
+.begin
+;>     wBattleStepArg0 += 1
 	ld hl, wBattleStepArg0
 	inc [hl]
+;>     wSkillTarget = wBattleItemTarget
 	ld a, [wBattleItemTarget]
 	ld [wSkillTarget], a
+;>     wSkillId = wBattleItemEffect
 	ld a, [wBattleItemEffect]
 	ld [wSkillId], a
+;>     if not FindMeatTarget(wBattleItemEffect):
+;>         return ItemNoEffect()           # message $BB, step $0C, wSkillId 0
 	call FindMeatTarget
 	ret c
 
-	jr jr_052_7384
+	jr .noEffect
 
-jr_052_73b3:
+.anim
+;> elif stage == 1:
+;>     StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
+;>     wBattleStepArg0 += 1
 	ld hl, wBattleStepArg0
 	inc [hl]
 	ret
 
 
-jr_052_73bc:
+.nextTarget
+;> elif stage == 2:
+;>     wBattleStepArg0 += 1
 	ld hl, wBattleStepArg0
 	inc [hl]
+;>     wBattleStepArg1 += 1
 	ld hl, wBattleStepArg1
 	inc [hl]
+;>     if wSkillAnimPhase != 2:
+;>         return
 	ld a, [wSkillAnimPhase]
 	cp $02
 	ret nz
 
+;>     if wBattleStepArg1 == wBattleItemUsedUp:
+;>         return
 	ld a, [wBattleItemUsedUp]
 	ld b, a
 	ld a, [wBattleStepArg1]
 	cp b
 	ret z
 
-jr_052_73d3:
+.findNext
+;>     while True:
+;>@n         wSkillTarget += 1
 	ld a, [wSkillTarget]
 	inc a
 	ld [wSkillTarget], a
+;>         if wSkillTarget & 3 == 3:
+;>             return
 	and $03
 	cp $03
 	ret z
 
+;>         if not CheckBattlerPresent(wSkillTarget):
+;>@b             break
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_73d3
+	jr c, .findNext
 
+;>     wBattleStepArg0 -= 2                  # back to stage 1 for it
 	ld hl, wBattleStepArg0
 	dec [hl]
 	ld hl, wBattleStepArg0
@@ -13295,382 +13452,551 @@ jr_052_73d3:
 	ret
 
 
-Jump_052_73f0:
+.done
+;> else:
+;>     wBattleStepArg1 = 0
 	xor a
 	ld [wBattleStepArg1], a
+;>     if not wSkillMsgMode:
 	ld a, [wSkillMsgMode]
 	or a
-	jr nz, jr_052_7408
+	jr nz, .again
 
+;>         wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;>         wBattleStepArg0 = 4
 	ld a, $04
 	ld [wBattleStepArg0], a
+;>         StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
-jr_052_7408:
+.again
+;>     else:
+;>         StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
+;>         wSkillMsgMode = 0
 	xor a
 	ld [wSkillMsgMode], a
+;>         wBattleSubStep = 0x0A
 	ld a, $0a
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def ActionStepItemTarget()
+;@ path: battle/items
+;@ Action step 11: when the target is still in the fight, on to step 12. A
+;@ target that is out (not the helper's place 3) is defeated
+;@ (ActionStepDefeat) and becomes wJoinCandidate (a monster that may want to
+;@ join); message $E4 follows. Then step $0C.
 ActionStepItemTarget::
+;> if not CheckBattlerPresent(wSkillTarget):
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_7428
+	jr c, .out
 
+;>     wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;>     wBattleItemUsedUp = 0
 	xor a
 	ld [wBattleItemUsedUp], a
+;>     return ActionStepItemEnd()
 	jr ActionStepItemEnd
 
-jr_052_7428:
+.out
+;> show = True
+;> if wSkillTarget & 3 != 3:
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
-	jr z, jr_052_744b
+	jr z, .message
 
+;>@e     if wBattlerState[wBattleItemTarget] == 0xFF:
 	ld a, [wBattleItemTarget]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@e
 	ld h, a
 	ld a, [hl]
 	cp $ff
-	jr z, jr_052_746a
+;>         show = False
+	jr z, .end
 
+;>     else:
+;>         ActionStepDefeat()
 	call ActionStepDefeat
+;>         wJoinCandidate = wBattleItemTarget
 	ld a, [wBattleItemTarget]
 	ld [wJoinCandidate], a
 
-jr_052_744b:
+.message
+;> if show:
+;>@m     GetBattlerNameTo(wBattleItemTarget, wTextArg0)
 	ld hl, wTextArg0
 	ld a, [wBattleItemTarget]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;>     wTextIndex = 0xE4
+;>     wTextGroup = 0
 	ld a, $e4
 	ld [wTextIndex], a
 	ld a, $00
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     wMonStats[0] = 5
 	ld a, $05
 	ld [wMonStats], a
 
-jr_052_746a:
+.end
+;> wBattleSubStep = 0x0C
 	ld a, $0c
 	ld [wBattleSubStep], a
+;> wBattleItemUsedUp = 0
 	xor a
 	ld [wBattleItemUsedUp], a
 	ret
 
 
+;@ def ActionStepItemEnd()
+;@ path: battle/items
+;@ Action step 12, after the delay: the panel is redrawn; an item for several
+;@ targets (bit 0 of its skill word 2 clear) goes on with the next one in the
+;@ fight (step 10 again). Then BADMEAT poisons (BadMeatEffect), the item is
+;@ used up (ConsumeBattleItem) and the action finishes.
 ActionStepItemEnd::
+;> if wMonStats[0]:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_052_747f
+	jr z, .go
 
+;>     wMonStats[0] -= 1
+;>     return
 	dec a
 	ld [wMonStats], a
 	ret
 
 
-jr_052_747f:
+.go
+;> if not wBattleItemUsedUp:
 	ld a, [wBattleItemUsedUp]
 	or a
-	jr nz, jr_052_74d1
+	jr nz, .finish
 
+;>     PrintPanelHPMP()
 	ld hl, far_PrintPanelHPMP
 	rst $10
+;>     wBattleArg0 = wBattleItemEffect
+;>     wBattleArg1 = 0
 	ld a, [wBattleItemEffect]
 	ld [wBattleArg0], a
 	ld a, $00
 	ld [wBattleArg1], a
+;>     wBattleArg2 = 2
 	ld a, $02
 	ld [wBattleArg2], a
+;>     GetSkillWord()
 	ld hl, far_GetSkillWord
 	rst $10
+;>     if not wBattleArg0 & 0x01:
+;>@l         while wBattleItemTarget & 3 != 3:
+;>@l2             wBattleItemTarget += 1
+;>@l3             if not CheckBattlerPresent(wBattleItemTarget):
+;>@l4                 return ActionStepItemAgain()
 	ld a, [wBattleArg0]
 	bit 0, a
-	jr z, jr_052_74d5
+	jr z, .nextTarget
 
-jr_052_74a4:
+.consume
+;>     if wBattleItemEffect == 0xC5 and not BadMeatEffect():
+;>         return
 	ld a, [wBattleItemEffect]
 	cp $c5
-	jr nz, jr_052_74af
+	jr nz, .usedUp
 
 	call BadMeatEffect
 	ret nc
 
-jr_052_74af:
+.usedUp
+;>     item = wBattleItemEffect
+;>@t     wBattleItemTarget = 0xFF
 	ld a, [wBattleItemEffect]
 	ld b, a
 	ld a, $ff
 	ld [wBattleItemTarget], a
+;>     wBattleItemEffect = 0xFF
 	ld a, $ff
 	ld [wBattleItemEffect], a
+;>     if wSkillId or item == 0xC9:
 	ld a, [wSkillId]
 	or a
-	jr nz, jr_052_74c8
+	jr nz, .consumeItem
 
 	ld a, b
 	cp $c9
-	jr nz, jr_052_74d1
+	jr nz, .finish
 
-jr_052_74c8:
+.consumeItem
+;>         ConsumeBattleItem()
 	ld hl, far_ConsumeBattleItem
 	rst $10
+;>         if wBattleItemUsedUp:
+;>             return
 	ld a, [wBattleItemUsedUp]
 	or a
 	ret nz
 
-jr_052_74d1:
+.finish
+;> FinishAction()
 	call FinishAction
 	ret
 
 
-jr_052_74d5:
+.nextTarget
+;=@l
 	ld a, [wBattleItemTarget]
 	and $03
 	cp $03
-	jr z, jr_052_74a4
+	jr z, .consume
 
+;=@l2
 	ld hl, wBattleItemTarget
 	inc [hl]
+;=@l3
 	ld a, [wBattleItemTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_74d5
+	jr c, .nextTarget
 
+;=@l4
 	jr ActionStepItemAgain
 
-	db $c9
+	db $c9                                  ; unused
 
+;@ def ActionStepFinish()
+;@ path: battle/actions
+;@ Action step 13: finishes the action.
 ActionStepFinish::
+;> FinishAction()
 	call FinishAction
 	ret
 
 
+;@ def ActionStepItemAgain()
+;@ path: battle/items
+;@ Action step 14: back to step 10, one stage earlier (the item's next target).
 ActionStepItemAgain::
+;> wBattleSubStep = 0x0A
 	ld a, $0a
 	ld [wBattleSubStep], a
+;> wBattleStepArg0 -= 1
 	ld hl, wBattleStepArg0
 	dec [hl]
 	ret
 
 
+;@ def BadMeatEffect() -> carry
+;@ path: battle/items
+;@ BADMEAT poisons a monster: from the item's target (or the next place,
+;@ wHitCount) the first one in the fight, with a chance by its poison resistance
+;@ (resistance 18: 75%, 50%, 25%, never), message $CE. Returns carry for an own
+;@ monster or when none was found, no carry for an enemy (the item then ends
+;@ there).
+;@ test: skip calls routines in other banks
 BadMeatEffect::
+;> Random()
 	call Random
+;> if wHitCount:
+;>     c = wHitCount
 	ld a, [wHitCount]
 	or a
-	jr nz, jr_052_7514
+	jr nz, .fromCount
 
+;> elif wBattleItemTarget & 4:
+;>@f     c = 4
 	ld a, [wBattleItemTarget]
 	bit 2, a
-	jr z, jr_052_7511
+	jr z, .fromTarget
 
+;=@f
 	ld c, $04
-	jr jr_052_7515
+	jr .find
 
-jr_052_750f:
+.none
+;=@n
 	scf
 	ret
 
 
-jr_052_7511:
+.fromTarget
+;> else:
+;>     c = wBattleItemTarget
 	ld c, a
-	jr jr_052_7515
+	jr .find
 
-jr_052_7514:
+.fromCount
 	ld c, a
 
-jr_052_7515:
+.find
+;> while CheckBattlerPresent(c):
 	ld a, c
 	call CheckBattlerPresent
-	jr nc, jr_052_7525
+	jr nc, .found
 
+;>     c += 1
 	inc c
+;>     if c & 3 == 2:
+;>@n         return True
 	ld a, c
 	and $03
 	cp $02
-	jr z, jr_052_750f
+	jr z, .none
 
-	jr jr_052_7515
+	jr .find
 
-jr_052_7525:
+.found
+;> if c & 4:
+;>@h     wHitCount = c + 1
 	ld a, c
 	bit 2, a
-	jr z, jr_052_7532
+	jr z, .resist
 
+;=@h
 	ld a, c
 	ld [wHitCount], a
 	ld hl, wHitCount
 	inc [hl]
 
-jr_052_7532:
+.resist
+;>@r level = wBattlerResist[7 * c + 4] & 3        # resistance 18 (poison)
 	ld a, c
-	ld hl, $dd2c
+	ld hl, wBattlerResist + 4
 	add a
 	add c
 	add a
 	add c
+;=@r
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;=@r
 	and $03
+;>@l limit = (0x40, 0x80, 0xC0, 0xFF)[level]
 	or a
-	jr z, jr_052_7552
+	jr z, .level0
 
 	cp $01
-	jr z, jr_052_7556
+	jr z, .level1
 
+;=@l
 	cp $02
-	jr z, jr_052_755a
+	jr z, .level2
 
 	ld a, $ff
-	jr jr_052_755c
+	jr .roll
 
-jr_052_7552:
+.level0
+;=@l
 	ld a, $40
-	jr jr_052_755c
+	jr .roll
 
-jr_052_7556:
+.level1
+;=@l
 	ld a, $80
-	jr jr_052_755c
+	jr .roll
 
-jr_052_755a:
+.level2
+;=@l
 	ld a, $c0
 
-jr_052_755c:
+.roll
+;> wSkillTarget = c
+;>@q if wRandomHigh > limit and not wBattlerStatus[8 * c] & 0x03:
 	ld hl, wRandomHigh
 	cp [hl]
 	ld a, c
 	ld [wSkillTarget], a
-	jr nc, jr_052_758a
+	jr nc, .done
 
+;=@q
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, [hl]
 	and $03
-	jr nz, jr_052_758a
+	jr nz, .done
 
+;>     wBattlerStatus[8 * c] |= 0x01                # poisoned
 	push bc
 	set 0, [hl]
+;>     TargetNameToArg0()
 	call TargetNameToArg0
+;>     wTextIndex = 0xCE
+;>     wTextGroup = 0
 	ld a, $ce
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;>     StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>     UpdateStatusIcon_50()
 	pop bc
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
 
-jr_052_758a:
+.done
+;> return wSkillTarget < 4
 	ld a, [wSkillTarget]
 	cp $04
 	ret
 
 
+;@ def ActionStepFinishReset()
+;@ path: battle/actions
+;@ Action step 15: finishes the action and starts over at step 0.
 ActionStepFinishReset::
+;> FinishAction()
 	call FinishAction
+;> wBattleSubStep = 0
 	ld a, $00
 	ld [wBattleSubStep], a
 	ret
 
 
+;@ def ActionStepRestart()
+;@ path: battle/actions
+;@ Action step 16: back to step 0, stage 1.
 ActionStepRestart::
+;> wBattleSubStep = 0
 	xor a
 	ld [wBattleSubStep], a
+;> wBattleSubStep2 = 1
 	ld a, $01
 	ld [wBattleSubStep2], a
 	ret
 
 
+;@ def ActionStep17()
+;@ path: battle/actions
+;@ Action step 17: a confused monster picks what it does (bank $53).
 ActionStep17::
+;> PickConfusedAction_53()
 	ld hl, far_PickConfusedAction_53
 	rst $10
 	ret
 
 
+;@ def ActionStepCounter()
+;@ path: battle/actions
+;@ Action step 19: the stages of a counterattack (CounterStageTable).
 ActionStepCounter::
+;> return CounterStageTable[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/actions
+;@ Stages of a BladeD counterattack.
 CounterStageTable::
 	dw CounterStage0
 	dw CounterStageHit
 	dw CounterStageEnd
 	dw CounterStageUserDown
 
+;@ def ActionStepNone()
+;@ path: battle/actions
+;@ Action step 20: nothing.
 ActionStepNone::
+;> return
 	ret
 
 
+;@ def FindMeatTarget(item: a) -> carry
+;@ path: battle/items
+;@ Carry for items other than the meats ($C2-$C6). For a meat: from wSkillTarget
+;@ on, the first monster in the fight without any of the ailments in status
+;@ bytes 0 (bits $CC), 3 ($3F), 4 ($0C) and 5 ($C0) is taken (carry); none
+;@ found up to place 2 of the side: no carry.
 FindMeatTarget::
+;> if not 0xC2 <= item < 0xC7:
+;>@y     return True
 	cp $c2
 	ret c
 
 	cp $c7
-	jr c, jr_052_75be
+	jr c, .loop
 
-jr_052_75bc:
+.yes
+;=@y
 	scf
 	ret
 
 
-jr_052_75be:
+.loop
+;> while True:
+;>@s     status = wBattlerStatus + 8 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;>     if not (mem[status] & 0xCC or mem[status + 3] & 0x3F or mem[status + 4] & 0x0C or mem[status + 5] & 0xC0):
+;>@t         return True
 	ld a, [hli]
 	and $cc
-	jr nz, jr_052_75dd
+	jr nz, .next
 
 	inc hl
 	inc hl
+;=@t
 	ld a, [hli]
 	and $3f
-	jr nz, jr_052_75dd
+	jr nz, .next
 
 	ld a, [hli]
 	and $0c
-	jr nz, jr_052_75dd
+	jr nz, .next
 
+;=@t
 	ld a, [hl]
 	and $c0
-	jr z, jr_052_75bc
+	jr z, .yes
 
-jr_052_75dd:
+.next
+;>     while True:
+;>@w         wSkillTarget += 1
 	ld hl, wSkillTarget
 	inc [hl]
+;>         if not CheckBattlerPresent(wSkillTarget):
+;>@b             break
 	ld a, [hl]
 	call CheckBattlerPresent
-	jr nc, jr_052_75be
+	jr nc, .loop
 
+;>         if wSkillTarget & 3 >= 2:
+;>@r             return False
 	ld a, [hl]
 	and $03
 	cp $02
-	jr c, jr_052_75dd
+	jr c, .next
 
+;=@r
 	xor a
 	ret
 
 
+	; code not reached by the tracer (more battle item checks; reached only from
+	; code still in data form)
 	db $7e, $e6, $0c, $28, $14, $fe, $04, $28, $0c, $fe, $08, $28, $04, $06, $60, $18
 	db $0a, $06, $a0, $18, $06, $06, $e0, $18, $02, $06, $ff, $fa, $99, $c8, $b8, $28
 	db $1c, $38, $1a, $7e, $e6, $f3, $47, $7e, $e6, $0c, $3d, $c5, $f5, $c1, $cb, $69

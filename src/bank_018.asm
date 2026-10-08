@@ -4214,7 +4214,7 @@ DrawPartyPictures_18::
 ;@ path: gfx/tilemap
 ;@ Writes a 6 x 6 block of consecutive tile numbers from `tile` on into wTilemapBuffer at screen
 ;@ offset `pos`; returns the next tile number.
-;@ test: hl = rand(0, 0x40)
+;@ test: skip writes wTilemapBuffer, where the test stack lives
 DrawPictureTiles_18::
 ;> for row in range(6):
 	ld c, $06

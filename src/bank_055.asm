@@ -1053,27 +1053,41 @@ FillTileBlock::
 	ret
 
 
+;@ def DebugMenuUpdate()
+;@ path: system/debug
+;@ Per-frame routine of game mode $07, the debug menu. SELECT leaves it for game mode $0B (clearing
+;@ $DF00-$DF03 and $DF0B-$DF0C first); otherwise runs the page wGameModeStep. Ends with `reti`
+;@ instead of `ret` on that path, which also enables interrupts.
+;@ test: skip jump table dispatch
 DebugMenuUpdate::
+;> if wJoyPressed & 0x04:   # Select
 	ld a, [wJoyPressed]
 	bit 2, a
-	jr z, jr_055_4b72
+	jr z, .page
+
+;>@clr     for a in (0xDF0B, 0xDF0C, 0xDF02, 0xDF03, 0xDF00, 0xDF01): mem[a] = 0
 	xor a
 	ld [$df0b], a
 	ld [$df0c], a
 	ld [$df02], a
 	ld [$df03], a
+;=@clr
 	ld [$df00], a
 	ld [$df01], a
+;>     wGameMode = 0x0B
 	ld a, $0b
 	ld [wGameMode], a
+;>     wGameModeStep = 0
 	xor a
 	ld [wGameModeStep], a
+;>     wGameModeChange += 1
+;>     return
 	ld hl, wGameModeChange
 	inc [hl]
 	reti
 
-
-jr_055_4b72:
+.page
+;> DebugPages[wGameModeStep]()
 	ld a, [wGameModeStep]
 	rst $00
 
@@ -1084,326 +1098,457 @@ jr_055_4b72:
 	dw DebugSoundTestPage
 	dw DebugBattlePage
 
+;@ def DebugMainPage()
+;@ path: system/debug
+;@ Main debug page: up/down (also left/right) moves the cursor over the 6 lines (debug value 0); the
+;@ cursor line is highlighted by remapping row $9922 to that line's tiles. A opens page 1-5 (program
+;@ jump, monster pictures, map edit, sound test, battle) or, on the last line, returns to the game
+;@ mode that was running when the menu was opened.
+;@ test: skip polls the LCD
 DebugMainPage::
+;> if wJoyRepeat & 0x90:   # Down / Right
 	ld a, [wJoyRepeat]
 	and $90
-	jr z, jr_055_4b95
+	jr z, .notDown
+
+;>     line = (mem[0xC0A0] + 1) % 6
 	ld a, [wNumberBackup]
 	inc a
 	cp $06
-	jr nz, jr_055_4ba6
+	jr nz, .moved
+
 	ld a, $00
-	jr jr_055_4ba6
+	jr .moved
 
-
-jr_055_4b95:
+;> elif wJoyRepeat & 0x60:   # Up / Left
+.notDown
 	ld a, [wJoyRepeat]
 	and $60
-	jr z, jr_055_4bae
+	jr z, .draw
+
+;>     line = (mem[0xC0A0] - 1) % 6
 	ld a, [wNumberBackup]
 	dec a
 	cp $ff
-	jr nz, jr_055_4ba6
+	jr nz, .moved
+
 	ld a, $05
 
-jr_055_4ba6:
+.moved
+;>     mem[0xC0A0] = line
 	ld [wNumberBackup], a
+;>     QueueSound(0x59)                   # cursor click
 	ld a, $59
 	call QueueSound
 
-jr_055_4bae:
+.draw
+;> tile = 0xA0 + mem[0xC0A0] * 16
 	ld a, [wNumberBackup]
 	swap a
 	add $a0
+;> pos = 0x9922
 	ld hl, $9922
 	ld b, $10
-
-jr_055_4bba:
+;> for _ in range(16): pos = WriteVRAMInc(tile, pos); tile += 1
+.row
 	call WriteVRAMInc
 	inc a
 	dec b
-	jr nz, jr_055_4bba
+	jr nz, .row
+
+;> if not wJoyPressed & 0x01:   # A
+;>     return
 	ld a, [wJoyPressed]
 	and $01
 	ret z
+
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> if mem[0xC0A0] != 5:
 	ld a, [wNumberBackup]
 	cp $05
-	jr z, jr_055_4bdc
+	jr z, .back
+
+;>     wGameModeStep = mem[0xC0A0] + 1   # open that page
 	inc a
 	ld [wGameModeStep], a
+;>     wGameModeChange += 1
+;>     return
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
-
-jr_055_4bdc:
+.back
+;>@back for i in range(4): mem[wGameMode + i] = wDebugSavedMode[i]   # mode, step, scene, logo
 	ld hl, wGameMode
 	ld a, [wDebugSavedMode]
 	ld [hli], a
 	ld a, [wDebugSavedMode + 1]
 	ld [hli], a
+;=@back
 	ld a, [wDebugSavedMode + 2]
 	ld [hli], a
 	ld a, [wDebugSavedMode + 3]
 	ld [hl], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def DebugModeJumpPage()
+;@ path: system/debug
+;@ "GOTOPRG" page: four hex values (game mode, step, opening scene, logo) picked with up/down, changed
+;@ with right/left (A zeroes one). START jumps to that game mode, after making up a random encounter
+;@ (three random monster numbers, group size random % 3); B returns to the main page. The values are
+;@ drawn every frame with the chosen one blinking, and the name of the chosen mode next to them.
+;@ test: skip calls Random and polls the LCD
 DebugModeJumpPage::
+;> if wJoyPressed & 0x08:   # Start
 	ld a, [wJoyPressed]
 	and $08
-	jr z, jr_055_4c52
+	jr z, .edit
+
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>@rnd     for i in (0, 2, 4):
+;>         Random(); wEncSpecies[i] = wRandomHigh + 1
 	call Random
 	ld a, [wRandomHigh]
 	inc a
 	ld [wEncSpecies], a
+;=@rnd
 	call Random
 	ld a, [wRandomHigh]
 	inc a
 	ld [wEncSpecies + 2], a
+;=@rnd
 	call Random
 	ld a, [wRandomHigh]
 	inc a
 	ld [wEncSpecies + 4], a
+;>     Random()
 	call Random
+;>     wEncCount = wRandomHigh % 3
 	ld a, [wRandomHigh]
 	ld b, a
 	ld a, $03
 	call Divide8
 	ld [wEncCount], a
+;>     StartFade(4)
 	ld a, $04
 	call StartFade
+;>     wGameMode = mem[0xC0A0]
 	ld hl, wNumberBackup
 	ld a, [hli]
 	ld [wGameMode], a
+;>     wGameModeStep = mem[0xC0A1]
 	ld a, [hli]
 	ld [wGameModeStep], a
+;>     wOpeningScene = mem[0xC0A2]
 	ld a, [hli]
 	ld [wOpeningScene], a
+;>     wOpeningLogo = mem[0xC0A3]
 	ld a, [hli]
 	ld [wOpeningLogo], a
+;>     wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;>     wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;>     wGameStarted = 0
+;>     return
 	xor a
 	ld [wGameStarted], a
 	ret
 
-
-jr_055_4c52:
+.edit
+;> if wJoyRepeat & 0x40:   # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_055_4c5f
+	jr z, .notUp
+
+;>@up     wMenuChoice = (wMenuChoice - 1) & 3
 	ld a, [wMenuChoice]
 	dec a
-	jr jr_055_4c6a
+	jr .moved
 
-
-jr_055_4c5f:
+;> elif wJoyRepeat & 0x80:   # Down
+.notUp
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_055_4c74
+	jr z, .change
+
+;>@dn     wMenuChoice = (wMenuChoice + 1) & 3
 	ld a, [wMenuChoice]
 	inc a
 
-jr_055_4c6a:
+.moved
+;=@up
+;=@dn
 	and $03
 	ld [wMenuChoice], a
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
 
-jr_055_4c74:
+.change
+;> p = 0xC0A0 + wMenuChoice
 	ld a, [wMenuChoice]
 	ld c, a
 	ld b, $00
 	ld hl, wNumberBackup
 	add hl, bc
+;> if wJoyRepeat & 0x10:   # Right
 	ld a, [wJoyRepeat]
 	and $10
-	jr z, jr_055_4c88
+	jr z, .notRight
+
+;>@r     mem[p] = (mem[p] + 1) & 0xFF; QueueSound(0x59)
 	inc [hl]
-	jr jr_055_4c9b
+	jr .changed
 
-
-jr_055_4c88:
+;> elif wJoyRepeat & 0x20:   # Left
+.notRight
 	ld a, [wJoyRepeat]
 	and $20
-	jr z, jr_055_4c92
+	jr z, .notLeft
+
+;>@l     mem[p] = (mem[p] - 1) & 0xFF; QueueSound(0x59)
 	dec [hl]
-	jr jr_055_4c9b
+	jr .changed
 
-
-jr_055_4c92:
+;> elif wJoyPressed & 0x01:   # A
+.notLeft
 	ld a, [wJoyPressed]
 	and $01
-	jr z, jr_055_4ca0
+	jr z, .back
+
+;>     mem[p] = 0; QueueSound(0x59)
 	xor a
 	ld [hl], a
 
-jr_055_4c9b:
+.changed
+;=@r
+;=@l
 	ld a, $59
 	call QueueSound
 
-jr_055_4ca0:
+.back
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	and $02
-	jr z, jr_055_4cb5
+	jr z, .draw
+
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wGameModeStep = 0                  # back to the main page
 	xor a
 	ld [wGameModeStep], a
+;>     wGameModeChange += 1
+;>     return
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
-
-jr_055_4cb5:
+.draw
+;> src, pos = 0xC0A0, 0x98CD
 	ld de, wNumberBackup
 	ld hl, $98cd
 	ld b, $01
 	ld c, $04
-
-jr_055_4cbf:
+;> for c in range(4, 0, -1):
+.line
 	push de
 	push hl
 	push bc
+;>@bl     if wMenuChoice + c == 4 and not wFrameCounter & 8:   # the chosen value blinks
 	ld a, [wMenuChoice]
 	add c
 	cp $04
-	jr nz, jr_055_4cda
+	jr nz, .show
+
+;=@bl
 	ld a, [wFrameCounter]
 	bit 3, a
-	jr nz, jr_055_4cda
+	jr nz, .show
+
+;>         pos = WriteVRAMInc(0, pos); WriteVRAMInc(0, pos)
 	xor a
 	call WriteVRAMInc
 	call WriteVRAMInc
-	jr jr_055_4cde
+	jr .next
 
-
-jr_055_4cda:
+;>     else:
+.show
+;>         DrawHexByte(mem[src], pos)
 	ld a, [de]
 	call DrawHexByte
 
-jr_055_4cde:
+.next
+;>@nx     pos += 0x20; src += 1
 	pop bc
 	pop hl
 	pop de
 	ld a, l
 	add $20
 	ld l, a
+;=@nx
 	ld a, h
 	adc $00
 	ld h, a
 	inc de
 	dec c
-	jr nz, jr_055_4cbf
+	jr nz, .line
+
+;> tile = 0x80 + mem[0xC0A0] * 8       # name of the chosen game mode
 	ld a, [wNumberBackup]
 	add a
 	add a
 	add a
 	add $80
+;> pos = 0x98C4
 	ld hl, $98c4
 	ld b, $08
-
-jr_055_4cfa:
+;> for _ in range(8): pos = WriteVRAMInc(tile, pos); tile += 1
+.name
 	call WriteVRAMInc
 	inc a
 	dec b
-	jr nz, jr_055_4cfa
+	jr nz, .name
+
 	ret
 
 
+;@ def DebugMonsterViewPage()
+;@ path: system/debug
+;@ Monster picture page: shows the number wMenuChoice in decimal; up/down steps through the monsters
+;@ and shows the new one (ShowDebugMonster, which follows); B returns to the main page.
+;@ test: skip polls the LCD
 DebugMonsterViewPage::
+;> DrawNumberDigits(wMenuChoice, 0x9988, digit_base=1, blank=0)
 	ld hl, $9988
 	ld a, [wMenuChoice]
 	ld b, $01
 	ld c, $00
 	call DrawNumberDigits
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	and $02
-	jr z, jr_055_4d24
+	jr z, .move
+
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wGameModeStep = 0
 	xor a
 	ld [wGameModeStep], a
+;>     wGameModeChange += 1
+;>     return
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
-
-jr_055_4d24:
+.move
+;> if wJoyRepeat & 0x40:   # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_055_4d31
+	jr z, .notUp
+
+;>     choice = wMenuChoice - 1
 	ld a, [wMenuChoice]
 	dec a
-	jr jr_055_4d3c
+	jr .moved
 
-
-jr_055_4d31:
+;> elif wJoyRepeat & 0x80:   # Down
+.notUp
 	ld a, [wJoyRepeat]
 	bit 7, a
 	jr z, jr_055_4da3
+
+;>     choice = wMenuChoice + 1
 	ld a, [wMenuChoice]
 	inc a
-
-jr_055_4d3c:
+;> else:
+;>     return
+.moved
+;> wMenuChoice = choice & 0xFF
 	ld [wMenuChoice], a
+;> QueueSound(0x59)
+;> ShowDebugMonster()                     # (runs on into it)
 	ld a, $59
 	call QueueSound
 
+;@ def ShowDebugMonster()
+;@ path: system/debug
+;@ Shows monster picture wMenuChoice: decompresses it (pointer table at $2B9F in bank 0) to $8800,
+;@ loads its palette and prints its name into the tiles at $8A40.
+;@ test: skip calls routines in other banks
 ShowDebugMonster::
+;>@pic pic = mem16[0x2B9F + 2 * wMenuChoice]   # bank and entry of the compressed picture
 	ld a, [wMenuChoice]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
 	add $9f
+;=@pic
 	ld l, a
 	ld a, h
 	adc $2b
 	ld h, a
 	ld e, [hl]
 	inc hl
+;=@pic
 	ld d, [hl]
+;> DecompressVRAM(pic >> 8, pic & 0xFF, 0x8800)
 	ld hl, $8800
 	call DecompressVRAM
+;> wPaletteSet = wMenuChoice
 	ld a, [wMenuChoice]
 	ld [wPaletteSet], a
+;> wMonPicPalette = 4
 	ld a, $04
 	ld [wMonPicPalette], a
+;> wMonPicPos = 0x0087
 	ld hl, $0087
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
+;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> wTextIndex = wMenuChoice
 	ld a, [wMenuChoice]
 	ld [wTextIndex], a
+;> wTextGroup = 5                         # monster names
 	ld a, $05
 	ld [wTextGroup], a
+;> wTextBoxLines = 1
 	ld hl, $0901
 	ld a, l
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 9
 	ld a, h
 	ld [wTextBoxLineLength], a
+;> wTextTiles = 0x8A40
 	ld hl, $8a40
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
 jr_055_4da3:
@@ -1411,267 +1556,382 @@ jr_055_4da3:
 
 
 
+;@ def DebugWarpPage()
+;@ path: system/debug
+;@ "EDIT" page: eight values picked with up/down and changed with right/left (A zeroes one): 0 floor
+;@ flag (0-1), 1 map ($00-$5F), 2 party count (0-3), 3-5 the party slots (0-9), 6 a value for hNumber,
+;@ 7 the debug set-up flag. START warps there (game mode 1, the field); B also takes the values over
+;@ but returns to the main debug page. The values are drawn as hex every frame, the chosen one blinks.
+;@ test: skip polls the LCD
 DebugWarpPage::
+;> if not wJoyPressed & 0x08:             # no Start
+;>     return DebugWarpEdit()
 	ld a, [wJoyPressed]
 	and $08
-	jr z, jr_055_4e0a
+	jr z, DebugWarpEdit
+
+;> StartFade(4)
 	ld a, $04
 	call StartFade
+;> wGameMode = 1                          # the field
 	ld a, $01
 	ld [wGameMode], a
+;> wGameModeStep = 0
+;> DebugWarpApply()                       # (runs on into it)
 	ld a, $00
 	ld [wGameModeStep], a
 
-jr_055_4dba:
+;@ def DebugWarpApply()
+;@ path: system/debug
+;@ Part of DebugWarpPage: copies the eight edit values into the game (floor flag, map, party, debug
+;@ set-up), queues a warp to that map and switches game mode.
+;@ test: skip writes many game variables
+DebugWarpApply::
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> wOnGateFloor = mem[0xC0A0]
 	ld hl, wNumberBackup
 	ld a, [hli]
 	ld [wOnGateFloor], a
+;> wMapId = mem[0xC0A1]
 	ld a, [hli]
 	ld [wMapId], a
+;> wPartyCount = mem[0xC0A2]
 	ld a, [hli]
 	ld [wPartyCount], a
+;>@p for i in range(3): wParty[i] = mem[0xC0A3 + i]
 	ld a, [hli]
 	ld [wParty], a
 	ld a, [hli]
 	ld [wParty + 1], a
+;=@p
 	ld a, [hli]
 	ld [wParty + 2], a
+;> hNumber[0] = mem[0xC0A6]
 	ld a, [hli]
 	ldh [hNumber], a
+;> wDebugSetup = mem[0xC0A7]
 	ld a, [hl]
 	ld [wDebugSetup], a
+;> wGameStarted = wOnGateFloor
 	ld a, [wOnGateFloor]
 	ld [wGameStarted], a
+;> wWarpPending = wOnGateFloor
 	ld a, [wOnGateFloor]
 	ld [wWarpPending], a
+;> wWarpMap = wMapId
 	ld a, [wMapId]
 	ld [wWarpMap], a
+;> wWarpOnGateFloor = wOnGateFloor
 	ld a, [wOnGateFloor]
 	ld [wWarpOnGateFloor], a
+;> wGateWorld = 0
 	xor a
 	ld [wGateWorld], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
+;> wFieldFlags = 0
 	xor a
 	ld [wFieldFlags], a
+;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
 	ret
 
 
-jr_055_4e0a:
+;@ def DebugWarpEdit()
+;@ path: system/debug
+;@ Part of DebugWarpPage: moves the cursor, changes the chosen value (DebugWarpRefresh wraps it and
+;@ redraws the names), handles B and draws the values.
+;@ test: skip polls the LCD
+DebugWarpEdit::
+;> if wJoyRepeat & 0x40:                  # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_055_4e17
+	jr z, .notUp
+
+;>@up     wMenuChoice = (wMenuChoice - 1) & 7
 	ld a, [wMenuChoice]
 	dec a
-	jr jr_055_4e22
+	jr .moved
 
-
-jr_055_4e17:
+;> elif wJoyRepeat & 0x80:                # Down
+.notUp
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_055_4e2c
+	jr z, .change
+
+;>@dn     wMenuChoice = (wMenuChoice + 1) & 7
 	ld a, [wMenuChoice]
 	inc a
 
-jr_055_4e22:
+.moved
+;=@up
+;=@dn
 	and $07
 	ld [wMenuChoice], a
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
 
-jr_055_4e2c:
+.change
+;> p = 0xC0A0 + wMenuChoice
 	ld a, [wMenuChoice]
 	ld c, a
 	ld b, $00
 	ld hl, wNumberBackup
 	add hl, bc
+;> if wJoyRepeat & 0x10:                  # Right
 	ld a, [wJoyRepeat]
 	and $10
-	jr z, jr_055_4e40
+	jr z, .notRight
+
+;>@r     mem[p] = (mem[p] + 1) & 0xFF
 	inc [hl]
-	jr jr_055_4e53
+	jr .changed
 
-
-jr_055_4e40:
+;> elif wJoyRepeat & 0x20:                # Left
+.notRight
 	ld a, [wJoyRepeat]
 	and $20
-	jr z, jr_055_4e4a
+	jr z, .notLeft
+
+;>@l     mem[p] = (mem[p] - 1) & 0xFF
 	dec [hl]
-	jr jr_055_4e53
+	jr .changed
 
-
-jr_055_4e4a:
+;> elif wJoyPressed & 0x01:               # A
+.notLeft
 	ld a, [wJoyPressed]
 	and $01
-	jr z, jr_055_4e85
+	jr z, .back
+
+;>     mem[p] = 0
 	xor a
 	ld [hl], a
-
-jr_055_4e53:
+;> if wJoyRepeat & 0x30 or wJoyPressed & 0x01:   # a value was changed
+.changed
+;=@r
+;=@l
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     limit = (2, 0x60, 4, 10, 10, 10)[wMenuChoice] if wMenuChoice < 6 else None
 	ld a, [wMenuChoice]
 	ld b, $02
 	cp $00
+;>@w     if limit: DebugWarpRefresh(limit)
 	call z, DebugWarpRefresh
+;=@w
 	ld b, $60
 	cp $01
 	call z, DebugWarpRefresh
 	ld b, $04
 	cp $02
 	call z, DebugWarpRefresh
+;=@w
 	ld b, $0a
 	cp $03
 	call z, DebugWarpRefresh
 	ld b, $0a
 	cp $04
 	call z, DebugWarpRefresh
+;=@w
 	ld b, $0a
 	cp $05
 	call z, DebugWarpRefresh
 
-jr_055_4e85:
+.back
+;> if wJoyPressed & 0x02:                 # B
 	ld a, [wJoyPressed]
 	and $02
-	jr z, jr_055_4e93
+	jr z, .draw
+
+;>     wGameModeStep = 0                  # back to the main page, keeping the values
+;>     return DebugWarpApply()
 	xor a
 	ld [wGameModeStep], a
-	jp jr_055_4dba
+	jp DebugWarpApply
 
-
-jr_055_4e93:
+.draw
+;> src, pos = 0xC0A0, 0x98CC
 	ld de, wNumberBackup
 	ld hl, $98cc
 	ld b, $01
 	ld c, $08
-
-jr_055_4e9d:
+;> for c in range(8, 0, -1):
+.line
 	push de
 	push hl
 	push bc
+;>@bl     if wMenuChoice + c == 8 and not wFrameCounter & 8:   # the chosen value blinks
 	ld a, [wMenuChoice]
 	add c
 	cp $08
-	jr nz, jr_055_4ebb
+	jr nz, .show
+
+;=@bl
 	ld a, [wFrameCounter]
 	bit 3, a
-	jr nz, jr_055_4ebb
+	jr nz, .show
+
+;>         for _ in range(3): pos = WriteVRAMInc(0, pos)
 	xor a
 	call WriteVRAMInc
 	call WriteVRAMInc
 	call WriteVRAMInc
-	jr jr_055_4ec3
+	jr .next
 
-
-jr_055_4ebb:
+;>     else:
+.show
+;>         DrawHexDigits(mem[src], pos, digit_base=1)
 	ld a, [de]
 	ld b, $01
 	ld c, $00
 	call DrawHexDigits
 
-jr_055_4ec3:
+.next
+;>@nx     pos += 0x20; src += 1
 	pop bc
 	pop hl
 	pop de
 	ld a, l
 	add $20
 	ld l, a
+;=@nx
 	ld a, h
 	adc $00
 	ld h, a
 	inc de
 	dec c
-	jr nz, jr_055_4e9d
+	jr nz, .line
+
+;> return
 	ret
 
+;@ def DebugWarpRefresh(limit: b)
+;@ path: system/debug
+;@ Wraps the chosen edit value into 0..limit-1 (limit becomes 0, $FF becomes limit-1), then prints
+;@ the names that go with the values: the map type (system text group 1, entry value 0) at $8800,
+;@ the map name (group 1, entry value 1 + 4, or "STAGEID" on a floor) at $8870, and group 4 entries
+;@ for the three party values, and maps their tiles. Keeps a.
+;@ test: skip calls routines in other banks
 DebugWarpRefresh::
+;>@p p = 0xC0A0 + wMenuChoice
 	push af
 	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;> if mem[p] == limit:
+;>     mem[p] = 0
 	ld a, [hl]
 	cp b
-	jr nz, jr_055_4ee6
+	jr nz, .notTop
 
 	ld [hl], $00
 
-jr_055_4ee6:
+.notTop
+;> if mem[p] == 0xFF:
+;>     mem[p] = limit - 1
 	ld a, [hl]
 	cp $ff
-	jr nz, jr_055_4eed
+	jr nz, .names
 
 	dec b
 	ld [hl], b
 
-jr_055_4eed:
+.names
+;> wTextIndex = mem[0xC0A0]
 	ld a, [wNumberBackup]
 	ld [wTextIndex], a
+;> wTextGroup = 1                         # the debug labels
 	ld a, $01
 	ld [wTextGroup], a
+;> wTextBoxLines = 1
 	ld hl, $0701
 	ld a, l
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 7
 	ld a, h
 	ld [wTextBoxLineLength], a
+;> PrintTextAt(0x8800)
 	ld hl, $8800
 	call PrintTextAt
+;>@ti wTextIndex = 3 if mem[0xC0A0] else mem[0xC0A1] + 4
 	ld a, [wNumberBackup]
 	cp $00
-	jr z, jr_055_4f14
+	jr z, .mapName
 
 	ld a, $03
-	jr jr_055_4f19
+	jr .second
 
-jr_055_4f14:
-	ld a, [$c0a1]
+.mapName
+;=@ti
+	ld a, [wNumberBackup + 1]
 	add $04
 
-jr_055_4f19:
+.second
 	ld [wTextIndex], a
+;> wTextGroup = 1
 	ld a, $01
 	ld [wTextGroup], a
+;> wTextBoxLines = 1
 	ld hl, $0701
 	ld a, l
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 7
 	ld a, h
 	ld [wTextBoxLineLength], a
+;> PrintTextAt(0x8870)
 	ld hl, $8870
 	call PrintTextAt
+;> wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
+;> wTextIndex = mem[0xC0A3]
 	ld a, [wLineUpOrder]
 	ld [wTextIndex], a
+;> PrintTextAt(0x88E0)
 	ld hl, $88e0
 	call PrintTextAt
-	ld a, [$c0a4]
+;> wTextIndex = mem[0xC0A4]
+	ld a, [wLineUpOrder + 1]
 	ld [wTextIndex], a
+;> PrintTextAt(0x8950)
 	ld hl, $8950
 	call PrintTextAt
-	ld a, [$c0a5]
+;> wTextIndex = mem[0xC0A5]
+	ld a, [wLineUpOrder + 2]
 	ld [wTextIndex], a
+;> PrintTextAt(0x89C0)
 	ld hl, $89c0
 	call PrintTextAt
+;> tile = 0x80
 	ld hl, $98d0
 	ld a, $80
+;>@rows for pos in (0x98D0, 0x98F0, 0x9930, 0x9950, 0x9970): tile = WriteTileRun2(pos, tile, 7)
 	ld b, $07
 	call WriteTileRun2
+;=@rows
 	ld hl, $98f0
 	ld b, $07
 	call WriteTileRun2
+;=@rows
 	ld hl, $9930
 	ld b, $07
 	call WriteTileRun2
+;=@rows
 	ld hl, $9950
 	ld b, $07
 	call WriteTileRun2
+;=@rows
 	ld hl, $9970
 	ld b, $07
 	call WriteTileRun2
@@ -1679,225 +1939,312 @@ jr_055_4f19:
 	ret
 
 
+;@ def WriteTileRun2(pos: hl, tile: a, count: b) -> a
+;@ path: system/debug
+;@ Same as WriteTileRun: `count` consecutive tile numbers from `tile` to the background map at `pos`.
+;@ test: skip polls the LCD
 WriteTileRun2::
+;> for _ in range(count):
+;>     pos = WriteVRAMInc(tile, pos); tile += 1
 	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, WriteTileRun2
 
+;> return tile
 	ret
 
 
+;@ def PrintTextAt(tiles: hl)
+;@ path: system/debug
+;@ Prints system text wTextGroup/wTextIndex into the text tiles at `tiles` (after far 56_4485).
+;@ test: skip calls routines in other banks
 PrintTextAt::
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
+;> Call_56_4485()
 	ld hl, far_Call_56_4485
 	rst $10
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
 	ret
 
 
 
+;@ def DebugSoundTestPage()
+;@ path: system/debug
+;@ "SOUND" page: two numbers, the song (BGM) and the sound effect (SE), each an index into
+;@ DebugMusicList / DebugSoundList; up/down picks one, right/left changes it (A zeroes it). START
+;@ plays the chosen one, B returns to the main page. Each line shows the index and the real number.
+;@ test: skip polls the LCD
 DebugSoundTestPage::
+;> if wJoyPressed & 0x08:                 # Start
 	ld a, [wJoyPressed]
 	and $08
-	jr z, jr_055_4fd2
+	jr z, .edit
+
+;>     if wMenuChoice == 0:
 	ld a, [wMenuChoice]
 	or a
-	jr nz, jr_055_4fbe
+	jr nz, .effect
+
+;>@mus         QueueMusic(DebugMusicList[mem[0xC0A0]]); return
 	ld a, [wNumberBackup]
-	ld hl, $50b4
+	ld hl, DebugMusicList
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@mus
 	ld h, a
 	ld a, [hl]
 	call QueueMusic
 	ret
 
-
-jr_055_4fbe:
+;>     InitSound()
+.effect
 	call InitSound
+;>@se     QueueSound(DebugSoundList[mem[0xC0A1]]); return
 	ld a, [wNumberBackup + 1]
-	ld hl, $50d4
+	ld hl, DebugSoundList
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@se
 	ld h, a
 	ld a, [hl]
 	call QueueSound
 	ret
 
-
-jr_055_4fd2:
+.edit
+;> if wJoyRepeat & 0x40:                  # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_055_4fdf
+	jr z, .notUp
+
+;>@up     wMenuChoice = (wMenuChoice - 1) & 1
 	ld a, [wMenuChoice]
 	dec a
-	jr jr_055_4fea
+	jr .moved
 
-
-jr_055_4fdf:
+;> elif wJoyRepeat & 0x80:                # Down
+.notUp
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_055_4ff4
+	jr z, .change
+
+;>@dn     wMenuChoice = (wMenuChoice + 1) & 1
 	ld a, [wMenuChoice]
 	inc a
 
-jr_055_4fea:
+.moved
+;=@up
+;=@dn
 	and $01
 	ld [wMenuChoice], a
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
 
-jr_055_4ff4:
+.change
+;> p = 0xC0A0 + wMenuChoice
 	ld a, [wMenuChoice]
 	ld c, a
 	ld b, $00
 	ld hl, wNumberBackup
 	add hl, bc
+;> if wJoyRepeat & 0x10:                  # Right
 	ld a, [wJoyRepeat]
 	and $10
-	jr z, jr_055_5008
+	jr z, .notRight
+
+;>@r     mem[p] = (mem[p] + 1) & 0xFF
 	inc [hl]
-	jr jr_055_501b
+	jr .changed
 
-
-jr_055_5008:
+;> elif wJoyRepeat & 0x20:                # Left
+.notRight
 	ld a, [wJoyRepeat]
 	and $20
-	jr z, jr_055_5012
+	jr z, .notLeft
+
+;>@l     mem[p] = (mem[p] - 1) & 0xFF
 	dec [hl]
-	jr jr_055_501b
+	jr .changed
 
-
-jr_055_5012:
+;> elif wJoyPressed & 0x01:               # A
+.notLeft
 	ld a, [wJoyPressed]
 	and $01
-	jr z, jr_055_5031
+	jr z, .back
+
+;>     mem[p] = 0
 	xor a
 	ld [hl], a
-
-jr_055_501b:
+;> if wJoyRepeat & 0x30 or wJoyPressed & 0x01:   # a value was changed
+.changed
+;=@r
+;=@l
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>@wrap     DebugWrapValue(0x20 if wMenuChoice == 0 else 0x40)   # 32 songs, 64 effects
 	ld a, [wMenuChoice]
 	ld b, $20
 	cp $00
 	call z, DebugWrapValue
 	ld b, $40
 	cp $01
+;=@wrap
 	call z, DebugWrapValue
 
-jr_055_5031:
+.back
+;> if wJoyPressed & 0x02:                 # B
 	ld a, [wJoyPressed]
 	and $02
-	jr z, jr_055_5046
+	jr z, .draw
+
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wGameModeStep = 0
 	xor a
 	ld [wGameModeStep], a
+;>     wGameModeChange += 1
+;>     return
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
-
-jr_055_5046:
+.draw
+;> src, pos = 0xC0A0, 0x98CA
 	ld de, wNumberBackup
 	ld hl, $98ca
 	ld b, $01
 	ld c, $02
-
-jr_055_5050:
+;> for c in (2, 1):
+.line
 	push de
 	push hl
 	push bc
+;>@bl     if wMenuChoice + c == 2 and not wFrameCounter & 8:   # the chosen index blinks
 	ld a, [wMenuChoice]
 	add c
 	cp $02
-	jr nz, jr_055_506b
+	jr nz, .show
+
+;=@bl
 	ld a, [wFrameCounter]
 	bit 3, a
-	jr nz, jr_055_506b
+	jr nz, .show
+
+;>         pos = WriteVRAMInc(0, pos); WriteVRAMInc(0, pos)
 	xor a
 	call WriteVRAMInc
 	call WriteVRAMInc
-	jr jr_055_506f
+	jr .number
 
-
-jr_055_506b:
+;>     else:
+.show
+;>         DrawHexByte(mem[src], pos)
 	ld a, [de]
 	call DrawHexByte
 
-jr_055_506f:
+.number
+;>@tb     table = DebugMusicList if c == 2 else DebugSoundList
 	pop bc
 	push bc
 	ld a, c
-	ld bc, $50d4
+	ld bc, DebugSoundList
 	cp $02
-	jr nz, jr_055_507c
-	ld bc, $50b4
+	jr nz, .list
 
-jr_055_507c:
+;=@tb
+	ld bc, DebugMusicList
+
+.list
+;>@num     DrawHexByte(mem[table + mem[src]], pos + 1)   # the real song / effect number
 	ld a, [de]
 	add c
 	ld c, a
 	ld a, $00
 	adc b
 	ld b, a
+;=@num
 	ld a, [bc]
 	inc hl
 	call DrawHexByte
+;>@nx     pos += 0x20; src += 1
 	pop bc
 	pop hl
 	pop de
 	ld a, l
 	add $20
 	ld l, a
+;=@nx
 	ld a, h
 	adc $00
 	ld h, a
 	inc de
 	dec c
-	jr nz, jr_055_5050
+	jr nz, .line
+
+;> return
 	ret
 
 
+;@ def DebugWrapValue(limit: b)
+;@ path: system/debug
+;@ Wraps the chosen debug value (0xC0A0 + wMenuChoice) into 0..limit-1: limit becomes 0, $FF becomes
+;@ limit-1. Keeps a.
+;@ test: wMenuChoice = rand(0, 7); limit = rand(1, 0xFF)
 DebugWrapValue::
+;>@p p = 0xC0A0 + wMenuChoice
 	push af
 	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;> if mem[p] == limit:
+;>     mem[p] = 0
 	ld a, [hl]
 	cp b
-	jr nz, jr_055_50ab
+	jr nz, .notTop
+
 	ld [hl], $00
 
-jr_055_50ab:
+.notTop
+;> if mem[p] == 0xFF:
+;>     mem[p] = limit - 1
 	ld a, [hl]
 	cp $ff
-	jr nz, jr_055_50b2
+	jr nz, .done
+
 	dec b
 	ld [hl], b
 
-jr_055_50b2:
+.done
+;> return                                 # (a kept)
 	pop af
 	ret
 
+;@ path: system/debug
+;@ Songs the sound test plays, by index (32 entries).
 DebugMusicList::
 	db $02, $06, $09, $0c, $0f, $12, $15, $18, $1b, $1e, $21, $24, $27, $2b, $2e, $31
 	db $34, $37, $3a, $3c, $3f, $41, $44, $47, $49, $4b, $4d, $4f, $9f, $00, $00, $00
 
+;@ path: system/debug
+;@ Sound effects the sound test plays, by index (64 entries, then two zero bytes).
 DebugSoundList::
 	db $00, $51, $52, $53, $54, $55, $56, $57, $59, $5a, $5b, $5c, $5d, $5f, $60, $61
 	db $64, $65, $66, $67, $68, $69, $6b, $6c, $6d, $6e, $6f, $70, $71, $72, $73, $74
