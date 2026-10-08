@@ -6111,10 +6111,10 @@ NextBoxMapColumn::
 ;@ (DrawTextBoxTiles at row 1, column 1).
 ;@ test: skip writes VRAM
 EventShowText::
-;> mem[0xC83B] = 0xFD; Call_56_4485()
+;> mem[0xC83B] = 0xFD; ClearTextBoxTiles()
 	ld a, $fd
 	ld [$c83b], a
-	ld hl, far_Call_56_4485
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;>@p if wEventRoutine != 0xFFFF:
 	ld a, [wEventRoutine]

@@ -1351,9 +1351,9 @@ VBlankMapUpdate::
 ;@ the text printer on. The text banks call it from their entry points.
 ;@ test: skip calls a routine in another bank
 StartText::
-;> Call_56_4485()                         # clear the text box tiles
+;> ClearTextBoxTiles()                         # clear the text box tiles
 	push de
-	ld hl, far_Call_56_4485
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> tiles = wTextTiles
 	ld a, [wTextTiles]
@@ -1489,7 +1489,7 @@ UpdateText::
 ;@ - bit 6: a wait that ends after wTextWaitTimer frames or on a button;
 ;@ - bit 7: a pause of wTextPauseTimer frames;
 ;@ - else the next byte of the text: $8D/$8E add a diacritic mark to the last
-;@   letter, $E0-$FF are control codes (run by Call_56_44C7), anything else is a
+;@   letter, $E0-$FF are control codes (run by RunTextControlCode), anything else is a
 ;@   letter, drawn once wTextDelay has reached the speed (2 frames, or wTextSpeed);
 ;@   a button press (not Start) makes the rest print without delay.
 ;@ test: skip switches banks and calls a routine in another bank
@@ -1809,7 +1809,7 @@ TextPrinterStep::
 	jp nc, .control
 
 ;>@ctl1             wTextPtr += 1
-;>@ctl2             Call_56_44C7(c)                # runs the control code
+;>@ctl2             RunTextControlCode(c)                # runs the control code
 ;>@ctl3             wTextFlags &= ~0x02
 ;>         else:
 ;>             ready = True
@@ -1910,7 +1910,7 @@ TextPrinterStep::
 ;=@ctl2
 	ld a, [hl]
 	ld d, a
-	ld hl, far_Call_56_44C7
+	ld hl, far_RunTextControlCode
 	rst $10
 ;=@ctl3
 	ld hl, wTextFlags
@@ -2272,8 +2272,8 @@ SetUpTextBox::
 ;> wTextBoxLineLength = line_length
 	ld a, d
 	ld [wTextBoxLineLength], a
-;> Call_56_4485()                         # clear the tiles
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()                         # clear the tiles
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 	ret
 

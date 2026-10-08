@@ -186,8 +186,8 @@ LoadMap::
 	ld a, [wMapId]
 	cp $5e
 	jr nz, .normal
-;>     Call_56_4485()
-	ld hl, far_Call_56_4485
+;>     ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 	jr .done
 ;> else:

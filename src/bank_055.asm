@@ -1067,13 +1067,13 @@ DebugMenuUpdate::
 
 ;>@clr     for a in (0xDF0B, 0xDF0C, 0xDF02, 0xDF03, 0xDF00, 0xDF01): mem[a] = 0
 	xor a
-	ld [$df0b], a
-	ld [$df0c], a
-	ld [$df02], a
-	ld [$df03], a
+	ld [wMsgViewRightDelay], a
+	ld [wMsgViewLeftDelay], a
+	ld [wMsgViewPageRow], a
+	ld [wMsgViewCursor], a
 ;=@clr
-	ld [$df00], a
-	ld [$df01], a
+	ld [wMsgViewRow], a
+	ld [wMsgViewNumber], a
 ;>     wGameMode = 0x0B
 	ld a, $0b
 	ld [wGameMode], a
@@ -1545,8 +1545,8 @@ ShowDebugMonster::
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> PrintText_41()
 	ld hl, far_PrintText_41
@@ -1965,8 +1965,8 @@ PrintTextAt::
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> PrintText_41()
 	ld hl, far_PrintText_41
@@ -2252,115 +2252,173 @@ DebugSoundList::
 	db $8a, $8c, $8d, $8e, $8f, $90, $92, $93, $94, $95, $96, $97, $99, $9b, $9c, $9d
 	db $00, $00
 
+;@ def DebugBattlePage()
+;@ path: system/debug
+;@ "BATTLE" page: eight values, the encounter group size (0-2) and three monster numbers as u16
+;@ (low byte, high byte 0-1), changed like on the other pages. START sets up a debug game
+;@ (DebugSetUpGame, with at least one monster in the party) and starts the battle (game mode 2); B
+;@ takes the values over and returns to the main page.
+;@ test: skip calls routines in other banks
 DebugBattlePage::
+;> if not wJoyPressed & 0x08:             # no Start
+;>     return DebugBattleEdit()
 	ld a, [wJoyPressed]
 	and $08
-	jr z, jr_055_5162
+	jr z, DebugBattleEdit
+
+;> StartFade(4)
 	ld a, $04
 	call StartFade
+;> wGameMode = 2                          # battle
 	ld a, $02
 	ld [wGameMode], a
+;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
+;> DebugSetUpGame()
 	call DebugSetUpGame
+;> if wPartyCount == 0:
+;>     wPartyCount += 1
 	ld a, [wPartyCount]
 	or a
-	jr nz, jr_055_5139
+	jr nz, DebugBattleApply
+
 	ld hl, wPartyCount
 	inc [hl]
+;> DebugBattleApply()                     # (runs on into it)
 
-jr_055_5139:
+;@ def DebugBattleApply()
+;@ path: system/debug
+;@ Part of DebugBattlePage: copies the group size and the three monster numbers into the encounter
+;@ and switches game mode.
+;@ test: skip calls a routine in another bank
+DebugBattleApply::
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;> wEncCount = mem[0xC0A0]
 	ld hl, wNumberBackup
 	ld a, [hli]
 	ld [wEncCount], a
+;>@sp for i in range(6): wEncSpecies[i] = mem[0xC0A1 + i]
 	ld a, [hli]
 	ld [wEncSpecies], a
 	ld a, [hli]
 	ld [wEncSpecies + 1], a
+;=@sp
 	ld a, [hli]
 	ld [wEncSpecies + 2], a
 	ld a, [hli]
 	ld [wEncSpecies + 3], a
+;=@sp
 	ld a, [hli]
 	ld [wEncSpecies + 4], a
 	ld a, [hli]
 	ld [wEncSpecies + 5], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
-jr_055_5162:
+;@ def DebugBattleEdit()
+;@ path: system/debug
+;@ Part of DebugBattlePage: moves the cursor, changes the chosen value (DebugBattleRefresh wraps it and
+;@ shows the monsters' names), handles B and draws the values.
+;@ test: skip polls the LCD
+DebugBattleEdit::
+;> if wJoyRepeat & 0x40:                  # Up
 	ld a, [wJoyRepeat]
 	bit 6, a
-	jr z, jr_055_516f
+	jr z, .notUp
+
+;>@up     wMenuChoice = (wMenuChoice - 1) & 7
 	ld a, [wMenuChoice]
 	dec a
-	jr jr_055_517a
+	jr .moved
 
-
-jr_055_516f:
+;> elif wJoyRepeat & 0x80:                # Down
+.notUp
 	ld a, [wJoyRepeat]
 	bit 7, a
-	jr z, jr_055_5184
+	jr z, .change
+
+;>@dn     wMenuChoice = (wMenuChoice + 1) & 7
 	ld a, [wMenuChoice]
 	inc a
 
-jr_055_517a:
+.moved
+;=@up
+;=@dn
 	and $07
 	ld [wMenuChoice], a
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
 
-jr_055_5184:
+.change
+;> p = 0xC0A0 + wMenuChoice
 	ld a, [wMenuChoice]
 	ld c, a
 	ld b, $00
 	ld hl, wNumberBackup
 	add hl, bc
+;> if wJoyRepeat & 0x10:                  # Right
 	ld a, [wJoyRepeat]
 	and $10
-	jr z, jr_055_5198
+	jr z, .notRight
+
+;>@r     mem[p] = (mem[p] + 1) & 0xFF
 	inc [hl]
-	jr jr_055_51ab
+	jr .changed
 
-
-jr_055_5198:
+;> elif wJoyRepeat & 0x20:                # Left
+.notRight
 	ld a, [wJoyRepeat]
 	and $20
-	jr z, jr_055_51a2
+	jr z, .notLeft
+
+;>@l     mem[p] = (mem[p] - 1) & 0xFF
 	dec [hl]
-	jr jr_055_51ab
+	jr .changed
 
-
-jr_055_51a2:
+;> elif wJoyPressed & 0x01:               # A
+.notLeft
 	ld a, [wJoyPressed]
 	and $01
-	jr z, jr_055_51e4
+	jr z, .back
+
+;>     mem[p] = 0
 	xor a
 	ld [hl], a
-
-jr_055_51ab:
+;> if wJoyRepeat & 0x30 or wJoyPressed & 0x01:   # a value was changed
+.changed
+;=@r
+;=@l
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     limit = (3, 0, 2, 0, 2, 0, 2)[wMenuChoice] if wMenuChoice < 7 else None   # 0 = 256
 	ld a, [wMenuChoice]
 	ld b, $03
 	cp $00
+;>@w     if limit is not None: DebugBattleRefresh(limit)
 	call z, DebugBattleRefresh
+;=@w
 	ld b, $00
 	cp $01
 	call z, DebugBattleRefresh
 	ld b, $02
 	cp $02
 	call z, DebugBattleRefresh
+;=@w
 	ld b, $00
 	cp $03
 	call z, DebugBattleRefresh
 	ld b, $02
 	cp $04
 	call z, DebugBattleRefresh
+;=@w
 	ld b, $00
 	cp $05
 	call z, DebugBattleRefresh
@@ -2368,152 +2426,203 @@ jr_055_51ab:
 	cp $06
 	call z, DebugBattleRefresh
 
-jr_055_51e4:
+.back
+;> if wJoyPressed & 0x02:                 # B
 	ld a, [wJoyPressed]
 	and $02
-	jr z, jr_055_51f2
+	jr z, .draw
+
+;>     wGameModeStep = 0                  # back to the main page, keeping the values
+;>     return DebugBattleApply()
 	xor a
 	ld [wGameModeStep], a
-	jp jr_055_5139
+	jp DebugBattleApply
 
-
-jr_055_51f2:
+.draw
+;> src, pos = 0xC0A0, 0x98CB
 	ld de, wNumberBackup
 	ld hl, $98cb
 	ld b, $01
 	ld c, $08
-
-jr_055_51fc:
+;> for c in range(8, 0, -1):
+.line
 	push de
 	push hl
 	push bc
+;>@bl     if wMenuChoice + c == 8 and not wFrameCounter & 8:   # the chosen value blinks
 	ld a, [wMenuChoice]
 	add c
 	cp $08
-	jr nz, jr_055_521a
+	jr nz, .show
+
+;=@bl
 	ld a, [wFrameCounter]
 	bit 3, a
-	jr nz, jr_055_521a
+	jr nz, .show
+
+;>         for _ in range(3): pos = WriteVRAMInc(0, pos)
 	xor a
 	call WriteVRAMInc
 	call WriteVRAMInc
 	call WriteVRAMInc
-	jr jr_055_5222
+	jr .next
 
-
-jr_055_521a:
+;>     else:
+.show
+;>         DrawHexDigits(mem[src], pos, digit_base=1)
 	ld a, [de]
 	ld b, $01
 	ld c, $00
 	call DrawHexDigits
 
-jr_055_5222:
+.next
+;>@nx     pos += 0x20; src += 1
 	pop bc
 	pop hl
 	pop de
 	ld a, l
 	add $20
 	ld l, a
+;=@nx
 	ld a, h
 	adc $00
 	ld h, a
 	inc de
 	dec c
-	jr nz, jr_055_51fc
+	jr nz, .line
+
+;> return
 	ret
 
+;@ def DebugBattleRefresh(limit: b)
+;@ path: system/debug
+;@ Wraps the chosen value into 0..limit-1 (a limit of 0 leaves the full byte range), copies the three
+;@ monster numbers into wEncSpecies and prints each monster's name (LoadMonTemplate gives its name
+;@ text) into the tiles at $8800, $8890 and $8920, then maps three rows of 9 tiles. Keeps a.
+;@ test: skip calls routines in other banks
 DebugBattleRefresh::
+;>@p p = 0xC0A0 + wMenuChoice
 	push af
 	ld a, [wMenuChoice]
 	ld hl, wNumberBackup
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;> if mem[p] == limit:
+;>     mem[p] = 0
 	ld a, [hl]
 	cp b
-	jr nz, jr_055_5245
+	jr nz, .notTop
 
 	ld [hl], $00
 
-jr_055_5245:
+.notTop
+;> if mem[p] == 0xFF:
+;>     mem[p] = (limit - 1) & 0xFF
 	ld a, [hl]
 	cp $ff
-	jr nz, jr_055_524c
+	jr nz, .copy
 
 	dec b
 	ld [hl], b
 
-jr_055_524c:
-	ld a, [$c0a1]
+.copy
+;>@sp for i in range(6): wEncSpecies[i] = mem[0xC0A1 + i]
+	ld a, [wNumberBackup + 1]
 	ld [wEncSpecies], a
-	ld a, [$c0a2]
-	ld [$da04], a
+	ld a, [wNumberBackup + 2]
+	ld [wEncSpecies + 1], a
+;=@sp
 	ld a, [wLineUpOrder]
-	ld [$da05], a
-	ld a, [$c0a4]
-	ld [$da06], a
-	ld a, [$c0a5]
-	ld [$da07], a
+	ld [wEncSpecies + 2], a
+	ld a, [wLineUpOrder + 1]
+	ld [wEncSpecies + 3], a
+;=@sp
+	ld a, [wLineUpOrder + 2]
+	ld [wEncSpecies + 4], a
 	ld a, [$c0a6]
-	ld [$da08], a
+	ld [wEncSpecies + 5], a
+;>@id wNewMonId = wEncSpecies[0] | wEncSpecies[1] << 8
 	ld a, [wEncSpecies]
 	ld l, a
-	ld a, [$da04]
+	ld a, [wEncSpecies + 1]
 	ld h, a
 	ld a, l
 	ld [wNewMonId], a
+;=@id
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
+;> LoadMonTemplate()
 	ld hl, far_LoadMonTemplate
 	rst $10
+;> wTextBoxLines = 1
 	ld hl, $0901
 	ld a, l
 	ld [wTextBoxLines], a
+;> wTextBoxLineLength = 9
 	ld a, h
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 5                         # monster names
 	ld a, $05
 	ld [wTextGroup], a
+;> wTextIndex = wNewMonNameText
 	ld a, [wNewMonNameText]
 	ld [wTextIndex], a
+;> PrintTextAt2(0x8800)
 	ld hl, $8800
 	call PrintTextAt2
-	ld a, [$da05]
+;>@id2 wNewMonId = wEncSpecies[2] | wEncSpecies[3] << 8
+	ld a, [wEncSpecies + 2]
 	ld l, a
-	ld a, [$da06]
+	ld a, [wEncSpecies + 3]
 	ld h, a
 	ld a, l
 	ld [wNewMonId], a
+;=@id2
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
+;> LoadMonTemplate()
 	ld hl, far_LoadMonTemplate
 	rst $10
+;> wTextIndex = wNewMonNameText
 	ld a, [wNewMonNameText]
 	ld [wTextIndex], a
+;> PrintTextAt2(0x8890)
 	ld hl, $8890
 	call PrintTextAt2
-	ld a, [$da07]
+;>@id3 wNewMonId = wEncSpecies[4] | wEncSpecies[5] << 8
+	ld a, [wEncSpecies + 4]
 	ld l, a
-	ld a, [$da08]
+	ld a, [wEncSpecies + 5]
 	ld h, a
 	ld a, l
 	ld [wNewMonId], a
+;=@id3
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
+;> LoadMonTemplate()
 	ld hl, far_LoadMonTemplate
 	rst $10
+;> wTextIndex = wNewMonNameText
 	ld a, [wNewMonNameText]
 	ld [wTextIndex], a
+;> PrintTextAt2(0x8920)
 	ld hl, $8920
 	call PrintTextAt2
+;> tile = 0x80
 	ld hl, $98ef
 	ld a, $80
+;>@rows for pos in (0x98EF, 0x992F, 0x996F): tile = WriteTileRun3(pos, tile, 9)
 	ld b, $09
 	call WriteTileRun3
+;=@rows
 	ld hl, $992f
 	ld b, $09
 	call WriteTileRun3
+;=@rows
 	ld hl, $996f
 	ld b, $09
 	call WriteTileRun3
@@ -2521,34 +2630,55 @@ jr_055_524c:
 	ret
 
 
+;@ def WriteTileRun3(pos: hl, tile: a, count: b) -> a
+;@ path: system/debug
+;@ Same as WriteTileRun: `count` consecutive tile numbers from `tile` to the background map at `pos`.
+;@ test: skip polls the LCD
 WriteTileRun3::
+;> for _ in range(count):
+;>     pos = WriteVRAMInc(tile, pos); tile += 1
 	call WriteVRAMInc
 	inc a
 	dec b
 	jr nz, WriteTileRun3
 
+;> return tile
 	ret
 
 
+;@ def PrintTextAt2(tiles: hl)
+;@ path: system/debug
+;@ Same as PrintTextAt: prints system text wTextGroup/wTextIndex into the text tiles at `tiles`.
+;@ test: skip calls routines in other banks
 PrintTextAt2::
+;> wTextTiles = tiles
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
-	ld hl, far_Call_56_4485
+	ld [wTextTiles + 1], a
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
 	ret
 
 
 
+;@ def DrawHexByte(value: a, pos: hl) -> hl
+;@ path: system/debug
+;@ Writes `value` as two hex digits to the background map at `pos` (digit tiles 1-16, as loaded from
+;@ the debug text "0123456789ABCDEF").
+;@ test: skip polls the LCD
 DrawHexByte::
+;> pos = WriteVRAMInc((value >> 4) + 1, pos)
 	ld c, a
 	swap a
 	and $0f
 	inc a
 	call WriteVRAMInc
+;> return WriteVRAMInc((value & 0x0F) + 1, pos)
 	ld a, c
 	and $0f
 	inc a
@@ -2556,48 +2686,80 @@ DrawHexByte::
 	ret
 
 
+;@ def DrawNumberDigits(value: a, pos: hl, digit_base: b, blank: c)
+;@ path: system/debug
+;@ Writes `value` as three decimal digits to the background map at `pos` (tile digit_base + digit),
+;@ leading zeros as the tile `blank`.
+;@ test: skip polls the LCD
 DrawNumberDigits::
+;> if value < 100:
 	cp $64
-	jr nc, jr_055_5338
+	jr nc, .hundreds
+
+;>     WriteBlankTile(blank, pos); pos += 1
 	call WriteBlankTile
 	inc hl
+;>     tens = value >= 10
 	cp $0a
-	jr nc, jr_055_5341
+	jr nc, .tens
+
+;=@b
 	call WriteBlankTile
 	inc hl
-	jr jr_055_534a
+	jr .ones
 
-
-jr_055_5338:
+.hundreds
+;> else:
+;>     d, value = DivideAByE(value, 100); WriteDigitTile(d, pos); pos += 1; tens = True
 	ld e, $64
 	call DivideAByE
 	call WriteDigitTile
 	inc hl
 
-jr_055_5341:
+.tens
+;> if tens:
+;>     d, value = DivideAByE(value, 10); WriteDigitTile(d, pos); pos += 1
 	ld e, $0a
 	call DivideAByE
 	call WriteDigitTile
 	inc hl
+;> else:
+;>@b     WriteBlankTile(blank, pos); pos += 1
 
-jr_055_534a:
+.ones
+;> WriteDigitTile(value, pos)
 	ld d, a
 	call WriteDigitTile
 	ret
 
 
+;@ def DivideAByE(n: a, d: e) -> (d, a)
+;@ path: system/debug
+;@ Division by repeated subtraction: returns n // d in d and n % d in a.
+;@ test: e = rand(1, 255)
 DivideAByE::
+;> q = -1
 	ld d, $ff
 
-jr_055_5351:
+.loop
+;> while True:
+;>     q += 1; n -= d
 	inc d
 	sub e
-	jr nc, jr_055_5351
+;>     if n < 0: break
+	jr nc, .loop
+
+;> return (q & 0xFF, (n + d) & 0xFF)
 	add e
 	ret
 
 
+;@ def WriteDigitTile(digit: d, pos: hl, digit_base: b)
+;@ path: system/debug
+;@ Writes tile digit_base + digit to the background map at `pos` (keeps a).
+;@ test: skip polls the LCD
 WriteDigitTile::
+;> WriteVRAM(digit + digit_base, pos)
 	push af
 	ld a, d
 	add b
@@ -2606,7 +2768,12 @@ WriteDigitTile::
 	ret
 
 
+;@ def WriteBlankTile(blank: c, pos: hl)
+;@ path: system/debug
+;@ Writes tile `blank` to the background map at `pos` (keeps a).
+;@ test: skip polls the LCD
 WriteBlankTile::
+;> WriteVRAM(blank, pos)
 	push af
 	ld a, c
 	call WriteVRAM
@@ -2614,13 +2781,19 @@ WriteBlankTile::
 	ret
 
 
+;@ def DrawHexDigits(value: a, pos: hl, digit_base: b) -> hl
+;@ path: system/debug
+;@ Writes `value` as two hex digits (tiles digit_base + digit) at pos + 1 and pos + 2.
+;@ test: skip polls the LCD
 DrawHexDigits::
+;> WriteDigitTile(value >> 4, pos + 1)
 	inc hl
 	push af
 	swap a
 	and $0f
 	ld d, a
 	call WriteDigitTile
+;> WriteDigitTile(value & 0x0F, pos + 2)
 	inc hl
 	pop af
 	and $0f
@@ -2629,141 +2802,191 @@ DrawHexDigits::
 	ret
 
 
+;@ def DebugSetUpGame()
+;@ path: system/debug
+;@ Makes up a game to test with: a three-letter player name, all 20 monster records filled with
+;@ random monsters (DebugMakeMonster), the first three in the party, 87040 gold and items 1-8.
+;@ test: skip calls routines in other banks
 DebugSetUpGame::
+;> wPlayerName[0] = 0x6E
 	ld a, $6e
 	ld [wPlayerName], a
+;> wPlayerName[1] = 0x86
 	ld a, $86
 	ld [wPlayerName + 1], a
+;> wPlayerName[2] = 0x9C
 	ld a, $9c
 	ld [wPlayerName + 2], a
+;> wPlayerName[3] = 0xF0                  # end of the name
 	ld a, $f0
 	ld [wPlayerName + 3], a
+;> wPartyCount = 3
 	ld a, $03
 	ld [wPartyCount], a
+;>@pt for i in range(3): wParty[i] = i
 	ld a, $00
 	ld [wParty], a
 	ld a, $01
 	ld [wParty + 1], a
+;=@pt
 	ld a, $02
 	ld [wParty + 2], a
+;>@mk for slot in range(20):
+;>     DebugMakeMonster(slot)
 	ld b, $14
 	ld c, $00
 
-jr_055_53a5:
+.monster
 	push bc
 	ld a, c
 	call DebugMakeMonster
+;=@mk
 	pop bc
 	inc c
 	dec b
-	jr nz, jr_055_53a5
+	jr nz, .monster
+
+;> wGold[0] = 0x00                        # 0x015400 = 87040 gold
 	ld a, $00
 	ld [wGold], a
+;> wGold[1] = 0x54
 	ld a, $54
 	ld [wGold + 1], a
+;> wGold[2] = 0x01
 	ld a, $01
 	ld [wGold + 2], a
+;>@it for i in range(8): wBagItems[i] = i + 1
 	ld a, $01
 	ld [wBagItems], a
 	ld a, $02
 	ld [wBagItems + 1], a
+;=@it
 	ld a, $03
 	ld [wBagItems + 2], a
 	ld a, $04
 	ld [wBagItems + 3], a
+;=@it
 	ld a, $05
 	ld [wBagItems + 4], a
 	ld a, $06
 	ld [wBagItems + 5], a
+;=@it
 	ld a, $07
 	ld [wBagItems + 6], a
 	ld a, $08
 	ld [wBagItems + 7], a
+;>@pa for i in range(3): wMonsters[i * 0x95] = 2   # records 0-2: in the party
 	ld a, $02
 	ld [wMonsters], a
 	ld a, $02
 	ld [wMonsters + 149], a
+;=@pa
 	ld a, $02
 	ld [wMonsters + 298], a
 	ret
 
 
+;@ def DebugMakeMonster(slot: a)
+;@ path: system/debug
+;@ Fills monster record `slot` with a random monster for testing: species 1-64 (CreateMonster), two
+;@ random parent species (0-127), and random names for the monster, its parents and their masters.
+;@ test: skip calls routines in other banks
 DebugMakeMonster::
+;> wNewMonSlot = slot
 	push af
 	ld [wNewMonSlot], a
+;> Random()
 	call Random
+;> wNewMonId = (wRandomHigh & 0x3F) + 1
 	ld a, [wRandomHigh]
 	and $3f
 	inc a
 	ld [wNewMonId], a
 	xor a
 	ld [wNewMonId + 1], a
+;> CreateMonster()
 	ld hl, far_CreateMonster
 	rst $10
+;> wMonSpecies = Random() & 0x7F
 	pop af
 	push af
 	call Random
 	and $7f
 	ld [wMonSpecies], a
+;> SetMonsterField(slot, wMonParent1, wMonSpecies)
 	ld hl, wMonParent1
 	ld c, a
 	pop af
 	call SetMonsterField
 	push af
 	pop af
+;> wMonSpecies = Random() & 0x7F
 	push af
 	call Random
 	and $7f
 	ld [wMonSpecies], a
+;> SetMonsterField(slot, wMonParent2, wMonSpecies)
 	ld hl, wMonParent2
 	ld c, a
 	pop af
 	call SetMonsterField
 	push af
 	pop af
+;> family = mem[MonsterField(slot, wMonFamily)]
 	push af
 	ld hl, wMonFamily
 	call MonsterField
 	ld a, [hl]
 	ld c, a
+;> SetRandomMonsterName(slot, wMonName, family)
 	pop af
 	ld hl, wMonName
 	call SetRandomMonsterName
+;> Random()
 	push af
 	call Random
+;> SetRandomMonsterName(slot, wMonParent1Master, wRandomHigh & 7)
 	ld a, [wRandomHigh]
 	and $07
 	ld c, a
 	pop af
 	ld hl, wMonParent1Master
 	call SetRandomMonsterName
+;> Random()
 	push af
 	call Random
+;> SetRandomMonsterName(slot, wMonParent2Master, wRandomHigh & 7)
 	ld a, [wRandomHigh]
 	and $07
 	ld c, a
 	pop af
 	ld hl, wMonParent2Master
 	call SetRandomMonsterName
+;> wMonSpecies = mem[MonsterField(slot, wMonParent1)]
 	push af
 	ld hl, wMonParent1
 	call MonsterField
 	ld a, [hl]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
+;> SetRandomMonsterName(slot, wMonParent1Name, wMonStats[0])   # a name of the parent's family
 	ld a, [wMonStats]
 	ld c, a
 	pop af
 	ld hl, wMonParent1Name
 	call SetRandomMonsterName
+;> wMonSpecies = mem[MonsterField(slot, wMonParent2)]
 	push af
 	ld hl, wMonParent2
 	call MonsterField
 	ld a, [hl]
 	ld [wMonSpecies], a
+;> GetMonsterStats()
 	ld hl, far_GetMonsterStats
 	rst $10
+;> SetRandomMonsterName(slot, wMonParent2Name, wMonStats[0])
 	ld a, [wMonStats]
 	ld c, a
 	pop af
@@ -2772,7 +2995,13 @@ DebugMakeMonster::
 	ret
 
 
+;@ def SetMonsterField(slot: a, field: hl, value: c)
+;@ path: system/debug
+;@ Stores `value` in `field` of monster record `slot` (keeps a). The `push af` after its `ret` is
+;@ the first instruction of SetMonsterWord.
+;@ test: slot = rand(0, 19); field = 0xCAC1 + rand(0, 0x94)
 SetMonsterField::
+;> mem[MonsterField(slot, field)] = value
 	push af
 	call MonsterField
 	ld [hl], c
@@ -2781,8 +3010,15 @@ SetMonsterField::
 
 	push af
 
+;@ def SetMonsterWord(slot: a, field: hl, value: bc)
+;@ path: unused
+;@ Stores the 16-bit `value` in `field` of monster record `slot`; it begins with the `push af` just
+;@ before this label. Nothing calls it.
+;@ test: skip the push af that belongs to it lies before the label
 SetMonsterWord::
+;> p = MonsterField(slot, field)
 	call MonsterField
+;> mem16[p] = value
 	ld [hl], c
 	inc hl
 	ld [hl], b
@@ -2790,24 +3026,36 @@ SetMonsterWord::
 	ret
 
 
+;@ def SetRandomMonsterName(slot: a, field: hl, group: c)
+;@ path: system/debug
+;@ Copies one of 16 names of row `group` of system text group 3 (entry group * 16 + random 0-15)
+;@ into `field` of monster record `slot` (keeps a).
+;@ test: skip calls routines in other banks
 SetRandomMonsterName::
+;> dest = MonsterField(slot, field)
 	push af
 	push bc
 	call MonsterField
 	ld e, l
 	ld d, h
+;> Random()
 	call Random
+;> entry = (group << 4 | wRandomHigh & 0x0F) & 0xFF
 	ld a, [wRandomHigh]
 	and $0f
 	pop bc
 	swap c
 	or c
+;> CopySystemText(0x0300 + entry, dest)
 	ld l, a
 	ld h, $03
 	call CopySystemText
 	pop af
 	ret
 
+;@ path: unused
+;@ Bytes from $54C7 to the end of bank $55 that nothing refers to: they look like leftover compressed
+;@ graphics, followed by zero padding.
 Bank55Leftover::
 	db $df, $06, $f8, $04, $f8, $a1, $5a, $01, $4e, $81, $5e, $96, $08, $b8, $28, $11
 	db $24, $46, $db, $01, $37, $8b, $b0, $40, $2d, $cd, $84, $64, $ff, $00, $ff, $00

@@ -641,3 +641,16 @@ DEF wAbsorbMP EQU $D9F2 ;@ u8 Low byte of the MP a monster glowing with TakeMagi
 DEF wHomeWarpCause EQU $D92B ;@ u8 Why the pending warp sends Terry home: 6 an item, 8 a lost battle or the end of an event (the field code also tests 1-5 and 7)
 DEF wTargetNamePos EQU $C1D7 ;@ u8 Battle position whose name the link target window prints next
 DEF wTargetNameCount EQU $C1D8 ;@ u8 Number of monsters on the side the link target window names
+DEF wMsgViewRow EQU $DF00 ;@ u8 Message viewer (game mode $0B): row of the text table list chosen (page * 4 + cursor)
+DEF wMsgViewNumber EQU $DF01 ;@ u8 Message viewer: text number shown in the chosen row
+DEF wMsgViewPageRow EQU $DF02 ;@ u8 Message viewer: first row of the current page (page * 4)
+DEF wMsgViewCursor EQU $DF03 ;@ u8 Message viewer: cursor line (0-3)
+DEF wMsgViewMapHi EQU $DF04 ;@ u8 Message viewer: BG map address of the cursor's number, high byte
+DEF wMsgViewMapLo EQU $DF05 ;@ u8 Message viewer: BG map address of the cursor's number, low byte
+DEF wMsgViewDigitHi EQU $DF06 ;@ u8 Message viewer: tile of the number's high hex digit ($70-$7F)
+DEF wMsgViewDigitLo EQU $DF07 ;@ u8 Message viewer: tile of the number's low hex digit ($70-$7F)
+DEF wMsgViewBlinkTimer EQU $DF08 ;@ u8 Message viewer: frames until the number blinks again
+DEF wMsgViewBlinkPhase EQU $DF09 ;@ u8 Message viewer: 1 while the number is blanked
+DEF wMsgViewBank EQU $DF0A ;@ u8 Message viewer: which text bank routine prints the chosen row
+DEF wMsgViewRightDelay EQU $DF0B ;@ u8 Message viewer: frame counter for holding Right (steps every 8 frames)
+DEF wMsgViewLeftDelay EQU $DF0C ;@ u8 Message viewer: frame counter for holding Left

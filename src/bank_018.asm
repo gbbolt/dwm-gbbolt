@@ -153,8 +153,8 @@ VSResultInit::
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> wTextBoxMap = 0x99C1
 	ld hl, $99c1

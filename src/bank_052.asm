@@ -8608,7 +8608,7 @@ ApplyPositionDamageCutLink::
 	or a
 	ret z
 
-;> if wSkillTarget & 3 == 2:                # the rest is ApplyPositionDamageCut's
+;> if (wSkillTarget & 3) == 2:                # the rest is ApplyPositionDamageCut's
 ;>     wSkillAmount = Percent80(amount)
 	jr ApplyPositionDamageCut.cut
 
@@ -9702,7 +9702,7 @@ CanLowerTargetStats::
 ;>@y2     return True
 	jr nz, .yes
 
-;>@s return not (mem[wBattlerStatus1 + 8 * wSkillTarget] & 0x02)
+;>@s return not (wBattlerStatus[8 * wSkillTarget + 1] & 0x02)
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
@@ -9773,7 +9773,7 @@ SetUpCalledMonster::
 	or $03
 	ld hl, wBattlerStatus
 	call AddEightTimes
-;>@f fill(status, 8, 0)
+;>@f fill(status, 0, 8)
 	xor a
 	ld [hli], a
 	ld [hli], a
@@ -9926,7 +9926,7 @@ CalcSkillAmount::
 ;@ Address of the skill target's status byte 3 (wBattlerStatus3: magic wall,
 ;@ open to spells and the like), which the resistance routines read.
 GetTargetStatus3::
-;> return u16(wBattlerStatus3 + (8 * wSkillTarget & 0xFF))
+;> return u16(wBattlerStatus + 3 + (8 * wSkillTarget & 0xFF))
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus3
 	call AddEightTimes
@@ -10156,7 +10156,7 @@ AddSkillSpread::
 ;@ position): resistance 26 in bits 6-7, 0 (Blaze) in 4-5, 1 (Firebal) in 2-3,
 ;@ 2 (Bang) in 0-1. Each is a level 0-3.
 GetResistByte0::
-;> return wBattlerResist[7 * wSkillTarget]
+;> return wBattlerResist[(7 * wSkillTarget & 0xFF)]
 	ld de, wBattlerResist
 	jr jr_052_67dc
 
@@ -10165,7 +10165,7 @@ GetResistByte0::
 ;@ Byte 1 of the target's packed resistances: 3 (Infernos) in bits 6-7, 4 (Bolt)
 ;@ in 4-5, 5 (IceBolt) in 2-3, 6 in 0-1.
 GetResistByte1::
-;> return wBattlerResist[7 * wSkillTarget + 1]
+;> return wBattlerResist[(7 * wSkillTarget & 0xFF) + 1]
 	ld de, wBattlerResist + 1
 	jr jr_052_67dc
 
@@ -10173,7 +10173,7 @@ GetResistByte1::
 ;@ path: battle/skills/resist
 ;@ Byte 2 of the target's packed resistances: 7, 8, 9 and 10 from bits 6-7 down.
 GetResistByte2::
-;> return wBattlerResist[7 * wSkillTarget + 2]
+;> return wBattlerResist[(7 * wSkillTarget & 0xFF) + 2]
 	ld de, wBattlerResist + 2
 	jr jr_052_67dc
 
@@ -10182,7 +10182,7 @@ GetResistByte2::
 ;@ Byte 3 of the target's packed resistances: 11, 12, 13 and 14 from bits 6-7
 ;@ down.
 GetResistByte3::
-;> return wBattlerResist[7 * wSkillTarget + 3]
+;> return wBattlerResist[(7 * wSkillTarget & 0xFF) + 3]
 	ld de, wBattlerResist + 3
 	jr jr_052_67dc
 
@@ -10191,7 +10191,7 @@ GetResistByte3::
 ;@ Byte 4 of the target's packed resistances: 15, 16, 17 and 18 from bits 6-7
 ;@ down.
 GetResistByte4::
-;> return wBattlerResist[7 * wSkillTarget + 4]
+;> return wBattlerResist[(7 * wSkillTarget & 0xFF) + 4]
 	ld de, wBattlerResist + 4
 	jr jr_052_67dc
 
@@ -10200,7 +10200,7 @@ GetResistByte4::
 ;@ Byte 5 of the target's packed resistances: 19, 20, 21 and 22 from bits 6-7
 ;@ down.
 GetResistByte5::
-;> return wBattlerResist[7 * wSkillTarget + 5]
+;> return wBattlerResist[(7 * wSkillTarget & 0xFF) + 5]
 	ld de, wBattlerResist + 5
 	jr jr_052_67dc
 
@@ -10209,7 +10209,7 @@ GetResistByte5::
 ;@ Byte 6 of the target's packed resistances: 23, 24 and 25 from bits 6-7 down
 ;@ (bits 0-1 unused). The other GetResistByte routines end here too.
 GetResistByte6::
-;>@x return wBattlerResist[7 * wSkillTarget + 6]
+;>@x return wBattlerResist[(7 * wSkillTarget & 0xFF) + 6]
 	ld de, wBattlerResist + 6
 
 jr_052_67dc:
@@ -10870,13 +10870,26 @@ Percent30::
 	call Percent60
 	call ShiftHL1
 	ret
-
-
-	; a routine reached only from code still in data form (the battle items):
-	; IsHPFull, compares the HP of battle position a with its maximum HP (zero
-	; flag when equal), like IsMPFull below
-	db $e5, $c5, $47, $cd, $e8, $2f, $e5, $78, $cd, $da, $2f, $c1, $cd, $45, $2f, $c1
-	db $e1, $c9
+;@ def IsHPFull(pos: a) -> zero
+;@ path: battle/state
+;@ Zero flag when the monster at battle position `pos` has all its HP (the
+;@ battle items check it). Keeps the other registers.
+IsHPFull::
+;> hp = GetBattlerHP(pos)
+	push hl
+	push bc
+	ld b, a
+	call GetBattlerHP
+	push hl
+;>@r return GetBattlerMaxHP(pos) == hp
+	ld a, b
+	call GetBattlerMaxHP
+	pop bc
+	call CompareHLBC
+	pop bc
+	pop hl
+;=@r
+	ret
 
 ;@ def IsMPFull(pos: a) -> zero
 ;@ path: battle/state
@@ -11168,12 +11181,27 @@ StatLimitTimes::
 	sla c
 	rl b
 	ret
-
-
-	; reached only from code still in data form: wBattlerOrder[wSkillTarget] = 3
-	; (the target loses its turn), keeping af and hl
-	db $e5, $f5, $fa, $89, $db, $21, $13, $dd, $85, $6f, $3e, $00, $8c, $67, $36, $03
-	db $f1, $e1, $c9
+;@ def TargetLosesTurn()
+;@ path: battle/state
+;@ The skill target loses its turn this round: wBattlerOrder[wSkillTarget] = 3.
+;@ Keeps af and hl.
+TargetLosesTurn::
+;>@o wBattlerOrder[wSkillTarget] = 3
+	push hl
+	push af
+	ld a, [wSkillTarget]
+	ld hl, wBattlerOrder
+	add l
+	ld l, a
+;=@o
+	ld a, $00
+	adc h
+	ld h, a
+	ld [hl], $03
+	pop af
+	pop hl
+;=@o
+	ret
 
 ;@ def ReturnNoCarry() -> carry
 ;@ path: battle/skills/effects
@@ -11303,7 +11331,7 @@ CopyPartyMonName::
 	inc hl
 	jr .findEnd
 
-;@ def CopyLinkPartnerName()
+;@ def CopyLinkPartnerName(pos: b, dest: hl) -> hl
 ;@ path: battle/names
 ;@ Part of CopyEnemyName: in a link battle the partner's monsters have party
 ;@ records too (positions 4-6), so their own names are copied.
@@ -11322,7 +11350,7 @@ CopyLinkPartnerName::
 ;@ AppendEnemyLetter); slot 3 (the called helper) always the species name.
 ;@ test: skip calls routines in other banks
 CopyEnemyName::
-;>@x if pos & 3 != 3:
+;>@x if (pos & 3) != 3:
 	push bc
 	ld b, a
 	and $03
@@ -11333,7 +11361,7 @@ CopyEnemyName::
 	jr z, .species
 
 ;>@l     if wLinkActive:
-;>@l2         return CopyLinkPartnerName()
+;>@l2         return CopyLinkPartnerName(pos, dest)
 	push bc
 	ld b, a
 	ld a, [wLinkActive]
@@ -11416,7 +11444,7 @@ CopyBattlerSpeciesName::
 CopyMorphedEnemyName::
 ;> end = CopyPartyMonName(party_pos, dest)
 	call CopyPartyMonName
-;>@k copy(end, [0x2F, 0x46, 0x48, 0x42, 0xF0])   # "Like"
+;>@k mem[end:end + 5] = [0x2F, 0x46, 0x48, 0x42, 0xF0]   # "Like"
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
@@ -11523,7 +11551,7 @@ CopyMorphedEnemyName::
 ;> wBattleArg1 = n
 	ld [wBattleArg1], a
 ;> if n:
-;>     copy(end, [n, 0xF0])
+;>     mem[end:end + 2] = [n, 0xF0]
 	ld [hli], a
 	ld [hl], $f0
 	ret
@@ -11690,7 +11718,7 @@ ActionStepSkill::
 ;> wHitShown = 0
 	xor a
 	ld [wHitShown], a
-;>@e call(mem16[FarTable_52 + 0x10 + 2 * wSkillId])   # the skill's effect routine
+;>@e JumpToPointer(FarTable_52 + 0x10 + 2 * wSkillId)   # the skill's effect routine
 	ld a, [wSkillId]
 	ld c, a
 	ld b, $00
@@ -11737,7 +11765,7 @@ SkillStepDone::
 ;>@t     wBattleSubStep = 5
 ;>@t2     TransformIntoTarget()
 ;>@t3     wBattleSubStep += 1
-;>@t4     mem[wBattlerStatus1 + 8 * wSkillUser] |= 0x20
+;>@t4     wBattlerStatus[8 * wSkillUser + 1] |= 0x20
 ;>@t5     if wLinkActive or wSkillUser < 4:
 ;>@t6         return ActionStepNext()
 ;>@t7     wEnemyMorph[wSkillUser & 3] = wSkillTarget
@@ -11758,7 +11786,7 @@ SkillStepDone::
 	ld [wBattleSubStep], a
 ;>     TransformUserPic()
 	call TransformUserPic
-;>@p     mem[wBattlerStatus1 + 8 * wSkillUser] |= 0x10
+;>@p     wBattlerStatus[8 * wSkillUser + 1] |= 0x10
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
@@ -12195,7 +12223,7 @@ CheckBladeCounter::
 	cp $08
 	ret z
 
-;> if not mem[wBattlerStatus7 + 8 * wSkillTarget] & 0x04:
+;> if not wBattlerStatus[8 * wSkillTarget + 7] & 0x04:
 ;>     return 0
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
@@ -12481,7 +12509,7 @@ jr_052_6fb2:
 	cp c
 	jp z, EndBattlerAction
 
-;> if not mem[wBattlerStatus6 + 8 * wSkillUser] & 0x01:
+;> if not wBattlerStatus[8 * wSkillUser + 6] & 0x01:
 ;>     return EndBattlerAction()
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus6
@@ -12518,7 +12546,7 @@ RainSlashNext::
 	ld a, [hl]
 	inc a
 	ld [hl], a
-;>     if wBattlerAction[2 * wSkillUser + 1] & 3 == 3:
+;>     if (wBattlerAction[2 * wSkillUser + 1] & 3) == 3:
 ;>         return EndBattlerAction()
 	and $03
 	cp $03
@@ -12650,7 +12678,7 @@ EndBattlerAction::
 	ld h, a
 	ld a, $03
 	ld [hl], a
-;> if wSkillTargeting & 3 != 1:               # not a single target
+;> if (wSkillTargeting & 3) != 1:               # not a single target
 ;>     return NextTargetOfGroup()           # else it runs on into FinishAction
 	ld a, [wSkillTargeting]
 	and $03
@@ -12767,10 +12795,10 @@ FinishActionOrHelp::
 ;>     return CloseActionNoCheck()             # CloseAction without CheckBattleOver
 	ld a, [wHitShown]
 	or a
-	jr z, jr_052_7111
+	jr z, CloseActionNoCheck
 
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> wTextIndex = 0xDA
 ;> wTextGroup = 0
@@ -12794,15 +12822,21 @@ FinishActionOrHelp::
 ;@ path: battle/actions
 ;@ Checks whether the battle is over, empties the MP of Farewell and MegaMagic
 ;@ users and clears the action's step variables (wBattleSubStep up to
-;@ wAbsorbMP). FinishActionOrHelp enters at jr_052_7111, after the check.
+;@ wAbsorbMP). FinishActionOrHelp enters at CloseActionNoCheck, after the check.
 CloseAction::
 ;> CheckBattleOver()
+;> return CloseActionNoCheck()                # runs on into it
 	call CheckBattleOver
 
-jr_052_7111:
+;@ def CloseActionNoCheck()
+;@ path: battle/actions
+;@ The second half of CloseAction, without the check for the battle's end:
+;@ empties the MP of Farewell and MegaMagic users and clears the 7 step
+;@ variables from wBattleSubStep on.
+CloseActionNoCheck::
 ;> ClearMPAfterSkill()
 	call ClearMPAfterSkill
-;>@f fill(wBattleSubStep, 7, 0)
+;>@f fill(addr(wBattleSubStep), 0, 7)
 	xor a
 	ld hl, wBattleSubStep
 	ld [hli], a
@@ -13286,7 +13320,7 @@ ItemTargetUnfit::
 ;@ Item stage 3: a target turned into an iron lump (Ironize, wBattlerStatus5
 ;@ bits 6-7) takes no item; else the item works (UseBattleItem).
 ItemCheckTarget::
-;> if mem[wBattlerStatus5 + 8 * wBattleItemTarget] & 0xC0:
+;> if wBattlerStatus[8 * wBattleItemTarget + 5] & 0xC0:
 ;>     return ItemTargetUnfit()
 	ld a, [wBattleItemTarget]
 	ld hl, wBattlerStatus5
@@ -13432,7 +13466,7 @@ ActionStepItemEffect::
 	ld a, [wSkillTarget]
 	inc a
 	ld [wSkillTarget], a
-;>         if wSkillTarget & 3 == 3:
+;>         if (wSkillTarget & 3) == 3:
 ;>             return
 	and $03
 	cp $03
@@ -13511,7 +13545,7 @@ ActionStepItemTarget::
 
 .out
 ;> show = True
-;> if wSkillTarget & 3 != 3:
+;> if (wSkillTarget & 3) != 3:
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
@@ -13609,7 +13643,7 @@ ActionStepItemEnd::
 	ld hl, far_GetSkillWord
 	rst $10
 ;>     if not wBattleArg0 & 0x01:
-;>@l         while wBattleItemTarget & 3 != 3:
+;>@l         while (wBattleItemTarget & 3) != 3:
 ;>@l2             wBattleItemTarget += 1
 ;>@l3             if not CheckBattlerPresent(wBattleItemTarget):
 ;>@l4                 return ActionStepItemAgain()
@@ -13754,7 +13788,7 @@ BadMeatEffect::
 
 ;>     c += 1
 	inc c
-;>     if c & 3 == 2:
+;>     if (c & 3) == 2:
 ;>@n         return True
 	ld a, c
 	and $03
@@ -13983,7 +14017,7 @@ FindMeatTarget::
 	call CheckBattlerPresent
 	jr nc, .loop
 
-;>         if wSkillTarget & 3 >= 2:
+;>         if (wSkillTarget & 3) >= 2:
 ;>@r             return False
 	ld a, [hl]
 	and $03
@@ -14012,929 +14046,1343 @@ FindMeatTarget::
 	db $d7, $37, $3f, $c9, $fa, $89, $db, $21, $07, $db, $cd, $6c, $2f, $7e, $e6, $c0
 	db $c8, $3e, $ba, $cd, $92, $76, $37, $c9
 
+;@ def CheckBattleOver() -> carry
+;@ path: battle/actions
+;@ Far entry 1: carry when the battle is decided. All own monsters out (gone,
+;@ or bit 6 of status byte 0): lost, message $EB with Terry's name (in a link
+;@ battle bank $50's result message), battle step $0E. All enemies out (in a
+;@ link battle also those with bit 6): won (ShowVictoryMessage). Then the
+;@ end music and sound ($69, or $4F for the loser; wBattleType $FF after a
+;@ loss) and battle step $0A; wSkillMsgMode keeps the result (1 lost, 0 won,
+;@ seen from the master in a link battle). Not decided: wSkillMsgMode $FF.
+;@ test: skip calls routines in other banks
 CheckBattleOver::
+;>@a own_alive = any(not CheckBattlerPresent(c) and not wBattlerStatus[8 * c] & 0x40 for c in range(3))
 	ld bc, $0300
 
-jr_052_76cb:
+.own
+;=@a
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_052_76dc
+	jr c, .nextOwn
 
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;=@a
 	bit 6, [hl]
-	jr z, jr_052_7709
+	jr z, .enemies
 
-jr_052_76dc:
+.nextOwn
+;=@a
 	inc c
 	dec b
-	jr nz, jr_052_76cb
+	jr nz, .own
 
+;> if not own_alive:
+;>     wBattleStep = 0x0E                    # lost
 	ld a, $0e
 	ld [wBattleStep], a
+;>     if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_052_76f6
+	jr z, .lostText
 
+;>         ShowLinkResultMessage()
 	ld hl, far_ShowLinkResultMessage
 	rst $10
+;>         wBattlerReload = 1
 	ld a, $01
 	ld [wBattlerReload], a
-	jr jr_052_7743
+	jr .music
 
-jr_052_76f6:
+;>     else:
+;>         CopyName(wPlayerName, wTextArg0)
+.lostText
 	ld de, wPlayerName
 	ld hl, wTextArg0
 	call CopyName
+;>         wBattlerReload = 1
+;>@t1         wTextGroup = 0
+;>@t2         wTextIndex = 0xEB
+;>@t3         StartText_4C()
 	ld hl, $00eb
 	ld a, $01
 	ld [wBattlerReload], a
-	jr jr_052_7737
+	jr .text
 
-jr_052_7709:
+.enemies
+;> else:
+;>@e     if any(not CheckBattlerPresent(c) and (not wLinkActive or not wBattlerStatus[8 * c] & 0x40) for c in range(4, 7)): wSkillMsgMode = 0xFF; return False
 	ld bc, $0304
 
-jr_052_770c:
+.enemy
+;=@e
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_052_7723
+	jr c, .nextEnemy
 
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_052_777b
+	jr z, .notOver
 
+;=@e
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	bit 6, [hl]
-	jr z, jr_052_777b
+	jr z, .notOver
 
-jr_052_7723:
+.nextEnemy
+;=@e
 	inc c
 	dec b
-	jr nz, jr_052_770c
+	jr nz, .enemy
 
+;>     wBattlerReload = 0                    # won
 	ld a, $00
 	ld [wBattlerReload], a
+;>     wBattleArg2 = 0
 	ld a, $00
 	ld [wBattleArg2], a
+;>     ShowVictoryMessage()
 	ld hl, far_ShowVictoryMessage
 	rst $10
-	jr jr_052_7743
+	jr .music
 
-jr_052_7737:
+.text
+;=@t1
 	ld a, h
 	ld [wTextGroup], a
+;=@t2
 	ld a, l
 	ld [wTextIndex], a
+;=@t3
 	ld hl, far_StartText_4C
 	rst $10
 
-jr_052_7743:
+.music
+;> sound = 0x69
+;> lost = wBattlerReload
 	ld c, $69
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wBattlerReload]
-	jr z, jr_052_7754
+	jr z, .side
 
+;> if wLinkFlags & 0x02:
+;>     lost ^= 1
 	xor $01
+;>     wBattlerReload = lost
 	ld [wBattlerReload], a
 
-jr_052_7754:
+.side
+;> if lost:
 	or a
-	jr z, jr_052_775e
+	jr z, .play
 
+;>     wBattleType = 0xFF
+;>     sound = 0x4F
 	ld a, $ff
 	ld [wBattleType], a
 	ld c, $4f
 
-jr_052_775e:
+.play
+;> QueueMusic(2)
 	push bc
 	ld a, $02
 	call QueueMusic
 	pop bc
+;> QueueSound(sound)
 	ld a, c
 	call QueueSound
+;> wBattleArg2 = 0
+;> wBattleStep = 0x0A
 	ld a, $00
 	ld [wBattleArg2], a
 	ld a, $0a
 	ld [wBattleStep], a
+;> wSkillMsgMode = wBattlerReload
+;> return True
 	scf
 	ld a, [wBattlerReload]
 	ld [wSkillMsgMode], a
 	ret
 
 
-jr_052_777b:
+.notOver
+;=@e
 	ld a, $ff
 	ld [wSkillMsgMode], a
 	xor a
 	ret
 
 
+;@ def CheckSideDefeated() -> carry
+;@ path: battle/actions
+;@ Carry when all three monsters of one side are out (IsBattlerOut), own side
+;@ first.
 CheckSideDefeated::
+;>@i if IsBattlerOut(0) and IsBattlerOut(1) and IsBattlerOut(2):
+;>     return True
 	ld bc, $0300
 	call IsBattlerOut
-	jr nc, jr_052_7795
+	jr nc, .enemies
 
 	inc c
 	call IsBattlerOut
-	jr nc, jr_052_7795
+;=@i
+	jr nc, .enemies
 
 	inc c
 	call IsBattlerOut
 	ret c
 
-jr_052_7795:
+.enemies
+;>@a return IsBattlerOut(4) and IsBattlerOut(5) and IsBattlerOut(6)
 	ld bc, $0304
 	call IsBattlerOut
-	jr nc, jr_052_77a7
+	jr nc, .done
 
 	inc c
 	call IsBattlerOut
-	jr nc, jr_052_77a7
+;=@a
+	jr nc, .done
 
 	inc c
 	call IsBattlerOut
 
-jr_052_77a7:
+.done
 	ret
 
 
+;@ def IsBattlerOut(c: c) -> carry
+;@ path: battle/actions
+;@ Carry when battle position `c` is out of the fight; an own monster (and in a
+;@ link battle any) also counts as out with bit 6 of its status byte 0.
 IsBattlerOut::
+;> if not wLinkActive and c >= 4:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_052_77b7
+	jr nz, .withStatus
 
 	ld a, c
 	cp $04
-	jr c, jr_052_77b7
+	jr c, .withStatus
 
+;>     return CheckBattlerPresent(c)
 	call CheckBattlerPresent
 	ret
 
 
-jr_052_77b7:
+.withStatus
+;> if CheckBattlerPresent(c):
+;>     return True
 	ld a, c
 	call CheckBattlerPresent
 	ret c
 
+;>@r return (wBattlerStatus[8 * c] & 0x40) != 0
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	bit 6, [hl]
 	ret z
 
+;=@r
 	scf
 	ret
 
 
+;@ def Skill3BStage0()
+;@ path: battle/actions
+;@ First stage after skill $3B: when the user is still there, its animation
+;@ and sound play again.
 Skill3BStage0::
+;> if CheckUserGone():
+;>     return
 	call CheckUserGone
 	ret c
 
+;> if CheckBattlerPresent(wSkillUser):
+;>     return StagesEnd()
 	ld a, [wSkillUser]
 	call CheckBattlerPresent
 	jp c, StagesEnd
 
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
+;> PlaySkillSound4()
 	ld hl, far_PlaySkillSound4
 	rst $10
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def Skill3BStage1()
+;@ path: battle/actions
+;@ The user of skill $3B loses a quarter of the damage it did (at least 1,
+;@ wSkillAmount2); at 0 HP it goes down next (RecoilStageUserDown).
 Skill3BStage1::
+;> wBattleSubStep2 += 2
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@a loss = wSkillAmount >> 2
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	srl b
 	rr c
+;=@a
 	srl b
 	rr c
+;> wSkillAmount2 = loss
 	ld a, c
 	ld [wSkillAmount2], a
 	ld a, b
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
+;> if loss == 0:
 	ld a, b
 	or c
-	jr nz, jr_052_780f
+	jr nz, .lose
 
+;>     loss = 1
 	inc bc
+;>     wSkillAmount2 = loss
 	ld a, c
 	ld [wSkillAmount2], a
 	ld a, b
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
 
-jr_052_780f:
+.lose
+;>@h hp = wBattlerHP + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
 	call IndexWords
 	ld d, h
 	ld e, l
+;> if mem16[hp] > loss:
+;>@k     mem16[hp] -= loss
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	call CompareHLBC
 	ld h, d
 	ld l, e
-	jr c, jr_052_782e
+;=@k
+	jr c, .down
 
-	jr z, jr_052_782e
+	jr z, .down
 
+;=@k
 	ld a, [hl]
 	sub c
 	ld [hli], a
 	ld a, [hl]
 	sbc b
 	ld [hl], a
+;>@s     return ShowUserHPLossMessage()
 	jr ShowUserHPLossMessage
 
-jr_052_782e:
+.down
+;> mem16[hp] = 0
 	xor a
 	ld [hld], a
 	ld [hl], a
+;> wBattleStepArg0 = 0xFF
+;> wBattleStepArg1 = 0xFF
 	ld a, $ff
 	ld [wBattleStepArg0], a
 	ld a, $ff
 	ld [wBattleStepArg1], a
+;> wBattleSubStep2 = 2
+;> return ShowUserHPLossMessage()           # runs on into it
 	ld a, $02
 	ld [wBattleSubStep2], a
 
+;@ def ShowUserHPLossMessage()
+;@ path: battle/actions
+;@ "<user> lost <wSkillAmount2> HP": message $82, $83 when the side seen from
+;@ this Game Boy is the far one, the other one of the pair when the target is
+;@ on the user's side (PrintUserMessage).
 ShowUserHPLossMessage::
+;> Number16ToDecimal(wSkillAmount2, wTextArg1)
 	ld hl, wTextArg1
 	ld a, [wSkillAmount2]
 	ld c, a
-	ld a, [$db5b]
+	ld a, [wSkillAmount2 + 1]
 	ld b, a
 	call Number16ToDecimal
+;> wBattlerReload = 0x82                   # the message number
 	ld a, $82
 	ld [wBattlerReload], a
+;> if GetViewSidePos() >= 4:
+;>     wBattlerReload += 1
 	call GetViewSidePos
 	cp $04
-	jr c, jr_052_785e
+	jr c, .same
 
 	ld hl, wBattlerReload
 	inc [hl]
 
-jr_052_785e:
+.same
+;> if IsTargetSameSide():
+;>     FlipMessageVariant()
 	call IsTargetSameSide
 	call z, FlipMessageVariant
+;> PrintUserMessage()
 	call PrintUserMessage
 	ret
 
 
+;@ def IsTargetSameSide() -> zero
+;@ path: battle/actions
+;@ Zero flag when the skill's user and target are on the same side.
 IsTargetSameSide::
+;> side = wSkillUser & 4
 	ld a, [wSkillUser]
 	and $04
 	ld b, a
+;> return (wSkillTarget & 4) == side
 	ld a, [wSkillTarget]
 	and $04
 	cp b
 	ret
 
 
+;@ def FlipMessageVariant()
+;@ path: battle/actions
+;@ Switches the message number in wBattlerReload to the other of its pair.
 FlipMessageVariant::
+;> wBattlerReload ^= 1
 	ld a, [wBattlerReload]
 	xor $01
 	ld [wBattlerReload], a
 	ret
 
 
+;@ def PickUserDownMessage()
+;@ path: battle/actions
+;@ For a user on the target's side: message $E7 becomes $EA and the others
+;@ $E7 ($85 stays).
 PickUserDownMessage::
+;> if wBattlerReload == 0x85:
+;>     return
 	ld a, [wBattlerReload]
 	cp $85
 	ret z
 
+;>@m wBattlerReload = 0xEA if wBattlerReload == 0xE7 else 0xE7
 	cp $e7
-	jr z, jr_052_788c
+	jr z, .ea
 
 	ld a, $e7
-	jr jr_052_788e
+	jr .store
 
-jr_052_788c:
+.ea
+;=@m
 	ld a, $ea
 
-jr_052_788e:
+.store
 	ld [wBattlerReload], a
 	ret
 
 
+;@ def KamikazeStage0()
+;@ path: battle/actions
+;@ First stage after Kamikaze: the user's animation and sound again.
 KamikazeStage0::
+;> if CheckUserGone():
+;>     return
 	call CheckUserGone
 	ret c
 
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
+;> PlaySkillSound4()
 	ld hl, far_PlaySkillSound4
 	rst $10
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def KamikazeStage1()
+;@ path: battle/actions
+;@ After Kamikaze the user is left with 1 HP (message $85); when it had only 1
+;@ it falls (0 HP, message $E7 or $EA, then RecoilStageUserDown).
 KamikazeStage1::
+;>@h hp = wBattlerHP + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
 	call IndexWords
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;> if mem16[hp] != 1:
 	dec bc
 	ld a, b
 	or c
-	jr z, jr_052_78c0
+	jr z, .falls
 
+;>     wBattleSubStep2 = 3
 	ld a, $03
 	ld [wBattleSubStep2], a
+;>     mem16[hp] = 1
 	ld a, $00
 	ld [hld], a
 	ld [hl], $01
-	jr jr_052_78e5
+;>@o     wBattlerReload = 0x85
+	jr .one
 
-jr_052_78c0:
+.falls
+;> else:
+;>     mem16[hp] = 0
 	xor a
 	ld [hld], a
 	ld [hl], a
+;>     wBattleStepArg0 = 0xFF
+;>     wBattleStepArg1 = 3
 	ld a, $ff
 	ld [wBattleStepArg0], a
 	ld a, $03
 	ld [wBattleStepArg1], a
+;>     wBattleSubStep2 = 2
 	ld a, $02
 	ld [wBattleSubStep2], a
+;>@r     wBattlerReload = 0xEA if GetViewSidePos() >= 4 else 0xE7
 	ld a, $ea
 	ld [wBattlerReload], a
 	call GetViewSidePos
 	cp $04
-	jr nc, jr_052_78ea
+	jr nc, .print
 
+;=@r
 	ld a, $e7
 	ld [wBattlerReload], a
-	jr jr_052_78ea
+	jr .print
 
-jr_052_78e5:
+.one
+;=@o
 	ld a, $85
 	ld [wBattlerReload], a
 
-jr_052_78ea:
+.print
+;> if IsTargetSameSide():
+;>     PickUserDownMessage()
 	call IsTargetSameSide
 	call z, PickUserDownMessage
+;> PrintUserMessage()
 	call PrintUserMessage
 	ret
 
 
+;@ def PrintUserMessage()
+;@ path: battle/actions
+;@ Updates the icons, then message wBattlerReload with the user's name and
+;@ the panel's HP and MP.
 PrintUserMessage::
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> wBattleArg2 = lo(wTextArg0)
+;> wBattleArg3 = hi(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillUser
+;> GetBattlerNameTo(wSkillUser, wTextArg0)
 	ld a, [wSkillUser]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;> wTextGroup = 0
+;> wTextIndex = wBattlerReload
 	ld a, $00
 	ld [wTextGroup], a
 	ld a, [wBattlerReload]
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> PrintPanelHPMP()
 	ld hl, far_PrintPanelHPMP
 	rst $10
 	ret
 
 
+;@ def RecoilStageUserDown()
+;@ path: battle/actions
+;@ The user went down from its own skill: the steps noted in wBattleStepArg0/1
+;@ come next ($FF keeps them), the user falls (UserFalls) and message $E7 or
+;@ $EA names it.
 RecoilStageUserDown::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wBattleStepArg0 != 0xFF:
+;>     wBattleSubStep = wBattleStepArg0
 	ld a, [wBattleStepArg0]
 	cp $ff
-	jr z, jr_052_792e
+	jr z, .keepStep
 
 	ld [wBattleSubStep], a
 
-jr_052_792e:
+.keepStep
+;> if wBattleStepArg1 != 0xFF:
+;>     wBattleSubStep2 = wBattleStepArg1
 	ld a, [wBattleStepArg1]
 	cp $ff
-	jr z, jr_052_7938
+	jr z, .keepStage
 
 	ld [wBattleSubStep2], a
 
-jr_052_7938:
+.keepStage
+;> wBattleStepArg0 = 0
+;> wBattleStepArg1 = 0
 	xor a
 	ld [wBattleStepArg0], a
 	ld [wBattleStepArg1], a
+;> UserFalls()
 	call UserFalls
+;> wBattleArg2 = lo(wTextArg0)
+;> wBattleArg3 = hi(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillUser
+;> GetBattlerNameTo(wSkillUser, wTextArg0)
 	ld a, [wSkillUser]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;> wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>@m wBattlerReload = 0xEA if GetViewSidePos() >= 4 else 0xE7
 	call GetViewSidePos
 	cp $04
-	jr nc, jr_052_7966
+	jr nc, .far
 
 	ld a, $e7
-	jr jr_052_7968
+	jr .store
 
-jr_052_7966:
+.far
+;=@m
 	ld a, $ea
 
-jr_052_7968:
+.store
+;=@m
 	ld [wBattlerReload], a
+;> if IsTargetSameSide():
+;>     PickUserDownMessage()
 	call IsTargetSameSide
 	call z, PickUserDownMessage
+;> wTextIndex = wBattlerReload
 	ld a, [wBattlerReload]
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def StagesEnd()
+;@ path: battle/actions
+;@ Last follow-up stage: a target in the BladeD stance strikes back, else on
+;@ to step 5 (StagesNext).
 StagesEnd::
+;> if CheckBladeCounter():
+;>     return StartBladeCounter()            # else it runs on into StagesNext
 	call CheckBladeCounter
 	jp nz, StartBladeCounter
 
+;@ def StagesNext()
+;@ path: battle/actions
+;@ On to action step 5 (ActionStepNext).
 StagesNext::
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> wBattleSubStep2 = 0
 	ld a, $00
 	ld [wBattleSubStep2], a
+;> return ActionStepNext()
 	jp ActionStepNext
 
 
+;@ def StageShowText()
+;@ path: battle/actions
+;@ A follow-up stage that shows the message set up before.
 StageShowText::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def CheckUserGone() -> carry
+;@ path: battle/actions
+;@ When the skill's user is no longer in the fight: on to the next step,
+;@ carry.
 CheckUserGone::
+;> if not CheckBattlerPresent(wSkillUser):
+;>     return False
 	ld a, [wSkillUser]
 	call CheckBattlerPresent
 	ret nc
 
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> return True
 	scf
 	ret
 
 
+;@ def RammingStage0()
+;@ path: battle/actions
+;@ First stage after Ramming: the user's animation and sound again.
 RammingStage0::
+;> if CheckUserGone():
+;>     return
 	call CheckUserGone
 	ret c
 
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
+;> PlaySkillSound4()
 	ld hl, far_PlaySkillSound4
 	rst $10
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def RammingStage1()
+;@ path: battle/actions
+;@ The user of Ramming loses 80% of its HP plus one (wSkillAmount2); at 0 it
+;@ goes down (RecoilStageUserDown, then step 4).
 RammingStage1::
+;> wBattleSubStep2 += 2
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@h hp = wBattlerHP + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
 	call IndexWords
 	push hl
 	ld a, [hli]
 	ld h, [hl]
+;> loss = Percent80(mem16[hp]) + 1
 	ld l, a
 	push hl
 	call Percent80
 	inc hl
+;> wSkillAmount2 = loss
 	ld a, l
 	ld [wSkillAmount2], a
 	ld a, h
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
+;>@n new = max(mem16[hp] - loss, 0)
 	pop bc
 	ld a, c
 	sub l
 	ld c, a
 	ld a, b
+;=@n
 	sbc h
 	ld b, a
-	jr c, jr_052_79e5
+	jr c, .zero
 
 	or c
-	jr z, jr_052_79e5
+	jr z, .zero
 
-	jr jr_052_79e8
+	jr .store
 
-jr_052_79e5:
+.zero
+;=@n
 	ld bc, $0000
 
-jr_052_79e8:
+.store
+;> mem16[hp] = new
 	pop hl
 	ld a, c
 	ld [hli], a
 	ld [hl], b
+;> if new == 0:
 	or c
-	jr nz, jr_052_7a02
+	jr nz, .message
 
+;>@d     wBattleSubStep2 -= 1
 	ld hl, wBattleSubStep2
 	dec [hl]
+;>     wBattleStepArg0 = 4
+;>     wBattleStepArg1 = 0xFF
 	ld a, $04
 	ld [wBattleStepArg0], a
 	ld a, $ff
 	ld [wBattleStepArg1], a
+;>     wBattleSubStep2 = 2
 	ld a, $02
 	ld [wBattleSubStep2], a
 
-jr_052_7a02:
+.message
+;> ShowUserHPLossMessage()
 	call ShowUserHPLossMessage
 	ret
 
 
+	; unused: wBattleSubStep = 1 when wHitCount is 1, else wBattleSubStep2 += 1
 	db $fa, $69, $dd, $fe, $01, $20, $06, $3e, $01, $ea, $ed, $d9, $c9, $21, $ee, $d9
 	db $34, $c9
 
+;@ def UserFalls()
+;@ path: battle/actions
+;@ Far entry 2: the skill's user falls (wBattlerState 1, ActionStepDefeat on
+;@ it); a fallen wild enemy (not the helper's place 7) becomes wJoinCandidate.
 UserFalls::
+;>@s wBattlerState[wSkillUser] = 1
 	ld a, [wSkillUser]
 	ld hl, wBattlerState
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld [hl], $01
+;> target = wSkillTarget
+;> wSkillTarget = wSkillUser
 	ld a, [wSkillTarget]
 	push af
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
+;> ActionStepDefeat()
 	call ActionStepDefeat
+;> wSkillTarget = target
 	pop af
 	ld [wSkillTarget], a
+;> if wSkillUser >= 4 and wSkillUser != 7:
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_052_7a48
+	jr c, .done
 
 	cp $07
-	jr z, jr_052_7a48
+	jr z, .done
 
+;>     wJoinCandidate = wSkillUser
 	ld a, [wSkillUser]
 	ld [wJoinCandidate], a
 
-jr_052_7a48:
+.done
 	ret
 
 
+;@ def DeMagicStage0()
+;@ path: battle/actions
+;@ First stage after DeMagic: a user that has transformed (status 1 bit 4)
+;@ goes to stage 1, others skip it.
 DeMagicStage0::
+;> if not wBattlerStatus[8 * wSkillUser + 1] & 0x10:
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 4, [hl]
-	jr nz, jr_052_7a5a
+	jr nz, .next
 
+;>     wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 
-jr_052_7a5a:
+.next
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def DeMagicStage1()
+;@ path: battle/actions
+;@ The transformed user turns back into itself (TransformIntoTarget on itself).
 DeMagicStage1::
+;> wSkillTarget = wSkillUser
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
+;> TransformIntoTarget()
 	call TransformIntoTarget
 	ret
 
 
+;@ def LifeSongStage0()
+;@ path: battle/actions
+;@ LifeSong: a target that is down (not empty) is revived (SkillVivify).
 LifeSongStage0::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if CheckBattlerPresent(wSkillTarget) and wBattlerState[wSkillTarget] != 0xFF:   # down, not empty
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr z, jr_052_7a7b
+	jr z, .skip
 
-	jr nc, jr_052_7a7b
+	jr nc, .skip
 
+;>     return SkillVivify()
 	call SkillVivify
 	ret
 
 
-jr_052_7a7b:
+.skip
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
+;@ def LifeSongStage1()
+;@ path: battle/actions
+;@ LifeSong: message $9E with the target's name.
 LifeSongStage1::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> TargetNameToArg0()
 	call TargetNameToArg0
+;> wTextIndex = 0x9E
+;> wTextGroup = 0
 	ld a, $9e
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def LifeSongStage2()
+;@ path: battle/actions
+;@ LifeSong goes on with the next place of the side that is down (back to
+;@ stage 0), until the side's third place.
 LifeSongStage2::
+;> while True:
+;>     UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;>     wSkillTarget += 1
 	ld hl, wSkillTarget
 	inc [hl]
 	ld a, [hl]
+;>     if (wSkillTarget & 3) == 3:
+;>@e         wBattleSubStep2 += 1
+;>@r         return
 	ld b, a
 	and $03
 	cp $03
-	jr z, jr_052_7ab0
+	jr z, .end
 
+;>     if wBattlerState[wSkillTarget] != 0xFF:      # not an empty place
+;>@z         wBattleSubStep2 = 0
+;>         return
 	ld a, b
 	call CheckBattlerPresent
 	jr z, LifeSongStage2
 
+;=@z
 	xor a
 	ld [wBattleSubStep2], a
 	ret
 
 
-jr_052_7ab0:
+.end
+;=@e
 	ld hl, wBattleSubStep2
 	inc [hl]
+;=@r
 	ret
 
 
+;@ def ChgDragonPickAction()
+;@ path: battle/actions
+;@ After CHGDRAGON the dragon picks its next action at random from Attack,
+;@ Scorching, IceStorm and DeMagic. Its target is the far side's first place;
+;@ for Attack a random place of the far side, moving back over empty places
+;@ (that search loses the side bit, so it then looks at places 0-2).
 ChgDragonPickAction::
+;> ptr = wBattlerAction + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	call IndexWords
+;>@s skill = (0x3A, 0x5E, 0x62, 0x80)[wRandomHigh & 3]   # Attack, Scorching, IceStorm, DeMagic
 	push hl
 	ld a, [wRandomHigh]
 	and $03
-	ld hl, $7aff
+	ld hl, .skills
 	add l
 	ld l, a
+;=@s
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	pop hl
+;> mem[ptr] = skill
 	ld [hli], a
 	ld c, a
 	push hl
+;> t = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld b, a
+;> if skill == 0x3A:
 	ld a, c
 	cp $3a
-	jr nz, jr_052_7af6
+	jr nz, .store
 
+;>     t += wRandomHigh & 3
 	ld a, [wRandomHigh]
 	and $03
 	add b
 
-jr_052_7ae5:
+.find
+;>     while CheckBattlerPresent(t):
 	ld b, a
 	call CheckBattlerPresent
-	jr nc, jr_052_7af6
+	jr nc, .store
 
+;>@d         t = (t & 3) - 1 if t & 3 else 2
 	ld a, b
 	and $03
-	jr nz, jr_052_7af3
+	jr nz, .back
 
 	ld b, a
 	or $03
 
-jr_052_7af3:
+.back
+;=@d
 	dec a
-	jr jr_052_7ae5
+	jr .find
 
-jr_052_7af6:
+.store
+;> mem[ptr + 1] = t
 	pop hl
 	ld a, b
 	ld [hl], a
+;> wBattleSubStep = 0
 	ld a, $00
 	ld [wBattleSubStep], a
 	ret
 
 
-	db $3a, $5e, $62, $80, $ff, $f5, $c5, $d5, $e5, $fa, $88, $db, $21, $05, $db, $cd
+.skills
+	db $3a, $5e, $62, $80                   ; Attack, Scorching, IceStorm, DeMagic
+
+	; unused: $FF, then a routine that clears the low six bits of the user's
+	; status byte 3
+	db $ff, $f5, $c5, $d5, $e5, $fa, $88, $db, $21, $05, $db, $cd
 	db $6c, $2f, $7e, $e6, $c0, $77, $e1, $d1, $c1, $f1, $c9
 
+;@ def ClearMPAfterSkill()
+;@ path: battle/actions
+;@ Farewell ($32) and MegaMagic ($66) use up all of the user's MP.
 ClearMPAfterSkill::
+;> if wSkillId in (0x32, 0x66):
 	ld a, [wSkillId]
 	cp $32
-	jr z, jr_052_7b24
+	jr z, .clear
 
 	cp $66
 	ret nz
 
-jr_052_7b24:
+.clear
+;>@m     mem16[wBattlerMP + 2 * wSkillUser] = 0
 	ld a, [wSkillUser]
 	ld hl, wBattlerMP
 	call IndexWords
+;=@m
 	xor a
 	ld [hli], a
 	ld [hl], a
 	ret
 
 
+;@ def PoisonHitStage0()
+;@ path: battle/actions
+;@ PoisonHit: a target in the fight that is not poisoned yet may be poisoned
+;@ (TryEffectRes18): status byte 0 bit 0, message $CE with the animation.
 PoisonHitStage0::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if CheckBattlerPresent(wSkillTarget):
+;>@x     wBattleSubStep2 += 1
+;>@y     return
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_7b70
+	jr c, .skip
 
+;>@p wSkillStatusPtr = wBattlerStatus + 8 * wSkillTarget
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, l
 	ld [wSkillStatusPtr], a
+;=@p
 	ld a, h
-	ld [$db62], a
+	ld [wSkillStatusPtr + 1], a
+;> if mem[wSkillStatusPtr] & 0x03 or not TryEffectRes18(): wBattleSubStep2 += 1; return
 	ld a, [hl]
 	and $03
-	jr nz, jr_052_7b70
+	jr nz, .skip
 
 	call TryEffectRes18
-	jr nc, jr_052_7b70
+	jr nc, .skip
 
+;> mem[wSkillStatusPtr] |= 0x01
 	ld a, [wSkillStatusPtr]
 	ld l, a
-	ld a, [$db62]
+	ld a, [wSkillStatusPtr + 1]
 	ld h, a
 	set 0, [hl]
+;> wTextIndex = 0xCE
+;> wTextGroup = 0
 	ld a, $ce
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
 
-jr_052_7b70:
+.skip
+;=@x
 	ld hl, wBattleSubStep2
 	inc [hl]
+;=@y
 	ret
 
 
+;@ def NapAttackStage0()
+;@ path: battle/actions
+;@ NapAttack: a target in the fight that is not asleep may fall asleep
+;@ (RollSleep, PutTargetToSleep): message $CC or $CD, then step 4.
 NapAttackStage0::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if CheckBattlerPresent(wSkillTarget) or wBattlerStatus[8 * wSkillTarget] & 0x80 or not RollSleep():
+;>@x     wBattleSubStep2 += 1
+;>@y     return
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_7bb2
+	jr c, .skip
 
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;=@x
 	bit 7, [hl]
-	jr nz, jr_052_7bb2
+	jr nz, .skip
 
 	call RollSleep
-	jr nc, jr_052_7bb2
+	jr nc, .skip
 
+;> PutTargetToSleep()
 	call PutTargetToSleep
+;>@i wTextIndex = 0xCC if GetViewSidePos() >= 4 else 0xCD
 	ld c, $cc
 	call GetViewSidePos
 	cp $04
-	jr nc, jr_052_7ba0
+	jr nc, .text
 
 	inc c
 
-jr_052_7ba0:
+.text
+;=@i
 	ld a, c
 	ld [wTextIndex], a
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> wBattleSubStep = 4
 	ld a, $04
 	ld [wBattleSubStep], a
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
 
-jr_052_7bb2:
+.skip
+;=@x
 	ld hl, wBattleSubStep2
 	inc [hl]
+;=@y
 	ret
 
 
+;@ def ParalyzeStage0()
+;@ path: battle/actions
+;@ The Paralyze hit: a target in the fight that is not paralysed may be
+;@ (TryEffectRes19): status byte 0 bit 6, message $CF with the animation.
 ParalyzeStage0::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if CheckBattlerPresent(wSkillTarget) or wBattlerStatus[8 * wSkillTarget] & 0x40 or not TryEffectRes19():
+;>@x     wBattleSubStep2 += 1
+;>@y     return
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr c, jr_052_7be7
+	jr c, .skip
 
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;=@x
 	bit 6, [hl]
-	jr nz, jr_052_7be7
+	jr nz, .skip
 
 	push hl
 	call TryEffectRes19
 	pop hl
-	jr nc, jr_052_7be7
+	jr nc, .skip
 
+;> wBattlerStatus[8 * wSkillTarget] |= 0x40
 	set 6, [hl]
+;> wTextIndex = 0xCF
+;> wTextGroup = 0
 	ld a, $cf
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
 	ret
 
 
-jr_052_7be7:
+.skip
+;=@x
 	ld hl, wBattleSubStep2
 	inc [hl]
+;=@y
 	ret
 
 
+;@ def StartBladeCounter()
+;@ path: battle/actions
+;@ The target strikes back from its BladeD stance (step $13): when it can act,
+;@ message $D5 or $D6 (a counter that hits or one that misses, chosen at random;
+;@ a target with personality flag bit 3 always gets $D5's variant $6A) and
+;@ stage 0 or 2 of CounterStageTable. A hit worth nothing (half of the damage
+;@ is 0) always counts as a miss. An intercepted hit goes back to SkillFollowUp.
+;@ test: skip calls routines in other banks
 StartBladeCounter::
+;> if wInterceptState:
+;>     return SkillFollowUp()
 	ld a, [wInterceptState]
 	or a
 	jp nz, SkillFollowUp
 
+;> wBattleSubStep = 0x13
 	ld a, $13
 	ld [wBattleSubStep], a
+;> wBattleArg2 = lo(wTextArg0)
+;> wBattleArg3 = hi(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> if CheckBattlerCanAct(wSkillTarget):        # carry: cannot act
+;>     return StagesNext()
 	ld a, [wSkillTarget]
 	ld b, a
 	call CheckBattlerCanAct
 	jp c, StagesNext
 
+;> wNamePos = wSkillTarget
+;> GetBattlerNameTo(wSkillTarget, wTextArg0)
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;> BattleRandom()
 	call BattleRandom
+;>@p sure = wPersonalityNudge[wSkillTarget] & 0x08
 	ld b, $00
 	ld a, [wSkillTarget]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
 	bit 3, [hl]
-	jr z, jr_052_7c32
+	jr z, .amount
 
+;> if sure:
+;>     wRandomHigh &= 0xFE
 	ld hl, wRandomHigh
 	res 0, [hl]
 	ld b, $01
 
-jr_052_7c32:
+.amount
+;> if wSkillAmount >> 1 == 0:
+;>@m     wRandomHigh = 1                        # a miss
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call ShiftHL1
 	ld a, h
+;=@m
 	or l
 	or a
-	jr nz, jr_052_7c47
+	jr nz, .text
 
 	ld a, $01
 	ld [wRandomHigh], a
 
-jr_052_7c47:
+.text
+;> wTextIndex = 0xD5 + (wRandomHigh & 1)
+;> wTextGroup = 0
 	ld a, [wRandomHigh]
 	and $01
 	add $d5
 	ld [wTextIndex], a
 	ld a, $00
 	ld [wTextGroup], a
+;> if sure:
+;>     CounterTextVariant()
 	bit 0, b
 	call nz, CounterTextVariant
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;>@s wBattleSubStep2 = 2 if wRandomHigh & 1 else 0
 	ld a, [wRandomHigh]
 	and $01
 	ld [wBattleSubStep2], a
@@ -14942,370 +15390,533 @@ jr_052_7c47:
 	and $01
 	ret z
 
+;=@s
 	ld a, [wBattleSubStep2]
 	add $01
 	ld [wBattleSubStep2], a
 	ret
 
 
+;@ def CounterStage0()
+;@ path: battle/actions
+;@ The counter begins: user and target change places; when the old user is
+;@ still there, the hit's effect and sound play.
 CounterStage0::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> SwapUserAndTarget()
 	call SwapUserAndTarget
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	ret c
 
+;> StartSkillHitEffect()
 	ld hl, far_StartSkillHitEffect
 	rst $10
+;> PlaySkillSound0()
 	ld hl, far_PlaySkillSound0
 	rst $10
+;> wItemMsgGroup = 0x80
 	ld a, $80
 	ld [wItemMsgGroup], a
 	ret
 
 
+;@ def CounterTextVariant()
+;@ path: battle/actions
+;@ The counter's message becomes $6A.
 CounterTextVariant::
+;> wTextIndex = 0x6A
 	ld a, $6a
 	ld [wTextIndex], a
 	ret
 
 
+;@ def SwapUserAndTarget()
+;@ path: battle/actions
+;@ Exchanges wSkillUser and wSkillTarget.
 SwapUserAndTarget::
+;> user = wSkillUser
 	ld a, [wSkillUser]
 	ld l, a
+;> target = wSkillTarget
 	ld a, [wSkillTarget]
 	ld h, a
+;> wSkillTarget = user
 	ld a, l
 	ld [wSkillTarget], a
+;> wSkillUser = target
 	ld a, h
 	ld [wSkillUser], a
 	ret
 
 
+;@ def CounterStageHit()
+;@ path: battle/actions
+;@ The counter deals half of the damage back to the attacker (message $82 or
+;@ $83); at 0 HP it goes down next (stage 3). Half of 0: a miss
+;@ (ShowMissMessage). An attacker already gone: just swap back.
 CounterStageHit::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if CheckBattlerPresent(wSkillTarget):
+;>     return SwapUserAndTarget()
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	jr c, SwapUserAndTarget
 
+;>@h wSkillAmount >>= 1
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call ShiftHL1
 	ld a, l
+;=@h
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
+;> if wSkillAmount == 0:
+;>@z     return ShowMissMessage()
 	ld a, h
 	or l
-	jr z, jr_052_7d1e
+	jr z, .miss
 
+;> PrepareDamageText()
 	call PrepareDamageText
+;>@i wTextIndex = 0x82 if GetViewSidePos() & 4 else 0x83
 	ld c, $82
 	call GetViewSidePos
 	bit 2, a
-	jr nz, jr_052_7cda
+	jr nz, .text
 
 	ld c, $83
 
-jr_052_7cda:
+.text
+;=@i
 	ld a, c
 	ld [wTextIndex], a
+;> wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleAnimDone = 1
+;> wScreenEffect = 0
 	ld a, $01
 	ld [wBattleAnimDone], a
 	ld a, $00
 	ld [wScreenEffect], a
+;> SwapUserAndTarget()
 	call SwapUserAndTarget
+;>@d hp = mem16[wBattlerHP + 2 * wSkillUser] - wSkillAmount      # the attacker
 	ld hl, wBattlerHP
 	call IndexWords
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
 	ld a, [wSkillAmount]
+;=@d
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	ld a, e
 	sub c
 	ld e, a
+;=@d
 	ld a, d
 	sbc b
 	ld d, a
+;> mem16[wBattlerHP + 2 * wSkillUser] = hp & 0xFFFF
 	ld [hl], d
 	push af
 	dec hl
 	pop bc
 	ld [hl], e
+;> if hp > 0:
+;>     return
 	ld a, d
 	or e
-	jr z, jr_052_7d16
+	jr z, .down
 
 	push bc
 	pop af
 	ret nc
 
-jr_052_7d16:
+.down
+;> mem16[wBattlerHP + 2 * wSkillUser] = 0
 	xor a
 	ld [hli], a
 	ld [hl], a
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret
 
 
-jr_052_7d1e:
+.miss
+;=@z
 	call ShowMissMessage
 	ret
 
 
+;@ def CounterStageUserDown()
+;@ path: battle/actions
+;@ The attacker fell to the counter: message $E3 or $E4 by its side, it is
+;@ defeated and (as wSkillTarget for a moment) its picture blanked.
 CounterStageUserDown::
+;> wBattleArg2 = lo(wTextArg0)
+;> wBattleArg3 = hi(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillUser
+;> GetBattlerNameTo(wSkillUser, wTextArg0)
 	ld a, [wSkillUser]
 	ld [wNamePos], a
 	call GetBattlerNameTo
+;> wTextGroup = 0
 	ld a, $00
 	ld [wTextGroup], a
+;>@t wTextIndex = 0xE3 + (wSkillUser >> 2 & 1)
 	ld b, $e3
 	ld a, [wSkillUser]
 	rrca
 	rrca
 	and $01
 	add b
+;=@t
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleSubStep2 -= 1
 	ld hl, wBattleSubStep2
 	dec [hl]
+;> wBattleArg0 = wSkillUser
 	ld a, [wSkillUser]
 	ld [wBattleArg0], a
+;> DefeatBattler()
 	ld hl, far_DefeatBattler
 	rst $10
+;> target = wSkillTarget
+;> wSkillTarget = wSkillUser
 	ld a, [wSkillTarget]
 	push af
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
+;> BlankEnemyPicture()
 	ld hl, far_BlankEnemyPicture
 	rst $10
+;> wSkillTarget = target
 	pop af
 	ld [wSkillTarget], a
 	ret
 
 
+;@ def CounterStageEnd()
+;@ path: battle/actions
+;@ The counter is over: on to step 5.
 CounterStageEnd::
+;> wBattleSubStep = 5
 	ld a, $05
 	ld [wBattleSubStep], a
+;> wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep2], a
 	ret
 
 
+;@ def BattleRedraw57()
+;@ path: battle/actions
+;@ Calls bank $57's routine Call_57_7C44 after an action.
 BattleRedraw57::
+;> Call_57_7C44()
 	ld hl, far_Call_57_7C44
 	rst $10
 	ret
 
 
+;@ def PrintActionMessage()
+;@ path: battle/actions
+;@ The battle message of a reflected skill (PrintBattleMessage). For a wind
+;@ (wReflectAnim 2) on a side with bit 5 of wSideFlags, it is left out while a
+;@ monster after the target on that side is still in the fight (wReflectAnim
+;@ cleared instead).
 PrintActionMessage::
+;>@i if wReflectAnim == 2 and wSideFlags[wSkillTarget >> 2 & 1] & 0x20:
 	ld a, [wReflectAnim]
 	cp $02
-	jr nz, jr_052_7dc8
+	jr nz, .print
 
 	ld a, [wSkillTarget]
 	rrca
 	rrca
+;=@i
 	and $01
 	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@i
 	ld h, a
 	bit 5, [hl]
-	jr z, jr_052_7dc8
+	jr z, .print
 
+;>@c     side = wSkillTarget & 4
 	ld a, [wSkillTarget]
 	ld e, a
 	and $04
 	ld c, a
+;>@w     count = wEnemyCount if side else wPartyBattlers
 	cp $04
-	jr c, jr_052_7da7
+	jr c, .own
 
 	ld a, [wEnemyCount]
-	jr jr_052_7daa
+	jr .count
 
-jr_052_7da7:
+.own
+;=@w
 	ld a, [wPartyBattlers]
 
-jr_052_7daa:
+.count
+;>     for c in range(side, side + count):
+;>@g         if c > wSkillTarget and not CheckBattlerPresent(c):
+;>@z             wReflectAnim = 0
+;>@r             return
 	ld b, a
 
-jr_052_7dab:
+.skip
+;=@g
 	ld a, c
 	cp e
-	jr z, jr_052_7db1
+	jr z, .skipNext
 
-	jr nc, jr_052_7db7
+	jr nc, .check
 
-jr_052_7db1:
+.skipNext
+;=@g
 	inc c
 	dec b
-	jr nz, jr_052_7dab
+	jr nz, .skip
 
-	jr jr_052_7dc8
+	jr .print
 
-jr_052_7db7:
+.check
+;=@g
 	ld a, c
 	call CheckBattlerPresent
-	jr nc, jr_052_7dc3
+	jr nc, .clear
 
+;=@g
 	inc c
 	dec b
-	jr nz, jr_052_7db7
+	jr nz, .check
 
-	jr jr_052_7dc8
+	jr .print
 
-jr_052_7dc3:
+.clear
+;=@z
 	xor a
 	ld [wReflectAnim], a
+;=@r
 	ret
 
 
-jr_052_7dc8:
+.print
+;> PrintBattleMessage()
 	ld hl, far_PrintBattleMessage
 	rst $10
 	ret
 
 
+;@ def GetUserStatus4() -> hl
+;@ path: battle/state
+;@ Address of the skill user's status byte 4 (wBattlerStatus4).
 GetUserStatus4::
+;> return u16(wBattlerStatus + 4 + (8 * wSkillUser & 0xFF))
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ret
 
 
+;@ def CheckTargetReacts() -> carry
+;@ path: battle/actions
+;@ Carry when the target answers the skill with Imitate (bit 3 of status byte
+;@ 6): for a skill aimed at enemies, a target that can act copies it when the
+;@ skill allows (wSkillFlags3 bit 2: message $D3, a reaction of kind 8 set up
+;@ in bank $53), else message $D4 says it could not. Not for Imitate itself,
+;@ an intercepted hit, or a user charging (status byte 4 bits 2-3); during a
+;@ reaction of kind $20 the interrupted action is taken up again.
+;@ test: skip calls routines in other banks
 CheckTargetReacts::
+;> if wSkillId == 0x7F or wInterceptState:
+;>@n     return False
 	ld a, [wSkillId]
 	cp $7f
-	jr nz, jr_052_7de0
+	jr nz, .notImitate
 
-jr_052_7dde:
+.no
+;=@n
 	xor a
 	ret
 
 
-jr_052_7de0:
+.notImitate
+;=@n
 	ld a, [wInterceptState]
 	or a
-	jr nz, jr_052_7dde
+	jr nz, .no
 
+;> if wReactionKind:
 	ld a, [wReactionKind]
 	or a
-	jr z, jr_052_7df9
+	jr z, .check
 
+;>     if wReactionKind == 0x20:
 	cp $08
-	jr z, jr_052_7dde
+	jr z, .no
 
 	cp $20
-	jr nz, jr_052_7dde
+	jr nz, .no
 
+;>         RestoreInterruptedAction()
+;>     return False
 	call RestoreInterruptedAction
-	jr jr_052_7dde
+	jr .no
 
-jr_052_7df9:
+.check
+;>@s if (wBattlerStatus[8 * wSkillUser + 4] & 0x0C) == 0x0C:
+;>     return False
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
 	cp $0c
+;=@s
 	ret z
 
+;>@e if not wSkillTargeting & 0x10 or not wBattlerStatus[8 * wSkillTarget + 6] & 0x08 or CheckBattlerCanAct(wSkillTarget):
+;>@f     return False
 	ld a, [wSkillTargeting]
 	bit 4, a
-	jr z, jr_052_7dde
+	jr z, .no
 
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
+;=@e
 	bit 3, [hl]
-	jr z, jr_052_7dde
+	jr z, .no
 
 	ld a, [wSkillTarget]
 	call CheckBattlerCanAct
-	jr c, jr_052_7dde
+	jr c, .no
 
+;> if wSkillFlags3 & 0x04:
 	ld a, [wSkillFlags3]
 	bit 2, a
-	jr z, jr_052_7e44
+	jr z, .cannot
 
+;>     PrintTargetMessage(0xD3)
 	ld a, $d3
 	call PrintTargetMessage
+;>     wReactionKind = 8
+;>     wBattleArg0 = 8
 	ld a, $08
 	ld [wReactionKind], a
 	ld a, $08
 	ld [wBattleArg0], a
+;>     StartReactionFar_53()
 	ld hl, far_StartReactionFar_53
 	rst $10
+;>     wHitShown = 0
+;>     return True
 	xor a
 	ld [wHitShown], a
 	scf
 	ret
 
 
-jr_052_7e44:
+.cannot
+;> PrintTargetMessage(0xD4)
 	ld a, $d4
 	call PrintTargetMessage
+;> return False
 	xor a
 	ret
 
 
+	; unused: a check of the target's status byte 1 against the skill's flags
+	; (wSkillFlags1 bits 4-6)
 	db $fa, $89, $db, $21, $03, $db, $cd, $6c, $2f, $fa, $fd, $dc, $cb, $77, $20, $09
 	db $cb, $6f, $20, $0f, $cb, $67, $20, $0e, $c9, $cb, $46, $20, $dc, $fa, $00, $db
 	db $cb, $5f, $c9, $cb, $76, $c9, $cb, $7e, $c9
 
+;@ def PrintTargetMessage(msg: a)
+;@ path: battle/actions
+;@ Message `msg` (group 0) with the skill target's name.
 PrintTargetMessage::
+;> TargetNameToArg0()
 	push af
 	call TargetNameToArg0
 	pop af
+;> wTextIndex = msg
+;> wTextGroup = 0
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def PrepareRedirect()
+;@ path: battle/actions
+;@ After an intercepted hit the target is the one the user chose again
+;@ (LoadActionTarget); after Cover or Guardian (wInterceptState 1) the covering
+;@ monster's Cover state (status 6 bit 4, the low nibble of status 7) ends.
+;@ For a dodge only with a wind (wReflectAnim 2).
 PrepareRedirect::
+;> if not wInterceptState:
+;>     return
 	ld a, [wInterceptState]
 	or a
 	ret z
 
+;> if wInterceptState != 1:
 	cp $01
-	jr z, jr_052_7e96
+	jr z, .covered
 
+;>     if wReflectAnim == 2:
+;>         return LoadActionTarget()
 	ld a, [wReflectAnim]
 	cp $02
 	jr z, LoadActionTarget
 
+;>     return
 	ret
 
 
-jr_052_7e96:
+.covered
+;> t = LoadActionTarget()
 	call LoadActionTarget
+;> wBattlerStatus[8 * t + 6] &= ~0x10
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	res 4, [hl]
+;> wBattlerStatus[8 * t + 7] &= 0x0F
 	inc hl
 	ld a, [hl]
 	and $0f
@@ -15313,233 +15924,346 @@ jr_052_7e96:
 	ret
 
 
+;@ def LoadActionTarget() -> a
+;@ path: battle/actions
+;@ wSkillTarget = the target the user chose (wBattlerAction).
 LoadActionTarget::
+;> wSkillTarget = wBattlerAction[2 * wSkillUser + 1]
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	call IndexWords
 	ld a, [hl]
 	ld [wSkillTarget], a
+;> return wSkillTarget
 	ret
 
 
+;@ def ActionStepItemFails()
+;@ path: battle/items
+;@ Action step 21: the item has no effect (message $BB); it is used up all
+;@ the same and the action finishes.
 ActionStepItemFails::
+;> wTextIndex = 0xBB
+;> wTextGroup = 0
 	ld a, $bb
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wSkillId = 1
 	ld a, $01
 	ld [wSkillId], a
+;> wBattleItemTarget = 0xFF
+;> wBattleItemEffect = 0xFF
 	ld a, $ff
 	ld [wBattleItemTarget], a
 	ld a, $ff
 	ld [wBattleItemEffect], a
+;> ConsumeBattleItem()
 	ld hl, far_ConsumeBattleItem
 	rst $10
+;> FinishAction()
 	call FinishAction
 	ret
 
 
+;@ def ActionStep6E0E()
+;@ path: battle/actions
+;@ Action steps 22 and 24, in bank $57.
 ActionStep6E0E::
+;> Call_57_6E0E()
 	ld hl, far_Call_57_6E0E
 	rst $10
 	ret
 
 
+;@ def ActionStep5C48()
+;@ path: battle/actions
+;@ Action steps 23 and 25: a target is picked for the skill (bank $58).
 ActionStep5C48::
+;> PickTargetForSkill()
 	ld hl, far_PickTargetForSkill
 	rst $10
 	ret
 
 
+;@ def ActionStepFall()
+;@ path: battle/actions
+;@ Action step 26: a monster at 0 HP falls (BattlerFallSequence).
 ActionStepFall::
+;> BattlerFallSequence()
 	ld hl, far_BattlerFallSequence
 	rst $10
 	ret
 
 
+;@ def ActionStepWaitClose()
+;@ path: battle/actions
+;@ Action step 27: once the text is out, the action is closed.
 ActionStepWaitClose::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> CloseAction()
 	call CloseAction
 	ret
 
 
+;@ def RestoreInterruptedAction() -> carry
+;@ path: battle/actions
+;@ Far entry 7: when a reaction (wReactionKind) interrupted an action, puts
+;@ the interrupted one back from its copy in wPartyBarTiles: user, target,
+;@ wHitCount, both their wBattlerAction entries and the target's
+;@ wBattlerOrder. Kind 1 then shows message $D9, kind 4 the MagicBack message
+;@ (InterruptEndMessage); kind 2 (SuckAll) makes the target the whole side when
+;@ the SuckAll user cannot go on; kind $40 and no reaction: carry (nothing
+;@ taken up), else no carry and wReactionKind cleared.
+;@ test: skip calls routines in other banks
 RestoreInterruptedAction::
+;> if not wReactionKind:
+;>     return ReturnCarry52()
 	ld a, [wReactionKind]
 	or a
 	jp z, ReturnCarry52
 
+;> saved = wPartyBarTiles
+;> wSkillUser = saved[0]
 	ld hl, wPartyBarTiles
 	ld a, [hli]
 	ld [wSkillUser], a
+;> wSkillTarget = saved[1]
+;> wHitCount = saved[2]
 	ld a, [hli]
 	ld [wSkillTarget], a
 	ld a, [hli]
 	ld [wHitCount], a
+;>@u copy(wBattlerAction + 2 * wSkillUser, saved[3:5])
 	ld a, [wSkillUser]
 	ld de, wBattlerAction
 	add a
 	add e
 	ld e, a
 	ld a, $00
+;=@u
 	adc d
 	ld d, a
 	ld a, [hli]
 	ld [de], a
 	inc de
 	ld a, [hli]
+;=@u
 	ld [de], a
+;>@t copy(wBattlerAction + 2 * wSkillTarget, saved[5:7])
 	ld a, [wSkillTarget]
 	ld de, wBattlerAction
 	add a
 	add e
 	ld e, a
+;=@t
 	ld a, $00
 	adc d
 	ld d, a
 	ld a, [hli]
 	ld [de], a
 	inc de
+;=@t
 	ld a, [hli]
 	ld [de], a
+;>@o wBattlerOrder[wSkillTarget] = saved[7]
 	ld a, [wSkillTarget]
 	ld de, wBattlerOrder
 	add e
 	ld e, a
 	ld a, $00
 	adc d
+;=@o
 	ld d, a
 	ld a, [hl]
 	ld [de], a
+;> if wReactionKind == 0x40:
+;>     return ReturnCarry52()
 	ld a, [wReactionKind]
 	cp $40
 	jp z, ReturnCarry52
 
+;> if wReactionKind == 1:
+;>@1     wTextIndex = 0xD9; wTextGroup = 0; StartText_4C(); wReflectAnim = 0
 	cp $01
-	jr z, jr_052_7f9e
+	jr z, .kind1
 
+;> elif wReactionKind == 2:
+;>@2a     su = (wSkillTarget & 4) | (wSuckAllUsers[wSkillTarget >> 2 & 1] >> 2 & 3)   # the SuckAll user
+;>@2b     wBattleArg0 = su
+;>@2c     if CheckBattlerCanAct(su) or wBattlerStatus[8 * su] & 0xC0:
+;>@2d         wSkillTarget |= 3
+;>@2e         wBattlerAction[2 * wSkillUser + 1] |= 3
+;>@2f         return True
 	cp $02
-	jr z, jr_052_7f55
+	jr z, .kind2
 
+;> elif wReactionKind == 4:
+;>     InterruptEndMessage()
 	cp $04
 	call z, InterruptEndMessage
 
-jr_052_7f4e:
+.done
+;> wReactionKind = 0
+;> return False
 	ld a, $00
 	ld [wReactionKind], a
 	xor a
 	ret
 
 
-jr_052_7f55:
+.kind2
+;=@2a
 	ld a, [wSkillTarget]
 	rrca
 	rrca
 	and $01
 	ld hl, wSuckAllUsers
 	add l
+;=@2a
 	ld l, a
 	ld a, [hl]
 	rrca
 	rrca
 	and $03
 	ld l, a
+;=@2a
 	ld a, [wSkillTarget]
 	and $04
 	or l
+;=@2b
 	ld [wBattleArg0], a
+;=@2c
 	call CheckBattlerCanAct
-	jr c, jr_052_7f83
+	jr c, .wholeSide
 
+;=@2c
 	ld a, [wBattleArg0]
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, [hl]
 	and $c0
-	jr z, jr_052_7f4e
+	jr z, .done
 
-jr_052_7f83:
+.wholeSide
+;=@2d
 	ld a, [wSkillTarget]
 	or $03
 	ld [wSkillTarget], a
+;=@2e
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@2e
 	adc h
 	ld h, a
 	ld a, [hl]
 	or $03
 	ld [hl], a
-	jr jr_052_7fc9
+;=@2f
+	jr ReturnCarry52
 
-jr_052_7f9e:
+.kind1
+;=@1
 	ld a, $d9
 	ld [wTextIndex], a
 	ld a, $00
 	ld [wTextGroup], a
 	ld hl, far_StartText_4C
 	rst $10
+;=@1
 	xor a
 	ld [wReflectAnim], a
-	jr jr_052_7f4e
+	jr .done
 
+;@ def InterruptEndMessage()
+;@ path: battle/actions
+;@ After MagicBack (wReflectAnim 7): message $DE, and wReflectAnim cleared.
 InterruptEndMessage::
+;> if wReflectAnim != 7:
+;>     return
 	ld a, [wReflectAnim]
 	cp $07
 	ret nz
 
+;> wTextIndex = 0xDE
 	ld a, $de
 	ld [wTextIndex], a
+;> wTextGroup = 0
+;> wReflectAnim = 0
 	xor a
 	ld [wTextGroup], a
 	ld [wReflectAnim], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def ReturnCarry52() -> carry
+;@ path: battle/actions
+;@ Returns with carry set.
 ReturnCarry52::
-jr_052_7fc9:
+;> return True
 	scf
 	ret
 
 
+;@ def GetViewSidePos() -> a
+;@ path: battle/actions
+;@ The position that tells which side a message is about: the skill target,
+;@ on the link master the user.
 GetViewSidePos::
+;> if not wLinkFlags & 0x02:
+;>     return wSkillTarget
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
 	ret z
 
+;> return wSkillUser
 	ld a, [wSkillUser]
 	ret
 
 
+;@ def CheckFarSideEmpty() -> carry
+;@ path: battle/actions
+;@ Carry when none of the three places of the side opposite the user has a
+;@ monster in the fight.
 CheckFarSideEmpty::
+;> for c in range((wSkillUser & 4) ^ 4, ((wSkillUser & 4) ^ 4) + 3):
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_052_7fe2:
+.loop
+;>     if not CheckBattlerPresent(c):
+;>         return False
 	ld a, c
 	call CheckBattlerPresent
 	ret nc
 
 	inc c
 	dec b
-	jr nz, jr_052_7fe2
+	jr nz, .loop
 
+;> return True
 	scf
 	ret
 
 
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
-	db $00, $00, $00
+	db $00, $00, $00                        ; unused space at the end of the bank

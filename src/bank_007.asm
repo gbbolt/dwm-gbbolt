@@ -4556,8 +4556,8 @@ DrawSkillDescription::
 ;> wTextBoxLineLength = 0x12
 	ld a, d
 	ld [wTextBoxLineLength], a
-;> Call_56_490F()                      # renders the text into the tiles
-	ld hl, far_Call_56_490F
+;> PrintText_56()                      # renders the text into the tiles
+	ld hl, far_PrintText_56
 	rst $10
 ;> wTextTiles = saved[0]
 	pop de

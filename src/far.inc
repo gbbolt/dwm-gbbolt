@@ -212,9 +212,9 @@ DEF far_LoadWindowLetters_6 EQU $5509
 DEF far_LoadWindowLetters_2 EQU $550A
 DEF far_LoadWindowLetters_7 EQU $550B
 DEF far_LoadWindowLetters_10 EQU $550C
-DEF far_Call_56_490F EQU $5602
-DEF far_Call_56_4485 EQU $5605
-DEF far_Call_56_44C7 EQU $5606
+DEF far_PrintText_56 EQU $5602
+DEF far_ClearTextBoxTiles EQU $5605
+DEF far_RunTextControlCode EQU $5606
 DEF far_Call_57_6E0E EQU $5700
 DEF far_Call_57_7C44 EQU $5701
 DEF far_Call_57_4136 EQU $5704

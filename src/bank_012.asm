@@ -1897,8 +1897,8 @@ FarmDepositChoiceInput::
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
-;>     Call_56_4485()
-	ld hl, far_Call_56_4485
+;>     ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;>     DrawFarmPartyWindow()
 	call DrawFarmPartyWindow
@@ -2075,8 +2075,8 @@ FarmDepositStatusReturn::
 	call ShowSelectedPartyMonster
 ;> LoadPartyNameTiles()
 	call LoadPartyNameTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> DrawFarmPartyWindow()
 	call DrawFarmPartyWindow
@@ -2397,8 +2397,8 @@ FarmSwapListInput::
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
-;>     Call_56_4485()
-	ld hl, far_Call_56_4485
+;>     ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;>     RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
@@ -2501,8 +2501,8 @@ FarmSwapChoiceInput::
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
-;>     Call_56_4485()
-	ld hl, far_Call_56_4485
+;>     ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;>     ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
@@ -2726,8 +2726,8 @@ FarmSwapStatusReturn::
 	call ListFarmMonsters
 ;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
@@ -3253,8 +3253,8 @@ FarmWithdrawChoiceInput::
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
-;>     Call_56_4485()
-	ld hl, far_Call_56_4485
+;>     ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;>     DrawFarmWithdrawList()
 	call DrawFarmWithdrawList
@@ -3486,8 +3486,8 @@ FarmWithdrawStatusReturn::
 	call ShowSelectedFarmMonster
 ;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> DrawFarmWithdrawList()
 	call DrawFarmWithdrawList
@@ -4093,8 +4093,8 @@ FarmExchangeStatusReturn::
 	call ShowSelectedFarmMonster
 ;> LoadFarmListNameTiles()
 	call LoadFarmListNameTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> DrawFarmExchangeList()
 	call DrawFarmExchangeList
@@ -4484,8 +4484,8 @@ FarmExchangePartyStatusReturn::
 	call ShowExchangePartyMonster
 ;> LoadPartyNameTiles()
 	call LoadPartyNameTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> DrawExchangePartyWindow()
 	call DrawExchangePartyWindow
@@ -5549,8 +5549,8 @@ FarmViewStatusReturn::
 	ld hl, $9600
 	ld de, $0501
 	call DrawTextTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> ShowSelectedFarmMonster()
 	call ShowSelectedFarmMonster
@@ -6414,8 +6414,8 @@ FarmReleaseStatusReturn::
 	call ShowSelectedFarmMonster
 ;> LoadFarmViewListTiles()
 	call LoadFarmViewListTiles
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer

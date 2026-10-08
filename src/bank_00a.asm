@@ -10417,8 +10417,8 @@ JFReturnFromStatus::
 	ld de, $2e12
 	ld hl, $8800
 	call DecompressVRAM
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> JFDrawNames()
 	call JFDrawNames

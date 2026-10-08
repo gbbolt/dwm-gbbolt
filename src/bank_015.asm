@@ -1556,8 +1556,8 @@ VSShowTeamList::
 	or a
 	ret nz
 
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
@@ -2793,8 +2793,8 @@ VSShowPrizeList::
 	or a
 	ret nz
 
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15
@@ -4604,8 +4604,8 @@ BreedShowList::
 	or a
 	ret nz
 
-;> Call_56_4485()
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> ClearTilemapBuffer_15()
 	call ClearTilemapBuffer_15

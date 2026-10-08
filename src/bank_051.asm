@@ -4,9 +4,15 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $051", ROMX[$4000], BANK[$51]
 
+;@ path: system/banks
+;@ Bank number byte of bank $51 (battle screen set-up, level-up and recruit screens, battle
+;@ panel, cursor and name routines): RST $10 reads it to know which bank to switch back to.
 BankNumber_51::
 	db $51
 
+;@ path: system/banks
+;@ Far-call table of bank $51 (entry n is called with `ld hl, $51nn` + `rst $10`; entry $12 is the
+;@ compressed cursor tiles, used as decompress entry $5112).
 FarTable_51::
 	dw StartBattleScreen
 	dw PackResistancesFar
@@ -26,7 +32,7 @@ FarTable_51::
 	dw BattlerFallSequence
 	dw SetBattlePicPalettes
 	dw LoadMonsterPicFar
-	dw Data_51_7B0F
+	dw BattleCursorGfx
 
 ;@ def SetUpBattleScreen()
 ;@ path: battle/screen
@@ -4502,6 +4508,7 @@ ThirteenSixteenths::
 ;@ path: battle/state
 ;@ Far entry, run once per frame while the skill target wSkillTarget goes down: step wFallStep of
 ;@ FallSteps.
+;@ test: skip jump table indexed by a step variable
 BattlerFallSequence::
 ;> FallSteps[wFallStep]()
 	ld a, [wFallStep]
@@ -5501,7 +5508,7 @@ CompactSkillList::
 
 ;@ def LevelUpStep11()
 ;@ path: battle/levelup
-;@ Once the text is done: opens the forget-a-skill menu (cursor tiles from Data_51_7B0F, the skill
+;@ Once the text is done: opens the forget-a-skill menu (cursor tiles from BattleCursorGfx, the skill
 ;@ list in pages of 4, the description and the MP cost of the skill under the cursor).
 LevelUpStep11::
 ;> if wTextState: return
@@ -5509,7 +5516,7 @@ LevelUpStep11::
 	or a
 	ret nz
 
-;> DecompressVRAM(0x51, 0x12, 0x89C0)          # the cursor tiles (Data_51_7B0F)
+;> DecompressVRAM(0x51, 0x12, 0x89C0)          # the cursor tiles (BattleCursorGfx)
 	ld hl, $89c0
 	ld de, $5112
 	call DecompressVRAM
@@ -5747,8 +5754,8 @@ DrawForgetSkillInfo::
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
-;> Call_56_490F()                       # prints the text into those tiles
-	ld hl, far_Call_56_490F
+;> PrintText_56()                       # prints the text into those tiles
+	ld hl, far_PrintText_56
 	rst $10
 ;> wTextTiles = savedTiles
 	pop de
@@ -6302,6 +6309,7 @@ ApplyLevelUp::
 ;@ wCommandStep of RecruitSteps. The monster (made in the spare record slot 20) is offered; when all
 ;@ 20 slots are taken, the player may release a monster or egg first. A newcomer goes to the party
 ;@ when there is room (or swaps with a party member), else to the farm; it can be renamed.
+;@ test: skip jump table indexed by a step variable
 RecruitScreen::
 ;> RecruitSteps[wCommandStep]()
 	ld a, [wCommandStep]
@@ -8893,8 +8901,8 @@ RecruitStep36::
 	call ClearBattleTilemap
 ;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
-;> Call_56_4485()                     # clears the text box
-	ld hl, far_Call_56_4485
+;> ClearTextBoxTiles()                     # clears the text box
+	ld hl, far_ClearTextBoxTiles
 	rst $10
 ;> wCommandStep += 1
 	ld hl, wCommandStep
@@ -9323,7 +9331,7 @@ LoadMonsterPic::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-;> DecompressVRAM(entry, dest)
+;> DecompressVRAM(entry >> 8, entry & 0xFF, dest)
 	pop hl
 	call DecompressVRAM
 ;> return
@@ -9357,6 +9365,10 @@ RefreshStatusIcons::
 	ret
 
 
+;@ path: battle/screen/panel
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the party panel for three
+;@ monsters: rows 0-5, 20 tiles wide, with the name tiles $70-$7B and position marks $DA-$DC, the
+;@ "HP" ($E1) and "MP" ($E2) labels.
 PanelWindow3::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $70, $71, $72, $73, $da, $e0, $74, $75
@@ -9366,6 +9378,9 @@ PanelWindow3::
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0
 	db $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: battle/screen/panel
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the party panel for two
+;@ monsters: rows 0-5, 14 tiles wide.
 PanelWindow2::
 	db $00, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $70, $71, $72, $73, $da, $e0, $74, $75, $76, $77, $db, $e0, $ff, $d8
@@ -9374,6 +9389,9 @@ PanelWindow2::
 	db $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/panel
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the party panel for one
+;@ monster: rows 0-5, 8 tiles wide.
 PanelWindow1::
 	db $00, $00, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $70, $71, $72, $73, $da, $e0, $ff, $d8
@@ -9381,6 +9399,9 @@ PanelWindow1::
 	db $ff, $d8, $fe, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 13, 13 x 5
+;@ tiles.
 UnusedWindow51_6BAE::
 	db $a0, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87, $88, $89, $e0, $86, $89, $8a, $8b
@@ -9388,17 +9409,25 @@ UnusedWindow51_6BAE::
 	db $fe, $e0, $7c, $81, $80, $7f, $e0, $e0, $7d, $7e, $7f, $e0, $ff, $d8, $fc, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 13, 8 x 5 tiles.
 UnusedWindow51_6BF6::
 	db $a0, $01, $fa, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $9a, $82, $9b, $82, $e0, $ff, $d8
 	db $fe, $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $92, $93, $94, $84, $9c
 	db $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 8, 6 x 3 tiles
+;@ (one 4-tile name).
 UnusedWindow51_6C25::
 	db $00, $01, $fa, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $6c, $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 9, 11 x 9 tiles
+;@ (three text lines).
 UnusedWindow51_6C3C::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $e0, $96, $88, $91, $8d, $87, $8a, $e0, $e0, $ff, $d8, $fe, $e0, $e0, $e0
@@ -9407,6 +9436,9 @@ UnusedWindow51_6C3C::
 	db $fe, $e0, $96, $91, $8e, $89, $86, $90, $8e, $8c, $ff, $d8, $fe, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $96, $90, $8b, $8b, $91, $8f
 	db $95, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 9, 12 x 9 tiles
+;@ (four text lines).
 UnusedWindow51_6CAA::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
 	db $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94, $ff, $d8, $fe, $e0, $e0, $e0
@@ -9417,6 +9449,9 @@ UnusedWindow51_6CAA::
 	db $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 11, 7 x 7 tiles
+;@ (a title and two choices).
 UnusedWindow51_6D21::
 	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $85, $86, $87, $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed
@@ -9424,6 +9459,9 @@ UnusedWindow51_6D21::
 	db $d8, $fe, $e0, $88, $87, $89, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd
 	db $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 9, 7 x 9 tiles
+;@ (a title and the three party names).
 UnusedWindow51_6D5B::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $85, $86, $87
 	db $e0, $ff, $d8, $ec, $eb, $eb, $eb, $eb, $eb, $ed, $d8, $fe, $e0, $70, $71, $72
@@ -9431,6 +9469,9 @@ UnusedWindow51_6D5B::
 	db $77, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a
 	db $7b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 9, 7 x 9 tiles
+;@ (a title and the three party names).
 UnusedWindow51_6DA5::
 	db $20, $01, $fa, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $86, $88, $87, $e0, $ff, $d8, $ec, $eb, $eb
@@ -9439,6 +9480,9 @@ UnusedWindow51_6DA5::
 	db $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8, $fc, $ee, $ee
 	db $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 11, 13 x 7 tiles
+;@ (three text lines).
 UnusedWindow51_6DEF::
 	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
@@ -9448,11 +9492,18 @@ UnusedWindow51_6DEF::
 	db $a1, $a2, $a3, $a4, $a5, $a6, $a7, $a8, $a9, $ff, $d8, $fc, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 8, 6 x 5 tiles
+;@ (two choices).
 UnusedWindow51_6E53::
 	db $00, $01, $fa, $ef, $ef, $ef, $ef
 	db $fb, $d8, $fe, $e0, $d4, $e0, $d5, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fe, $e0, $d5, $d5, $d6, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/levelup
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the skill list on the
+;@ level-up screen when a skill must be forgotten: row 2, column 8, 12 x 9 tiles, four skill names
+;@ (tiles $36-$59).
 ForgetSkillListWindow::
 	db $48, $00
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $36
@@ -9464,11 +9515,18 @@ ForgetSkillListWindow::
 	db $54, $55, $56, $57, $58, $59, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of a yes / no choice: row 8,
+;@ column 14, 6 x 5 tiles.
 ResultYesNoWindow::
 	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $d4, $d5, $d6, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $9d, $9e
 	db $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/recruit
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the list of monsters to
+;@ release when a monster wants to join: row 2, 7 x 11 tiles, a title and four names (tiles
+;@ $8C-$9B).
 ResultMonsterListWindow::
 	db $40, $00, $fa, $ef, $ef, $ef
 	db $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8, $ec, $eb, $eb, $eb
@@ -9478,11 +9536,17 @@ ResultMonsterListWindow::
 	db $e0, $e0, $ff, $d8, $fe, $e0, $98, $99, $9a, $9b, $ff, $d8, $fc, $ee, $ee, $ee
 	db $ee, $ee, $fd, $d9
 
+;@ path: battle/recruit
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the release question's two
+;@ choices: row 8, column 13, 7 x 5 tiles.
 ReleaseConfirmWindow::
 	db $0d, $01, $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0
 	db $85, $86, $87, $88, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0
 	db $89, $8a, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 9, 7 x 9 tiles
+;@ (a title and the three party names).
 UnusedWindow51_6F98::
 	db $20, $01
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $82, $83, $84, $e0, $ff, $d8
@@ -9491,6 +9555,9 @@ UnusedWindow51_6F98::
 	db $fe, $e0, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $78, $79, $7a, $7b, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/levelup
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the three text lines under
+;@ the skill list on the level-up screen: row 11, 20 x 7 tiles (tiles $00-$35).
 ForgetSkillInfoWindow::
 	db $60, $01, $fa, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe
@@ -9503,6 +9570,9 @@ ForgetSkillInfoWindow::
 	db $30, $31, $32, $33, $34, $35, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/levelup
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the MP cost of the skill
+;@ under the cursor on the level-up screen: row 6, 9 x 5 tiles.
 ForgetMPWindow::
 	db $c0, $00, $fa
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $9c, $d6, $d5, $e0, $e2, $e3
@@ -9510,11 +9580,17 @@ ForgetMPWindow::
 	db $e0, $e5, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd
 	db $d9
 
+;@ path: battle/recruit
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the monsters / eggs choice:
+;@ row 8, column 14, 6 x 5 tiles.
 MonsterEggWindow::
 	db $0e, $01, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $a0, $a1, $a2, $ff
 	db $d8, $fe, $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $a3, $a4, $a5, $ff, $d8, $fc
 	db $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/recruit
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the list of eggs to give
+;@ up: row 4, 13 x 9 tiles, four lines (tiles $24-$4B).
 ResultEggListWindow::
 	db $80, $00, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $24, $25, $26, $27, $28, $29, $2a, $2b
@@ -9526,16 +9602,25 @@ ResultEggListWindow::
 	db $43, $44, $45, $46, $47, $4b, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/recruit
+;@ Window layout (buffer offset word, tiles, $D8 next row, $D9 end) of the egg question's two
+;@ choices: row 8, column 12, 8 x 5 tiles.
 EggConfirmWindow::
 	db $0c, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb
 	db $d8, $fe, $e0, $a6, $a7, $a8, $a9, $aa, $ff, $d8, $fe, $e0, $e0, $e0, $e0, $e0
 	db $e0, $ff, $d8, $fe, $e0, $89, $8a, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee
 	db $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 6, 6 x 3 tiles
+;@ (one 4-tile name).
 UnusedWindow51_717F::
 	db $c0, $00, $fa, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $6c
 	db $6d, $6e, $6f, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 11, 7 x 7 tiles
+;@ (three short lines).
 UnusedWindow51_7196::
 	db $60, $01, $fa, $ef
 	db $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $80, $89, $82, $e0, $ff, $d8, $fe, $e0
@@ -9543,6 +9628,9 @@ UnusedWindow51_7196::
 	db $e0, $e0, $e0, $e0, $ff, $d8, $fe, $e0, $83, $8a, $85, $e0, $ff, $d8, $fc, $ee
 	db $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: battle/screen/windows
+;@ Unused window layout (buffer offset word, tiles, $D8 next row, $D9 end) at row 9, 12 x 9 tiles
+;@ (four text lines).
 UnusedWindow51_71D0::
 	db $20, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $d8, $fe, $e0, $8c, $8d, $8e, $8f, $90, $91, $92, $93, $94
@@ -9789,9 +9877,9 @@ CopyTilemapRow::
 	ret
 
 
-;@ def PrintTextToTiles(dest: hl, size: de)
+;@ def PrintTextToTiles(dest: hl, lines: e, length: d)
 ;@ path: battle/screen/text
-;@ Prints text wTextGroup / wTextIndex as tiles at `dest` (d tiles per line, e lines), keeping the
+;@ Prints text wTextGroup / wTextIndex as tiles at `dest` (`lines` lines of `length` tiles), keeping the
 ;@ current text-tile settings.
 PrintTextToTiles::
 ;> saved_tiles = wTextTiles
@@ -9812,10 +9900,10 @@ PrintTextToTiles::
 	ld [wTextTiles], a
 	ld a, h
 	ld [$c828], a
-;> wTextBoxLines = size & 0xFF
+;> wTextBoxLines = lines
 	ld a, e
 	ld [wTextBoxLines], a
-;> wTextBoxLineLength = size >> 8
+;> wTextBoxLineLength = length
 	ld a, d
 	ld [wTextBoxLineLength], a
 ;> PrintText_41()
@@ -10763,19 +10851,19 @@ PanelWindowTable::
 ;@ panel back: the position marks and HP / MP labels, fresh status icons, then the HP / MP numbers
 ;@ (mode 0).
 DrawPanelLevels::
-;> if mode == 3: return RestorePanel()
+;> if mode != 3:
 	cp $03
 	jp z, .restore
 
-;> DrawPartyPanelFrame()
+;>     DrawPartyPanelFrame()
 	call DrawPartyPanelFrame
-;> wBattleBGMap = 0x9800
+;>     wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
 	ld [$d9f9], a
-;>@d side = 4 if wLinkFlags & 2 else 0
+;>@d     side = 4 if wLinkFlags & 2 else 0
 	ld a, [wPanelCount]
 	ld b, a
 	ld c, $00
@@ -10786,12 +10874,12 @@ DrawPanelLevels::
 ;=@d
 	ld c, $04
 
-;>@k for pos in range(side, side + wPanelCount):
-;>     p = PanelSlotAddress(PanelMarkSpots, pos)
+;>@k     for pos in range(side, side + wPanelCount):
+;>         p = PanelSlotAddress(PanelMarkSpots, pos)
 .marks:
 	ld hl, PanelMarkSpots
 	call PanelSlotAddress
-;>@x     mem[p] = 0xD9 if CheckBattlerPresent(pos) else 0xE0       # carry: out of the fight
+;>@x         mem[p] = 0xD9 if CheckBattlerPresent(pos) else 0xE0       # carry: out of the fight
 	push hl
 	ld a, c
 	call CheckBattlerPresent
@@ -10807,26 +10895,26 @@ DrawPanelLevels::
 .mark:
 	pop hl
 	ld [hl], a
-;>     q = PanelSlotAddress(PanelLevelSpots, pos)
+;>         q = PanelSlotAddress(PanelLevelSpots, pos)
 	ld hl, PanelLevelSpots
 	call PanelSlotAddress
-;>     mem[q] = 0xDE; mem[q + 1] = 0xE4
+;>         mem[q] = 0xDE; mem[q + 1] = 0xE4
 	ld [hl], $de
 	inc hl
 	ld a, $e4
 	ld [hld], a
-;>     q += 0x20
+;>         q += 0x20
 	ld a, $20
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-;>     mem[q] = 0xE0; mem[q + 1] = 0xE0
+;>         mem[q] = 0xE0; mem[q + 1] = 0xE0
 	ld a, $e0
 	ld [hli], a
 	ld [hli], a
-;>     mem[q + 2] = 0xE0; mem[q + 3] = 0xE0
+;>         mem[q + 2] = 0xE0; mem[q + 3] = 0xE0
 	ld [hli], a
 	ld [hl], a
 ;=@k
@@ -10834,34 +10922,34 @@ DrawPanelLevels::
 	dec b
 	jr nz, .marks
 
-;> if wPanelMode != 2:
+;>     if wPanelMode != 2:
 	ld a, [wPanelMode]
 	cp $02
 	jr z, .levels
 
-;>     CopyTilemapBufferToBG()
+;>         CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
-;>     LoadStatusIconTiles(2, 0x8DA0)
+;>         LoadStatusIconTiles(2, 0x8DA0)
 	ld hl, $8da0
 	ld a, $02
 	call LoadStatusIconTiles
-;>     LoadStatusIconTiles(4, 0x8DB0)
+;>         LoadStatusIconTiles(4, 0x8DB0)
 	ld hl, $8db0
 	ld a, $04
 	call LoadStatusIconTiles
-;>     LoadStatusIconTiles(6, 0x8DC0)
+;>         LoadStatusIconTiles(6, 0x8DC0)
 	ld hl, $8dc0
 	ld a, $06
 	call LoadStatusIconTiles
-;>     LoadStatusIconTiles(3, 0x8DD0)
+;>         LoadStatusIconTiles(3, 0x8DD0)
 	ld hl, $8dd0
 	ld a, $03
 	call LoadStatusIconTiles
-;>     wPanelMode += 1
+;>         wPanelMode += 1
 	ld hl, wPanelMode
 	inc [hl]
 
-;>@e side = 4 if wLinkFlags & 2 else 0
+;>@e     side = 4 if wLinkFlags & 2 else 0
 .levels:
 	ld a, [wPanelCount]
 	ld b, a
@@ -10873,14 +10961,14 @@ DrawPanelLevels::
 ;=@e
 	ld c, $04
 
-;>@l for pos in range(side, side + wPanelCount):
-;>     q = PanelSlotAddress(PanelLevelSpots, pos) + 2
+;>@l     for pos in range(side, side + wPanelCount):
+;>         q = PanelSlotAddress(PanelLevelSpots, pos) + 2
 .level:
 	ld hl, PanelLevelSpots
 	call PanelSlotAddress
 	inc hl
 	inc hl
-;>@n     PrintNumber2(q, wBattlerLevel[pos])
+;>@n         PrintNumber2(q, wBattlerLevel[pos])
 	push bc
 	ld a, c
 	ld bc, wBattlerLevel
@@ -10894,34 +10982,34 @@ DrawPanelLevels::
 	ld c, a
 	ld b, $00
 	call PrintNumber2
-;>     if not CheckBattlerPresent(pos):
+;>         if not CheckBattlerPresent(pos):
 	pop bc
 	ld a, c
 	call CheckBattlerPresent
 	jr c, .next
 
-;>         d = PanelSlotAddress(PanelAilmentSpots, pos)
+;>             d = PanelSlotAddress(PanelAilmentSpots, pos)
 	ld hl, PanelAilmentSpots
 	call PanelSlotAddress
-;>         s = wBattlerStatus[8*pos]
+;>             s = wBattlerStatus[8*pos]
 	push hl
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	pop de
-;>         if s:
+;>             if s:
 	ld a, [hl]
 	or a
 	jr z, .next
 
-;>             if s & 0x40: PutAilmentIcon(0, d)
+;>                 if s & 0x40: PutAilmentIcon(0, d)
 	bit 6, [hl]
 	jr z, .bit5
 
 	ld a, $00
 	call PutAilmentIcon
 
-;>             if s & 0x20: PutAilmentIcon(1, d + 1)
+;>                 if s & 0x20: PutAilmentIcon(1, d + 1)
 .bit5:
 	inc de
 	bit 5, [hl]
@@ -10930,7 +11018,7 @@ DrawPanelLevels::
 	ld a, $01
 	call PutAilmentIcon
 
-;>             if s & 0x10: PutAilmentIcon(2, d + 2)
+;>                 if s & 0x10: PutAilmentIcon(2, d + 2)
 .bit4:
 	inc de
 	bit 4, [hl]
@@ -10939,7 +11027,7 @@ DrawPanelLevels::
 	ld a, $02
 	call PutAilmentIcon
 
-;>             if s & 0x80: PutAilmentIcon(3, d + 3)
+;>                 if s & 0x80: PutAilmentIcon(3, d + 3)
 .bit7:
 	inc de
 	bit 7, [hl]
@@ -10948,7 +11036,7 @@ DrawPanelLevels::
 	ld a, $03
 	call PutAilmentIcon
 
-;>             if s & 0x02: PutAilmentIcon(4, d + 4)
+;>                 if s & 0x02: PutAilmentIcon(4, d + 4)
 .bit1:
 	inc de
 	bit 1, [hl]
@@ -10957,7 +11045,7 @@ DrawPanelLevels::
 	ld a, $04
 	call PutAilmentIcon
 
-;>             if s & 0x01: PutAilmentIcon(5, d + 4)
+;>                 if s & 0x01: PutAilmentIcon(5, d + 4)
 .bit0:
 	bit 0, [hl]
 	jr z, .next
@@ -10971,12 +11059,12 @@ DrawPanelLevels::
 	dec b
 	jr nz, .level
 
-;> CopyTilemapBufferToBG()
+;>     CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
-;> return
+;>     return
 	ret
 
-;>@f side = 4 if wLinkFlags & 2 else 0          # RestorePanel (mode 3)
+;>@f side = 4 if wLinkFlags & 2 else 0          # mode 3: turn the panel back
 .restore:
 	ld a, [wPanelCount]
 	ld b, a
@@ -11075,440 +11163,606 @@ PanelAilmentSpots::
 AilmentIconTiles::
 	db $dc, $d7, $db, $dd, $da, $d8
 
+;@ def PanelSlotAddress(spots: hl, pos: c) -> hl
+;@ path: battle/screen/panel
+;@ The wTilemapBuffer address of the panel slot of battle position `pos` (pos & 3) in the table of
+;@ buffer offsets `spots`.
 PanelSlotAddress::
+;>@a return BattleBufferAddress(mem16[spots + 2*(pos & 3)])
 	ld a, c
 	and $03
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;=@a
 	ld a, l
 	add $00
 	ld l, a
 	ld a, h
 	adc $c5
 	ld h, a
+;=@a
 	ret
 
 
+;@ def PutAilmentIcon(icon: a, dest: de)
+;@ path: battle/screen/panel
+;@ Puts the tile of ailment icon `icon` (AilmentIconTiles) at `dest`.
 PutAilmentIcon::
+;>@p mem[dest] = mem[AilmentIconTiles + icon]
 	push hl
-	ld hl, $78dc
+	ld hl, AilmentIconTiles
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p
 	ld h, a
 	ld a, [hl]
 	ld [de], a
+;> return
 	pop hl
 	ret
 
 
+;@ def LoadStatusIconTiles(icon: a, dest: hl)
+;@ path: battle/screen/panel
+;@ Decompresses the tiles of status icon `icon` (StatusIconGfx) to VRAM at `dest`.
 LoadStatusIconTiles::
+;>@e entry = mem16[StatusIconGfx + 2*icon]
 	push hl
-	ld hl, $7919
+	ld hl, StatusIconGfx
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@e
 	adc h
 	ld h, a
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> DecompressVRAM(entry >> 8, entry & 0xFF, dest)
 	pop hl
 	call DecompressVRAM
+;> return
 	ret
 
 
+;@ path: battle/screen/panel
+;@ The compressed tiles of the 8 status icons: entries 2-9 of bank $5B (0 none, 1-6 the ailments, 7
+;@ out of the fight).
 StatusIconGfx::
 	db $02, $5b, $03, $5b, $04, $5b, $05, $5b, $06, $5b, $07, $5b, $08, $5b, $09, $5b
 
+;@ def UpdateStatusIcon()
+;@ path: battle/screen/panel
+;@ Updates the status icon tiles ($8DA0 + 16 * slot) of the panel slot of wSkillTarget, or else of
+;@ wSkillUser, when that position sits on the panel's side: the icon shows the first of the ailments
+;@ (bits 6, 5, 4, 7, 1, 0 of its status byte), or 7 when it is out of the fight. Tiles are only loaded
+;@ when the icon changed (wStatusIconShown).
 UpdateStatusIcon::
+;> if wLinkActive and wLinkFlags & 2:                # the panel shows positions 4-6
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_051_794f
+	jr z, .normal
 
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr z, jr_051_794f
+	jr z, .normal
 
+;>     pos = wSkillTarget
 	ld a, [wSkillTarget]
 	ld c, a
+;>     if pos >= 4:
 	cp $04
-	jr c, jr_051_7943
+	jr c, .user
 
+;>         if pos == 7: return
 	cp $07
 	ret z
 
-	jr jr_051_7960
+;>         slot = pos ^ 4
+	jr .flip
 
-jr_051_7943:
+;>     else:
+;>         pos = wSkillUser
+.user:
 	ld a, [wSkillUser]
 	ld c, a
+;>         if pos < 4 or pos == 7: return
 	cp $04
 	ret c
 
 	cp $07
 	ret z
 
-	jr jr_051_7960
+;>         slot = pos ^ 4
+	jr .flip
 
-jr_051_794f:
+;> else:
+;>     pos = wSkillTarget; slot = pos
+.normal:
 	ld a, [wSkillTarget]
 	ld c, a
+;>     if pos >= 3:
 	cp $03
-	jr c, jr_051_7962
+	jr c, .slot
 
+;>         pos = wSkillUser; slot = pos
 	ld a, [wSkillUser]
 	ld c, a
+;>         if pos >= 3: return
 	cp $03
-	jr c, jr_051_7962
+	jr c, .slot
 
 	ret
 
-
-jr_051_7960:
+.flip:
 	xor $04
 
-jr_051_7962:
+;>@d dest = 0x8DA0 + 16*slot
+.slot:
 	push de
 	swap a
 	ld hl, $8da0
 	add l
 	ld l, a
 	ld a, $00
+;=@d
 	adc h
 	ld h, a
 	push hl
+;> if CheckBattlerPresent(pos): icon = 7                 # carry: out of the fight
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_051_7998
+	jr c, .absent
 
+;> else:
+;>     s = wBattlerStatus[8*pos]
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;>     if s & 0x40: icon = 6
 	bit 6, [hl]
-	jr nz, jr_051_799c
+	jr nz, .icon6
 
+;>     elif s & 0x20: icon = 5
 	bit 5, [hl]
-	jr nz, jr_051_79a0
+	jr nz, .icon5
 
+;>     elif s & 0x10: icon = 4
 	bit 4, [hl]
-	jr nz, jr_051_79a4
+	jr nz, .icon4
 
+;>     elif s & 0x80: icon = 3
 	bit 7, [hl]
-	jr nz, jr_051_79a8
+	jr nz, .icon3
 
+;>     elif s & 0x02: icon = 2
 	bit 1, [hl]
-	jr nz, jr_051_79ac
+	jr nz, .icon2
 
+;>     elif s & 0x01: icon = 1
 	bit 0, [hl]
-	jr nz, jr_051_79b0
+	jr nz, .icon1
 
+;>@z     else: icon = 0
 	ld a, $00
-	jr jr_051_79b2
+	jr .got
 
-jr_051_7998:
+.absent:
 	ld a, $07
-	jr jr_051_79b2
+	jr .got
 
-jr_051_799c:
+.icon6:
+;=@z
 	ld a, $06
-	jr jr_051_79b2
+	jr .got
 
-jr_051_79a0:
+.icon5:
 	ld a, $05
-	jr jr_051_79b2
+	jr .got
 
-jr_051_79a4:
+.icon4:
 	ld a, $04
-	jr jr_051_79b2
+	jr .got
 
-jr_051_79a8:
+.icon3:
+;=@z
 	ld a, $03
-	jr jr_051_79b2
+	jr .got
 
-jr_051_79ac:
+.icon2:
 	ld a, $02
-	jr jr_051_79b2
+	jr .got
 
-jr_051_79b0:
+.icon1:
 	ld a, $01
 
-jr_051_79b2:
+;>@g if icon != wStatusIconShown[pos]:
+.got:
 	push af
 	ld a, c
 	ld hl, wStatusIconShown
 	add l
 	ld l, a
 	ld a, $00
+;=@g
 	adc h
 	ld h, a
 	ld d, [hl]
 	pop af
 	cp d
+;>     StoreStatusIcon(icon, addr(wStatusIconShown) + pos)
 	call nz, StoreStatusIcon
+;>     LoadStatusIconTiles(icon, dest)
 	pop hl
 	call nz, LoadStatusIconTiles
+;> return
 	pop de
 	ret
 
 
+;@ def StoreStatusIcon(icon: a, p: hl)
+;@ path: battle/screen/panel
+;@ mem[p] = icon (keeps the flags).
 StoreStatusIcon::
+;> mem[p] = icon
 	ld [hl], a
+;> return
 	ret
 
 
+;@ def ClearBGAttributes()
+;@ path: battle/screen/tilemap
+;@ On a Game Boy Color, clears the tile attributes (VRAM bank 1) of the 18 rows of the battle BG map
+;@ at wBattleBGMap.
+;@ test: skip draws to VRAM
 ClearBGAttributes::
+;> if not wOnCGB: return
 	ld a, [wOnCGB]
 	or a
 	ret z
 
+;> rVBK = 1
 	ld a, $01
 	ldh [rVBK], a
+;> p = wBattleBGMap
 	ld a, [wBattleBGMap]
 	ld l, a
 	ld a, [$d9f9]
 	ld h, a
+;>@r for row in range(18):
 	ld c, $12
 
-jr_051_79de:
+;>@c     for col in range(32):
+.row:
 	ld b, $20
 	push hl
 
-jr_051_79e1:
+;>@x         WriteVRAM(0,(p & 0xFFE0) | ((p + col) & 0x1F))
+.column:
 	ld a, $00
 	call WriteVRAM
 	ld a, l
 	and $e0
 	push af
 	ld a, l
+;=@x
 	inc a
 	and $1f
 	ld l, a
 	pop af
 	or l
 	ld l, a
+;=@c
 	dec b
-	jr nz, jr_051_79e1
+	jr nz, .column
 
+;>@w     p = ((p + 0x20) & 0x03FF) | 0x9800
 	pop hl
 	push bc
 	ld bc, $0020
 	add hl, bc
 	ld a, h
 	and $03
+;=@w
 	or $98
 	ld h, a
 	pop bc
+;=@r
 	dec c
-	jr nz, jr_051_79de
+	jr nz, .row
 
+;> rVBK = 0
 	ld a, $00
 	ldh [rVBK], a
+;> return
 	ret
 
 
+;@ def GetBattlerName(pos: a, dest: hl) -> hl
+;@ path: battle/names
+;@ Copies the name of the monster at battle position `pos` to `dest`: the party monsters' own names
+;@ for positions 0-2, GetEnemyName for the others.
 GetBattlerName::
+;> if pos >= 3: return GetEnemyName(pos, dest)
 	cp $03
 	jr nc, GetEnemyName
 
+;> return GetPartyMonName(pos, dest)
+
+;@ def GetPartyMonName(pos: a, dest: hl) -> hl
+;@ path: battle/names
+;@ Copies the name of the party monster at position `pos` to `dest`; returns the address of its $F0
+;@ end.
 GetPartyMonName::
+;>@n CopyName(PartyMonsterField(pos, wMonName), dest)
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@n
 	push hl
 	call CopyName
 	pop hl
 
-jr_051_7a1d:
+;> while mem[dest] != 0xF0: dest += 1
+.end:
 	ld a, [hl]
 	cp $f0
 	ret z
 
 	inc hl
-	jr jr_051_7a1d
+	jr .end
 
+;> return dest
+
+;@ def GetLinkEnemyName(pos: b, dest: hl)
+;@ path: battle/names
+;@ GetEnemyName in a link battle: the other player's monsters are named like party monsters (takes
+;@ back the bc that GetEnemyName saved).
+;@ test: skip pops the bc that GetEnemyName pushed
 GetLinkEnemyName::
+;> return GetPartyMonName(pos, dest)
 	ld a, b
 	pop bc
 	jr GetPartyMonName
 
+;@ def GetEnemyName(pos: a, dest: hl)
+;@ path: battle/names
+;@ The name of an enemy (or a called monster, positions 3 and 7): the species name with a letter when
+;@ several enemies share it; an enemy changed by the transform skill is named after the monster it
+;@ copied (GetMorphEnemyName); in a link battle the monster's own name.
 GetEnemyName::
+;>@n if pos & 3 != 3:
 	push bc
 	ld b, a
 	and $03
 	cp $03
 	ld a, b
 	pop bc
-	jr z, jr_051_7a51
+;=@n
+	jr z, .species
 
+;>     if wLinkActive: return GetLinkEnemyName(pos, dest)
 	push bc
 	ld b, a
 	ld a, [wLinkActive]
 	or a
 	jr nz, GetLinkEnemyName
 
+;>@m     morph = wEnemyMorph[pos & 3]
 	push hl
 	ld a, b
 	and $03
 	ld hl, wEnemyMorph
 	add l
 	ld l, a
+;=@m
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	pop hl
+;>     if morph != 0xFF: return GetMorphEnemyName(morph, dest)
 	cp $ff
-	jr nz, jr_051_7a4e
+	jr nz, .morph
 
 	ld a, b
 
-jr_051_7a4e:
+.morph:
 	pop bc
 	jr nz, GetMorphEnemyName
 
-jr_051_7a51:
+;> GetSpeciesName(pos, dest)
+.species:
 	push af
 	call GetSpeciesName
 	pop af
+;> AppendEnemyLetter()
 	ld hl, far_AppendEnemyLetter
 	rst $10
+;> return
 	ret
 
 
+;@ def GetSpeciesName(pos: a, dest: hl)
+;@ path: battle/names
+;@ Copies the species name of the monster at battle position `pos` (system text $0500 + species) to
+;@ `dest`, and notes position and buffer for AppendEnemyLetter (wNameBattler, wNameDest).
 GetSpeciesName::
+;> wNameBattler = pos
 	ld [wNameBattler], a
+;>@s id = 0x0500 + wBattlerSpecies[pos]
 	push hl
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hl]
 	ld l, a
 	ld h, $05
+;> wNameDest = dest
 	pop de
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
 	ld [$db5f], a
+;> CopySystemText(id, dest)
 	call CopySystemText
+;> return
 	ret
 
 
+;@ def GetMorphEnemyName(morph: a, dest: hl)
+;@ path: battle/names
+;@ The name of an enemy changed by the transform skill: the name of party monster `morph` followed by
+;@ the suffix tiles $2F $46 $48 $42 and, when other enemies copied the same monster, a letter code
+;@ 1-3 (also kept in wBattleArg1, else 0).
 GetMorphEnemyName::
+;> p = GetPartyMonName(morph, dest)
 	call GetPartyMonName
+;> mem[p] = 0x2F; mem[p + 1] = 0x46
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
 	ld [hli], a
+;> mem[p + 2] = 0x48; mem[p + 3] = 0x42
 	ld a, $48
 	ld [hli], a
 	ld a, $42
 	ld [hli], a
+;> p += 4; mem[p] = 0xF0
 	ld [hl], $f0
+;> m = wEnemyMorph; e = wNamePos & 3
 	push hl
 	ld hl, wEnemyMorph
 	ld a, [wNamePos]
 	and $03
+;> if e == 0:
 	cp $01
-	jr z, jr_051_7aa5
+	jr z, .second
 
 	cp $02
-	jr z, jr_051_7aaf
+	jr z, .third
 
+;>     if m[0] == m[1] or m[0] == m[2]: letter = 1
 	ld a, [hli]
 	cp [hl]
-	jr z, jr_051_7acb
+	jr z, .letter1
 
 	inc hl
 	cp [hl]
-	jr z, jr_051_7acb
+	jr z, .letter1
 
-	jr jr_051_7ada
+;>     else: letter = 0
+	jr .none
 
-jr_051_7aa5:
+;> elif e == 1:
+;>     if m[1] == m[0]: letter = 2
+.second:
 	ld a, [hli]
 	cp [hl]
-	jr z, jr_051_7ad0
+	jr z, .letter2
 
+;>     elif m[1] == m[2]: letter = 1
 	ld a, [hli]
 	cp [hl]
-	jr z, jr_051_7acb
+	jr z, .letter1
 
-	jr jr_051_7ada
+;>     else: letter = 0
+	jr .none
 
-jr_051_7aaf:
+;> else:
+;>     n = 0
+.third:
 	ld d, $00
+;>@q     if m[2] == m[0]: n += 1
 	inc hl
 	inc hl
 	ld a, [hld]
 	dec hl
 	cp [hl]
-	jr nz, jr_051_7ab9
+	jr nz, .notFirst
 
+;=@q
 	inc d
 
-jr_051_7ab9:
+;>     if m[2] == m[1]: n += 1
+.notFirst:
 	inc hl
 	cp [hl]
-	jr nz, jr_051_7abe
+	jr nz, .counted
 
 	inc d
 
-jr_051_7abe:
+;>@k     letter = n + 1 if n else 0
+.counted:
 	ld a, d
 	or a
-	jr z, jr_051_7ada
+	jr z, .none
 
 	cp $01
-	jr z, jr_051_7ad0
+	jr z, .letter2
 
+;=@k
 	pop hl
 	ld a, $03
-	jr jr_051_7ad3
+	jr .store
 
-jr_051_7acb:
+.letter1:
 	pop hl
 	ld a, $01
-	jr jr_051_7ad3
+	jr .store
 
-jr_051_7ad0:
+.letter2:
+;=@k
 	pop hl
 	ld a, $02
 
-jr_051_7ad3:
+;> if letter:
+;>     wBattleArg1 = letter
+.store:
 	ld [wBattleArg1], a
+;>     mem[p] = letter; mem[p + 1] = 0xF0
 	ld [hli], a
 	ld [hl], $f0
+;>     return
 	ret
 
-
-jr_051_7ada:
+;> wBattleArg1 = 0
+.none:
 	pop hl
 	xor a
 	ld [wBattleArg1], a
+;> return
 	ret
 
-
+; Unused: two small routines that put the name of the position in $DB89 into $C1A0 and of the
+; position in $DB88 into $C180 via GetBattlerName (buffer noted in wBattleArg2/3, position in
+; wNamePos).
 	db $21, $a0, $c1, $18, $03, $21, $80, $c1, $7d, $ea, $4e, $db, $7c, $ea, $4f, $db
 	db $fa, $89, $db, $ea, $50, $db, $cd, $0a, $7a, $c9, $21, $80, $c1, $7d, $ea, $4e
 	db $db, $7c, $ea, $4f, $db, $fa, $88, $db, $ea, $50, $db, $cd, $0a, $7a, $c9
 
-Data_51_7B0F::
+;@ path: battle/screen/cursor
+;@ The battle menu cursor tiles, compressed (decompress entry $5112; 48 bytes = 3 tiles once
+;@ unpacked), followed by the zero padding up to the end of the bank.
+BattleCursorGfx::
 	db $30, $00, $01, $ff, $82, $01, $00, $07, $7c, $ff, $01, $ff, $f0, $c2, $ff, $a2
 	db $ff, $92, $ff, $8a, $ff, $86, $ff, $82, $ff, $00, $ff, $38, $ff, $44, $01, $00
 	db $03, $44, $ff, $38, $ff, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
