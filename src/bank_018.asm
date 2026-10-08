@@ -4501,6 +4501,10 @@ PrintText_18::
 	ret
 
 
+;@ path: text/dialogue
+;@ The 48 texts of bank $18, one after the other, each ended by $F0 (format: see
+;@ TextGroup_1A_0): the late story, from DeathMore's taunts to the King's praise and the
+;@ villagers after the Starry Night victory.
 Texts_18::
 	db $ea, $9f, $a3, $2b, $3e, $62, $45, $3e, $62, $45, $3e, $63, $ef, $ee, $fa, $f7
 	db $ef, $ee, $9f, $a3, $2d, $52, $50, $51, $62, $3f, $42, $40, $3e, $52, $50, $42
@@ -4900,6 +4904,10 @@ Texts_18::
 	db $42, $42, $41, $62, $56, $4c, $52, $63, $f7, $f0, $eb, $9f, $a3, $37, $45, $42
 	db $4b, $62, $50, $3e, $56, $62, $46, $51, $63, $ef, $ee, $ff, $f0
 
+;@ path: unused
+;@ $F8E bytes after the last text that nothing points to, then zero padding to the end of the
+;@ bank. They look like music sequence data (note bytes $80-$9F, event bytes $B1-$BF, $C1,
+;@ $D0-$D6), probably left over from an earlier build.
 UnusedSongData_18::
 	db $31, $82, $33
 	db $35, $82, $30, $82, $32, $82, $34, $b1, $01, $00, $13, $6f, $bd, $00, $bc, $4a

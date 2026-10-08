@@ -1836,10 +1836,20 @@ MarkUndecidedChosen::
 	ret
 
 
+;@ def OrdersCommand()
+;@ path: battle/orders
+;@ Direct orders (battle command 4, picked as the fourth tactic): runs step wOrderStep of
+;@ OrdersSteps for monster wConfirmChoice2.
+;@ test: skip jump table
 OrdersCommand::
+;> return OrdersSteps[wOrderStep]()
 	ld a, [wOrderStep]
 	rst $00
 
+;@ path: battle/orders
+;@ Steps of the direct orders: 0 pick the next monster that can take them, 1 open the
+;@ order window, 2 attack / skill / defend, 3-4 the skill list, 5-6 an own monster as
+;@ target, 7-8 an enemy as target, 9-10 wait for a message, 11 on to the next monster.
 OrdersSteps::
 	dw OrdersStart
 	dw OrdersOpen
@@ -1854,22 +1864,44 @@ OrdersSteps::
 	dw OrdersWaitTextBack
 	dw OrdersNextMon
 
+;@ def OrdersSkipMon()
+;@ path: battle/orders
+;@ Moves the orders on to the next monster; after the third, the orders are done
+;@ (Jump_050_4f36).
+;@ test: skip jumps into other units
 OrdersSkipMon::
+;> wConfirmChoice2 += 1
 	ld hl, wConfirmChoice2
 	inc [hl]
+;> if wConfirmChoice2 & 3 == 3:
+;>     return Jump_050_4f36()
 	ld a, [wConfirmChoice2]
 	and $03
 	cp $03
 	jp z, Jump_050_4f36
 
+;> OrdersStart()
+
+;@ def OrdersStart()
+;@ path: battle/orders
+;@ Starts the orders for monster wConfirmChoice2, skipping monsters that can't act or are
+;@ in the sky / holding their breath (wBattlerStatus4 bit 2, status 5 bit 4): the order
+;@ window's cursor starts on the last command of this monster, the skill list on its
+;@ last page and row (wBattlerMenuMemory).
+;@ test: skip calls routines in other banks
 OrdersStart::
+;> if CheckBattlerCanAct(wConfirmChoice2):
+;>     return OrdersSkipMon()
 	ld a, [wConfirmChoice2]
 	call CheckBattlerCanAct
 	jr c, OrdersSkipMon
 
+;>@s s = wBattlerStatus4 + 8 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
+;> if mem[s] & 0x04 or mem[s + 1] & 0x10:
+;>     return OrdersSkipMon()
 	bit 2, [hl]
 	jr nz, OrdersSkipMon
 
@@ -1877,88 +1909,131 @@ OrdersStart::
 	bit 4, [hl]
 	jr nz, OrdersSkipMon
 
+;> LoadWindowLetters_4()
 	ld hl, far_LoadWindowLetters_4
 	rst $10
+;> LoadWindowLetters_3()
 	ld hl, far_LoadWindowLetters_3
 	rst $10
+;> wMenuChoice3 = 0                       # order row
 	xor a
 	ld hl, wMenuChoice3
 	ld [hli], a
+;> wLinkRefused = 0                       # skill row
 	ld [hli], a
+;> wLinkPartnerChoice = 0                 # skill page
 	ld [hl], a
+;> wBattleTemp = 0
 	ld [wBattleTemp], a
+;>@m memory = wBattlerMenuMemory[wConfirmChoice2]
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerMenuMemory
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
+;> if memory & 0x04:
+;>     wLinkPartnerChoice = 1
 	bit 2, [hl]
-	jr z, jr_050_47ff
+	jr z, .page
 
 	ld a, $01
 	ld [wLinkPartnerChoice], a
 
-jr_050_47ff:
+.page
+;> wLinkRefused = memory & 0x03
 	ld a, [hl]
 	and $03
 	ld [wLinkRefused], a
+;> wMenuChoice3 = (memory >> 4) & 0x03
 	ld a, [hl]
 	swap a
 	and $03
 	ld [wMenuChoice3], a
+;> wOrderStep += 1
 	ld hl, wOrderStep
 	inc [hl]
+;> wOrderNameShown = 0
 	xor a
 	ld [wOrderNameShown], a
 	ret
 
 
+;@ def OrdersOpen()
+;@ path: battle/orders
+;@ Draws the order window (attack, skill, defend) with the monster's name plate and the
+;@ cursor on wMenuChoice3.
+;@ test: skip prints through another bank
 OrdersOpen::
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
 	call DrawEnemyPictures
+;> DrawBattlePanel()
 	call DrawBattlePanel
+;> if not wOrderNameShown:
 	ld a, [wOrderNameShown]
 	or a
-	jr nz, jr_050_4836
+	jr nz, .window
 
+;>@n     PrintNameToTiles_50(0x96C0, PartyMonsterField(wConfirmChoice2, wMonName))
 	ld hl, wMonName
 	ld a, [wConfirmChoice2]
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	ld hl, $96c0
+;=@n
 	call PrintNameToTiles_50
 
-jr_050_4836:
-	ld de, $6f49
+.window
+;> DrawWindowLayout_50(CommandNameWindow)
+	ld de, CommandNameWindow
 	ld a, [wMenuChoice2]
 	call DrawWindowLayout_50
-	ld de, $74ba
+;> DrawWindowLayout_50(CommandWindow)
+	ld de, CommandWindow
 	call DrawWindowLayout_50
+;> ResetCursorBlink_50()
 	call ResetCursorBlink_50
-	ld de, $496d
+;> wMenuChoice3 |= 0x80
+	ld de, CommandCursors
 	ld a, [wMenuChoice3]
 	set 7, a
 	ld [wMenuChoice3], a
+;> DrawCursorAt_50(wMenuChoice3, CommandCursors)
 	call DrawCursorAt_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wOrderStep += 1
 	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
+;@ def OrdersInput()
+;@ path: battle/orders
+;@ The order window: Up / Down pick attack, skill or defend, A takes it (OrdersChoose).
+;@ B goes back to the previous monster taking orders (when the whole party was chosen),
+;@ else to the tactic window (OrdersBackToTactics).
+;@ test: skip draws to the screen
 OrdersInput::
-	ld de, $496d
+;> UpdateMenuCursor_50(wMenuChoice3, 3, CommandCursors)
+	ld de, CommandCursors
 	ld hl, wMenuChoice3
 	ld b, $03
 	call UpdateMenuCursor_50
+;> if not wJoyPressed & 0x02:             # not B
+;>     return OrdersChoose()
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, OrdersChoose
 
-jr_050_4870:
+.back
+;> while True:
+;>     if wMenuChoice2 != 0x80 or wConfirmChoice2 & 3 == 0:
 	ld a, [wMenuChoice2]
 	cp $80
 	jr nz, OrdersBackToTactics
@@ -1966,267 +2041,400 @@ jr_050_4870:
 	ld a, [wConfirmChoice2]
 	and $03
 	or a
+;>         return OrdersBackToTactics()
 	jr z, OrdersBackToTactics
 
+;>     wConfirmChoice2 -= 1               # the previous monster
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
+;>     if CheckAutoCommand(wConfirmChoice2):
+;>         continue
 	call CheckAutoCommand
-	jr c, jr_050_4870
+	jr c, .back
 
+;>     s = wBattlerStatus4 + 8 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
+;>     if mem[s] & 0x04 or mem[s + 1] & 0x10:
+;>         continue
 	bit 2, [hl]
-	jr nz, jr_050_4870
+	jr nz, .back
 
 	inc hl
 	bit 4, [hl]
-	jr nz, jr_050_4870
+	jr nz, .back
 
+;>@o     wBattlerOrder[wConfirmChoice2] = 0
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld a, $00
 	ld [hl], a
+;>     wOrderStep = 0
 	xor a
 	ld [wOrderStep], a
+;>     ClearMonAction()
 	call ClearMonAction
+;>     return OrdersStart()
 	call OrdersStart
 	ret
 
 
+;@ def OrdersBackToTactics()
+;@ path: battle/orders
+;@ B in the order window: back to the tactic window of the same monster.
+;@ test: skip calls a routine in another bank
 OrdersBackToTactics::
+;> LoadWindowLetters_3()
 	ld hl, far_LoadWindowLetters_3
 	rst $10
+;> wMenuChoice = 0x81                     # the tactics command, chosen
 	ld a, $81
 	ld [wMenuChoice], a
+;> wCommandSubStep = 3
 	ld a, $03
 	ld [wCommandSubStep], a
+;> wConfirmChoice &= 0x7F
 	ld a, [wConfirmChoice]
 	res 7, a
 	ld [wConfirmChoice], a
+;> wOrderStep = 0
 	xor a
 	ld [wOrderStep], a
+;> return TacticsMenuOpen()
 	jp TacticsMenuOpen
 
+	db $c9                       ; a stray ret nothing reaches
 
-	db $c9
-
+;@ def OrdersChoose()
+;@ path: battle/orders
+;@ A in the order window: remembers the command in wBattlerMenuMemory; skill opens the
+;@ skill list (OrdersSkill), attack picks the enemy (OrdersAttack), defend (action $8D)
+;@ is decided at once.
+;@ test: skip calls routines with side effects
 OrdersChoose::
+;> if not wJoyPressed & 0x01:
+;>     return
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, Jump_050_496c
 
+;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>@m m = wBattlerMenuMemory + wConfirmChoice2
 	ld a, [wMenuChoice3]
 	and $03
 	swap a
 	ld b, a
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerMenuMemory
+;=@m
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> mem[m] = (mem[m] & 0x0F) | (wMenuChoice3 & 3) << 4     # remember the command
 	ld a, [hl]
 	and $0f
 	or b
 	ld [hl], a
+;> if wMenuChoice3 == 0x81:               # skill
+;>     return OrdersSkill()
 	ld a, [wMenuChoice3]
 	cp $81
 	jr z, OrdersSkill
 
+;> if wMenuChoice3 == 0x80:               # attack
+;>     return OrdersAttack()
 	cp $80
 	jr z, OrdersAttack
 
+;> OrdersDecided(0x8D, wConfirmChoice2)   # defend
 	ld b, $8d
 	ld a, [wConfirmChoice2]
 	ld c, a
 
+;@ def OrdersDecided(skill: b, target: c)
+;@ path: battle/orders
+;@ The monster's order is complete: its action is `skill` on `target`, it counts as
+;@ decided under direct orders, and the orders go on to the next monster (step 11).
+;@ test: skip calls routines with side effects
 OrdersDecided::
+;> SetActionSkillTarget(skill, target)
 	call SetActionSkillTarget
+;> MarkOrderGiven()
 	call MarkOrderGiven
+;> wOrderStep = 11
 	ld a, $0b
 	ld [wOrderStep], a
 	ret
 
 
+;@ def OrdersAttack()
+;@ path: battle/orders
+;@ Attack (skill $3A): aimed at once when only one enemy is present, else the enemy target
+;@ window opens (step 7).
+;@ test: skip calls routines with side effects
 OrdersAttack::
+;> wSkillId = 0x3A
 	ld a, $3a
 	ld [wSkillId], a
+;> n, last = CountPresentOnSide((wConfirmChoice2 & 4) ^ 4)   # the other side
 	ld a, [wConfirmChoice2]
 	and $04
 	xor $04
 	call CountPresentOnSide
+;> if n == 1:
+;>     return OrdersDecided(0x3A, last)
 	ld a, b
 	ld b, $3a
 	cp $01
 	jr z, OrdersDecided
 
+;> SetActionSkill(0x3A)
 	call SetActionSkill
+;> wOrderStep = 7                         # enemy target window
 	ld a, $07
 	ld [wOrderStep], a
 	ret
 
 
+;@ def OrdersSkill()
+;@ path: battle/orders
+;@ Skill: opens the skill list (next step) when the monster has a skill it can be
+;@ ordered to use; else prints message $0202 and waits (step 9).
+;@ test: skip prints through another bank
 OrdersSkill::
+;> CountUsableSkills()
 	call CountUsableSkills
+;> if wBattlerReload:                     # usable skills
 	ld a, [wBattlerReload]
 	or a
-	jr z, jr_050_4945
+	jr z, .none
 
+;>     wOrderStep += 1
+;>     return
 	ld hl, wOrderStep
 	inc [hl]
 	ret
 
-
-jr_050_4945:
+.none
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
 	call DrawEnemyPictures
+;> DrawBattlePanel()
 	call DrawBattlePanel
+;> wOrderStep = 9
 	ld hl, $0202
 	ld a, $09
 	ld [wOrderStep], a
+;> wTextGroup = 2
 	ld a, l
 	ld [wTextGroup], a
+;> wTextIndex = 2
 	ld a, h
 	ld [wTextIndex], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> DrawWindowLayout_50(0x2E07)
 	ld de, $2e07
 	call DrawWindowLayout_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
 	ret
-
 
 Jump_050_496c:
 	ret
 
 
+;@ path: battle/orders
+;@ Cursor places of the order window: attack, skill, defend (rows 12, 14, 16).
 CommandCursors::
-	db $81, $01, $c1, $01, $01, $02, $ff, $ff
+	dw $0181                     ; row 12, column 1
+	dw $01c1                     ; row 14, column 1
+	dw $0201                     ; row 16, column 1
+	dw $ffff
 
+;@ def CountUsableSkills()
+;@ path: battle/orders
+;@ Counts the skills of monster wConfirmChoice2 (wBattlerSkills, up to 8 entries until a
+;@ 0 kind byte) into wBattleListCount, and those that can be ordered (not the passive
+;@ skills $37, $38, $7E) into wBattlerReload.
 CountUsableSkills::
+;>@p p = wBattlerSkills + 16 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;> wBattlerReload = 0
 	xor a
 	ld [wBattlerReload], a
+;> n = 0
 	ld bc, $0800
-
-jr_050_498a:
+.loop
+;>@f for i in range(8):
+;>     if mem[p + 2 * i] == 0:            # end of the list
+;>         break
 	ld a, [hli]
 	or a
-	jr z, jr_050_49a7
+	jr z, .done
 
+;>@k     if mem[p + 2 * i + 1] not in (0x37, 0x38, 0x7E):
 	ld a, [hl]
 	cp $37
-	jr z, jr_050_49a2
+	jr z, .next
 
 	cp $38
-	jr z, jr_050_49a2
+	jr z, .next
 
+;=@k
 	cp $7e
-	jr z, jr_050_49a2
+	jr z, .next
 
+;>         wBattlerReload += 1
 	ld a, [wBattlerReload]
 	inc a
 	ld [wBattlerReload], a
 
-jr_050_49a2:
+.next
+;>     n += 1
 	inc hl
 	inc c
+;=@f
 	dec b
-	jr nz, jr_050_498a
+	jr nz, .loop
 
-jr_050_49a7:
+.done
+;> wBattleListCount = n
 	ld a, c
 	ld [wBattleListCount], a
 	ret
 
 
+;@ def SkillListOpen()
+;@ path: battle/orders
+;@ Draws the skill list (page wLinkPartnerChoice, cursor row wLinkRefused) of the monster.
+;@ test: skip prints through another bank
 SkillListOpen::
+;> PrintSkillPage()
 	call PrintSkillPage
+;> ClearTilemapBuffer_50()
 	call ClearTilemapBuffer_50
+;> DrawEnemyPictures()
 	call DrawEnemyPictures
+;> DrawBattlePanel()
 	call DrawBattlePanel
-	ld de, $74f4
+;> DrawWindowLayout_50(BattleSkillWindow)
+	ld de, BattleSkillWindow
 	call DrawWindowLayout_50
+;> ResetCursorBlink_50()
 	call ResetCursorBlink_50
-	ld de, $4cca
+;> DrawListCursor_50(wLinkRefused, SkillListCursors, 4, wBattleListCount)
+	ld de, SkillListCursors
 	ld b, $04
 	ld a, [wBattleListCount]
 	ld c, a
 	ld hl, wLinkRefused
 	call DrawListCursor_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wOrderStep += 1
 	ld hl, wOrderStep
 	inc [hl]
 	ret
 
 
+;@ def PrintSkillPage()
+;@ path: battle/orders
+;@ Prints the four skill names of page wLinkPartnerChoice of monster wConfirmChoice2 into
+;@ the letter tiles from $88C0 (9 tiles each).
+;@ test: skip prints through another bank
 PrintSkillPage::
+;>@s skill = wBattlerSkills + 16 * wConfirmChoice2 + 1 + 8 * wLinkPartnerChoice
 	ld a, [wConfirmChoice2]
 	swap a
-	ld de, $dc65
+	ld de, wBattlerSkills + 1
 	add e
 	ld e, a
 	ld a, $00
+;=@s
 	adc d
 	ld d, a
 	ld a, [wLinkPartnerChoice]
 	add a
 	add a
 	add a
+;=@s
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;> tiles = 0x88C0
 	ld hl, $88c0
+;> for i in range(4):
+;>     tiles, skill = PrintSkillName(tiles, skill)
 	call PrintSkillName
 	call PrintSkillName
 	call PrintSkillName
 
+;@ def PrintSkillName(tiles: hl, skill: de) -> (hl, de)
+;@ path: battle/orders
+;@ Prints the name of the skill at `skill` (text $06xx, or the blank text $0800 for $FF)
+;@ into 9 letter tiles at `tiles`; returns the next tiles and the next skill entry.
+;@ test: skip prints through another bank
 PrintSkillName::
+;> if mem[skill] == 0xFF:
 	push de
 	push hl
 	ld a, [de]
 	cp $ff
-	jr nz, jr_050_4a11
+	jr nz, .named
 
+;>     wTextIndex = 0
 	ld a, $00
 	ld [wTextIndex], a
+;>     wTextGroup = 8
 	ld a, $08
 	ld [wTextGroup], a
-	jr jr_050_4a19
+	jr .print
 
-jr_050_4a11:
+.named
+;> else:
+;>     wTextIndex = mem[skill]
 	ld [wTextIndex], a
+;>     wTextGroup = 6
 	ld a, $06
 	ld [wTextGroup], a
 
-jr_050_4a19:
+.print
+;> PrintTextToTiles_50(tiles, 1, 9)
 	ld de, $0901
 	call PrintTextToTiles_50
+;>@r return tiles + 0x90, skill + 2
 	pop hl
 	ld a, l
 	add $90
 	ld l, a
 	ld a, h
 	adc $00
+;=@r
 	ld h, a
 	pop de
 	inc de
@@ -5054,74 +5262,119 @@ BattleMenuClearTiles::
 	ret
 
 
+;@ def ShowActionMessage()
+;@ path: battle/messages
+;@ Far entry 7: starts battle message wBattleArg0 (group 0 of bank $4C; $FF = none) about the
+;@ monster at wSkillUser, with its name in wTextArg0, the name of its skill in wTextArg1 and
+;@ the target's name in wTextArg2. MultiCut ($4F), ALLCHANGE ($A6) and FREEZY ($AC) name the
+;@ target's side as a whole (SetActionTargetName); ALLCHANGE also drops the letter from the
+;@ user's name when that side has several monsters.
+;@ test: skip runs the text code of other banks
 ShowActionMessage::
+;> wNamePos = wSkillUser
+;> GetBattlerName_50(wSkillUser, wTextArg0)
 	ld a, [wSkillUser]
 	ld hl, wTextArg0
 	ld [wNamePos], a
 	call GetBattlerName_50
+;>@act action = addr(wBattlerAction) + 2 * wSkillUser     # skill, then target
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@act
 	adc h
 	ld h, a
+;> skill = mem[action]
 	ld a, [hli]
+;>@t if skill not in (0x4F, 0xA6, 0xAC):         # not MultiCut, ALLCHANGE or FREEZY
 	cp $4f
-	jr z, jr_050_5a19
+	jr z, .targets
 
 	cp $a6
-	jr z, jr_050_5a16
+	jr z, .allchange
 
+;=@t
 	cp $ac
-	jr z, jr_050_5a19
+	jr z, .targets
 
+;>     SetTargetName(action + 1)
+;>     return StartActionMessage()
 	call SetTargetName
 	jr StartActionMessage
 
-jr_050_5a16:
+.allchange
+;> else:
+;>     if skill == 0xA6: SetGroupUserName(action + 1)
 	call SetGroupUserName
 
-jr_050_5a19:
+.targets
+;>     SetActionTargetName(action + 1); return StartActionMessage()     # runs on into it
 	call SetActionTargetName
 
+;@ def StartActionMessage()
+;@ path: battle/messages
+;@ The second half of ShowActionMessage: puts the name of the user's skill into wTextArg1
+;@ (system text group 6; "Attack" when it has no skill, SpecialActionNames for the special
+;@ actions $DA and up) and starts message wBattleArg0 unless it is $FF.
+;@ test: skip runs the text code of other banks
 StartActionMessage::
+;>@s skill = wBattlerAction[2 * wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@s
 	adc h
 	ld h, a
 	ld a, [hl]
+;> if skill == 0xFF: skill = GetAttackSkill()   # no skill: "Attack"
 	cp $ff
 	call z, GetAttackSkill
+;> if skill >= 0xDA: skill = GetSpecialActionName(skill)
 	cp $da
 	call nc, GetSpecialActionName
+;> CopySystemText(0x0600 + skill, wTextArg1)     # the skill's name
 	ld l, a
 	ld h, $06
 	ld de, wTextArg1
 	call CopySystemText
+;> wTextGroup = 0; wTextIndex = wBattleArg0
 	ld a, $00
 	ld [wTextGroup], a
 	ld a, [wBattleArg0]
 	ld [wTextIndex], a
+;> if wBattleArg0 == 0xFF:
+;>     return
 	cp $ff
 	ret z
 
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def GetAttackSkill() -> a
+;@ path: battle/messages
+;@ The skill number named for an action without a skill: $3A, "Attack".
 GetAttackSkill::
+;> return 0x3A
 	ld a, $3a
 	ret
 
 
+;@ def SetTargetName(action: hl)
+;@ path: battle/messages
+;@ Writes the name of the battle position at `action` into wTextArg2.
+;@ test: skip runs the name code of other banks
 SetTargetName::
+;> wNamePos = mem[action]
+;> GetBattlerName_50(mem[action], wTextArg2)
 	ld a, [hl]
 	ld hl, wTextArg2
 	ld [wNamePos], a
@@ -5129,86 +5382,143 @@ SetTargetName::
 	ret
 
 
+;@ def SetGroupUserName(action: hl)
+;@ path: battle/messages
+;@ For ALLCHANGE: counts the monsters on the side of the target at `action`
+;@ (CountTargetNames). A single one starts the message right away (StartActionMessage; it
+;@ is set up once more afterwards); with several the letter is cut from the user's name
+;@ (TrimNameTag).
+;@ test: skip calls a routine in another bank
 SetGroupUserName::
+;> wSkillTarget = mem[action]
 	ld a, [hl]
 	ld [wSkillTarget], a
+;> CountTargetNames()
 	ld hl, far_CountTargetNames
 	rst $10
+;> if wBattleTemp == 0:                          # a single monster
+;>     return StartActionMessage()
 	ld a, [wBattleTemp]
 	or a
 	jr z, StartActionMessage
 
+;> return TrimNameTag(wTextArg0)
 	ld hl, wTextArg0
 	jr TrimNameTag
 
+;@ def SetActionTargetName(action: hl)
+;@ path: battle/messages
+;@ Target name for a skill that hits a whole side: counts the monsters on the side of the
+;@ target at `action` (CountTargetNames, result in wBattleTemp). One monster: its name; several
+;@ of one kind: the name without its letter (TrimNameTag); several kinds: SetGangTargetName.
+;@ test: skip calls a routine in another bank
 SetActionTargetName::
+;> wSkillTarget = mem[action]
 	ld a, [hl]
 	ld [wSkillTarget], a
+;> CountTargetNames()
 	ld hl, far_CountTargetNames
 	rst $10
+;> if wBattleTemp == 0:                          # a single monster
+;>     return NameSkillTarget()
 	ld a, [wBattleTemp]
 	or a
 	jr z, NameSkillTarget
 
+;> if wBattleTemp != 1:                          # several kinds
+;>     return SetGangTargetName()
 	cp $01
 	jr nz, SetGangTargetName
 
+;> NameSkillTarget()                             # several of one kind
 	call NameSkillTarget
+;> return TrimNameTag(wTextArg2)                 # runs on into it
 	ld hl, wTextArg2
 
+;@ def TrimNameTag(name: hl)
+;@ path: battle/messages
+;@ Cuts the letter tag from the end of a name ended by $F0: a last character below $24 (not a
+;@ letter, as the A / B / C after an enemy's name) is replaced by the end mark.
+;@ test: skip scans a name in memory
 TrimNameTag::
+;> while mem[name] != 0xF0:                      # find the end mark
+;>     name += 1
 	ld a, [hli]
 	cp $f0
 	jr nz, TrimNameTag
 
-jr_050_5a8e:
+.back
+;> while mem[name] == 0xF0:                      # back to the last character
+;>     name -= 1
 	dec hl
 	ld a, [hl]
 	cp $f0
-	jr z, jr_050_5a8e
+	jr z, .back
 
+;> if mem[name] >= 0x24:                         # a letter: keep it
+;>     name += 1
 	cp $24
-	jr c, jr_050_5a99
+	jr c, .cut
 
 	inc hl
 
-jr_050_5a99:
+.cut
+;> mem[name] = 0xF0
 	ld [hl], $f0
 	ret
 
 
+;@ def SetGangTargetName()
+;@ path: battle/messages
+;@ Target name for several monsters of different kinds: the target's own name in a link
+;@ battle or on the own side, else "a gang" in wTextArg2.
+;@ test: skip runs the name code of other banks
 SetGangTargetName::
+;> if wLinkActive:
+;>     return NameSkillTarget()
 	ld a, [wLinkActive]
 	or a
 	jr nz, NameSkillTarget
 
+;> if wSkillTarget < 4:                          # own side
 	ld a, [wSkillTarget]
 	cp $04
-	jr nc, jr_050_5aad
+	jr nc, .gang
 
+;>     return NameSkillTarget()
 	call NameSkillTarget
 	ret
 
 
-jr_050_5aad:
+.gang
+;>@c for i, c in enumerate((0x3E, 0x62, 0x44, 0x3E, 0x4B, 0x44, 0xF0)):    # "a gang"
 	ld hl, wTextArg2
+;>@w     wTextArg2[i] = c
 	ld a, $3e
 	ld [hli], a
 	ld a, $62
 	ld [hli], a
 	ld a, $44
 	ld [hli], a
+;=@w
 	ld a, $3e
 	ld [hli], a
 	ld a, $4b
 	ld [hli], a
 	ld a, $44
 	ld [hli], a
+;=@w
 	ld [hl], $f0
 	ret
 
 
+;@ def NameSkillTarget()
+;@ path: battle/messages
+;@ Writes the name of the battle position wSkillTarget into wTextArg2.
+;@ test: skip runs the name code of other banks
 NameSkillTarget::
+;> wNamePos = wSkillTarget
+;> GetBattlerName_50(wSkillTarget, wTextArg2)
 	ld a, [wSkillTarget]
 	ld hl, wTextArg2
 	ld [wNamePos], a
@@ -5216,13 +5526,20 @@ NameSkillTarget::
 	ret
 
 
+;@ def GetSpecialActionName(action: a) -> a
+;@ path: battle/messages
+;@ Skill-name number shown for the special action `action` ($DA-$DD), from
+;@ SpecialActionNames.
+;@ test: action = rand(0xDA, 0xDD)
 GetSpecialActionName::
+;>@r return mem[SpecialActionNames + action - 0xDA]
 	push hl
 	sub $da
-	ld hl, $5ae1
+	ld hl, SpecialActionNames
 	add l
 	ld l, a
 	ld a, $00
+;=@r
 	adc h
 	ld h, a
 	ld a, [hl]
@@ -5230,19 +5547,32 @@ GetSpecialActionName::
 	ret
 
 
+;@ path: battle/messages
+;@ Skill names (system text group 6) shown for the special actions $DA-$DD: $19 PanicAll,
+;@ $A1 RUN, $2A Ironize, $70 Ahhh.
 SpecialActionNames::
 	db $19, $a1, $2a, $70
 
+;@ def ShowMenuMessage(msg: a)
+;@ path: battle/menu
+;@ Redraws the battle screen with battle message `msg` in the message window ("Can't run
+;@ from this battle!" and the like) and goes back to the start of the command menu.
+;@ test: skip draws the battle screen
 ShowMenuMessage::
+;> ClearTilemapBuffer_50(); DrawEnemyPictures(); DrawBattlePanel()
 	push af
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
 	pop af
+;> ShowBattleMessage(msg)
 	call ShowBattleMessage
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wCommandStep = 0; wCommandSubStep = 0
 	ld a, $00
 	ld [wCommandStep], a
 	ld a, $00
@@ -5250,82 +5580,113 @@ ShowMenuMessage::
 	ret
 
 
+;@ def CheckAutoCommand(pos: a) -> carry
+;@ path: battle/menu
+;@ Carry when the monster at `pos` takes no command this turn: it cannot act
+;@ (CheckBattlerCanAct), or it is confused, high in the sky (HighJump) or singing the
+;@ LifeSong (status byte 5 bits 4-7). Then its tactic gets bits 5-7 set and its command
+;@ counts as chosen (wBattlerOrder 1).
+;@ test: pos = rand(0, 7)
 CheckAutoCommand::
+;> wBattleTemp = pos
 	push bc
 	ld [wBattleTemp], a
 	ld b, a
+;> if CheckBattlerCanAct(pos):
+;>     return True
 	call CheckBattlerCanAct
-	jr c, jr_050_5b55
+	jr c, .yes
 
+;>@st status = addr(wBattlerStatus) + 8 * pos
 	ld a, b
 	ld bc, wBattlerStatus
 	add a
 	add a
 	add a
 	add c
+;=@st
 	ld c, a
 	ld a, $00
 	adc b
 	ld b, a
+;>@c if not (mem[status] & 0x10 or mem[status + 4] & 0x0C or mem[status + 5] & 0xF0):
 	ld a, [bc]
 	bit 4, a
-	jr nz, jr_050_5b35
+	jr nz, .auto
 
+;=@c
 	inc bc
 	inc bc
 	inc bc
 	inc bc
 	ld a, [bc]
 	and $0c
-	jr nz, jr_050_5b35
+;=@c
+	jr nz, .auto
 
 	inc bc
 	ld a, [bc]
 	and $f0
-	jr nz, jr_050_5b35
+	jr nz, .auto
 
+;>     return False
 	xor a
-	jr jr_050_5b56
+	jr .return
 
-jr_050_5b35:
+.auto
+;>@t wBattlerTactic[pos] |= 0xE0                 # no command: the tactic decides
 	push hl
 	ld a, [wBattleTemp]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
+;=@t
 	adc h
 	ld h, a
 	ld a, [hl]
 	or $e0
 	ld [hl], a
+;>@o wBattlerOrder[pos] = 1                      # counts as chosen
 	ld a, [wBattleTemp]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $01
 	pop hl
 
-jr_050_5b55:
+.yes
+;> return True
 	scf
 
-jr_050_5b56:
+.return
 	pop bc
 	ret
 
 
+;@ def ShowItemBrokeMessage()
+;@ path: battle/item
+;@ Far entry 8: redraws the battle screen with "The <item> falls to pieces!" (battle message
+;@ $E0, the item's name in wTextArg1) and goes back to the start of the command menu.
+;@ test: skip draws the battle screen
 ShowItemBrokeMessage::
+;> ClearTilemapBuffer_50(); DrawEnemyPictures(); DrawBattlePanel()
 	call ClearTilemapBuffer_50
 	call DrawEnemyPictures
 	call DrawBattlePanel
+;> ShowBattleMessage(0xE0)                       # "The <item> falls to pieces!"
 	ld a, $e0
 	call ShowBattleMessage
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
+;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
+;> wCommandStep = 0; wCommandSubStep = 0
 	ld a, $00
 	ld [wCommandStep], a
 	ld a, $00

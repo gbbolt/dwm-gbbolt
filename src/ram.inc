@@ -500,7 +500,7 @@ DEF wBattleArg0 EQU $DB4C ;@ u8 Argument / result byte 0 of the battle helper ro
 DEF wBattleArg1 EQU $DB4D ;@ u8 Argument / result byte 1 of the battle helper routines
 DEF wBattleArg2 EQU $DB4E ;@ u8 Argument / result byte 2 of the battle helper routines
 DEF wBattleArg3 EQU $DB4F ;@ u8 Argument / result byte 3 of the battle helper routines
-DEF wBattlerReload EQU $DB55 ;@ u8 Set while a battler is refreshed from its monster record (current HP, MP and ailments are kept); the battle items use it for the number of the message to show. The battle flow keeps the upper hand in it: at the start 2 a normal start, 0 the enemies are caught off guard, 1 an ambush; at the end 0 won, 1 lost (also giving up a tournament battle), 2 ran away
+DEF wBattlerReload EQU $DB55 ;@ u8 Set while a battler is refreshed from its monster record (current HP, MP and ailments are kept); the battle items use it for the number of the message to show; after a VS battle over the link cable it is nonzero when we lost
 DEF wBattlerSpecies EQU $DC3C ;@ u8[8] Species of each battle position
 DEF wBattlerSex EQU $DB93 ;@ u8[8] Sex of each battle position (0 or 1)
 DEF wBattlerTactic EQU $DD03 ;@ u8[8] Tactic of each battle position (bits 0-1; from bits 4-5 of the record's sex byte)

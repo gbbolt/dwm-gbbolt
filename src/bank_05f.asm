@@ -262,7 +262,7 @@ EndingSavePromptStates::
 ;@ path: event/ending
 ;@ Credits state 0: counts frames and seconds; after 5 seconds the page fades out and state 1
 ;@ draws the next one.
-;@ test: wSceneObjects[2] = rng.randint(0, 59); wSceneObjects[3] = rng.randint(0, 4)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 CreditsWaitPage::
 ;> wSceneObjects[2] += 1                   # frames
 	ld hl, wSceneObjects + 2
@@ -343,7 +343,7 @@ CreditsFadeIn::
 ;@ def CreditsCheckLast()
 ;@ path: event/ending
 ;@ Credits state 3: back to state 0 for the next page, or on to state 4 after the last page.
-;@ test: wSceneObjects[1] = rng.choice([0, 5, 26])
+;@ test: mem[0xC0D9] = rng.choice([0, 5, 26])
 CreditsCheckLast::
 ;> wMapLoadState = 0
 	xor a
@@ -370,7 +370,7 @@ CreditsCheckLast::
 ;@ path: event/ending
 ;@ Credits state 4: shows the last page for 5 seconds, then fades out and returns to the field
 ;@ (game mode 1) with a warp to map $2F at X $38, Y $C8.
-;@ test: wSceneObjects[2] = rng.randint(0, 59); wSceneObjects[3] = rng.randint(0, 4)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 CreditsLeaveToField::
 ;> wSceneObjects[2] += 1                   # frames
 	ld hl, wSceneObjects + 2
@@ -1344,7 +1344,7 @@ OpeningUpdateScenes::
 ;@ A, B or Start during the opening: on the title screen it opens the title menu (game mode 0
 ;@ step 1); during the second logo it jumps to the third; from the third logo on it jumps to the
 ;@ title screen. The first logo cannot be skipped. Every jump fades out and restarts the mode.
-;@ test: wOpeningScene = rng.randint(0, 6); wOpeningLogo = rng.randint(0, 2)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningSkip::
 ;> scene = wOpeningScene
 	ld a, [wOpeningScene]
@@ -1463,7 +1463,7 @@ OpeningLogoSteps::
 ;@ path: title/opening
 ;@ First logo: once faded in, shows it for 60 frames, then fades out and restarts the mode
 ;@ for the next logo.
-;@ test: wSceneObjects[0] = rng.randint(0, 59)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningLogo0::
 ;> if wFadeState:
 ;>     return
@@ -1498,7 +1498,7 @@ OpeningLogo0::
 ;@ def OpeningLogo1()
 ;@ path: title/opening
 ;@ Second logo: shown for 180 frames, then on to the third.
-;@ test: wSceneObjects[0] = rng.randint(0, 179)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningLogo1::
 ;> if wFadeState:
 ;>     return
@@ -1533,7 +1533,7 @@ OpeningLogo1::
 ;@ def OpeningLogo2()
 ;@ path: title/opening
 ;@ Third logo: shown for 180 frames, then on to scene 1 with its two sprite objects set up.
-;@ test: wSceneObjects[0] = rng.randint(0, 179)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningLogo2::
 ;> if wFadeState:
 ;>     return
@@ -1947,7 +1947,7 @@ OpeningStarScene3::
 ;@ path: title/opening
 ;@ Scene 4: shows the picture for 120 frames, then fades out to scene 5 with its two stars set
 ;@ up.
-;@ test: wSceneObjects[0] = rng.randint(0, 119)
+;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningPicture::
 ;> if wFadeState:
 ;>     return
@@ -5838,752 +5838,1188 @@ IsTargetOwnSide::
 	ret
 
 
+;@ def AnimViewerInit()
+;@ path: unused/debug/animviewer
+;@ Start-up routine of game mode 5, a debug viewer for the battle graphics, reached from the
+;@ debug menu. The screen: a box at the top ("BATTLE EFECT", "EFECT NO" with the screen effect
+;@ number), a 6 x 6 monster picture in the middle and a box at the bottom ("OBJ NO" with the
+;@ skill animation number, "MONSTER" OFF/ON and the monster number). The cursor starts on the
+;@ screen effect row; the numbers are shown in hex with the font's letters.
+;@ test: skip calls routines in other banks
 AnimViewerInit::
+;> fill(wMenuChoice, 0, 8)                  # cursor row, animation, picture on/off, monster, ...
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
+;> fill(wTextTiles, 0, 18)
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
+;> DisableSTATInterrupts()
 	call DisableSTATInterrupts
+;> wSGBPalSet = 0; mem[wSGBPalSet + 1] = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> fill(wTilemapBuffer, 0xE0, 0x240)        # blank screen
 	ld a, $e0
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 	call FillMemory
+;> fill(wBattleAnimDone, 0, 6)              # also wScreenEffect and its counters
 	xor a
 	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
+;> FillVRAMWords_5F(0xFF00, 0x9000, 0x120)  # picture tiles $00-$23: plain colour 1
 	ld de, $ff00
 	ld hl, $9000
 	ld bc, $0120
 	call FillVRAMWords_5F
-	ld de, $6093
+;> DrawTilemap_5F(AnimViewerMenuTilemap, wTilemapBuffer)
+	ld de, AnimViewerMenuTilemap
 	ld hl, wTilemapBuffer
 	call DrawTilemap_5F
-	ld de, $60fe
+;> DrawTilemap_5F(AnimViewerTitleTilemap, wTilemapBuffer)
+	ld de, AnimViewerTitleTilemap
 	ld hl, wTilemapBuffer
 	call DrawTilemap_5F
-	ld de, $6169
+;> DrawTilemap_5F(AnimViewerPicTilemap, wTilemapBuffer)
+	ld de, AnimViewerPicTilemap
 	ld hl, wTilemapBuffer
 	call DrawTilemap_5F
+;> Decompress(0x2E, 0x00, 0x8D00)           # window frame tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
-	ld hl, $6195
+;> DrawDebugString(AnimViewerLabels, 0x8B90)   # tiles $B9-$CF
+	ld hl, AnimViewerLabels
 	ld de, $8b90
 	call DrawDebugString
-	ld hl, $61ad
+;> DrawDebugString(AnimViewerLabels2, 0x8AB0)  # tiles $AB-$B1
+	ld hl, AnimViewerLabels2
 	ld de, $8ab0
 	call DrawDebugString
+;> AnimViewerDrawAnimNumber()
 	call AnimViewerDrawAnimNumber
+;> AnimViewerDrawBGSwitch()
 	call AnimViewerDrawBGSwitch
+;> AnimViewerDrawBGNumber()
 	call AnimViewerDrawBGNumber
+;> AnimViewerDrawEffectNumber()
 	call AnimViewerDrawEffectNumber
+;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
+;> wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
-	ld [$d9f9], a
+	ld [wBattleBGMap + 1], a
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> wSkillAnimPhase = 1
 	ld a, $01
 	ld [wSkillAnimPhase], a
+;> wItemMsgGroup = 1                        # animations start in the middle
 	ld a, $01
 	ld [wItemMsgGroup], a
+;> wBattleAnimDone = 1                      # no screen effect running
 	ld a, $01
 	ld [wBattleAnimDone], a
+;> wMenuChoice = 3                          # cursor on the screen effect row
 	ld a, $03
 	ld [wMenuChoice], a
+;> hWX = 7
 	ld a, $07
 	ldh [hWX], a
+;> hWY = 0xFF                               # window off screen
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollY = 0
 	ld a, $00
 	ldh [hScrollY], a
+;> hScrollX = 0
 	ld a, $00
 	ldh [hScrollX], a
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLCDC = 0x03                             # BG and sprites on, BG tiles at $8800/$9000
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLYCInterrupt()
 	call EnableLYCInterrupt
+;> EnableLCDAndInterrupts(0x03)             # VBlank and LCD interrupts
 	ld a, $03
 	jp EnableLCDAndInterrupts
 
 
+;@ def AnimViewerUpdate()
+;@ path: unused/debug/animviewer
+;@ Per-frame routine of the animation viewer (game mode 5): keeps a running screen effect or
+;@ skill animation going, otherwise handles the buttons for the cursor row (AnimViewerRows).
+;@ test: skip jumps through a table to routines that call other banks
 AnimViewerUpdate::
+;> if wScreenEffect == 9 and not wBattleAnimDone:   # the wave runs even while fading
 	ld a, [wScreenEffect]
 	cp $09
-	jr nz, jr_05f_5c9b
+	jr nz, .notWave
 
+;>     return AnimViewerRunEffect()
 	ld a, [wBattleAnimDone]
 	or a
 	jp z, AnimViewerRunEffect
 
-jr_05f_5c9b:
+.notWave
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
 
+;> if wBattleAnimRunning:
+;>     return AnimViewerStepAnim()
 	ld a, [wBattleAnimRunning]
 	or a
 	jp nz, AnimViewerStepAnim
 
+;> AnimViewerRows[wMenuChoice]()
 	ld a, [wMenuChoice]
 	rst $00
 
+;@ path: unused/debug/animviewer
+;@ Button handler of each cursor row of the animation viewer.
 AnimViewerRows::
 	dw AnimViewerRowAnim
 	dw AnimViewerRowBGSwitch
 	dw AnimViewerRowBGNumber
 	dw AnimViewerRowEffect
 
+;@ def AnimViewerRowAnim()
+;@ path: unused/debug/animviewer
+;@ Buttons on the animation row: A plays skill animation wMenuChoice2, B leaves, Up/Down move
+;@ the cursor, Left/Right change the animation number.
+;@ test: skip jumps to routines that call other banks
 AnimViewerRowAnim::
+;> pressed = wJoyPressed
 	ld a, [wJoyPressed]
+;> if pressed & 0x01: return AnimViewerPlayAnim()       # A
 	bit 0, a
 	jp nz, AnimViewerPlayAnim
 
+;> if pressed & 0x02: return AnimViewerExit()           # B
 	bit 1, a
 	jp nz, AnimViewerExit
 
+;> if pressed & 0x40: return AnimViewerCursorUp()
 	bit 6, a
 	jp nz, AnimViewerCursorUp
 
+;> if pressed & 0x80: return AnimViewerCursorDown()
 	bit 7, a
 	jp nz, AnimViewerCursorDown
 
+;> if pressed & 0x20: return AnimViewerPrevAnim()       # Left
 	bit 5, a
 	jr nz, AnimViewerPrevAnim
 
+;> if pressed & 0x10: return AnimViewerNextAnim()       # Right
 	bit 4, a
 	jr nz, AnimViewerNextAnim
 
+;> return
 	ret
 
 
+;@ def AnimViewerRowBGSwitch()
+;@ path: unused/debug/animviewer
+;@ Buttons on the MONSTER row: Left/Right switch the monster picture off or on, B leaves,
+;@ Up/Down move the cursor.
+;@ test: skip jumps to routines that poll the LCD
 AnimViewerRowBGSwitch::
+;> pressed = wJoyPressed
 	ld a, [wJoyPressed]
+;> if pressed & 0x02: return AnimViewerExit()
 	bit 1, a
 	jp nz, AnimViewerExit
 
+;> if pressed & 0x40: return AnimViewerCursorUp()
 	bit 6, a
 	jp nz, AnimViewerCursorUp
 
+;> if pressed & 0x80: return AnimViewerCursorDown()
 	bit 7, a
-	jr nz, jr_05f_5d61
+	jr nz, AnimViewerCursorDown
 
+;> if pressed & 0x20: return AnimViewerToggleBG()
 	bit 5, a
 	jp nz, AnimViewerToggleBG
 
+;> if pressed & 0x10: return AnimViewerToggleBG()
 	bit 4, a
 	jp nz, AnimViewerToggleBG
 
+;> return
 	ret
 
 
+;@ def AnimViewerRowBGNumber()
+;@ path: unused/debug/animviewer
+;@ Buttons on the monster number row: Left/Right choose the monster ($00-$D7), B leaves,
+;@ Up/Down move the cursor.
+;@ test: skip jumps to routines that poll the LCD
 AnimViewerRowBGNumber::
+;> pressed = wJoyPressed
 	ld a, [wJoyPressed]
+;> if pressed & 0x02: return AnimViewerExit()
 	bit 1, a
 	jp nz, AnimViewerExit
 
+;> if pressed & 0x40: return AnimViewerCursorUp()
 	bit 6, a
-	jr nz, jr_05f_5d75
+	jr nz, AnimViewerCursorUp
 
+;> if pressed & 0x80: return AnimViewerCursorDown()
 	bit 7, a
-	jr nz, jr_05f_5d61
+	jr nz, AnimViewerCursorDown
 
+;> if pressed & 0x20: return AnimViewerPrevBG()
 	bit 5, a
 	jp nz, AnimViewerPrevBG
 
+;> if pressed & 0x10: return AnimViewerNextBG()
 	bit 4, a
 	jp nz, AnimViewerNextBG
 
+;> return
 	ret
 
 
+;@ def AnimViewerRowEffect()
+;@ path: unused/debug/animviewer
+;@ The screen effect row: while an effect runs (wBattleAnimDone clear) it hides the cursor and
+;@ runs the effect; otherwise A plays screen effect wListLastRows, B leaves, Up/Down move the
+;@ cursor, Left/Right change the effect number.
+;@ test: skip jumps to routines that call other banks
 AnimViewerRowEffect::
+;> if not wBattleAnimDone:                 # an effect is running
+;>@r1     AnimViewerHideCursor()
+;>@r2     return AnimViewerRunEffect()
 	ld a, [wBattleAnimDone]
 	or a
-	jr z, jr_05f_5d30
+	jr z, .running
 
+;> pressed = wJoyPressed
 	ld a, [wJoyPressed]
+;> if pressed & 0x01: return AnimViewerPlayEffect()
 	bit 0, a
 	jp nz, AnimViewerPlayEffect
 
+;> if pressed & 0x02: return AnimViewerExit()
 	bit 1, a
 	jp nz, AnimViewerExit
 
+;> if pressed & 0x40: return AnimViewerCursorUp()
 	bit 6, a
-	jr nz, jr_05f_5d75
+	jr nz, AnimViewerCursorUp
 
+;> if pressed & 0x80: return AnimViewerCursorDown()
 	bit 7, a
-	jr nz, jr_05f_5d61
+	jr nz, AnimViewerCursorDown
 
+;> if pressed & 0x20: return AnimViewerPrevEffect()
 	bit 5, a
 	jp nz, AnimViewerPrevEffect
 
+;> if pressed & 0x10: return AnimViewerNextEffect()
 	bit 4, a
 	jp nz, AnimViewerNextEffect
 
+;> return
 	ret
 
 
-jr_05f_5d30:
+.running
+;=@r1
 	call AnimViewerHideCursor
+;=@r2
 	jp AnimViewerRunEffect
 
 
+;@ def AnimViewerNextAnim()
+;@ path: unused/debug/animviewer
+;@ Right on the animation row: next skill animation number, wrapping from $2C to 0.
+;@ test: skip polls the LCD
 AnimViewerNextAnim::
+;> wMenuChoice2 += 1                        # skill animation number
 	ld a, [wMenuChoice2]
 	inc a
 	ld [wMenuChoice2], a
+;> if wMenuChoice2 >= 0x2D:
 	ld a, [wMenuChoice2]
 	cp $2d
 	jr c, AnimViewerAnimChanged
 
+;>     wMenuChoice2 = 0
 	xor a
 	ld [wMenuChoice2], a
 
 AnimViewerAnimChanged:
+;> AnimViewerDrawAnimNumber()
 	call AnimViewerDrawAnimNumber
 	ret
 
 
+;@ def AnimViewerPrevAnim()
+;@ path: unused/debug/animviewer
+;@ Left on the animation row: previous skill animation number, wrapping from 0 to $2C.
+;@ test: skip polls the LCD
 AnimViewerPrevAnim::
+;> wMenuChoice2 -= 1
 	ld a, [wMenuChoice2]
 	dec a
 	ld [wMenuChoice2], a
+;> if wMenuChoice2 >= 0x2D:                 # went below 0
 	ld a, [wMenuChoice2]
 	cp $2d
 	jr c, AnimViewerAnimChanged
 
+;>     wMenuChoice2 = 0x2C
 	ld a, $2c
 	ld [wMenuChoice2], a
+;> AnimViewerDrawAnimNumber()
 	jr AnimViewerAnimChanged
 
+;@ def AnimViewerCursorDown()
+;@ path: unused/debug/animviewer
+;@ Moves the viewer's cursor one row down (wMenuChoice 0-3, wrapping) and redraws it.
+;@ test: skip polls the LCD
 AnimViewerCursorDown::
-jr_05f_5d61:
+;> wMenuChoice += 1
 	ld a, [wMenuChoice]
 	inc a
 	ld [wMenuChoice], a
+;> if wMenuChoice >= 4:
 	ld a, [wMenuChoice]
 	cp $04
 	jr c, AnimViewerDrawCursor
 
+;>     wMenuChoice = 0
 	xor a
 	ld [wMenuChoice], a
+;> AnimViewerDrawCursor(wMenuChoice)
 	jr AnimViewerDrawCursor
 
+;@ def AnimViewerCursorUp()
+;@ path: unused/debug/animviewer
+;@ Moves the viewer's cursor one row up (wrapping from 0 to 3) and redraws it; goes on into
+;@ AnimViewerDrawCursor.
+;@ test: skip polls the LCD
 AnimViewerCursorUp::
-jr_05f_5d75:
+;> wMenuChoice -= 1
 	ld a, [wMenuChoice]
 	dec a
 	ld [wMenuChoice], a
+;> if wMenuChoice >= 4:                     # went below 0
 	ld a, [wMenuChoice]
 	cp $04
 	jr c, AnimViewerDrawCursor
 
+;>     wMenuChoice = 3
 	ld a, $03
 	ld [wMenuChoice], a
+;> AnimViewerDrawCursor(wMenuChoice)
 
+;@ def AnimViewerDrawCursor(row: a)
+;@ path: unused/debug/animviewer
+;@ Draws the viewer's cursor arrow at row `row` (AnimViewerCursorDraws).
+;@ test: skip polls the LCD
 AnimViewerDrawCursor::
+;> AnimViewerCursorDraws[row]()
 	rst $00
 
+;@ path: unused/debug/animviewer
+;@ Cursor drawing routine of each row of the animation viewer.
 AnimViewerCursorDraws::
 	dw AnimViewerCursorRow0
 	dw AnimViewerCursorRow1
 	dw AnimViewerCursorRow2
 	dw AnimViewerCursorRow3
 
+;@ def AnimViewerToggleBG()
+;@ path: unused/debug/animviewer
+;@ Switches the monster picture off or on (wConfirmChoice), shows OFF/ON and clears or loads
+;@ the picture tiles (AnimViewerBGLoaders).
+;@ test: skip polls the LCD
 AnimViewerToggleBG::
+;> wConfirmChoice ^= 1                      # monster picture off/on
 	ld a, [wConfirmChoice]
 	xor $01
 	ld [wConfirmChoice], a
+;> AnimViewerDrawBGSwitch()
 	call AnimViewerDrawBGSwitch
+;> AnimViewerBGLoaders[wConfirmChoice]()
 	ld a, [wConfirmChoice]
 	rst $00
 
+;@ path: unused/debug/animviewer
+;@ What switching the monster picture off (0) and on (1) does.
 AnimViewerBGLoaders::
 	dw AnimViewerClearBG
 	dw AnimViewerLoadBG
 
+;@ def AnimViewerNextBG()
+;@ path: unused/debug/animviewer
+;@ Right on the monster number row: next monster ($00-$D7, wrapping); its picture is loaded
+;@ when pictures are on.
+;@ test: skip polls the LCD
 AnimViewerNextBG::
+;> wConfirmChoice2 += 1                     # monster number
 	ld a, [wConfirmChoice2]
 	inc a
 	ld [wConfirmChoice2], a
+;> if wConfirmChoice2 >= 0xD8:
 	ld a, [wConfirmChoice2]
 	cp $d8
 	jr c, AnimViewerBGChanged
 
+;>     wConfirmChoice2 = 0
 	xor a
 	ld [wConfirmChoice2], a
 
 AnimViewerBGChanged:
+;> AnimViewerDrawBGNumber()
 	call AnimViewerDrawBGNumber
+;> if not wConfirmChoice:
+;>     return
 	ld a, [wConfirmChoice]
 	or a
 	ret z
 
+;> AnimViewerLoadBG()
 	call AnimViewerLoadBG
 	ret
 
 
+;@ def AnimViewerPrevBG()
+;@ path: unused/debug/animviewer
+;@ Left on the monster number row: previous monster (wrapping from 0 to $D7).
+;@ test: skip polls the LCD
 AnimViewerPrevBG::
+;> wConfirmChoice2 -= 1
 	ld a, [wConfirmChoice2]
 	dec a
 	ld [wConfirmChoice2], a
+;> if wConfirmChoice2 >= 0xD8:              # went below 0
 	ld a, [wConfirmChoice2]
 	cp $d8
 	jr c, AnimViewerBGChanged
 
+;>     wConfirmChoice2 = 0xD7
 	ld a, $d7
 	ld [wConfirmChoice2], a
+;> AnimViewerDrawBGNumber()
+;> if wConfirmChoice: AnimViewerLoadBG()
 	jr AnimViewerBGChanged
 
+;@ def AnimViewerPlayAnim()
+;@ path: unused/debug/animviewer
+;@ A on the animation row: loads the sprite tiles of skill animation n = wMenuChoice2
+;@ (AnimViewerSpriteGfx) and its sprite palettes, starts its animation object (set $60) and
+;@ its sprites, and hides the cursor while it plays.
+;@ test: skip calls routines in other banks
 AnimViewerPlayAnim::
+;> n = wMenuChoice2
 	ld a, [wMenuChoice2]
-	ld hl, $61ee
+;> p = AnimViewerSpriteGfx + 2 * n
+	ld hl, AnimViewerSpriteGfx
 	ld c, a
 	ld b, $00
 	add hl, bc
 	add hl, bc
+;> gfx = mem16[p]                           # bank in the high byte, entry in the low byte
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
+;> DecompressVRAM(gfx >> 8, gfx & 0xFF, 0x8000)
 	ld hl, $8000
 	call DecompressVRAM
+;> wPaletteSet = n
 	ld a, [wMenuChoice2]
 	ld [wPaletteSet], a
+;> LoadObjPaletteB()
 	ld hl, far_LoadObjPaletteB
 	rst $10
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> wSkillAnimSet = n
 	ld a, [wMenuChoice2]
 	ld [wSkillAnimSet], a
+;> wSkillAnim = n
 	ld a, [wMenuChoice2]
 	ld [wSkillAnim], a
+;> wBattleAnimIndex = wSkillAnimSet
 	ld a, [wSkillAnimSet]
 	ld [wBattleAnimIndex], a
+;> wBattleAnimSet = 0x60
 	ld a, $60
 	ld [wBattleAnimSet], a
+;> wBattleAnimRunning = 0                   # start its script over
 	ld a, $00
 	ld [wBattleAnimRunning], a
+;> wPlayerAnimPtr = 0xDD62                  # the object that starts at wBattleAnimRunning
 	ld hl, wBattleAnimRunning
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
+;> StepAnimation()
 	ld hl, far_StepAnimation
 	rst $10
+;> AnimViewerStartSprite()
 	call AnimViewerStartSprite
+;> AnimViewerHideCursor()
 
+;@ def AnimViewerHideCursor()
+;@ path: unused/debug/animviewer
+;@ Blanks the cursor column of the viewer (column 13 of rows 14-16 and of row 3) and copies
+;@ wTilemapBuffer to the screen.
+;@ test: skip polls the LCD
 AnimViewerHideCursor::
-	ld hl, $c6cd
+;> p = PutBlank(wTilemapBuffer + 0x1CD)    # row 14, column 13
+	ld hl, wTilemapBuffer + $1cd
 	call PutBlank
+;> p = PutBlank(p)
 	call PutBlank
+;> PutBlank(p)
 	call PutBlank
-	ld hl, $c56d
+;> PutBlank(wTilemapBuffer + 0x6D)          # row 3, column 13
+	ld hl, wTilemapBuffer + $6d
 	call PutBlank
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
+;@ def AnimViewerExit()
+;@ path: unused/debug/animviewer
+;@ B: fades out and goes back to the debug menu (game mode 7).
 AnimViewerExit::
+;> StartFade(0x04)
 	ld a, $04
 	call StartFade
+;> wGameMode = 7                            # the debug menu
 	ld a, $07
 	ld [wGameMode], a
+;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
 
+;@ def AnimViewerNextEffect()
+;@ path: unused/debug/animviewer
+;@ Right on the screen effect row: next screen effect number (wListLastRows, 0-12, wrapping).
+;@ test: skip polls the LCD
 AnimViewerNextEffect::
+;> wListLastRows += 1                       # screen effect number
 	ld a, [wListLastRows]
 	inc a
 	ld [wListLastRows], a
+;> if wListLastRows >= 13:
 	ld a, [wListLastRows]
 	cp $0d
 	jr c, AnimViewerEffectChanged
 
+;>     wListLastRows = 0
 	xor a
 	ld [wListLastRows], a
 
 AnimViewerEffectChanged:
+;> AnimViewerDrawEffectNumber()
 	call AnimViewerDrawEffectNumber
 	ret
 
 
+;@ def AnimViewerPrevEffect()
+;@ path: unused/debug/animviewer
+;@ Left on the screen effect row: previous screen effect number (wrapping from 0 to 12).
+;@ test: skip polls the LCD
 AnimViewerPrevEffect::
+;> wListLastRows -= 1
 	ld a, [wListLastRows]
 	dec a
 	ld [wListLastRows], a
+;> if wListLastRows >= 13:                  # went below 0
 	ld a, [wListLastRows]
 	cp $0d
 	jr c, AnimViewerEffectChanged
 
+;>     wListLastRows = 12
 	ld a, $0c
 	ld [wListLastRows], a
+;> AnimViewerDrawEffectNumber()
 	jr AnimViewerEffectChanged
 
+;@ def AnimViewerPlayEffect()
+;@ path: unused/debug/animviewer
+;@ A on the screen effect row: starts screen effect wListLastRows aimed at a single enemy
+;@ (position 4) and hides the cursor.
+;@ test: skip polls the LCD
 AnimViewerPlayEffect::
+;> wSkillTarget = 4
 	ld a, $04
 	ld [wSkillTarget], a
+;> wEnemyCount = 1
 	ld a, $01
 	ld [wEnemyCount], a
+;> fill(wBattleAnimDone, 0, 6)              # effect not done, its counters cleared
 	xor a
 	ld hl, wBattleAnimDone
 	ld bc, $0006
 	call FillMemory
+;> wScreenEffect = wListLastRows
 	ld a, [wListLastRows]
 	ld [wScreenEffect], a
+;> AnimViewerHideCursor()
 	jr AnimViewerHideCursor
 
+;@ def AnimViewerStepAnim()
+;@ path: unused/debug/animviewer
+;@ While the skill animation plays: draws its sprites and steps its animation object; once it
+;@ is over the cursor is drawn again (AnimViewerCursorRedraws).
+;@ test: skip calls routines in other banks
 AnimViewerStepAnim::
+;> if wBattleAnimRunning:
 	ld a, [wBattleAnimRunning]
 	or a
-	jr z, jr_05f_5eb5
+	jr z, .over
 
+;>     AnimViewerDrawSprite()
 	call AnimViewerDrawSprite
+;>     StepAnimation()
 	ld hl, far_StepAnimation
 	rst $10
+;>     if wBattleAnimRunning:
+;>         return
 	ld a, [wBattleAnimRunning]
 	or a
 	ret nz
 
-jr_05f_5eb5:
+.over
+;> AnimViewerCursorRedraws[wMenuChoice]()
 	ld a, [wMenuChoice]
 	rst $00
 
+;@ path: unused/debug/animviewer
+;@ Cursor drawing routine of each row, used when a skill animation is over.
 AnimViewerCursorRedraws::
 	dw AnimViewerCursorRow0
 	dw AnimViewerCursorRow1
 	dw AnimViewerCursorRow2
 	dw AnimViewerCursorRow3
 
+;@ def AnimViewerRunEffect()
+;@ path: unused/debug/animviewer
+;@ Runs one frame of the screen effect; once it is done the cursor is drawn again.
+;@ test: skip calls routines in other banks
 AnimViewerRunEffect::
+;> UpdateScreenEffect()
 	ld hl, far_UpdateScreenEffect
 	rst $10
+;> if not wBattleAnimDone:
+;>     return
 	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
+;> AnimViewerCursorRow3()
 	jr AnimViewerCursorRow3
 
+;@ def FillVRAMWords_5F(word: de, dest: hl, count: bc)
+;@ path: gfx/vram
+;@ Writes the two bytes of `word` (high byte first) `count` times from `dest` on, each byte
+;@ when VRAM is accessible.
+;@ test: skip polls the LCD
 FillVRAMWords_5F::
+;>@loop for _ in range(count):
+;>     mem[dest] = word >> 8
 	di
 	call WaitVRAMAccess
 	ld a, d
 	ld [hli], a
 	ei
+;>     mem[dest + 1] = word & 0xFF
+;>     dest += 2
 	di
 	call WaitVRAMAccess
 	ld a, e
 	ld [hli], a
 	ei
+;=@loop
 	dec bc
 	ld a, b
 	or c
 	jr nz, FillVRAMWords_5F
 
+;> return
 	ret
 
 
+;@ def AnimViewerCursorRow0()
+;@ path: unused/debug/animviewer
+;@ Draws the cursor arrow at the animation row (row 14) and copies wTilemapBuffer to the
+;@ screen.
+;@ test: skip polls the LCD
 AnimViewerCursorRow0::
-	ld hl, $c6cd
+;> p = PutArrow(wTilemapBuffer + 0x1CD)     # rows 14-16, column 13
+	ld hl, wTilemapBuffer + $1cd
 	call PutArrow
+;> PutBlankTwice(p)
 	call PutBlankTwice
-	ld hl, $c56d
+;> PutBlank(wTilemapBuffer + 0x6D)          # row 3, column 13
+	ld hl, wTilemapBuffer + $6d
 	call PutBlank
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
+;@ def AnimViewerCursorRow1()
+;@ path: unused/debug/animviewer
+;@ Draws the cursor arrow at the MONSTER row (row 15).
+;@ test: skip polls the LCD
 AnimViewerCursorRow1::
-	ld hl, $c6cd
+;> p = PutBlank(wTilemapBuffer + 0x1CD)
+	ld hl, wTilemapBuffer + $1cd
 	call PutBlank
+;> p = PutArrow(p)
 	call PutArrow
+;> PutBlank(p)
 	call PutBlank
-	ld hl, $c56d
+;> PutBlank(wTilemapBuffer + 0x6D)
+	ld hl, wTilemapBuffer + $6d
 	call PutBlank
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
+;@ def AnimViewerCursorRow2()
+;@ path: unused/debug/animviewer
+;@ Draws the cursor arrow at the monster number row (row 16).
+;@ test: skip polls the LCD
 AnimViewerCursorRow2::
-	ld hl, $c6cd
+;> p = PutBlankTwice(wTilemapBuffer + 0x1CD)
+	ld hl, wTilemapBuffer + $1cd
 	call PutBlankTwice
+;> PutArrow(p)
 	call PutArrow
-	ld hl, $c56d
+;> PutBlank(wTilemapBuffer + 0x6D)
+	ld hl, wTilemapBuffer + $6d
 	call PutBlank
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
+;@ def AnimViewerCursorRow3()
+;@ path: unused/debug/animviewer
+;@ Draws the cursor arrow at the screen effect number (row 3).
+;@ test: skip polls the LCD
 AnimViewerCursorRow3::
-	ld hl, $c6cd
+;> p = PutBlank(wTilemapBuffer + 0x1CD)
+	ld hl, wTilemapBuffer + $1cd
 	call PutBlank
+;> PutBlankTwice(p)
 	call PutBlankTwice
-	ld hl, $c56d
+;> PutArrow(wTilemapBuffer + 0x6D)
+	ld hl, wTilemapBuffer + $6d
 	call PutArrow
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
+;@ def PutBlankTwice(p: hl) -> hl
+;@ path: unused/debug/animviewer
+;@ PutBlank at p and at the row below it.
+;@ test: skip polls the LCD
 PutBlankTwice::
+;> p = PutBlank(p)
 	call PutBlank
+;> return PutBlank(p)
 
+;@ def PutBlank(p: hl) -> hl
+;@ path: unused/debug/animviewer
+;@ Writes the blank tile $E0 at p (waiting for VRAM access) and returns p one row (32 tiles)
+;@ further down.
+;@ test: skip polls the LCD
 PutBlank::
+;> mem[p] = 0xE0
 	di
 	call WaitVRAMAccess
 	ld a, $e0
 	ld [hl], a
 	ei
+;> p = (p + 32) & 0xFFFF
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> return p
 	ret
 
 
+;@ def PutArrow(p: hl) -> hl
+;@ path: unused/debug/animviewer
+;@ Writes the arrow tile $E8 at p (waiting for VRAM access) and returns p one row further down.
+;@ test: skip polls the LCD
 PutArrow::
+;> mem[p] = 0xE8
 	di
 	call WaitVRAMAccess
 	ld a, $e8
 	ld [hl], a
 	ei
+;> p = (p + 32) & 0xFFFF
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
+;> return p
 	ret
 
 
+;@ def DrawDebugString(src: hl, dest: de)
+;@ path: unused/debug
+;@ Draws a string of font codes ending in $FF as tiles: the font tile of each letter is copied
+;@ to VRAM `dest`, `dest + 16` and so on (codes $00-$09 are the digits, $0A-$23 A-Z, as used
+;@ by the debug screens).
+;@ test: skip switches banks and polls the LCD
 DrawDebugString::
+;>@loop while True:
+;>     c = mem[src]
 	ld a, [hli]
+;>     if c == 0xFF:
+;>         return
 	cp $ff
 	ret z
 
+;>     CopyGlyph(c, wTextArg0)              # font tile into a buffer
 	push hl
 	push de
 	ld hl, wTextArg0
 	push de
 	call CopyGlyph
 	pop de
+;>     CopyTileVRAM_5F(wTextArg0, dest)
 	ld hl, wTextArg0
 	call CopyTileVRAM_5F
 	pop de
 	pop hl
+;>     src += 1; dest += 16
 	ld a, $10
 	add e
 	ld e, a
 	ld a, $00
 	adc d
 	ld d, a
+;=@loop
 	jr DrawDebugString
 
+;@ def CopyTileVRAM_5F(src: hl, dest: de)
+;@ path: gfx/vram
+;@ Copies one 16-byte tile from `src` to VRAM `dest`, each byte when VRAM is accessible.
+;@ test: skip polls the LCD
 CopyTileVRAM_5F::
+;>@loop for i in range(16):
 	ld b, $10
 
-jr_05f_5f7a:
+.loop
+;>     mem[dest + i] = mem[src + i]
 	di
 	call WaitVRAMAccess
 	ld a, [hli]
 	ld [de], a
 	ei
 	inc de
+;=@loop
 	dec b
-	jr nz, jr_05f_5f7a
+	jr nz, .loop
 
+;> return
 	ret
 
 
+;@ def AnimViewerDrawAnimNumber()
+;@ path: unused/debug/animviewer
+;@ Shows the skill animation number wMenuChoice2 as two hex digits in tiles $B4-$B5.
+;@ test: skip switches banks and polls the LCD
 AnimViewerDrawAnimNumber::
+;> mem[wMenuChoice3] = wMenuChoice2 >> 4    # a string: two hex digits, then the end mark
 	ld hl, wMenuChoice3
 	ld a, [wMenuChoice2]
 	and $f0
 	call HighNibble_5F
 	ld [hli], a
+;> mem[wMenuChoice3 + 1] = wMenuChoice2 & 0x0F
 	ld a, [wMenuChoice2]
 	and $0f
 	ld [hli], a
+;> mem[wMenuChoice3 + 2] = 0xFF
 	ld a, $ff
 	ld [hl], a
+;> DrawDebugString(wMenuChoice3, 0x8B40)
 	ld de, $8b40
 	ld hl, wMenuChoice3
 	call DrawDebugString
 	ret
 
 
+;@ def AnimViewerDrawBGSwitch()
+;@ path: unused/debug/animviewer
+;@ Shows OFF or ON (wConfirmChoice, the monster picture) in tiles $B6-$B8.
+;@ test: skip switches banks and polls the LCD
 AnimViewerDrawBGSwitch::
-	ld hl, $61b5
+;> i = 2 * wConfirmChoice
+	ld hl, AnimViewerOnOff
 	ld a, [wConfirmChoice]
 	add a
+;> p = AnimViewerOnOff + i
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> text = mem16[p]
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;> DrawDebugString(text, 0x8B60)
 	ld de, $8b60
 	call DrawDebugString
 	ret
 
 
+;@ def AnimViewerDrawBGNumber()
+;@ path: unused/debug/animviewer
+;@ Shows the monster number wConfirmChoice2 as two hex digits in tiles $B2-$B3.
+;@ test: skip switches banks and polls the LCD
 AnimViewerDrawBGNumber::
+;> mem[wMenuChoice3] = wConfirmChoice2 >> 4
 	ld hl, wMenuChoice3
 	ld a, [wConfirmChoice2]
 	and $f0
 	call HighNibble_5F
 	ld [hli], a
+;> mem[wMenuChoice3 + 1] = wConfirmChoice2 & 0x0F
 	ld a, [wConfirmChoice2]
 	and $0f
 	ld [hli], a
+;> mem[wMenuChoice3 + 2] = 0xFF
 	ld a, $ff
 	ld [hl], a
+;> DrawDebugString(wMenuChoice3, 0x8B20)
 	ld de, $8b20
 	ld hl, wMenuChoice3
 	call DrawDebugString
 	ret
 
 
+;@ def AnimViewerDrawEffectNumber()
+;@ path: unused/debug/animviewer
+;@ Shows the screen effect number wListLastRows as two hex digits in tiles $A9-$AA.
+;@ test: skip switches banks and polls the LCD
 AnimViewerDrawEffectNumber::
+;> mem[wMenuChoice3] = wListLastRows >> 4
 	ld hl, wMenuChoice3
 	ld a, [wListLastRows]
 	and $f0
 	call HighNibble_5F
 	ld [hli], a
+;> mem[wMenuChoice3 + 1] = wListLastRows & 0x0F
 	ld a, [wListLastRows]
 	and $0f
 	ld [hli], a
+;> mem[wMenuChoice3 + 2] = 0xFF
 	ld a, $ff
 	ld [hl], a
+;> DrawDebugString(wMenuChoice3, 0x8A90)
 	ld de, $8a90
 	ld hl, wMenuChoice3
 	call DrawDebugString
 	ret
 
 
+;@ def AnimViewerDrawSprite()
+;@ path: unused/debug/animviewer
+;@ Draws the sprites of skill animation wMenuChoice2 through bank $5C (below $0E), $5D (below
+;@ $21) or $5E.
+;@ test: skip calls routines in other banks
 AnimViewerDrawSprite::
+;> n = wMenuChoice2
 	ld a, [wMenuChoice2]
+;> if n < 0x0E:
+;>@c     DrawSkillAnimSprite_5C()
 	cp $0e
-	jr c, jr_05f_600a
+	jr c, .bank5C
 
+;> elif n < 0x21:
+;>@d     DrawSkillAnimSprite_5D()
 	cp $21
-	jr c, jr_05f_600f
+	jr c, .bank5D
 
+;> else:
+;>     DrawSkillAnimSprite_5E()
 	ld hl, far_DrawSkillAnimSprite_5E
 	rst $10
 	ret
 
 
-jr_05f_600a:
+.bank5C
+;=@c
 	ld hl, far_DrawSkillAnimSprite_5C
 	rst $10
 	ret
 
 
-jr_05f_600f:
+.bank5D
+;=@d
 	ld hl, far_DrawSkillAnimSprite_5D
 	rst $10
 	ret
 
 
+;@ def AnimViewerStartSprite()
+;@ path: unused/debug/animviewer
+;@ Starts the sprites of skill animation n = wMenuChoice2 like StartSkillAnimSprites: sprite
+;@ palettes from AnimViewerOBP0, animations 3, 4 and $0A fly in from the left, the others start
+;@ in the middle.
+;@ test: skip calls routines in other banks
 AnimViewerStartSprite::
+;> wOBP0 = 0xD0
 	ld hl, wBGP
 	inc hl
 	ld a, $d0
 	ld [hli], a
+;> wOBP1 = 0xE0
 	ld a, $e0
 	ld [hl], a
-	ld hl, $61c1
+;> p = AnimViewerOBP0 + wMenuChoice2
+	ld hl, AnimViewerOBP0
 	ld a, [wMenuChoice2]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;> wOBP0 = mem[p]
 	ld h, a
 	ld a, [hl]
 	ld [wOBP0], a
+;> n = wMenuChoice2
 	ld a, [wMenuChoice2]
+;>@f if n in (0x03, 0x04, 0x0A):
 	cp $03
-	jr z, jr_05f_6049
+	jr z, .flyIn
 
 	cp $04
-	jr z, jr_05f_6049
+	jr z, .flyIn
 
+;=@f
 	cp $0a
-	jr z, jr_05f_6049
+	jr z, .flyIn
 
+;>@f1     wSkillAnimPhase = 0
+;>@f2     wItemMsgGroup = 0
+;> else:
+;>     wSkillAnimPhase = 1
 	ld a, $01
 	ld [wSkillAnimPhase], a
+;>     wItemMsgGroup = 1
 	ld a, $01
 	ld [wItemMsgGroup], a
-	jr jr_05f_6053
+	jr .start
 
-jr_05f_6049:
+.flyIn
+;=@f1
 	ld a, $00
 	ld [wSkillAnimPhase], a
+;=@f2
 	ld a, $00
 	ld [wItemMsgGroup], a
 
-jr_05f_6053:
+.start
+;> if n < 0x0E:
+;>@c     StartSkillAnimSprite_5C()
 	ld a, [wMenuChoice2]
 	cp $0e
-	jr c, jr_05f_6063
+	jr c, .bank5C
 
+;> elif n < 0x21:
+;>@d     StartSkillAnimSprite_5D()
 	cp $21
-	jr c, jr_05f_6068
+	jr c, .bank5D
 
+;> else:
+;>     StartSkillAnimSprite_5E()
 	ld hl, far_StartSkillAnimSprite_5E
 	rst $10
 	ret
 
 
-jr_05f_6063:
+.bank5C
+;=@c
 	ld hl, far_StartSkillAnimSprite_5C
 	rst $10
 	ret
 
 
-jr_05f_6068:
+.bank5D
+;=@d
 	ld hl, far_StartSkillAnimSprite_5D
 	rst $10
 	ret
 
 
+;@ def AnimViewerClearBG()
+;@ path: unused/debug/animviewer
+;@ Monster picture off: fills the picture tiles $00-$23 at $9000 with plain colour 1.
+;@ test: skip polls the LCD
 AnimViewerClearBG::
+;> FillVRAMWords_5F(0xFF00, 0x9000, 0x120)
 	ld de, $ff00
 	ld hl, $9000
 	ld bc, $0120
@@ -6591,25 +7027,38 @@ AnimViewerClearBG::
 	ret
 
 
+;@ def AnimViewerLoadBG()
+;@ path: unused/debug/animviewer
+;@ Monster picture on: decompresses the graphics of monster wConfirmChoice2 (ActorGfx entry
+;@ $60 + n, the monsters' entries) into the picture tiles at $9000.
+;@ test: skip switches banks and polls the LCD
 AnimViewerLoadBG::
+;> i = 2 * wConfirmChoice2
 	ld a, [wConfirmChoice2]
 	ld l, a
 	ld h, $00
 	add hl, hl
+;> p = ActorGfx + 0xC0 + i
 	ld a, l
-	add $9f
+	add LOW(ActorGfx + $c0)
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(ActorGfx + $c0)
 	ld h, a
+;> gfx = mem16[p]                           # bank in the high byte, entry in the low byte
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
+;> DecompressVRAM(gfx >> 8, gfx & 0xFF, 0x9000)
 	ld hl, $9000
 	call DecompressVRAM
 	ret
 
 
+;@ path: unused/debug/animviewer
+;@ The animation viewer's bottom box in DrawTilemap_5F format (offset $01A0: rows 13-17):
+;@ "OBJ NO" with the animation number (tiles $B4-$B5), "MONSTER" with OFF/ON ($B6-$B8) and
+;@ the monster number ($B2-$B3). Frame tiles $EE/$EF/$FA-$FF, blank $E0.
 AnimViewerMenuTilemap::
 	db $a0, $01, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $fb, $d8, $fe, $e0, $e0, $e0, $c4, $c5, $c6, $e0, $c7
@@ -6619,6 +7068,10 @@ AnimViewerMenuTilemap::
 	db $b3, $e0, $e0, $e0, $ff, $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused/debug/animviewer
+;@ The animation viewer's top box in DrawTilemap_5F format (offset 0: rows 0-4):
+;@ "BATTLE EFECT" and "EFECT NO" with the cursor arrow ($E8) and the screen effect number
+;@ (tiles $A9-$AA).
 AnimViewerTitleTilemap::
 	db $00, $00, $fa, $ef, $ef
 	db $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
@@ -6629,45 +7082,69 @@ AnimViewerTitleTilemap::
 	db $d8, $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee
 	db $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused/debug/animviewer
+;@ The monster picture of the animation viewer in DrawTilemap_5F format (offset $00C7: row 6,
+;@ column 7): 6 x 6 tiles $00-$23.
 AnimViewerPicTilemap::
 	db $c7, $00, $00, $01, $02, $03, $04, $05, $d8, $06
 	db $07, $08, $09, $0a, $0b, $d8, $0c, $0d, $0e, $0f, $10, $11, $d8, $12, $13, $14
 	db $15, $16, $17, $d8, $18, $19, $1a, $1b, $1c, $1d, $d8, $1e, $1f, $20, $21, $22
 	db $23, $d9
 
+;@ path: unused/debug/animviewer
+;@ The viewer's words for tiles $B9-$CF, in debug font codes ($0A = A): "BATTLE", "EFECT",
+;@ "OBJ", "NO", "MONSTER", ending in $FF.
 AnimViewerLabels::
 	db $0b, $0a, $1d, $1d, $15, $0e, $0e, $0f, $0e, $0c, $1d, $18, $0b, $13
 	db $17, $18, $16, $18, $17, $1c, $1d, $0e, $1b, $ff
 
+;@ path: unused/debug/animviewer
+;@ The words for tiles $AB-$B1: "EFECT", "NO".
 AnimViewerLabels2::
 	db $0e, $0f, $0e, $0c, $1d, $17
 	db $18, $ff
 
+;@ path: unused/debug/animviewer
+;@ The OFF and ON strings of the MONSTER row, indexed by wConfirmChoice.
 AnimViewerOnOff::
-	db $b9, $61, $bd, $61
+	dw AnimViewerOffText
+	dw AnimViewerOnText
 
+;@ path: unused/debug/animviewer
+;@ "OFF" in debug font codes.
 AnimViewerOffText::
 	db $18, $0f, $0f, $ff
 
+;@ path: unused/debug/animviewer
+;@ "ON " in debug font codes ($90 a blank).
 AnimViewerOnText::
 	db $18, $17, $90, $ff
 
+;@ path: unused/debug/animviewer
+;@ OBP0 sprite palette for each of the 45 skill animations ($D0 or $E0), a copy of
+;@ SkillAnimOBP0.
 AnimViewerOBP0::
 	db $e0, $e0
 	db $e0, $e0, $e0, $e0, $d0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $d0, $d0, $e0, $e0, $e0, $e0, $e0, $d0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $d0
 
+;@ path: unused/debug/animviewer
+;@ Sprite graphics of each of the 45 skill animations for DecompressVRAM: bank in the high
+;@ byte ($5A, $5B), entry in the low byte.
 AnimViewerSpriteGfx::
-	db $00, $5a, $01, $5a, $02
-	db $5a, $03, $5a, $04, $5a, $05, $5a, $06, $5a, $07, $5a, $08, $5a, $09, $5a, $0a
-	db $5a, $0b, $5a, $0c, $5a, $0d, $5a, $0e, $5a, $0f, $5a, $10, $5a, $11, $5a, $12
-	db $5a, $13, $5a, $14, $5a, $15, $5a, $16, $5a, $17, $5a, $18, $5a, $19, $5a, $1a
-	db $5a, $1b, $5a, $1c, $5a, $1d, $5a, $1e, $5a, $1f, $5a, $0a, $5b, $0b, $5b, $0c
-	db $5b, $0d, $5b, $0e, $5b, $0f, $5b, $10, $5b, $11, $5b, $12, $5b, $13, $5b, $14
-	db $5b, $15, $5b, $16, $5b
+	dw $5a00, $5a01, $5a02, $5a03, $5a04, $5a05, $5a06, $5a07
+	dw $5a08, $5a09, $5a0a, $5a0b, $5a0c, $5a0d, $5a0e, $5a0f
+	dw $5a10, $5a11, $5a12, $5a13, $5a14, $5a15, $5a16, $5a17
+	dw $5a18, $5a19, $5a1a, $5a1b, $5a1c, $5a1d, $5a1e, $5a1f
+	dw $5b0a, $5b0b, $5b0c, $5b0d, $5b0e, $5b0f, $5b10, $5b11
+	dw $5b12, $5b13, $5b14, $5b15, $5b16
 
+;@ def HighNibble_5F(a: a) -> a
+;@ path: unused/debug
+;@ Returns a >> 4.
 HighNibble_5F::
+;> return a >> 4
 	srl a
 	srl a
 	srl a

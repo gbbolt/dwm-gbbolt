@@ -3620,10 +3620,20 @@ CheckBossImmunity_53::
 	ret
 
 
+;@ def RunSkillHit_53()
+;@ path: battle/skills
+;@ Battle action step 1, once per frame: carries out the skill of the acting monster on its target,
+;@ one stage (wBattleSubStep2, SkillHitStages_53) after the other - messages, animation, being
+;@ intercepted, dodged or missed, a critical hit, the damage and the result message. Stage 16 (after
+;@ the last) tells bank $52 that the hit is over.
+;@ test: skip jump table
 RunSkillHit_53::
+;> SkillHitStages_53[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
+;@ path: battle/skills
+;@ Stages 0-15 of RunSkillHit_53.
 SkillHitStages_53::
 	dw Hit_Begin_53
 	dw Hit_NudgeMessage_53
@@ -3642,280 +3652,390 @@ SkillHitStages_53::
 	dw Hit_Effect_53
 	dw Hit_Message_53
 
+;@ def Hit_Begin_53()
+;@ path: battle/skills
+;@ Stage 0: counts the hit (wHitCount) and takes the target of the action (the battle AI picks one
+;@ if it is still open). Only the first hit has the announcing stages; a further hit of the same
+;@ skill goes straight to stage 7.
+;@ test: skip calls routines in other banks
 Hit_Begin_53::
+;> wBattleSubStep2 += 1; wHitCount += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ld hl, wHitCount
 	inc [hl]
 
-jr_053_5214:
+.getTarget
+;>@t while True:
+;>     wInterceptState = 0
 	xor a
 	ld [wInterceptState], a
+;>@a     wSkillTarget = wBattlerAction[2 * wSkillUser + 1]
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wSkillTarget], a
+;>     if wSkillTarget != 0xFF: break
 	cp $ff
-	jr nz, jr_053_5233
+	jr nz, .haveTarget
 
+;>     RunTargetPicker()
 	ld hl, far_RunTargetPicker
 	rst $10
-	jr jr_053_5214
+;=@t
+	jr .getTarget
 
-jr_053_5233:
+.haveTarget
+;> if wHitCount == 1: return Hit_NudgeMessage_53()
 	ld a, [wHitCount]
 	cp $01
 	jr z, Hit_NudgeMessage_53
 
+;> wBattleSubStep2 = 7; return Hit_Intercept_53()
 	ld a, $07
 	ld [wBattleSubStep2], a
 	jp Hit_Intercept_53
 
 
+;@ def Hit_NudgeMessage_53()
+;@ path: battle/skills
+;@ Stage 1: a personality effect of the user shows itself: "... shouts a battle cry!" ($6D, bit 6 of
+;@ wPersonalityNudge), "... focuses its energy" ($69, bit 2) or "A Celestial light covers ..."
+;@ ($6B, bit 4); without one it goes on with stage 2 at once.
+;@ test: skip calls routines in other banks
 Hit_NudgeMessage_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@n nudge = wPersonalityNudge[wSkillUser] & 0x54
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@n
 	ld h, a
 	ld a, [hl]
 	and $54
+;> if not nudge: return Hit_Announce_53()
 	jr z, Hit_Announce_53
 
+;> GetUserName_53()
 	push af
 	call GetUserName_53
 	pop af
+;>@c if nudge & 0x40: msg = 0x6D            # battle cry
 	bit 6, a
-	jr nz, jr_053_526c
+	jr nz, .battleCry
 
+;>@f elif nudge & 0x04: msg = 0x69          # focuses its energy
 	bit 2, a
-	jr nz, jr_053_5268
+	jr nz, .focus
 
+;> else: msg = 0x6B                        # Celestial light
 	ld a, $6b
-	jr jr_053_526e
+	jr .show
 
-jr_053_5268:
+.focus
+;=@f
 	ld a, $69
-	jr jr_053_526e
+	jr .show
 
-jr_053_526c:
+.battleCry
+;=@c
 	ld a, $6d
 
-jr_053_526e:
+.show
+;> wTextIndex = msg; wTextGroup = 0
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def Hit_Announce_53()
+;@ path: battle/skills
+;@ Stage 2: shows what the user does (GetSkillMessage, ShowActionMessage, PlaySkillSound0) and
+;@ starts a 24-frame wait (wMonStats serves as the counter). Skills on a whole side (Sacrifice,
+;@ Barrier, MagicWall, Ironize, Guardian, DeMagic, TailWind, StormWind, SuckAll, ThickFog,
+;@ FILTHZONE) move their target to the first monster present on that side. A reaction other than
+;@ kind 8 is not announced.
+;@ test: skip calls routines in other banks
 Hit_Announce_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wReactionKind not in (0, 8): return
 	ld a, [wReactionKind]
 	or a
-	jr z, jr_053_5289
+	jr z, .announce
 
 	cp $08
-	jr z, jr_053_5289
+	jr z, .announce
 
 	ret
 
 
-jr_053_5289:
+.announce
+;> GetSkillMessage(); ShowActionMessage()
 	ld hl, far_GetSkillMessage
 	rst $10
 	ld hl, far_ShowActionMessage
 	rst $10
+;> PlaySkillSound0()
 	ld hl, far_PlaySkillSound0
 	rst $10
+;> wMonStats = 0x18                       # wait 24 frames
 	ld a, $18
 	ld [wMonStats], a
+;>@s if wSkillId not in (0x14, 0x24, 0x26, 0x2A, 0x89, 0x80, 0x8A, 0x8B, 0x8F, 0x83, 0xA5): return
 	ld a, [wSkillId]
 	cp $14
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
 	cp $24
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
+;=@s
 	cp $26
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
 	cp $2a
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
+;=@s
 	cp $89
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
 	cp $80
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
+;=@s
 	cp $8a
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
 	cp $8b
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
+;=@s
 	cp $8f
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
 	cp $83
-	jr z, jr_053_52c8
+	jr z, .findTarget
 
+;=@s
 	cp $a5
 	ret nz
 
-jr_053_52c8:
+.findTarget
+;>@l while CheckBattlerPresent(wSkillTarget):   # not present: try the next position of the side
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	ret nc
 
+;>@e     entry = addr(wBattlerAction) + 2 * wSkillUser + 1
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@e
 	adc h
 	ld h, a
+;>     if mem[entry] & 3 == 3: return
 	ld a, [hl]
 	and $03
 	cp $03
 	ret z
 
+;>     mem[entry] += 1; wSkillTarget = mem[entry]
 	inc [hl]
 	ld a, [hl]
 	ld [wSkillTarget], a
-	jr jr_053_52c8
+;=@l
+	jr .findTarget
 
+;@ def Hit_AfterAnnounce_53()
+;@ path: battle/skills
+;@ Stage 3: waits out the 24 frames, then: the first turn of HighJump goes to stage 11 (the user just
+;@ jumps). Otherwise the target is fixed (and kept in wBattleTempHigh) and a personality effect may
+;@ show: "... fear boosts its guard" ($68, bit 1 of wPersonalityNudge) or, for skills with bit 4 of
+;@ wSkillFlags2, "... attacks with full force" ($67, bit 0); else on to stage 4 at once.
+;@ test: skip calls routines in other banks
 Hit_AfterAnnounce_53::
+;> if wMonStats:
 	ld a, [wMonStats]
 	or a
-	jr z, jr_053_52f4
+	jr z, .waited
 
+;>     wMonStats -= 1; return
 	dec a
 	ld [wMonStats], a
 	ret
 
 
-jr_053_52f4:
+.waited
+;> LoadSkillFlags()
 	ld hl, far_LoadSkillFlags
 	rst $10
+;>@hj if wSkillId == 0x42 and not (wBattlerStatus4[8 * wSkillUser] & 0x0C):    # HighJump, first turn
 	ld a, [wSkillId]
 	cp $42
-	jr nz, jr_053_5313
+	jr nz, .target
 
+;=@hj
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $0c
-	jr nz, jr_053_5313
+	jr nz, .target
 
+;>     wBattleSubStep2 = 0x0B; return
 	ld a, $0b
 	ld [wBattleSubStep2], a
 	ret
 
 
-jr_053_5313:
+.target
+;>@t wSkillTarget = wBattlerAction[2 * wSkillUser + 1]; wBattleTempHigh = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@t
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wSkillTarget], a
 	ld [wBattleTempHigh], a
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@n nudge = wPersonalityNudge[wSkillUser] & 0x03
 	ld a, [wSkillUser]
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@n
 	ld h, a
 	ld a, [hl]
 	and $03
+;> if not nudge: return Hit_Animate_53()
 	jr z, Hit_Animate_53
 
+;> GetUserName_53()
 	push af
 	call GetUserName_53
 	pop af
+;>@fear if nudge & 0x02: msg = 0x68          # fear boosts its guard
 	bit 1, a
-	jr z, jr_053_5349
+	jr z, .notFear
 
+;=@fear
 	ld a, $68
-	jr jr_053_5352
+	jr .show
 
-jr_053_5349:
+.notFear
+;>@full elif wSkillFlags2 & 0x10: msg = 0x67     # attacks with full force
 	ld a, [wSkillFlags2]
 	bit 4, a
+;> else: return Hit_Animate_53()
 	jr z, Hit_Animate_53
 
+;=@full
 	ld a, $67
 
-jr_053_5352:
+.show
+;> wTextIndex = msg; wTextGroup = 0
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
 
 
+;@ def Hit_Animate_53()
+;@ path: battle/skills
+;@ Stage 4: plays the skill animation on the target (StartSkillVisual) until it is done, then goes on
+;@ with stage 6; a missing target goes to stage 5.
+;@ test: skip calls routines in other banks
 Hit_Animate_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if CheckBattlerPresent(wSkillTarget): return Hit_NextAnimTarget_53()
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
 	jr c, Hit_NextAnimTarget_53
 
+;> StartSkillVisual()
 	ld hl, far_StartSkillVisual
 	rst $10
+;> if wSkillAnimActive == 1: return
 	ld a, [wSkillAnimActive]
 	cp $01
 	ret z
 
+;> wBattleSubStep2 += 1; return Hit_Shield_53()
 	ld hl, wBattleSubStep2
 	inc [hl]
 	jr Hit_Shield_53
 
+;@ def Hit_NextAnimTarget_53()
+;@ path: battle/skills
+;@ Stage 5: for an animation shown on each target in turn (wSkillAnimPhase 2), the next monster
+;@ present on the side gets it (back to stage 4); after the last one the target is the first one
+;@ again (wBattleTempHigh).
+;@ test: skip calls routines in other banks
 Hit_NextAnimTarget_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if wSkillAnimPhase != 2: return Hit_Shield_53()
 	ld a, [wSkillAnimPhase]
 	cp $02
 	jr nz, Hit_Shield_53
 
+;> c = wSkillTarget
 	ld a, [wSkillTarget]
 	ld c, a
 
-jr_053_5389:
+.next
+;>@l while c & 3 != 2:
 	and $03
 	cp $02
-	jr z, jr_053_53a3
+	jr z, .restore
 
+;>     c += 1
 	inc c
 	ld a, c
+;>     if not CheckBattlerPresent(c):
 	call CheckBattlerPresent
 	ld a, c
-	jr c, jr_053_5389
+;=@l
+	jr c, .next
 
+;>         wSkillTarget = c; wBattleSubStep2 -= 2; return
 	ld [wSkillTarget], a
 	ld hl, wBattleSubStep2
 	dec [hl]
@@ -3924,59 +4044,81 @@ jr_053_5389:
 	ret
 
 
-jr_053_53a3:
+.restore
+;> wSkillTarget = wBattleTempHigh
 	ld a, [wBattleTempHigh]
 	ld [wSkillTarget], a
 
+;@ def Hit_Shield_53()
+;@ path: battle/skills
+;@ Stage 6: a physical attack (bit 7 of wSkillFlags1) on a monster whose personality lets it dodge
+;@ (wPersonalityNudge bit 5): it grabs another monster (picked like a dodge, DodgeAside_53, without
+;@ its message) and uses it as a shield - "... grabs ... and uses it as a shield" ($6C), and stage 7
+;@ is skipped. Otherwise on to stage 7 at once.
+;@ test: skip calls routines in other banks
 Hit_Shield_53::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> if not (wSkillFlags1 & 0x80): return Hit_Intercept_53()
 	ld a, [wSkillFlags1]
 	bit 7, a
 	jr z, Hit_Intercept_53
 
+;>@t wSkillTarget = wBattlerAction[2 * wSkillUser + 1]
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@t
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wSkillTarget], a
+;> if CheckBattlerCanAct(wSkillTarget): return Hit_Intercept_53()
 	ld a, [wSkillTarget]
 	call CheckBattlerCanAct
 	jr c, Hit_Intercept_53
 
+;>@n wShieldTarget = wSkillTarget; nudge = wPersonalityNudge[wSkillTarget]
 	ld a, [wSkillTarget]
 	ld [wShieldTarget], a
 	ld hl, wPersonalityNudge
 	add l
 	ld l, a
+;=@n
 	ld a, $00
 	adc h
 	ld h, a
+;> if not (nudge & 0x20): return Hit_Intercept_53()
 	bit 5, [hl]
 	jr z, Hit_Intercept_53
 
+;> wBattleTemp = nudge; DodgeAside_53()   # only picks the shield (no message)
 	ld a, [hl]
 	ld [wBattleTemp], a
 	call DodgeAside_53
+;> GetBattlerName_53(wShieldTarget, addr(wTextArg0))
 	ld a, [wShieldTarget]
 	ld hl, wTextArg0
 	ld [wNamePos], a
 	call GetBattlerName_53
+;> GetBattlerName_53(wSkillTarget, addr(wTextArg1))
 	ld a, [wSkillTarget]
 	ld hl, wTextArg1
 	ld [wNamePos], a
 	call GetBattlerName_53
+;> wTextIndex = 0x6C; wTextGroup = 0
 	ld a, $6c
 	ld [wTextIndex], a
 	xor a
 	ld [wTextGroup], a
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ret

@@ -8482,381 +8482,581 @@ RecruitStep25::
 	ret
 
 
+;@ def RecruitStep26()
+;@ path: battle/recruit
+;@ Back from the status screen opened from the release list: reloads the battle tiles, the window
+;@ titles and the newcomer's picture, redraws the list and the two-choice window and returns to step 11.
 RecruitStep26::
+;>@g DecompressVRAM(0x5B, 0, 0x9600); DecompressVRAM(0x5B, 1, 0x8800)
 	ld de, $5b00
 	ld hl, $9600
 	call DecompressVRAM
+;=@g
 	ld de, $5b01
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextIndex = 0x0A; wTextGroup = 0x0B
 	ld a, $0a
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x8820, 1, 10)
 	ld hl, $8820
 	ld de, $0a01
 	call PrintTextToTiles
+;> wTextIndex = 0x1B; wTextGroup = 0x0B
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x89C0, 1, 15)
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
+;> LoadMonsterPic(wNewMonNameText, 0x9000)
 	ld hl, $9000
 	ld a, [wNewMonNameText]
 	call LoadMonsterPic
+;> CountMonstersOrEggs()
 	call CountMonstersOrEggs
+;> ListMonstersOrEggs()
 	call ListMonstersOrEggs
+;> DrawReleaseListPage()
 	call DrawReleaseListPage
-	ld hl, PrintMessageGroup1
+;>@p PrintSystemText(0x0B22 if wListCursor2 & 1 else 0x0B13)
+	ld hl, $0b13
 	ld a, [wListCursor2]
 	and $01
-	jr z, jr_051_66d7
+	jr z, .print
 
 	ld hl, $0b22
 
-jr_051_66d7:
+;=@p
+.print:
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
+;> RefreshIconsAndNames()
 	call RefreshIconsAndNames
+;> DrawMonsterEggChoice()
 	call DrawMonsterEggChoice
+;> DrawReleaseList()
 	call DrawReleaseList
+;> DrawReleaseConfirm()
 	call DrawReleaseConfirm
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> wCommandStep = 11
 	ld a, $0b
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def RecruitStep27()
+;@ path: battle/recruit
+;@ Shows the status screen of the monster picked in the swap list; when it closes, on to step 28.
 RecruitStep27::
+;> q = addr(wSceneObjects) + (wLinkRefused & 0x7F)
 	ld a, [wLinkRefused]
 	and $7f
 	ld hl, wSceneObjects
 	add l
 	ld l, a
 	ld a, $00
+;> wCurPartyMember = mem[q]
 	adc h
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
+;> wMenuSubStep = 0
 	xor a
 	ld [wMenuSubStep], a
+;> ShowMonsterStatus()
 	ld hl, far_ShowMonsterStatus
 	rst $10
+;> if wMenuSubStep == 0: return
 	ld a, [wMenuSubStep]
 	or a
 	ret z
 
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RecruitStep28()
+;@ path: battle/recruit
+;@ Back from the status screen opened from the swap list: reloads the graphics, prints the swap question
+;@ (system text $0B18) at once, redraws the swap list and its two-choice window and returns to step 23.
 RecruitStep28::
+;>@g DecompressVRAM(0x5B, 0, 0x9600); DecompressVRAM(0x5B, 1, 0x8800)
 	ld de, $5b00
 	ld hl, $9600
 	call DecompressVRAM
+;=@g
 	ld de, $5b01
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextIndex = 0x0A; wTextGroup = 0x0B
 	ld a, $0a
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x8820, 1, 10)
 	ld hl, $8820
 	ld de, $0a01
 	call PrintTextToTiles
+;> wTextIndex = 0x1B; wTextGroup = 0x0B
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x89C0, 1, 15)
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
+;> LoadMonsterPic(wNewMonNameText, 0x9000)
 	ld hl, $9000
 	ld a, [wNewMonNameText]
 	call LoadMonsterPic
+;> CountMonstersOrEggs()
 	call CountMonstersOrEggs
+;> ListMonstersOrEggs()
 	call ListMonstersOrEggs
+;> DrawReleaseListPage()
 	call DrawReleaseListPage
+;> PrintSystemText(0x0B18)
 	ld hl, $0b18
 	call PrintSystemText
+;> RunTextToEnd()
 	call RunTextToEnd
+;> ReloadPartyBattlers()
 	call ReloadPartyBattlers
+;> RefreshStatusIcons()
 	call RefreshStatusIcons
+;> DrawPartyFullMenu()
 	call DrawPartyFullMenu
+;> ListPartyAndNewcomer()
 	call ListPartyAndNewcomer
+;> DrawPartySwapNames()
 	call DrawPartySwapNames
+;> DrawPartySwapList()
 	call DrawPartySwapList
+;> DrawSwapConfirm()
 	call DrawSwapConfirm
+;> UploadCGBPalettes()
 	ld hl, far_UploadCGBPalettes
 	rst $10
+;> wCommandStep = 23
 	ld a, $17
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def RecruitStep29()
+;@ path: battle/recruit
+;@ The end (also step 30): once the text is done, reloads the party into the battle positions, redraws
+;@ the screen and hands back to the after-battle sequence.
 RecruitStep29::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> ReloadPartyBattlers()
 	call ReloadPartyBattlers
+;> RefreshStatusIcons()
 	call RefreshStatusIcons
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> wBattleStep += 1
 	ld hl, wBattleStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RecruitStep31()
+;@ path: battle/recruit
+;@ Once the text is done: asks "monsters or eggs?" (system text $0B1A).
 RecruitStep31::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> PrintSystemText(0x0B1A)
 	ld hl, $0b1a
 	call PrintSystemText
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RecruitStep32()
+;@ path: battle/recruit
+;@ Once the text is done: shows the monsters / eggs window.
 RecruitStep32::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> RedrawMonsterEggChoice()
 	call RedrawMonsterEggChoice
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RedrawMonsterEggChoice()
+;@ path: battle/recruit
+;@ Draws the newcomer's picture with the monsters / eggs window and its cursor (wListCursor2) and
+;@ copies the buffer to the screen.
 RedrawMonsterEggChoice::
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
-	ld de, $70ab
+;> DrawBattleWindow(MonsterEggWindow)
+	ld de, MonsterEggWindow
 	call DrawBattleWindow
+;> ResetBattleCursorBlink()
 	call ResetBattleCursorBlink
-	ld de, $6823
+;> DrawBattleCursorAt(MonsterEggSpots, wListCursor2)
+	ld de, MonsterEggSpots
 	ld a, [wListCursor2]
 	call DrawBattleCursorAt
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> return
 	ret
 
 
+;@ def RecruitStep33()
+;@ path: battle/recruit
+;@ Monsters or eggs: B goes back to the release question (step 4); A opens the list of that kind
+;@ (step 7).
 RecruitStep33::
-	ld de, $6823
+;> UpdateBattleMenuCursor(addr(wListCursor2), MonsterEggSpots, 2)
+	ld de, MonsterEggSpots
 	ld hl, wListCursor2
 	ld b, $02
 	call UpdateBattleMenuCursor
+;> if wJoyPressed & 2:                 # B
 	ld a, [wJoyPressed]
 	bit 1, a
-	jr z, jr_051_6809
+	jr z, .notB
 
+;>     wCommandStep = 4
 	ld a, $04
 	ld [wCommandStep], a
-	jr jr_051_6822
+	jr .done
 
-jr_051_6809:
+;> elif wJoyPressed & 1:               # A
+.notB:
 	ld a, [wJoyPressed]
 	bit 0, a
-	jp z, Jump_051_6822
+	jp z, .done
 
+;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
+;>     wListCursor = 0; wListPage = 0
 	xor a
 	ld [wListCursor], a
 	ld [wListPage], a
+;>     wCommandStep = 7
 	ld a, $07
 	ld [wCommandStep], a
 
-Jump_051_6822:
-jr_051_6822:
+;> return
+.done:
 	ret
 
 
+;@ path: battle/recruit
+;@ Cursor spots of the monsters / eggs window (BG buffer offsets, $FFFF ends).
 MonsterEggSpots::
-	db $2f, $01, $6f, $01, $ff, $ff
+	dw $012f, $016f, $ffff
 
+;@ def RecruitStep34()
+;@ path: battle/recruit
+;@ Once the text is done (no monster or egg of the chosen kind): back to the monsters / eggs choice
+;@ (step 32) with system text $0B1A.
 RecruitStep34::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> RedrawMonsterEggChoice()
 	call RedrawMonsterEggChoice
+;> wCommandStep = 32
 	ld a, $20
 	ld [wCommandStep], a
+;> PrintSystemText(0x0B1A)
 	ld hl, $0b1a
 	call PrintSystemText
+;> return
 	ret
 
 
+;@ def RecruitStep35()
+;@ path: battle/recruit
+;@ Once the text is done: prepares the name entry for the newcomer (the field's script menu $FF with
+;@ its species, picture, sex and name address).
 RecruitStep35::
+;> if wTextState: return
 	ld a, [wTextState]
 	or a
 	ret nz
 
+;> wFieldFlags |= 0x10
 	ld hl, wFieldFlags
 	set 4, [hl]
+;> wScriptMenu = 0xFF; wMenuStep = 0
 	ld a, $ff
 	ld [wScriptMenu], a
 	xor a
 	ld [wMenuStep], a
+;> wChosenMonSpecies = wNewMonNameText
 	ld a, [wNewMonNameText]
 	ld [wChosenMonSpecies], a
+;> wChosenMonPic = wNewMonNameText + 0x10
 	add $10
 	ld [wChosenMonPic], a
+;> wChosenMonGender = mem[MonsterField(wNewMonSlot, wMonGender)]
 	ld a, [wNewMonSlot]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld [wChosenMonGender], a
+;>@n wChosenMonName = MonsterField(wNewMonSlot, wMonName)
 	ld a, [wNewMonSlot]
 	ld hl, wMonName
 	call MonsterField
 	ld a, l
 	ld [wChosenMonName], a
+;=@n
 	ld a, h
 	ld [$c8f3], a
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;> return
 	ret
 
 
+;@ def RecruitStep36()
+;@ path: battle/recruit
+;@ Runs the name entry (with the menu variables swapped out) until it closes, then reloads the battle
+;@ graphics and the party and goes on to the join-the-party question (step 14).
 RecruitStep36::
+;> SwapMenuVars()
 	call SwapMenuVars
+;> NameEntryMenu()
 	ld hl, far_NameEntryMenu
 	rst $10
+;> SwapMenuVars()
 	call SwapMenuVars
+;> if wFieldFlags & 0x10: return       # still naming
 	ld a, [wFieldFlags]
 	bit 4, a
 	ret nz
 
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> Call_56_4485()                     # clears the text box
 	ld hl, far_Call_56_4485
 	rst $10
+;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
+;>@g DecompressVRAM(0x5B, 0, 0x9600); DecompressVRAM(0x5B, 1, 0x8800)
 	ld de, $5b00
 	ld hl, $9600
 	call DecompressVRAM
+;=@g
 	ld de, $5b01
 	ld hl, $8800
 	call DecompressVRAM
+;> wTextIndex = 0x0A; wTextGroup = 0x0B
 	ld a, $0a
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x8820, 1, 10)
 	ld hl, $8820
 	ld de, $0a01
 	call PrintTextToTiles
+;> wTextIndex = 0x1B; wTextGroup = 0x0B
 	ld a, $1b
 	ld [wTextIndex], a
 	ld a, $0b
 	ld [wTextGroup], a
+;> PrintTextToTiles(0x89C0, 1, 15)
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
+;> LoadMonsterPic(wNewMonNameText, 0x9000)
 	ld hl, $9000
 	ld a, [wNewMonNameText]
 	call LoadMonsterPic
+;> ReloadPartyBattlers()
 	call ReloadPartyBattlers
+;> RefreshStatusIcons()
 	call RefreshStatusIcons
+;> ClearBattleTilemap()
 	call ClearBattleTilemap
+;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
+;> PlacePicTiles(0, 0x00C7)
 	ld a, $00
 	ld hl, $00c7
 	call PlacePicTiles
+;> SetNewMonPicPalette(wNewMonNameText, 0x00C7)
 	ld a, [wNewMonNameText]
 	ld hl, $00c7
 	call SetNewMonPicPalette
+;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
+;> wCommandStep = 14
 	ld a, $0e
 	ld [wCommandStep], a
+;> return
 	ret
 
 
+;@ def SwapMenuVars()
+;@ path: battle/recruit
+;@ Swaps the 8 menu variables from wMenuChoice with the 8 bytes at wBattlerSexBits67, so the name entry
+;@ can use them.
 SwapMenuVars::
+;> p = addr(wMenuChoice); q = addr(wBattlerSexBits67)
 	ld hl, wMenuChoice
 	ld de, wBattlerSexBits67
+;>@i for i in range(8):
 	ld b, $08
 
-jr_051_690b:
+;>     mem[p + i], mem[q + i] = mem[q + i], mem[p + i]
+.swap:
 	ld c, [hl]
 	ld a, [de]
 	ld [hli], a
 	ld a, c
 	ld [de], a
 	inc de
+;=@i
 	dec b
-	jr nz, jr_051_690b
+	jr nz, .swap
 
+;> return
 	ret
 
 
+;@ def AppendSexSymbol(sex: a, text: de)
+;@ path: battle/recruit
+;@ Adds the sex symbol ($A7 + bit 0 of `sex`) at the end ($F0) of the text at `text`.
 AppendSexSymbol::
+;> p = text
 	push af
 
-jr_051_6916:
+;> while mem[p] != 0xF0: p += 1
+.find:
 	ld a, [de]
 	inc de
 	cp $f0
-	jr nz, jr_051_6916
+	jr nz, .find
 
+;>@s mem[p] = 0xA7 + (sex & 1); mem[p + 1] = 0xF0
 	dec de
 	pop af
 	and $01
 	add $a7
 	ld [de], a
 	inc de
+;=@s
 	ld a, $f0
 	ld [de], a
+;> return
 	ret
 
 
+;@ def StoreRecruitedMonster(slot: a)
+;@ path: battle/recruit
+;@ Copies the newcomer's record (record slot 20, at wBreedParent1) into record slot `slot` and marks its
+;@ species as seen in the monster library.
 StoreRecruitedMonster::
+;> dest = MonsterField(slot, wMonsters)
 	ld hl, wMonsters
 	call MonsterField
+;>@c for i in range(0x95):
 	ld b, $95
 	ld de, wBreedParent1
 
-jr_051_6933:
+;>     mem[dest + i] = wBreedParent1[i]
+.copy:
 	ld a, [de]
 	ld [hli], a
 	inc de
+;=@c
 	dec b
-	jr nz, jr_051_6933
+	jr nz, .copy
 
+;> SetFlag(wNewMonNameText, addr(wLibraryFlags))
 	ld a, [wNewMonNameText]
 	ld hl, wLibraryFlags
 	call SetFlag
+;> return
 	ret
 
 
+;@ def SetNewMonPicPalette(species: a, pos: hl)
+;@ path: battle/recruit
+;@ Loads the picture palette of `species` for the picture at buffer offset `pos`, in the palette slot
+;@ of the enemy that asked to join (wJoinCandidate).
 SetNewMonPicPalette::
+;> wPaletteSet = species
 	ld [wPaletteSet], a
+;> wMonPicPos = pos
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
 	ld [$c821], a
+;> wMonPicPalette = wJoinCandidate
 	ld a, [wJoinCandidate]
 	ld [wMonPicPalette], a
+;> LoadMonPicPalette()
 	ld hl, far_LoadMonPicPalette
 	rst $10
+;> return
 	ret
 
 

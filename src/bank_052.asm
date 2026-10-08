@@ -9903,21 +9903,38 @@ TargetNameToArg0::
 	db $21, $80, $c1, $7d, $ea, $4e, $db, $7c, $ea, $4f, $db, $fa, $88, $db, $ea, $50
 	db $db, $cd, $48, $6b, $c9
 
+;@ def RunActionStep()
+;@ path: battle/actions
+;@ Far entry 0: runs one step of the battle action being carried out (a skill
+;@ or an item), by wBattleSubStep (ActionSteps). While a battle animation is
+;@ still running (wBattleAnimDone 0) it only drives that animation.
 RunActionStep::
+;> if not wBattleAnimDone:
 	ld a, [wBattleAnimDone]
 	or a
-	jr nz, jr_052_6c5c
+	jr nz, .run
 
+;>     UpdateScreenEffect()
 	ld hl, far_UpdateScreenEffect
 	rst $10
+;>     if not wBattleAnimDone:
+;>         return
 	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
-jr_052_6c5c:
+.run
+;> return ActionSteps[wBattleSubStep]()
 	ld a, [wBattleSubStep]
 	rst $00
 
+;@ path: battle/actions
+;@ The steps of a battle action, by wBattleSubStep: 0 start (and 18), 1 the
+;@ skill's effect routine, 2 the damage goes off the target's HP, 3 skills with
+;@ their own steps, 4 follow-up stages, 5 next hit or target, 6 end of the
+;@ action, 7 done, 8 a monster is defeated, 9-14 an item used by Terry, 15-17
+;@ restarts, 19 a counterattack (BladeD), 20 nothing, 21 an item that does
+;@ nothing, 22-25 steps in banks $57 and $58, 26 a monster falls, 27 close.
 ActionSteps::
 	dw ActionStepStart
 	dw ActionStepSkill
@@ -9948,51 +9965,80 @@ ActionSteps::
 	dw ActionStepFall
 	dw ActionStepWaitClose
 
+;@ def ActionStepStart()
+;@ path: battle/actions
+;@ Action step 0: bank $53 starts the action (RunActionStart_53). When that
+;@ turns out to be Terry using an item (step 9), the item steps start at once.
 ActionStepStart::
+;> RunActionStart_53()
 	ld hl, far_RunActionStart_53
 	rst $10
+;> if wBattleSubStep != 9:
+;>     return
 	ld a, [wBattleSubStep]
 	cp $09
 	ret nz
 
+;>@s wBattleSubStep2 = 0
 	xor a
 	ld hl, wBattleSubStep2
 	ld [hli], a
+;>@a wBattleStepArg0 = 0xFF
+;>@b wBattleStepArg1 = 0xFF
 	ld a, $ff
 	ld [hli], a
 	ld [hli], a
+;>@c wFallStep = 0xFF
 	ld [hli], a
+;>@d wAbsorbMP = 0xFE
 	ld a, $fe
 	ld [hl], a
+;> return ActionStepItem()
 	jp ActionStepItem
 
 
+;@ def ActionStepSkill()
+;@ path: battle/actions
+;@ Action step 1: bank $53 shows the skill (RunSkillHit_53, its stages counted in
+;@ wBattleSubStep2). At stage $0B the skill's effect routine runs: entry 8 +
+;@ wSkillId of FarTable_52. At stage $10 the skill is over (SkillStepDone).
 ActionStepSkill::
+;> if wBattleSubStep2 != 0x0B:
 	ld a, [wBattleSubStep2]
 	cp $0b
-	jr z, jr_052_6cc7
+	jr z, .effect
 
+;>     if wBattleSubStep2 == 0x10:
+;>         return SkillStepDone()
 	cp $10
 	jr z, SkillStepDone
 
+;>     RunSkillHit_53()
 	ld hl, far_RunSkillHit_53
 	rst $10
+;>     if wBattleSubStep2 != 0x0B:
+;>         return
 	ld a, [wBattleSubStep2]
 	cp $0b
 	ret nz
 
-jr_052_6cc7:
+.effect
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> wHitShown = 0
 	xor a
 	ld [wHitShown], a
+;>@e call(mem16[FarTable_52 + 0x10 + 2 * wSkillId])   # the skill's effect routine
 	ld a, [wSkillId]
 	ld c, a
 	ld b, $00
-	ld hl, $4011
+	ld hl, FarTable_52 + $10
 	add hl, bc
 	add hl, bc
+;=@e
 	call JumpToPointer
+;> if wBattleSubStep2 == 0x0C and wBattleSubStep == 1:
 	ld a, [wBattleSubStep2]
 	cp $0c
 	ret nz
@@ -10001,49 +10047,80 @@ jr_052_6cc7:
 	cp $01
 	ret nz
 
+;>     RunSkillHit_53()
 	ld hl, far_RunSkillHit_53
 	rst $10
 	ret
 
 
+	; unused: a copy of JumpToPointer
 	db $2a, $66, $6f, $e9
 
+;@ def SkillStepDone()
+;@ path: battle/actions
+;@ The skill has been shown: on to the damage step (2). Transform ($29) instead
+;@ turns the user into its target (TransformIntoTarget) and marks it (status 1
+;@ bit 5); a wild enemy also notes whom it copied (wEnemyMorph), for its name.
+;@ CHGDRAGON ($AA) and $D5 change the user's picture (TransformUserPic, status 1
+;@ bit 4) and go on with the follow-up step.
 SkillStepDone::
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;> wBattleSubStep2 = 0
 	xor a
 	ld [wBattleSubStep2], a
+;> if wSkillId == 0x29:
 	ld a, [wSkillId]
 	cp $29
-	jr z, jr_052_6d20
+;>@t     wBattleSubStep = 5
+;>@t2     TransformIntoTarget()
+;>@t3     wBattleSubStep += 1
+;>@t4     mem[wBattlerStatus1 + 8 * wSkillUser] |= 0x20
+;>@t5     if wLinkActive or wSkillUser < 4:
+;>@t6         return ActionStepNext()
+;>@t7     wEnemyMorph[wSkillUser & 3] = wSkillTarget
+	jr z, .transform
 
+;> elif wSkillId not in (0xAA, 0xD5):
+;>     return ActionStepDamage()
 	cp $aa
-	jr z, jr_052_6d0a
+	jr z, .changePic
 
 	cp $d5
 	jp nz, ActionStepDamage
 
-jr_052_6d0a:
+;> else:
+;>     wBattleSubStep = 4
+.changePic
 	ld a, $04
 	ld [wBattleSubStep], a
+;>     TransformUserPic()
 	call TransformUserPic
+;>@p     mem[wBattlerStatus1 + 8 * wSkillUser] |= 0x10
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	set 4, [hl]
+;>     return ActionStepFollowUp()
 	jp ActionStepFollowUp
 
 
-jr_052_6d20:
+.transform
+;=@t
 	ld a, $05
 	ld [wBattleSubStep], a
+;=@t2
 	call TransformIntoTarget
+;=@t3
 	ld hl, wBattleSubStep
 	inc [hl]
+;=@t4
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	set 5, [hl]
+;=@t5
 	ld a, [wLinkActive]
 	or a
 	jp nz, ActionStepNext
@@ -10052,221 +10129,285 @@ jr_052_6d20:
 	cp $04
 	jp c, ActionStepNext
 
+;=@t7
 	and $03
 	ld hl, wEnemyMorph
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t7
 	ld h, a
 	ld a, [wSkillTarget]
 	ld [hl], a
 	ret
 
 
+;@ def ActionStepDamage()
+;@ path: battle/actions
+;@ Action step 2, once the sound channels are free and the animation is done:
+;@ takes wSkillAmount off the target's HP when the effect routine said so
+;@ (wSkillResult bit 5) and the skill is one that hurts. A target at 0 HP, or an
+;@ enemy that is gone, goes to the falling step ($1A); otherwise the party
+;@ panel shows the new HP. CALLHOROR and Smashed have their own step instead.
 ActionStepDamage::
+;> if wSoundChannels[0] & mem[0xDD9A] != 0xFF:   # wait for two free sound channels
+;>     return
 	ld a, [wSoundChannels]
 	ld hl, $dd9a
 	and [hl]
 	cp $ff
 	ret nz
 
+;> if not wBattleAnimDone:
+;>     return
 	ld a, [wBattleAnimDone]
 	or a
 	ret z
 
+;> if wSkillId in (0xA4, 0xA2):
 	ld a, [wSkillId]
 	cp $a4
-	jr z, jr_052_6d70
+	jr z, .callHorror
 
 	cp $a2
-	jr nz, jr_052_6d77
+	jr nz, .normal
 
-jr_052_6d70:
+.callHorror
+;>     wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
+;>     return RunCallHorrorStep()
 	jp RunCallHorrorStep
 
 
-jr_052_6d77:
+.normal
+;> wBattleTemp = 0
 	xor a
 	ld [wBattleTemp], a
+;> wBattleSubStep += 2
 	ld hl, wBattleSubStep
 	inc [hl]
 	ld hl, wBattleSubStep
 	inc [hl]
+;>@h hurts = wSkillId not in (0x12, 0x13, 0x71, 0x75, 0x76, 0x94) and not (0x15 <= wSkillId < 0x3A and wSkillId not in (0x37, 0x38))
 	ld a, [wSkillId]
 	cp $1a
-	jp z, Jump_052_6df2
+	jp z, .check
 
 	cp $75
-	jp z, Jump_052_6df2
+	jp z, .check
 
+;=@h
 	cp $76
-	jp z, Jump_052_6df2
+	jp z, .check
 
 	cp $15
-	jr c, jr_052_6db0
+	jr c, .hurtsCheck
 
 	cp $71
-	jp z, Jump_052_6df2
+	jp z, .check
 
+;=@h
 	cp $37
-	jr z, jr_052_6db0
+	jr z, .hurtsCheck
 
 	cp $38
-	jr z, jr_052_6db0
+	jr z, .hurtsCheck
 
 	cp $3a
-	jp c, Jump_052_6df2
+	jp c, .check
 
+;=@h
 	cp $94
-	jp z, Jump_052_6df2
+	jp z, .check
 
-jr_052_6db0:
+.hurtsCheck
+;=@h
 	ld a, [wSkillId]
 	cp $12
-	jp z, Jump_052_6df2
+	jp z, .check
 
 	cp $13
-	jp z, Jump_052_6df2
+	jp z, .check
 
+;> if hurts and wSkillResult & 0x20:
 	ld a, [wSkillResult]
 	bit 5, a
-	jp z, Jump_052_6df2
+	jp z, .check
 
+;>@p     hp = mem16[wBattlerHP + 2 * wSkillTarget] - wSkillAmount
 	ld a, [wSkillTarget]
 	ld hl, wBattlerHP
 	call IndexWords
 	ld a, [hli]
 	ld d, [hl]
 	ld e, a
+;=@p
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	ld a, e
 	sub c
+;=@p
 	ld e, a
 	ld a, d
 	sbc b
 	ld d, a
-	jr c, jr_052_6de8
+;>     if hp >= 0:
+	jr c, .falls
 
+;>         mem16[wBattlerHP + 2 * wSkillTarget] = hp
 	ld a, d
 	ld [hld], a
 	ld [hl], e
+;>     if hp <= 0:
 	or e
-	jp nz, Jump_052_6df2
+	jp nz, .check
 
-jr_052_6de8:
+.falls
+;>         wBattleSubStep = 0x1A
 	ld a, $1a
 	ld [wBattleSubStep], a
+;>         wFallStep = 0
 	xor a
 	ld [wFallStep], a
+;>         return
 	ret
 
 
-Jump_052_6df2:
+.check
+;> if wLinkFlags & 0x02:
+;>@m     far_side = wSkillTarget < 3
 	ld a, [wLinkFlags]
 	bit 1, a
 	ld a, [wSkillTarget]
-	jr z, jr_052_6e02
+	jr z, .slave
 
+;=@m
 	cp $03
-	jr nc, jr_052_6e26
+	jr nc, .panel
 
-	jr jr_052_6e0a
+	jr .gone
 
-jr_052_6e02:
+;> else:
+;>     far_side = wSkillTarget >= 4 and wSkillTarget != 7
+.slave
 	cp $04
-	jr c, jr_052_6e26
+	jr c, .panel
 
 	cp $07
-	jr z, jr_052_6e26
+	jr z, .panel
 
-jr_052_6e0a:
+.gone
+;> if far_side and CheckBattlerPresent(wSkillTarget):   # an enemy that is gone
 	ld a, [wSkillTarget]
 	call CheckBattlerPresent
-	jr nc, jr_052_6e26
+	jr nc, .panel
 
+;>     wBattleSubStep = 0x1A
 	ld a, $1a
 	ld [wBattleSubStep], a
+;>     wFallStep = 0
 	xor a
 	ld [wFallStep], a
+;>     return
 	ret
 
 
+	; unused: PrintPanelHPMP, then $C87E = 1
 	db $21, $06, $50, $d7, $3e, $01, $ea, $7e, $c8, $c9
 
-jr_052_6e26:
+.panel
+;> PrintPanelHPMP()
 	ld hl, far_PrintPanelHPMP
 	rst $10
 	ret
 
 
+;@ def ActionStepSpecial()
+;@ path: battle/actions
+;@ Action step 3: skills with steps of their own go to them in bank $53
+;@ (Sacrifice, DeMagic, ThickFog and FILTHZONE, UltraDown, Cover and Guardian,
+;@ CALLHOROR and Smashed); all others skip to the end of the action (step 6).
 ActionStepSpecial::
+;>@h handler = {0x14: Call_53_670E, 0x80: Call_53_60B3, 0x82: Call_53_65AC, 0x83: Call_53_60B3, 0xA5: Call_53_60B3, 0x88: RunCoverStages_53, 0x89: RunCoverStages_53, 0xA2: RunCallHorrorStep, 0xA4: RunCallHorrorStep}.get(wSkillId)
 	ld a, [wSkillId]
 	cp $14
-	jr z, jr_052_6e60
+	jr z, .sacrifice
 
 	cp $80
-	jr z, jr_052_6e5b
+	jr z, .deMagic
 
+;=@h
 	cp $82
-	jr z, jr_052_6e65
+	jr z, .ultraDown
 
 	cp $83
-	jr z, jr_052_6e5b
+	jr z, .deMagic
 
 	cp $a5
-	jr z, jr_052_6e5b
+	jr z, .deMagic
 
+;=@h
 	cp $88
-	jr z, jr_052_6e6a
+	jr z, .cover
 
 	cp $89
-	jr z, jr_052_6e6a
+	jr z, .cover
 
 	cp $a2
-	jr z, jr_052_6e6f
+	jr z, RunCallHorrorStep
 
+;=@h
 	cp $a4
-	jr z, jr_052_6e6f
+	jr z, RunCallHorrorStep
 
+;> if handler:
+;>@r     return handler()
+;> wBattleSubStep += 3
 	ld hl, wBattleSubStep
 	inc [hl]
 	inc [hl]
 	inc [hl]
+;> return ActionStepEnd()
 	jp ActionStepEnd
 
 
-jr_052_6e5b:
+.deMagic
+;=@r
 	ld hl, far_Call_53_60B3
 	rst $10
 	ret
 
 
-jr_052_6e60:
+.sacrifice
+;=@r
 	ld hl, far_Call_53_670E
 	rst $10
 	ret
 
 
-jr_052_6e65:
+.ultraDown
+;=@r
 	ld hl, far_Call_53_65AC
 	rst $10
 	ret
 
 
-jr_052_6e6a:
+.cover
+;=@r
 	ld hl, far_RunCoverStages_53
 	rst $10
 	ret
 
 
+;@ def RunCallHorrorStep()
+;@ path: battle/actions
+;@ The own steps of CALLHOROR and Smashed, in bank $53.
 RunCallHorrorStep::
-jr_052_6e6f:
+;> Call_53_6BE2()
 	ld hl, far_Call_53_6BE2
 	rst $10
 	ret

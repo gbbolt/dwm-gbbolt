@@ -921,7 +921,7 @@ StartCGBFade::
 	ld [wFadeSpeed], a
 ;>     wFadeTimer = wFadeSpeed
 	ld [wFadeTimer], a
-;>     StartMusicFadeOut()
+;>     StartMusicFadeOut(wFadeSpeed)
 	call StartMusicFadeOut
 ;>     return
 	ret

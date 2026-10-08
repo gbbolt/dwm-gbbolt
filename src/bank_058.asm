@@ -5672,11 +5672,11 @@ GetItemMessage::
 	jr nc, jr_058_57c2
 
 	call CountTargetsOne
-	jp Jump_058_58f8
+	jp MeatMessage
 
 
 jr_058_57c2:
-	jp Jump_058_58e8
+	jp MeatMessageEnemies
 
 
 GetSkillMessage::
@@ -5745,7 +5745,7 @@ SkillMessages::
 	db $64, $65, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $66, $23, $24, $24, $24, $24
 	db $23, $29, $23, $44, $67, $68, $ff, $6a
 
-Jump_058_58e8:
+MeatMessageEnemies::
 	ld a, [wSkillTarget]
 	push af
 	ld a, $04
@@ -5754,7 +5754,7 @@ Jump_058_58e8:
 	pop af
 	ld [wSkillTarget], a
 
-Jump_058_58f8:
+MeatMessage::
 	ld a, [wBattleItemEffect]
 	cp $c5
 	jr nz, jr_058_5907
