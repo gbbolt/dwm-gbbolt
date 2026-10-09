@@ -1371,97 +1371,153 @@ TutorBackToTitle::
 	inc [hl]
 	ret
 
+;@ def CommandTutorInit()
+;@ path: system/debug/commandtutor
+;@ Start of game mode $0A, a tutorial of the battle commands: on a mock battle screen with the
+;@ player's own party the menus can be tried out (FIGHT / PLAN / ITEM / RUN, the strategies, ALL or
+;@ EACH, the orders), and choosing an entry shows a text about it. Clears the state, prints the
+;@ party's names, loads the tiles, draws the first menu and the labels and turns the screen on.
+;@ test: skip loads graphics and turns the screen on
 CommandTutorInit::
+;> fill(wTextTiles, 0, 0x12)
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
+;> fill(wSceneObjects, 0, 0x28)
 	xor a
 	ld hl, wSceneObjects
 	ld bc, $0028
 	call FillMemory
+;> fill(wCommandStep, 0, 8)
 	xor a
 	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
+;> fill(wMenuChoice, 0, 8)
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
+;> fill(wListCursor, 0, 8)
 	xor a
 	ld hl, wListCursor
 	ld bc, $0008
 	call FillMemory
+;> wTextBoxMap = 0x99C1
 	ld hl, $99c1
 	ld a, l
 	ld [wTextBoxMap], a
 	ld a, h
 	ld [wTextBoxMap + 1], a
+;> wBattleBGMap = 0x9800
 	ld hl, $9800
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
 	ld [wBattleBGMap + 1], a
+;> wLayoutRow = 0x9800
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
 	ld [wLayoutRow + 1], a
+;> DisableSTATInterrupts()
 	call DisableSTATInterrupts
+;> wSGBPalSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
+;> wSGBAttrSet = 0
 	inc hl
 	ld [hl], $00
+;> SGBSetFieldPalettes()
 	ld hl, far_SGBSetFieldPalettes
 	rst $10
+;> wSkillAnimSprites = 0
 	xor a
 	ld [wSkillAnimSprites], a
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
+;> LoadTutorEnemyPic()
 	call LoadTutorEnemyPic
+;> CmdTutorPrintNames()
 	call CmdTutorPrintNames
+;> Decompress(0x2E, 0x00, 0x8D00)               # box frame and digit tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
+;> CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;> CmdTutorPrintLabels()
 	call CmdTutorPrintLabels
+;> StartFade(0xFC)                              # fade in
 	ld a, $fc
 	call StartFade
+;> hWX = 7
 	ld a, $07
 	ldh [hWX], a
+;> hWY = 0xFF                                   # window off screen
 	ld a, $ff
 	ldh [hWY], a
+;> hScrollX = 0
 	ld a, $00
 	ldh [hScrollX], a
+;> hScrollY = 0
 	ld a, $00
 	ldh [hScrollY], a
+;> ApplyScroll()
 	call ApplyScroll
+;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
 	ld [wFrameCounter + 1], a
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
+;> wLCDC = 3
 	ld a, $03
 	ld [wLCDC], a
+;> EnableLYCInterrupt()
 	call EnableLYCInterrupt
+;> return EnableLCDAndInterrupts(1)
 	ld a, $01
 	jp EnableLCDAndInterrupts
+;@ def CommandTutorUpdate()
+;@ path: system/debug/commandtutor
+;@ Per-frame routine of game mode $0A (nothing happens while a fade runs). Keeps the buttons held
+;@ in wSGBJoypads[0] and the newly pressed ones in wSGBJoypads[1], then runs state
+;@ wSceneObjects[0] (CommandTutorStates).
+;@ test: skip jumps through a table to the state routines
 CommandTutorUpdate::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
+
+;> wSGBJoypads[0] = wJoyHeld
 	ld a, [wJoyHeldLast]
 	xor $ff
 	ld b, a
 	ld a, [wJoyHeld]
 	ld [wSGBJoypads], a
+;> wSGBJoypads[1] = wJoyHeld & ~wJoyHeldLast      # newly pressed
 	or a
-	jr z, jr_059_48e5
+	jr z, .none
+
 	and b
 
-jr_059_48e5:
+.none
 	ld [wSGBJoypads + 1], a
+;> CommandTutorStates[wSceneObjects[0]]()
 	ld a, [wSceneObjects]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ States of the command tutorial: 0 the command menu, 1 explain a command, 2 the strategy menu,
+;@ 3 explain a strategy, 4 "Enough?" (leave), 5 ALL or EACH, 6 the order menu, 7 explain ALL /
+;@ EACH, 8 explain an order.
+CommandTutorStates:
 	dw CmdTutorMainMenu
 	dw CmdTutorExplainMain
 	dw CmdTutorStrategyMenu
@@ -1472,329 +1528,532 @@ jr_059_48e5:
 	dw CmdTutorExplainTarget
 	dw CmdTutorExplainOrder
 
+;@ def CmdTutorMainMenu()
+;@ path: system/debug/commandtutor
+;@ State 0, the command menu (wMenuChoice 0 FIGHT, 1 PLAN, 2 ITEM, 3 RUN in two columns). After a
+;@ press, input is ignored for 8 frames (wLinkRefused counts them). Up / Down switch the row, Left /
+;@ Right the column, A marks the command and goes to state 1 (its text), B goes to state 4
+;@ ("Enough?"). Every move restarts the cursor blink (wLinkPartnerChoice, wListLastRows) and asks
+;@ for the menu box to be redrawn (wBattleListCount 2, wCommandStep 0).
+;@ test: skip calls far routines
 CmdTutorMainMenu::
+;> if wLinkRefused:                             # input pause after a press
 	ld a, [wLinkRefused]
 	or a
-	jr z, jr_059_4912
+	jr z, .input
+
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     if wLinkRefused < 8:
+;>         return
 	ld a, [wLinkRefused]
 	cp $08
 	ret c
+
+;>     wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
 
-jr_059_4912:
+.input
+;> CmdTutorBlinkCursor()
 	call CmdTutorBlinkCursor
+;> if wSGBJoypads[1] & 0x01:                     # A
 	ld a, [wSGBJoypads + 1]
 	and $01
-	jr nz, jr_059_4933
+	jr nz, .a
+
+;>@a1     wLinkPartnerChoice = 0; wListLastRows = 1  # cursor stays on
+;>@a2     wLinkRefused += 1
+;>@a3     wMenuChoice |= 0x80
+;>@a4     wBattleListCount = 2; wCommandStep = 0
+;>@a5     CmdTutorDrawMenu()
+;>@a6     wSceneObjects[0] = 1
+;> elif wSGBJoypads[0] & 0xC0:                   # Up or Down
 	ld a, [wSGBJoypads]
 	and $c0
-	jr nz, jr_059_495a
+	jr nz, .upDown
+
+;>@v1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@v2     wLinkRefused += 1
+;>@v3     wMenuChoice ^= 0x01
+;>@v4     wBattleListCount = 2; wCommandStep = 0
+;>@v5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[0] & 0x30:                   # Left or Right
 	ld a, [wSGBJoypads]
 	and $30
-	jr nz, jr_059_497b
+	jr nz, .leftRight
+
+;>@h1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@h2     wLinkRefused += 1
+;>@h3     wMenuChoice ^= 0x02
+;>@h4     wBattleListCount = 2; wCommandStep = 0
+;>@h5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[1] & 0x02:                   # B
 	ld a, [wSGBJoypads + 1]
 	and $02
-	jp nz, jr_059_499c
+	jp nz, .b
+
 	ret
 
 
-jr_059_4933:
+.a
+;=@a1
 	xor a
 	ld [wLinkPartnerChoice], a
 	ld a, $01
 	ld [wListLastRows], a
+;=@a2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@a3
 	ld a, [wMenuChoice]
 	set 7, a
 	ld [wMenuChoice], a
+;=@a4
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@a5
 	call CmdTutorDrawMenu
+;=@a6
 	ld a, $01
 	ld [wSceneObjects], a
 	ret
 
 
-jr_059_495a:
+.upDown
+;=@v1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@v2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@v3
 	ld a, [wMenuChoice]
 	xor $01
 	ld [wMenuChoice], a
+;=@v4
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@v5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_497b:
+.leftRight
+;=@h1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@h2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@h3
 	ld a, [wMenuChoice]
 	xor $02
 	ld [wMenuChoice], a
+;=@h4
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@h5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_499c:
+.b
+;>     wLinkPartnerChoice = 0; wListLastRows = 0
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     wBattleListCount = 2; wCommandStep = 0
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;>     wSceneObjects[1] = 0
 	xor a
 	ld [wSceneObjects + 1], a
+;>     wSceneObjects[0] = 4
 	ld a, $04
 	ld [wSceneObjects], a
 	ret
 
+;@ def CmdTutorExplainMain()
+;@ path: system/debug/commandtutor
+;@ State 1: explains the chosen command in steps wSceneObjects[1] (CmdTutorExplainMainSteps).
+;@ test: skip jumps through a table to the step routines
 CmdTutorExplainMain::
+;> CmdTutorExplainMainSteps[wSceneObjects[1]]()
 	ld a, [wSceneObjects + 1]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ Steps of state 1: show only the message box, start the text, continue when it is done.
+CmdTutorExplainMainSteps:
 	dw CmdTutorClearMenu
 	dw CmdTutorStartMainText
 	dw CmdTutorAfterMainText
 
+;@ def CmdTutorClearMenu()
+;@ path: system/debug/commandtutor
+;@ First step of every explanation: redraws the screen with only the message box (menu 1) and
+;@ goes on.
+;@ test: skip calls far routines
 CmdTutorClearMenu::
+;> wBattleListCount = 0                         # redraw everything
 	xor a
 	ld [wBattleListCount], a
+;> wCommandSubStep = 1                          # the message box
 	ld a, $01
 	ld [wCommandSubStep], a
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
+;@ def CmdTutorStartMainText()
+;@ path: system/debug/commandtutor
+;@ Starts text 2/(wMenuChoice & 3), the explanation of the chosen command.
+;@ test: skip starts the text printer
 CmdTutorStartMainText::
+;> wTextIndex = wMenuChoice & 3
 	ld a, [wMenuChoice]
 	and $03
 	ld [wTextIndex], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> StartText_59()
 	call StartText_59
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
+;@ def CmdTutorAfterMainText()
+;@ path: system/debug/commandtutor
+;@ Once the text is done: PLAN goes on to the strategy menu (state 2) or, with two or more
+;@ monsters, to ALL / EACH first (state 5); RUN goes to "Enough?" (state 4); FIGHT and ITEM go
+;@ back to the command menu.
+;@ test: skip calls far routines
 CmdTutorAfterMainText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
+
+;> choice = wMenuChoice & ~0x80
 	ld a, [wMenuChoice]
 	res 7, a
+;> if choice == 1:                               # PLAN
 	cp $01
-	jr z, jr_059_4a1e
+	jr z, .plan
+
+;>@p1     if wPartyCount < 2:
+;>@p2         wSceneObjects[0] = 2; wSceneObjects[1] = 0
+;>@p3         wBattleListCount = 0; wCommandSubStep = 2   # strategy menu
+;>@p4     else:
+;>@p5         wSceneObjects[0] = 5; wSceneObjects[1] = 0
+;>@p6         wBattleListCount = 0; wCommandSubStep = 4   # ALL / EACH
+;>@p7     wCommandStep = 0
+;>@p8     CmdTutorDrawMenu()
+;> elif choice == 3:                             # RUN
 	cp $03
-	jr z, jr_059_4a59
+	jr z, .run
+
+;>@r1     wMenuChoice = choice
+;>@r2     wListLastRows = 0
+;>@r3     wSceneObjects[0] = 4; wSceneObjects[1] = 0
+;> else:
+;>     wMenuChoice = choice
 	ld [wMenuChoice], a
+;>     wSceneObjects[0] = 0; wSceneObjects[1] = 0
 	xor a
 	ld [wSceneObjects], a
 	ld [wSceneObjects + 1], a
+;>     wBattleListCount = 0; wCommandSubStep = 0
 	xor a
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandSubStep], a
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4a1e:
+.plan
+;=@p1
 	ld a, [wPartyCount]
 	cp $02
-	jr nc, jr_059_4a3f
+	jr nc, .two
+
+;=@p2
 	ld a, $02
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
+;=@p3
 	xor a
 	ld [wBattleListCount], a
 	ld a, $02
 	ld [wCommandSubStep], a
+;=@p7
 	xor a
 	ld [wCommandStep], a
+;=@p8
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4a3f:
+.two
+;=@p5
 	ld a, $05
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
+;=@p6
 	xor a
 	ld [wBattleListCount], a
 	ld a, $04
 	ld [wCommandSubStep], a
+;=@p7
 	xor a
 	ld [wCommandStep], a
+;=@p8
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4a59:
+.run
+;=@r1
 	ld [wMenuChoice], a
+;=@r2
 	xor a
 	ld [wListLastRows], a
+;=@r3
 	ld a, $04
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
 	ret
 
+;@ def CmdTutorStrategyMenu()
+;@ path: system/debug/commandtutor
+;@ State 2, the strategy menu (wMenuChoice2 0 CHARGE!, 1 MIXED, 2 CAUTIOUS, 3 COMMAND): Up / Down
+;@ move with wrap around, A marks the entry and goes to state 3 (its text), B goes to ALL / EACH
+;@ (state 5) with two or more monsters, else back to the command menu. Input pauses 8 frames
+;@ after each press, as in CmdTutorMainMenu.
+;@ test: skip calls far routines
 CmdTutorStrategyMenu::
+;> if wLinkRefused:                             # input pause after a press
 	ld a, [wLinkRefused]
 	or a
-	jr z, jr_059_4a7e
+	jr z, .input
+
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     if wLinkRefused < 8:
+;>         return
 	ld a, [wLinkRefused]
 	cp $08
 	ret c
+
+;>     wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
 
-jr_059_4a7e:
+.input
+;> CmdTutorBlinkCursor()
 	call CmdTutorBlinkCursor
+;> if wSGBJoypads[1] & 0x01:                     # A
 	ld a, [wSGBJoypads + 1]
 	and $01
-	jr nz, jr_059_4aa0
+	jr nz, .a
+
+;>@a1     wLinkPartnerChoice = 0; wListLastRows = 1
+;>@a2     wLinkRefused += 1
+;>@a3     wMenuChoice2 |= 0x80
+;>@a4     wBattleListCount = 2; wCommandStep = 0
+;>@a5     CmdTutorDrawMenu()
+;>@a6     wSceneObjects[0] = 3
+;> elif wSGBJoypads[0] & 0x40:                   # Up
 	ld a, [wSGBJoypads]
 	and $40
-	jr nz, jr_059_4ac7
+	jr nz, .up
+
+;>@u1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@u2     wLinkRefused += 1
+;>@u3     wMenuChoice2 = (wMenuChoice2 - 1) & 3
+;>@u4     wBattleListCount = 2; wCommandStep = 0
+;>@u5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[0] & 0x80:                   # Down
 	ld a, [wSGBJoypads]
 	and $80
-	jp nz, jr_059_4aee
+	jp nz, .down
+
+;>@d1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@d2     wLinkRefused += 1
+;>@d3     wMenuChoice2 = (wMenuChoice2 + 1) & 3
+;>@d4     wBattleListCount = 2; wCommandStep = 0
+;>@d5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[1] & 0x02:                   # B
 	ld a, [wSGBJoypads + 1]
 	and $02
-	jp nz, jr_059_4b15
+	jp nz, .b
+
 	ret
 
 
-jr_059_4aa0:
+.a
+;=@a1
 	xor a
 	ld [wLinkPartnerChoice], a
 	ld a, $01
 	ld [wListLastRows], a
+;=@a2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@a3
 	ld a, [wMenuChoice2]
 	set 7, a
 	ld [wMenuChoice2], a
+;=@a4
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@a5
 	call CmdTutorDrawMenu
+;=@a6
 	ld a, $03
 	ld [wSceneObjects], a
 	ret
 
 
-jr_059_4ac7:
+.up
+;=@u1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@u2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@u3
 	ld a, [wMenuChoice2]
 	or a
-	jr z, jr_059_4adc
+	jr z, .wrapUp
+
 	dec a
-	jr jr_059_4ade
+	jr .storeUp
 
 
-jr_059_4adc:
+.wrapUp
+;=@u3
 	ld a, $03
 
-jr_059_4ade:
+.storeUp
+;=@u3
 	ld [wMenuChoice2], a
+;=@u4
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@u5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4aee:
+.down
+;=@d1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@d2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@d3
 	ld a, [wMenuChoice2]
 	cp $03
-	jr z, jr_059_4b04
+	jr z, .wrapDown
+
 	inc a
-	jr jr_059_4b05
+	jr .storeDown
 
 
-jr_059_4b04:
+.wrapDown
+;=@d3
 	xor a
 
-jr_059_4b05:
+.storeDown
+;=@d3
 	ld [wMenuChoice2], a
+;=@d4
 	ld a, $02
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@d5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4b15:
+.b
+;>     wLinkPartnerChoice = 0; wListLastRows = 0
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     if wPartyCount >= 2:                      # back to ALL / EACH
 	ld a, [wPartyCount]
 	cp $02
-	jr c, jr_059_4b4a
+	jr c, .toMain
+
+;>         wListPage &= ~0x80
 	ld a, [wListPage]
 	res 7, a
 	ld [wListPage], a
+;>         wBattleListCount = 0; wCommandSubStep = 4
 	xor a
 	ld [wBattleListCount], a
 	ld a, $04
 	ld [wCommandSubStep], a
+;>         wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>         CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;>         wSceneObjects[0] = 5; wSceneObjects[1] = 0
 	ld a, $05
 	ld [wSceneObjects], a
 	xor a
@@ -1802,490 +2061,798 @@ jr_059_4b15:
 	ret
 
 
-jr_059_4b4a:
+.toMain
+;>     else:                                    # back to the command menu
+;>         wMenuChoice &= ~0x80
 	ld a, [wMenuChoice]
 	res 7, a
 	ld [wMenuChoice], a
+;>         wSceneObjects[0] = 0; wSceneObjects[1] = 0; wMenuChoice2 = 0
 	xor a
 	ld [wSceneObjects], a
 	ld [wSceneObjects + 1], a
 	ld [wMenuChoice2], a
+;>         wBattleListCount = 0; wCommandSubStep = 0; wCommandStep = 0
 	ld [wBattleListCount], a
 	ld [wCommandSubStep], a
 	ld [wCommandStep], a
+;>         CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
 	ret
 
+;@ def CmdTutorExplainStrategy()
+;@ path: system/debug/commandtutor
+;@ State 3: explains the chosen strategy in steps wSceneObjects[1] (CmdTutorExplainStrategySteps).
+;@ test: skip jumps through a table to the step routines
 CmdTutorExplainStrategy::
+;> CmdTutorExplainStrategySteps[wSceneObjects[1]]()
 	ld a, [wSceneObjects + 1]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ Steps of state 3: show only the message box, start the text, continue when it is done.
+CmdTutorExplainStrategySteps:
 	dw CmdTutorClearMenu
 	dw CmdTutorStartStrategyText
 	dw CmdTutorAfterStrategyText
 
+;@ def CmdTutorStartStrategyText()
+;@ path: system/debug/commandtutor
+;@ Starts text 2/(4 + (wMenuChoice2 & 3)), the explanation of the chosen strategy.
+;@ test: skip starts the text printer
 CmdTutorStartStrategyText::
+;> wTextIndex = (wMenuChoice2 & 3) + 4
 	ld a, [wMenuChoice2]
 	and $03
 	add $04
 	ld [wTextIndex], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> StartText_59()
 	call StartText_59
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
+;@ def CmdTutorAfterStrategyText()
+;@ path: system/debug/commandtutor
+;@ Once the text is done: COMMAND goes on to the order menu (state 6), the other strategies back to
+;@ the strategy menu (state 2).
+;@ test: skip calls far routines
 CmdTutorAfterStrategyText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
+
+;> choice = wMenuChoice2 & 3
 	ld a, [wMenuChoice2]
 	and $03
+;> if choice != 3:
 	cp $03
-	jr z, jr_059_4bb6
+	jr z, .command
+
+;>     wMenuChoice2 = choice
 	res 7, a
 	ld [wMenuChoice2], a
+;>     wSceneObjects[0] = 2; wSceneObjects[1] = 0
 	ld a, $02
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
+;>     wBattleListCount = 0; wCommandSubStep = 2
 	ld [wBattleListCount], a
 	ld a, $02
 	ld [wCommandSubStep], a
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4bb6:
+.command
+;> else:
+;>     wSceneObjects[0] = 6; wSceneObjects[1] = 0
 	ld a, $06
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
+;>     wBattleListCount = 0; wCommandSubStep = 5   # the order menu
 	ld [wBattleListCount], a
 	ld a, $05
 	ld [wCommandSubStep], a
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
 	ret
 
+;@ def CmdTutorQuit()
+;@ path: system/debug/commandtutor
+;@ State 4, "Enough?": runs step wSceneObjects[1] (CmdTutorQuitSteps).
+;@ test: skip jumps through a table to the step routines
 CmdTutorQuit::
+;> CmdTutorQuitSteps[wSceneObjects[1]]()
 	ld a, [wSceneObjects + 1]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ Steps of state 4: ask, the yes / no menu, act on the answer, leave after the fade out.
+CmdTutorQuitSteps:
 	dw CmdTutorAskQuit
 	dw CmdTutorQuitMenu
 	dw CmdTutorQuitAnswer
 	dw CmdTutorBackToTitle
 
+;@ def CmdTutorAskQuit()
+;@ path: system/debug/commandtutor
+;@ Puts the cursor on "yes", draws the yes / no box (menu 3) with the screen and starts text 2/8
+;@ ("Enough?").
+;@ test: skip calls far routines
 CmdTutorAskQuit::
+;> wListCursor = 0
 	xor a
 	ld [wListCursor], a
+;> wBattleListCount = 0; wCommandSubStep = 3
 	xor a
 	ld [wBattleListCount], a
 	ld a, $03
 	ld [wCommandSubStep], a
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;> wTextIndex = 8
 	ld a, $08
 	ld [wTextIndex], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> StartText_59()
 	call StartText_59
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
+;@ def CmdTutorQuitMenu()
+;@ path: system/debug/commandtutor
+;@ The yes / no menu (wListCursor 0 yes, 1 no): Up / Down switch, A marks the answer and goes on,
+;@ B returns to the command menu. Input pauses 8 frames after each press.
+;@ test: skip calls far routines
 CmdTutorQuitMenu::
+;> if wLinkRefused:                             # input pause after a press
 	ld a, [wLinkRefused]
 	or a
-	jr z, jr_059_4c15
+	jr z, .input
+
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     if wLinkRefused < 8:
+;>         return
 	ld a, [wLinkRefused]
 	cp $08
 	ret c
+
+;>     wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
 
-jr_059_4c15:
+.input
+;> CmdTutorBlinkCursor()
 	call CmdTutorBlinkCursor
+;> if wSGBJoypads[1] & 0x01:                     # A
 	ld a, [wSGBJoypads + 1]
 	and $01
-	jr nz, jr_059_4c2e
+	jr nz, .a
+
+;>@a1     wLinkPartnerChoice = 0; wListLastRows = 1
+;>@a2     wLinkRefused += 1
+;>@a3     wListCursor |= 0x80
+;>@a4     wBattleListCount = 1; wCommandSubStep = 3
+;>@a5     wCommandStep = 0
+;>@a6     CmdTutorDrawMenu()
+;>@a7     wSceneObjects[1] += 1
+;> elif wSGBJoypads[0] & 0xC0:                   # Up or Down
 	ld a, [wSGBJoypads]
 	and $c0
-	jr nz, jr_059_4c59
+	jr nz, .upDown
+
+;>@v1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@v2     wLinkRefused += 1
+;>@v3     wListCursor ^= 0x01
+;>@v4     wBattleListCount = 1; wCommandSubStep = 3
+;>@v5     wCommandStep = 0
+;>@v6     CmdTutorDrawMenu()
+;> elif wSGBJoypads[1] & 0x02:                   # B
 	ld a, [wSGBJoypads + 1]
 	and $02
-	jr nz, jr_059_4c7f
+	jr nz, CmdTutorQuitCancel
+
 	ret
 
 
-jr_059_4c2e:
+.a
+;=@a1
 	xor a
 	ld [wLinkPartnerChoice], a
 	ld a, $01
 	ld [wListLastRows], a
+;=@a2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@a3
 	ld a, [wListCursor]
 	set 7, a
 	ld [wListCursor], a
+;=@a4
 	ld a, $01
 	ld [wBattleListCount], a
 	ld a, $03
 	ld [wCommandSubStep], a
+;=@a5
 	xor a
 	ld [wCommandStep], a
+;=@a6
 	call CmdTutorDrawMenu
+;=@a7
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
 
-jr_059_4c59:
+.upDown
+;=@v1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@v2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@v3
 	ld a, [wListCursor]
 	xor $01
 	ld [wListCursor], a
+;=@v4
 	ld a, $01
 	ld [wBattleListCount], a
 	ld a, $03
 	ld [wCommandSubStep], a
+;=@v5
 	xor a
 	ld [wCommandStep], a
+;=@v6
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4c7f:
+CmdTutorQuitCancel:
+;>     wLinkPartnerChoice = 0; wListLastRows = 0   # back to the command menu
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     wBattleListCount = 0; wCommandSubStep = 0
 	xor a
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandSubStep], a
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;>     wSceneObjects[0] = 0; wSceneObjects[1] = 0
 	xor a
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
 	ret
 
+;@ def CmdTutorQuitAnswer()
+;@ path: system/debug/commandtutor
+;@ "No" returns to the command menu (the B path of CmdTutorQuitMenu); "yes" starts the fade out
+;@ and goes on to leave.
+;@ test: skip calls far routines
 CmdTutorQuitAnswer::
+;> if wListCursor & 0x01:                       # no
+;>     return CmdTutorQuitCancel()
 	ld a, [wListCursor]
 	and $01
-	jr nz, jr_059_4c7f
+	jr nz, CmdTutorQuitCancel
+
+;> StartFade(4)
 	ld a, $04
 	call StartFade
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
+;@ def CmdTutorBackToTitle()
+;@ path: system/debug/commandtutor
+;@ After the fade out: switches to game mode 0, the opening, from its start.
 CmdTutorBackToTitle::
+;> if wFadeState:
+;>     return
 	ld a, [wFadeState]
 	or a
 	ret nz
+
+;> wGameMode = 0
 	ld a, $00
 	ld [wGameMode], a
+;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
+;> wGameModeChange += 1
 	ld hl, wGameModeChange
 	inc [hl]
 	ret
 
+;@ def CmdTutorTargetMenu()
+;@ path: system/debug/commandtutor
+;@ State 5, ALL or EACH (wListPage 0 ALL, 1 EACH: whether a strategy goes to the whole party or to
+;@ each monster): Up / Down switch, A marks the entry and goes to state 7 (its text), B returns to
+;@ the command menu. Input pauses 8 frames after each press.
+;@ test: skip calls far routines
 CmdTutorTargetMenu::
+;> if wLinkRefused:                             # input pause after a press
 	ld a, [wLinkRefused]
 	or a
-	jr z, jr_059_4ce6
+	jr z, .input
+
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     if wLinkRefused < 8:
+;>         return
 	ld a, [wLinkRefused]
 	cp $08
 	ret c
+
+;>     wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
 
-jr_059_4ce6:
+.input
+;> CmdTutorBlinkCursor()
 	call CmdTutorBlinkCursor
+;> if wSGBJoypads[1] & 0x01:                     # A
 	ld a, [wSGBJoypads + 1]
 	and $01
-	jr nz, jr_059_4cff
+	jr nz, .a
+
+;>@a1     wLinkPartnerChoice = 0; wListLastRows = 1
+;>@a2     wLinkRefused += 1
+;>@a3     wListPage |= 0x80
+;>@a4     wBattleListCount = 1; wCommandStep = 0
+;>@a5     CmdTutorDrawMenu()
+;>@a6     wSceneObjects[0] = 7
+;> elif wSGBJoypads[0] & 0xC0:                   # Up or Down
 	ld a, [wSGBJoypads]
 	and $c0
-	jr nz, jr_059_4d26
+	jr nz, .upDown
+
+;>@v1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@v2     wLinkRefused += 1
+;>@v3     wListPage ^= 0x01
+;>@v4     wBattleListCount = 1; wCommandStep = 0
+;>@v5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[1] & 0x02:                   # B
 	ld a, [wSGBJoypads + 1]
 	and $02
-	jr nz, jr_059_4d47
+	jr nz, .b
+
 	ret
 
 
-jr_059_4cff:
+.a
+;=@a1
 	xor a
 	ld [wLinkPartnerChoice], a
 	ld a, $01
 	ld [wListLastRows], a
+;=@a2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@a3
 	ld a, [wListPage]
 	set 7, a
 	ld [wListPage], a
+;=@a4
 	ld a, $01
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@a5
 	call CmdTutorDrawMenu
+;=@a6
 	ld a, $07
 	ld [wSceneObjects], a
 	ret
 
 
-jr_059_4d26:
+.upDown
+;=@v1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@v2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@v3
 	ld a, [wListPage]
 	xor $01
 	ld [wListPage], a
+;=@v4
 	ld a, $01
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@v5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4d47:
+.b
+;>     wMenuChoice &= ~0x80
 	ld a, [wMenuChoice]
 	res 7, a
 	ld [wMenuChoice], a
+;>     wLinkPartnerChoice = 0; wListLastRows = 0
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     wBattleListCount = 0; wCommandSubStep = 0
 	xor a
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandSubStep], a
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;>     wSceneObjects[0] = 0; wSceneObjects[1] = 0
 	xor a
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
 	ret
 
+;@ def CmdTutorOrderMenu()
+;@ path: system/debug/commandtutor
+;@ State 6, the order menu of the COMMAND strategy (wListCursor2 0 ATK, 1 the skills, 2 the
+;@ defense): Up / Down move with wrap around, A marks the entry and goes to state 8 (its text), B
+;@ returns to the strategy menu. Input pauses 8 frames after each press.
+;@ test: skip calls far routines
 CmdTutorOrderMenu::
+;> if wLinkRefused:                             # input pause after a press
 	ld a, [wLinkRefused]
 	or a
-	jr z, jr_059_4d87
+	jr z, .input
+
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     if wLinkRefused < 8:
+;>         return
 	ld a, [wLinkRefused]
 	cp $08
 	ret c
+
+;>     wLinkRefused = 0
 	xor a
 	ld [wLinkRefused], a
 
-jr_059_4d87:
+.input
+;> CmdTutorBlinkCursor()
 	call CmdTutorBlinkCursor
+;> if wSGBJoypads[1] & 0x01:                     # A
 	ld a, [wSGBJoypads + 1]
 	and $01
-	jr nz, jr_059_4da7
+	jr nz, .a
+
+;>@a1     wLinkPartnerChoice = 0; wListLastRows = 1
+;>@a2     wLinkRefused += 1
+;>@a3     wListCursor2 |= 0x80
+;>@a4     wBattleListCount = 1; wCommandStep = 0
+;>@a5     CmdTutorDrawMenu()
+;>@a6     wSceneObjects[0] = 8
+;> elif wSGBJoypads[0] & 0x40:                   # Up
 	ld a, [wSGBJoypads]
 	and $40
-	jr nz, jr_059_4dce
+	jr nz, .up
+
+;>@u1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@u2     wLinkRefused += 1
+;>@u3     wListCursor2 = (wListCursor2 or 3) - 1
+;>@u4     wBattleListCount = 1; wCommandStep = 0
+;>@u5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[0] & 0x80:                   # Down
 	ld a, [wSGBJoypads]
 	and $80
-	jr nz, jr_059_4df5
+	jr nz, .down
+
+;>@d1     wLinkPartnerChoice = 0; wListLastRows = 0
+;>@d2     wLinkRefused += 1
+;>@d3     wListCursor2 = (wListCursor2 + 1) % 3
+;>@d4     wBattleListCount = 1; wCommandStep = 0
+;>@d5     CmdTutorDrawMenu()
+;> elif wSGBJoypads[1] & 0x02:                   # B
 	ld a, [wSGBJoypads + 1]
 	and $02
-	jr nz, jr_059_4e1a
+	jr nz, .b
+
 	ret
 
 
-jr_059_4da7:
+.a
+;=@a1
 	xor a
 	ld [wLinkPartnerChoice], a
 	ld a, $01
 	ld [wListLastRows], a
+;=@a2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@a3
 	ld a, [wListCursor2]
 	set 7, a
 	ld [wListCursor2], a
+;=@a4
 	ld a, $01
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@a5
 	call CmdTutorDrawMenu
+;=@a6
 	ld a, $08
 	ld [wSceneObjects], a
 	ret
 
 
-jr_059_4dce:
+.up
+;=@u1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@u2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@u3
 	ld a, [wListCursor2]
 	or a
-	jr z, jr_059_4de3
+	jr z, .wrapUp
+
 	dec a
-	jr jr_059_4de5
+	jr .storeUp
 
 
-jr_059_4de3:
+.wrapUp
+;=@u3
 	ld a, $02
 
-jr_059_4de5:
+.storeUp
+;=@u3
 	ld [wListCursor2], a
+;=@u4
 	ld a, $01
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@u5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4df5:
+.down
+;=@d1
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;=@d2
 	ld hl, wLinkRefused
 	inc [hl]
+;=@d3
 	ld a, [wListCursor2]
 	inc a
 	cp $03
-	jr c, jr_059_4e0a
+	jr c, .storeDown
+
 	xor a
 
-jr_059_4e0a:
+.storeDown
+;=@d3
 	ld [wListCursor2], a
+;=@d4
 	ld a, $01
 	ld [wBattleListCount], a
 	xor a
 	ld [wCommandStep], a
+;=@d5
 	call CmdTutorDrawMenu
 	ret
 
 
-jr_059_4e1a:
+.b
+;>     wLinkPartnerChoice = 0; wListLastRows = 0   # back to the strategy menu
 	xor a
 	ld [wLinkPartnerChoice], a
 	xor a
 	ld [wListLastRows], a
+;>     wLinkRefused += 1
 	ld hl, wLinkRefused
 	inc [hl]
+;>     wBattleListCount = 0; wCommandSubStep = 2
 	xor a
 	ld [wBattleListCount], a
 	ld a, $02
 	ld [wCommandSubStep], a
+;>     wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;>     CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
+;>     wSceneObjects[0] = 2; wSceneObjects[1] = 0
 	ld a, $02
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
 	ret
+;@ def CmdTutorExplainTarget()
+;@ path: system/debug/commandtutor
+;@ State 7: explains ALL or EACH in steps wSceneObjects[1] (CmdTutorExplainTargetSteps).
+;@ test: skip jumps through a table to the step routines
 CmdTutorExplainTarget::
+;> CmdTutorExplainTargetSteps[wSceneObjects[1]]()
 	ld a, [wSceneObjects + 1]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ Steps of state 7: show only the message box, start the text, continue when it is done.
+CmdTutorExplainTargetSteps:
 	dw CmdTutorClearMenu
 	dw CmdTutorStartTargetText
 	dw CmdTutorAfterTargetText
 
+;@ def CmdTutorStartTargetText()
+;@ path: system/debug/commandtutor
+;@ Starts text 2/(9 + (wListPage & 3)), the explanation of ALL or EACH.
+;@ test: skip starts the text printer
 CmdTutorStartTargetText::
+;> wTextIndex = (wListPage & 3) + 9
 	ld a, [wListPage]
 	and $03
 	add $09
 	ld [wTextIndex], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> StartText_59()
 	call StartText_59
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
 
+;@ def CmdTutorAfterTargetText()
+;@ path: system/debug/commandtutor
+;@ Once the text is done, goes on to the strategy menu (state 2).
+;@ test: skip calls far routines
 CmdTutorAfterTargetText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
+
+;> wSceneObjects[0] = 2; wSceneObjects[1] = 0
 	ld a, $02
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
+;> wBattleListCount = 0; wCommandSubStep = 2
 	ld [wBattleListCount], a
 	ld a, $02
 	ld [wCommandSubStep], a
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
 	ret
 
+;@ def CmdTutorExplainOrder()
+;@ path: system/debug/commandtutor
+;@ State 8: explains the chosen order in steps wSceneObjects[1] (CmdTutorExplainOrderSteps).
+;@ test: skip jumps through a table to the step routines
 CmdTutorExplainOrder::
+;> CmdTutorExplainOrderSteps[wSceneObjects[1]]()
 	ld a, [wSceneObjects + 1]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ Steps of state 8: show only the message box, start the text, continue when it is done.
+CmdTutorExplainOrderSteps:
 	dw CmdTutorClearMenu
 	dw CmdTutorStartOrderText
 	dw CmdTutorAfterOrderText
 
+;@ def CmdTutorStartOrderText()
+;@ path: system/debug/commandtutor
+;@ Starts text 2/($0B + (wListCursor2 & 3)), the explanation of the chosen order.
+;@ test: skip starts the text printer
 CmdTutorStartOrderText::
+;> wTextIndex = (wListCursor2 & 3) + 0x0B
 	ld a, [wListCursor2]
 	and $03
 	add $0b
 	ld [wTextIndex], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> StartText_59()
 	call StartText_59
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
 	ret
+;@ def CmdTutorAfterOrderText()
+;@ path: system/debug/commandtutor
+;@ Once the text is done, goes back to the order menu (state 6).
+;@ test: skip calls far routines
 CmdTutorAfterOrderText::
+;> if wTextState:
+;>     return
 	ld a, [wTextState]
 	or a
 	ret nz
+
+;> wListCursor2 &= ~0x80
 	ld a, [wListCursor2]
 	res 7, a
 	ld [wListCursor2], a
+;> wSceneObjects[0] = 6; wSceneObjects[1] = 0
 	ld a, $06
 	ld [wSceneObjects], a
 	xor a
 	ld [wSceneObjects + 1], a
+;> wBattleListCount = 0; wCommandSubStep = 5
 	ld [wBattleListCount], a
 	ld a, $05
 	ld [wCommandSubStep], a
+;> wCommandStep = 0
 	xor a
 	ld [wCommandStep], a
+;> CmdTutorDrawMenu()
 	call CmdTutorDrawMenu
 	ret
 
@@ -2881,27 +3448,50 @@ TutorYesNoCursorSpots::
 	dw $012f
 	dw $016f
 
+;@ def StartText_59()
+;@ path: text/dialogue
+;@ Starts printing text wTextGroup / wTextIndex of bank $59 (TextGroups_59).
+;@ test: skip runs the text code with this bank switched in
 StartText_59::
+;> StartText(TextGroups_59)
 	ld de, TextGroups_59
 	call StartText
 	ret
 
+;@ def CopyText_59()
+;@ path: text/dialogue
+;@ Copies text wTextGroup / wTextIndex of bank $59 to wTextCopyDest.
+;@ test: skip runs the text code with this bank switched in
 CopyText_59::
+;> CopyTextString(TextGroups_59)
 	ld de, TextGroups_59
 	call CopyTextString
 	ret
 
+;@ def PrintText_59()
+;@ path: text/dialogue
+;@ Prints text wTextGroup / wTextIndex of bank $59 at once and waits until it is done.
+;@ test: skip runs the text printer
 PrintText_59::
+;> StartText_59()
 	call StartText_59
+;> RunTextToEnd()
 	call RunTextToEnd
 	ret
 
+;@ path: text/dialogue
+;@ The text groups of bank $59 (the table StartText_59 hands to StartText): 0 the battle screen
+;@ tutorial, 1 its enemy name and greeting, 2 the command tutorial, 3 the sprite viewer's labels.
 TextGroups_59::
 	dw TextGroup_59_0
 	dw TextGroup_59_1
 	dw TextGroup_59_2
 	dw TextGroup_59_3
 
+;@ path: text/dialogue
+;@ Text group 0 of bank $59, the battle screen tutorial (TutorExplain0-6): 0 "This is the Battle
+;@ Screen", 1 select FIGHT to start the fight, 2 what FIGHT does, 3 PLAN, 4 ITEM, 5 RUN, 6 "That's
+;@ all about battle". The text format is described at TextGroup_1A_0.
 TextGroup_59_0::
 	dw Texts_59 + $000
 	dw Texts_59 + $021
@@ -2911,11 +3501,18 @@ TextGroup_59_0::
 	dw Texts_59 + $3c0
 	dw Texts_59 + $40f
 
+;@ path: text/dialogue
+;@ Text group 1 of bank $59: 0 the tutorial enemy's name "Slio", 1 an empty text (clears the
+;@ message box), 2 the greeting "Grandpa Sakamoto is here!".
 TextGroup_59_1::
 	dw Texts_59 + $450
 	dw Texts_59 + $455
 	dw Texts_59 + $457
 
+;@ path: text/dialogue
+;@ Text group 2 of bank $59, the command tutorial: 0-3 FIGHT, PLAN, ITEM, RUN; 4-7 the strategies
+;@ CHARGE!, MIXED, CAUTIOUS and COMMAND; 8 "Enough?"; 9-10 ALL and EACH; 11-13 ATK, the skills and
+;@ the defense.
 TextGroup_59_2::
 	dw Texts_59 + $473
 	dw Texts_59 + $4c8
@@ -2932,9 +3529,14 @@ TextGroup_59_2::
 	dw Texts_59 + $7e2
 	dw Texts_59 + $829
 
+;@ path: text/dialogue
+;@ Text group 3 of bank $59: a single text, the sprite viewer's labels "Direction" / "No.".
 TextGroup_59_3::
 	dw Texts_59 + $865
 
+;@ path: text/dialogue
+;@ The texts of bank $59, one after the other, each ended by $F0 (format: see TextGroup_1A_0).
+;@ The tutorial texts start with $9F $A3 ("*:"), the speaker mark.
 Texts_59::
 	db $9f, $a3, $37, $45, $46, $50, $62, $46, $50, $62, $51, $45, $42, $ef, $ee, $65
 	db $25, $3e, $51, $51, $49, $42, $62, $36, $40, $4f, $42, $42, $4b, $65, $5f, $f7
@@ -3073,292 +3675,465 @@ Texts_59::
 	db $29, $65, $5f, $f7, $f0, $ed, $27, $46, $4f, $42, $40, $51, $46, $4c, $4b, $62
 	db $31, $4c, $5f, $f0
 
+;@ def SplitDecimal_59(n: hl)
+;@ path: system/debug
+;@ Splits `n` (0-999) into its decimal digits: hundreds in wSceneObjects[16], tens in
+;@ wSceneObjects[17], ones in wSceneObjects[18].
+;@ test: n = rand(0, 999)
 SplitDecimal_59::
+;>@z for i in (16, 17, 18): wSceneObjects[i] = 0
 	xor a
 	ld [wSceneObjects + 16], a
 	ld [wSceneObjects + 17], a
 	ld [wSceneObjects + 18], a
 
-jr_059_5bb1:
+.hundreds
+;> while True:                                  # counts one hundred too many
+;>     wSceneObjects[16] += 1
 	ld a, [wSceneObjects + 16]
 	inc a
 	ld [wSceneObjects + 16], a
-	ld bc, hPlayerPrevY + 1
+;>     n = (n - 100) & 0xFFFF
+	ld bc, -100
 	add hl, bc
+;>     if n & 0x8000:
+;>         break
 	ld a, h
 	rlc a
-	jr nc, jr_059_5bb1
+	jr nc, .hundreds
+
+;> n = (n + 100) & 0xFFFF
 	ld bc, $0064
 	add hl, bc
+;> wSceneObjects[16] -= 1
 	ld a, [wSceneObjects + 16]
 	dec a
 	ld [wSceneObjects + 16], a
 
-jr_059_5bcc:
+.tens
+;> while True:
+;>     wSceneObjects[17] += 1
 	ld a, [wSceneObjects + 17]
 	inc a
 	ld [wSceneObjects + 17], a
-	ld bc, hChanFreq
+;>     n = (n - 10) & 0xFFFF
+	ld bc, -10
 	add hl, bc
+;>     if n & 0x8000:
+;>         break
 	ld a, h
 	rlc a
-	jr nc, jr_059_5bcc
+	jr nc, .tens
+
+;> n = (n + 10) & 0xFFFF
 	ld bc, $000a
 	add hl, bc
+;> wSceneObjects[17] -= 1
 	ld a, [wSceneObjects + 17]
 	dec a
 	ld [wSceneObjects + 17], a
+;> wSceneObjects[18] = n & 0xFF
 	ld a, l
 	ld [wSceneObjects + 18], a
 	ret
 
+;@ def ReadWordAt_59(table: hl, offset: bc) -> hl
+;@ path: system/memory
+;@ Returns the 16-bit word at `table` + `offset`.
 ReadWordAt_59::
+;> return mem16[(table + offset) & 0xFFFF]
 	add hl, bc
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ret
 
+;@ def ReadTableWord_59(index: a, table: hl) -> hl
+;@ path: system/memory
+;@ Returns entry `index` (0-127) of the table of 16-bit words at `table`.
+;@ test: index = rand(0, 127)
 ReadTableWord_59::
+;>@p p = table + 2 * index
 	add a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p
 	ld h, a
+;> return mem16[p]
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ret
 
+;@ def TutorPointFight()
+;@ path: system/debug/battletutor
+;@ Tutorial step: moves the cursor to FIGHT (wTilemapBuffer offset $121), clears the other three
+;@ spots and restarts the blinking.
+;@ test: skip calls a far routine
 TutorPointFight::
+;> wTilemapBuffer[0x121] = 0xE8
 	ld hl, wTilemapBuffer + 289
 	ld [hl], $e8
+;> wSkillAmount = addr(wTilemapBuffer) + 0x121
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [wSkillAmount + 1], a
+;> wTilemapBuffer[0x161] = 0xE0
 	ld hl, wTilemapBuffer + 353
 	ld [hl], $e0
+;> wTilemapBuffer[0x127] = 0xE0
 	ld hl, wTilemapBuffer + 295
 	ld [hl], $e0
+;> wTilemapBuffer[0x167] = 0xE0
 	ld hl, wTilemapBuffer + 359
 	ld [hl], $e0
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
+;> wSceneObjects[3] = 0
 	xor a
 	ld [wSceneObjects + 3], a
 	ret
 
+;@ def TutorPointPlan()
+;@ path: system/debug/battletutor
+;@ Tutorial step: moves the cursor to PLAN (offset $161).
+;@ test: skip calls a far routine
 TutorPointPlan::
+;> wTilemapBuffer[0x121] = 0xE0
 	ld hl, wTilemapBuffer + 289
 	ld [hl], $e0
+;> wTilemapBuffer[0x161] = 0xE8
 	ld hl, wTilemapBuffer + 353
 	ld [hl], $e8
+;> wSkillAmount = addr(wTilemapBuffer) + 0x161
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [wSkillAmount + 1], a
+;> wTilemapBuffer[0x127] = 0xE0
 	ld hl, wTilemapBuffer + 295
 	ld [hl], $e0
+;> wTilemapBuffer[0x167] = 0xE0
 	ld hl, wTilemapBuffer + 359
 	ld [hl], $e0
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
+;> wSceneObjects[3] = 0
 	xor a
 	ld [wSceneObjects + 3], a
 	ret
 
+;@ def TutorPointItem()
+;@ path: system/debug/battletutor
+;@ Tutorial step: moves the cursor to ITEM (offset $127).
+;@ test: skip calls a far routine
 TutorPointItem::
+;> wTilemapBuffer[0x121] = 0xE0
 	ld hl, wTilemapBuffer + 289
 	ld [hl], $e0
+;> wTilemapBuffer[0x161] = 0xE0
 	ld hl, wTilemapBuffer + 353
 	ld [hl], $e0
+;> wTilemapBuffer[0x127] = 0xE8
 	ld hl, wTilemapBuffer + 295
 	ld [hl], $e8
+;> wSkillAmount = addr(wTilemapBuffer) + 0x127
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [wSkillAmount + 1], a
+;> wTilemapBuffer[0x167] = 0xE0
 	ld hl, wTilemapBuffer + 359
 	ld [hl], $e0
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
+;> wSceneObjects[3] = 0
 	xor a
 	ld [wSceneObjects + 3], a
 	ret
 
+;@ def TutorPointRun()
+;@ path: system/debug/battletutor
+;@ Tutorial step: moves the cursor to RUN (offset $167).
+;@ test: skip calls a far routine
 TutorPointRun::
+;> wTilemapBuffer[0x121] = 0xE0
 	ld hl, wTilemapBuffer + 289
 	ld [hl], $e0
+;> wTilemapBuffer[0x161] = 0xE0
 	ld hl, wTilemapBuffer + 353
 	ld [hl], $e0
+;> wTilemapBuffer[0x127] = 0xE0
 	ld hl, wTilemapBuffer + 295
 	ld [hl], $e0
+;> wTilemapBuffer[0x167] = 0xE8
 	ld hl, wTilemapBuffer + 359
 	ld [hl], $e8
+;> wSkillAmount = addr(wTilemapBuffer) + 0x167
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
 	ld [wSkillAmount + 1], a
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> wSceneObjects[1] += 1
 	ld hl, wSceneObjects + 1
 	inc [hl]
+;> wSceneObjects[3] = 0
 	xor a
 	ld [wSceneObjects + 3], a
 	ret
+;@ def TutorBlinkCursor()
+;@ path: system/debug/battletutor
+;@ Blinks the tutorial's cursor (at the buffer address in wSkillAmount): it disappears after 10
+;@ frames and comes back after 20, counted in wSceneObjects[3].
+;@ test: skip calls a far routine
 TutorBlinkCursor::
+;> wSceneObjects[3] += 1
 	ld hl, wSceneObjects + 3
 	inc [hl]
+;> if wSceneObjects[3] == 10:
 	ld a, [wSceneObjects + 3]
 	cp $0a
-	jr z, jr_059_5cb0
+	jr z, .hide
+
+;>@h1     mem[wSkillAmount] = 0xE0
+;>@h2     CopyTilemapBufferToScreen_50()
+;> elif wSceneObjects[3] == 20:
 	cp $14
-	jr z, jr_059_5cbf
+	jr z, .show
+
 	ret
 
 
-jr_059_5cb0:
+.hide
+;=@h1
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [wSkillAmount + 1]
 	ld h, a
 	ld [hl], $e0
+;=@h2
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-jr_059_5cbf:
+.show
+;>     mem[wSkillAmount] = 0xE8
 	ld a, [wSkillAmount]
 	ld l, a
 	ld a, [wSkillAmount + 1]
 	ld h, a
 	ld [hl], $e8
+;>     CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;>     wSceneObjects[3] = 0
 	xor a
 	ld [wSceneObjects + 3], a
 	ret
 
+;@ def DrawLayout_59(src: de, dest: hl)
+;@ path: gfx/tilemap
+;@ Draws a box layout into a BG map or into wTilemapBuffer (every tile goes through WriteVRAM, so
+;@ it works with the screen on). Layout format: a u16 offset added to `dest`, then tile numbers
+;@ row by row; $D8 goes on at the start of the next row (32 tiles further), $D9 ends it.
+;@ test: skip writes through WriteVRAM, which waits for the LCD
 DrawLayout_59::
+;> offset = mem16[src]; src += 2
 	ld a, [de]
 	inc de
 	ld c, a
 	ld a, [de]
 	inc de
 	ld b, a
+;> dest += offset
 	add hl, bc
 
-jr_059_5cd9:
+.row
+;> while True:                                  # one row per pass
+;>     row = dest
 	push hl
 
-jr_059_5cda:
+.next
+;>     while True:
+;>         tile = mem[src]; src += 1
 	ld a, [de]
 	inc de
+;>         if tile == 0xD8:                     # next row
+;>             break
 	cp $d8
-	jr z, jr_059_5cea
+	jr z, .newRow
+
+;>         if tile == 0xD9:                     # end
+;>@e             return
 	cp $d9
-	jr z, jr_059_5cf5
+	jr z, .end
+
+;>         WriteVRAM(tile, dest)
 	call WriteVRAM
+;>         dest += 1
 	inc hl
-	jr jr_059_5cda
+	jr .next
 
 
-jr_059_5cea:
+.newRow
+;>@n     dest = row + 0x20
 	pop hl
 	ld a, l
 	add $20
 	ld l, a
 	ld a, h
 	adc $00
+;=@n
 	ld h, a
-	jr jr_059_5cd9
+	jr .row
 
 
-jr_059_5cf5:
+.end
+;=@e
 	pop hl
 	ret
 
+;@ def TutorScrollInStep() -> zero
+;@ path: system/debug/battletutor
+;@ Scrolls the view one pixel (hScrollY + 1); returns zero set once Y has reached 0.
+;@ test: skip writes the scroll registers
 TutorScrollInStep::
+;> mem[addr(hScrollY)] = (lo(hScrollY) + 1) & 0xFF      # the low byte
 	ld hl, hScrollY
 	inc [hl]
+;> ApplyScroll()
 	call ApplyScroll
+;> return lo(hScrollY) == 0
 	ldh a, [hScrollY]
 	cp $00
 	ret
 
+;@ def TutorScrollOutStep() -> zero
+;@ path: system/debug/battletutor
+;@ Scrolls the view back one pixel (hScrollY - 1); returns zero set once Y has reached $D8.
+;@ test: skip writes the scroll registers
 TutorScrollOutStep::
+;> mem[addr(hScrollY)] = (lo(hScrollY) - 1) & 0xFF      # the low byte
 	ld hl, hScrollY
 	dec [hl]
+;> ApplyScroll()
 	call ApplyScroll
+;> return lo(hScrollY) == 0xD8
 	ldh a, [hScrollY]
 	cp $d8
 	ret
 
+;@ def LoadTutorEnemyPic()
+;@ path: system/debug/battletutor
+;@ Unpacks the battle picture of species $AA (WhiteKing) to $9000, the tutorial's enemy.
+;@ test: skip decompresses into VRAM
 LoadTutorEnemyPic::
+;>@g gfx = mem16[MonsterPicRefs + 2 * 0xAA]
 	ld a, $aa
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
 	add LOW(MonsterPicRefs)
+;=@g
 	ld l, a
 	ld a, h
 	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
+;=@g
 	ld d, [hl]
+;> DecompressVRAM(gfx >> 8, gfx & 0xFF, 0x9000)
 	ld hl, $9000
 	call DecompressVRAM
 	ret
 
+;@ def DrawTutorBattleScreen()
+;@ path: system/debug/battletutor
+;@ Draws the tutorials' mock battle screen: the enemy name box straight into BG map row 27
+;@ ($9B60, in view while the screen is scrolled to Y $D8), and into a blank wTilemapBuffer the
+;@ bottom of that box, the enemy picture and the message box.
+;@ test: skip writes VRAM
 DrawTutorBattleScreen::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> DrawLayout_59(TutorEnemyNameLayout, 0x9B60)
 	ld de, TutorEnemyNameLayout
 	ld hl, $9b60
 	call DrawLayout_59
+;> DrawLayout_59(TutorEnemyNameBottomLayout, wTilemapBuffer)
 	ld de, TutorEnemyNameBottomLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;> DrawLayout_59(TutorEnemyPicLayout, wTilemapBuffer)
 	ld de, TutorEnemyPicLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;> DrawLayout_59(TutorMessageBoxLayout, wTilemapBuffer)
 	ld de, TutorMessageBoxLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
 	ret
 
+;@ def ClearTilemapBuffer_59()
+;@ path: gfx/tilemap
+;@ Fills wTilemapBuffer with the blank tile $E0.
 ClearTilemapBuffer_59::
+;> fill(wTilemapBuffer, 0xE0, 0x240)
 	ld a, $e0
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 	call FillMemory
 	ret
 
+;@ def Multiply_59(count: a, size: bc) -> bc
+;@ path: system/math
+;@ Returns `count` * `size` (16 bits) by repeated adding.
+;@ test: count = rand(0, 20)
 Multiply_59::
+;> if count == 0:
 	or a
-	jr z, jr_059_5d68
+	jr z, .zero
+
+;>@z     return 0
+;> total = 0
 	ld hl, $0000
 
-jr_059_5d61:
+.loop
+;> while count:
+;>     total = (total + size) & 0xFFFF; count -= 1
 	add hl, bc
 	dec a
-	jr nz, jr_059_5d61
+	jr nz, .loop
+
+;> return total
 	ld b, h
 	ld c, l
 	ret
 
 
-jr_059_5d68:
+.zero
+;=@z
 	ld bc, $0000
 	ret
 

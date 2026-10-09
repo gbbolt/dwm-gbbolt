@@ -162,6 +162,11 @@ def cards(ctx, rom, names, skills, stats, pics, pals, br):
     exp = [rom.exp_table(t) for t in range(32)]
     curves = [rom.growth_curve(c) for c in range(32)]
     wild = wild_places(rom, names)
+    try:
+        import sprites
+        walk = sprites.walkers(ctx)
+    except Exception:  # noqa: BLE001
+        walk = {}
     totals = [[sum(curves[d[9 + i]][:max(1, d[1])]) for i in range(6)] for d in stats]
     top = [max(t[i] for t in totals) for i in range(6)]
     born = {}
@@ -215,7 +220,7 @@ def cards(ctx, rom, names, skills, stats, pics, pals, br):
                 ['skills at birth', [skill_cell(skills, k) for k in d[6:9]]],
                 ['growth curves', [{'asset': 'growth-curves@g{}'.format(d[9 + i]),
                                     'text': '{} {}'.format(GROWTH[i], d[9 + i])} for i in range(6)]],
-            ]},
+            ] + ([['walking sprite', {'asset': 'monster-sprites', 'text': 'all frames'}]] if s in walk else [])},
             {'title': 'Growth (stat points gained up to level {})'.format(maxlv),
              'bars': [['{} (curve {})'.format(GROWTH_LONG[i], d[9 + i]), totals[s][i], top[i]] for i in range(6)]},
             {'title': 'Experience needed', 'columns': ['level', 'experience'], 'rows': lv_rows},
@@ -233,7 +238,7 @@ def cards(ctx, rom, names, skills, stats, pics, pals, br):
         out.append({'name': card(s), 'type': 'card', 'group': 'monsters',
                     'title': '#{} {}'.format(s, names[s]), 'subtitle': '{} family'.format(family_text(fam)),
                     'summary': '{} family, up to level {}'.format(family_text(fam), maxlv),
-                    'images': [img], 'sections': sections,
+                    'images': [img] + ([walk[s]] if s in walk else []), 'sections': sections,
                     'doc': ['{}: record {} of MonsterStats (43 bytes: +0 family, +1 max level, +2 experience '
                             'curve, +3 sex class, +6..+8 skills at birth, +9..+14 growth curves, +15..+41 '
                             'resistances), picture {:02X}:{:02X} (MonsterPicRefs), colours from MonPicPalettes. '
