@@ -2356,7 +2356,7 @@ BeastTail_EnemyC::
 ;@ def BeastTail_Done()
 ;@ path: item/battle
 ;@ Step 5: after the last pause, goes on with battle sub-step $0D.
-;@ test: wMonStats[0] = rand(0, 3)
+;@ test: skip its input is one element of a RAM array, which a test line cannot set
 BeastTail_Done::
 ;> if wTextState:
 ;>     return

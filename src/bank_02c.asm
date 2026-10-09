@@ -4,18 +4,68 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $02c", ROMX[$4000], BANK[$2c]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_2C::
 	db $2c
 
+;@ path: field/gatefloor/tables
+;@ Entry table of bank $2C: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_2C::
-	db $63, $40, $63, $50, $63, $60, $23, $61, $6f, $61, $25, $62, $e5, $62, $9a
-	db $63, $66, $64, $40, $65, $96, $65, $70, $66, $49, $67, $15, $68, $ee, $68, $c9
-	db $69, $21, $6a, $d2, $6a, $55, $6b, $42, $6c, $19, $6d, $a7, $6d, $1e, $6e, $a0
-	db $6e, $0c, $6f, $7e, $6f, $cc, $6f, $34, $70, $9a, $70, $0f, $71, $8b, $71, $c9
-	db $71, $1e, $72, $69, $72, $bb, $72, $0f, $73, $b2, $73, $66, $74, $10, $75, $dc
-	db $75, $8c, $76, $d1, $76, $72, $77, $17, $78, $9a, $78, $ca, $78, $b5, $79, $65
-	db $7a, $f8, $7a
+	dw SGBBorder1TilesB
+	dw SGBBorder2TilesA
+	dw FloorScreen_2C_02
+	dw FloorScreen_2C_03
+	dw FloorScreen_2C_04
+	dw FloorScreen_2C_05
+	dw FloorScreen_2C_06
+	dw FloorScreen_2C_07
+	dw FloorScreen_2C_08
+	dw FloorScreen_2C_09
+	dw FloorScreen_2C_0A
+	dw FloorScreen_2C_0B
+	dw FloorScreen_2C_0C
+	dw FloorScreen_2C_0D
+	dw FloorScreen_2C_0E
+	dw FloorScreen_2C_0F
+	dw FloorScreen_2C_10
+	dw FloorScreen_2C_11
+	dw FloorScreen_2C_12
+	dw FloorScreen_2C_13
+	dw FloorScreen_2C_14
+	dw FloorScreen_2C_15
+	dw FloorScreen_2C_16
+	dw FloorScreen_2C_17
+	dw FloorScreen_2C_18
+	dw FloorScreen_2C_19
+	dw FloorScreen_2C_1A
+	dw FloorScreen_2C_1B
+	dw FloorScreen_2C_1C
+	dw FloorScreen_2C_1D
+	dw FloorScreen_2C_1E
+	dw FloorScreen_2C_1F
+	dw FloorScreen_2C_20
+	dw FloorScreen_2C_21
+	dw FloorScreen_2C_22
+	dw FloorScreen_2C_23
+	dw FloorScreen_2C_24
+	dw FloorScreen_2C_25
+	dw FloorScreen_2C_26
+	dw FloorScreen_2C_27
+	dw FloorScreen_2C_28
+	dw FloorScreen_2C_29
+	dw FloorScreen_2C_2A
+	dw FloorScreen_2C_2B
+	dw FloorScreen_2C_2C
+	dw FloorScreen_2C_2D
+	dw FloorScreen_2C_2E
+	dw FloorScreen_2C_2F
+	dw FloorScreen_2C_30
 
+;@ path: system/sgb/border
+;@ Super Game Boy border 1, second half of its tiles (CHR_TRN packet $11): $1000 bytes of uncompressed 4-bit SNES
+;@ tiles, copied as they are by SGBTransfer from LoadSGBBorder.
 SGBBorder1TilesB::
 	db $00, $ff, $00, $ff, $00, $ff, $00, $ff, $80, $7f, $e0, $9f, $fc
 	db $e3, $f7, $08, $ff, $00, $ff, $00, $ff, $00, $ff, $00, $7f, $00, $9f, $00, $e3
@@ -275,6 +325,9 @@ SGBBorder1TilesB::
 	db $d5, $00, $ff, $00, $02, $78, $02, $fc, $02, $fc, $02, $fc, $02, $fc, $02, $38
 	db $02, $00, $00
 
+;@ path: system/sgb/border
+;@ Super Game Boy border 2, first half of its tiles (CHR_TRN packet $10): $1000 bytes of uncompressed 4-bit SNES
+;@ tiles, copied as they are by SGBTransfer from LoadSGBBorder.
 SGBBorder2TilesA::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
@@ -534,6 +587,10 @@ SGBBorder2TilesA::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff, $ff
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $C6, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $C0 packed).
 FloorScreen_2C_02::
 	db $00, $02, $0c, $28, $29, $0c, $00, $0e, $ff, $0c, $14, $07, $2a
 	db $2b, $0c, $20, $0e, $0c, $14, $08, $28, $29, $2c, $2d, $08, $09, $0c, $44, $08
@@ -549,6 +606,10 @@ FloorScreen_2C_02::
 	db $0c, $00, $00, $04, $05, $0c, $46, $18, $0c, $14, $0e, $14, $15, $0c, $66, $18
 	db $0c, $14, $08
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $C7, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $4C packed).
 FloorScreen_2C_03::
 	db $00, $02, $00, $28, $29, $00, $00, $0e, $ff, $00, $14, $07, $2a
 	db $2b, $00, $20, $0e, $00, $14, $08, $00, $00, $0f, $4d, $00, $60, $0f, $13, $2c
@@ -556,6 +617,10 @@ FloorScreen_2C_03::
 	db $19, $26, $27, $00, $ae, $0f, $07, $30, $31, $30, $31, $00, $cc, $0f, $09, $32
 	db $33, $32, $33, $00, $ec, $0f, $4d, $00, $4c, $1f, $4d, $00, $6c, $1f, $01
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $C8, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $B6 packed).
 FloorScreen_2C_04::
 	db $00
 	db $02, $0c, $28, $29, $0c, $00, $0e, $ff, $0c, $14, $07, $2a, $2b, $0c, $20, $0e
@@ -571,6 +636,10 @@ FloorScreen_2C_04::
 	db $00, $01, $02, $03, $02, $03, $0c, $92, $0f, $05, $32, $33, $10, $11, $12, $13
 	db $12, $13, $0c, $32, $0a
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $C9, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $C0 packed).
 FloorScreen_2C_05::
 	db $00, $02, $06, $28, $29, $06, $00, $0e, $ff, $06, $14
 	db $07, $2a, $2b, $06, $20, $0e, $06, $14, $08, $06, $00, $02, $2c, $2d, $08, $09
@@ -586,6 +655,10 @@ FloorScreen_2C_05::
 	db $06, $ca, $00, $02, $03, $06, $10, $0f, $03, $2e, $2f, $36, $37, $06, $ea, $00
 	db $12, $13, $06, $30, $0c
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $CA, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $B5 packed).
 FloorScreen_2C_06::
 	db $00, $02, $06, $28, $29, $06, $00, $0e, $ff, $06, $14
 	db $07, $2a, $2b, $06, $20, $0e, $06, $14, $08, $06, $00, $00, $2c, $2d, $08, $09
@@ -600,6 +673,10 @@ FloorScreen_2C_06::
 	db $2f, $1a, $1b, $36, $37, $06, $70, $00, $06, $70, $1f, $05, $06, $c6, $00, $06
 	db $8c, $1f, $09, $06, $e6, $00, $06, $ac, $1f, $01
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $CB, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $CC packed).
 FloorScreen_2C_07::
 	db $00, $02, $0c, $28, $29, $0c
 	db $00, $0e, $ff, $0c, $14, $07, $2a, $2b, $0c, $20, $0e, $0c, $14, $08, $2c, $2d
@@ -616,6 +693,10 @@ FloorScreen_2C_07::
 	db $1c, $28, $29, $0c, $0a, $12, $0c, $04, $12, $0c, $10, $0f, $01, $0c, $2a, $12
 	db $0c, $24, $12, $0c, $30, $0c
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $D6, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $DA packed).
 FloorScreen_2C_08::
 	db $00, $02, $0c, $28, $29, $0c, $00, $0e, $ff, $0c
 	db $14, $07, $2a, $2b, $0c, $20, $0e, $0c, $14, $08, $0c, $00, $06, $2c, $2d, $08
@@ -631,6 +712,10 @@ FloorScreen_2C_08::
 	db $00, $10, $11, $12, $13, $12, $13, $0c, $32, $0c, $04, $05, $0c, $44, $10, $0c
 	db $4c, $10, $0c, $0c, $0f, $03, $14, $15, $0c, $64, $10, $0c, $6c, $10, $0c, $2c
 	db $0f, $05, $0c, $4e, $12, $0c, $0a, $0f, $07, $0c, $6e, $12, $0c, $2a, $0f, $03
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $D7, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $56 packed).
 FloorScreen_2C_09::
 	db $00, $02, $00, $28, $29, $00, $00, $0e, $ff, $00, $14, $07, $2a, $2b, $00, $20
 	db $0e, $00, $14, $08, $00, $00, $0f, $2d, $08, $09, $00, $80, $02, $24, $25, $00
@@ -639,6 +724,10 @@ FloorScreen_2C_09::
 	db $02, $03, $00, $40, $12, $00, $08, $0f, $05, $12, $13, $00, $60, $12, $00, $28
 	db $0f, $45, $00, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $D8, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $DA packed).
 FloorScreen_2C_0A::
 	db $00, $02, $0c, $28, $29, $0c, $00, $0e, $ff, $0c
 	db $14, $07, $2a, $2b, $0c, $20, $0e, $0c, $14, $08, $0c, $00, $02, $2c, $2d, $08
@@ -654,6 +743,10 @@ FloorScreen_2C_0A::
 	db $2e, $0e, $2c, $2d, $0c, $ca, $00, $0c, $44, $10, $0c, $4a, $1f, $03, $2e, $2f
 	db $0c, $ea, $00, $0c, $64, $10, $0c, $6a, $1f, $03, $28, $29, $0c, $0c, $12, $0c
 	db $10, $10, $0c, $0c, $0f, $03, $0c, $2c, $12, $0c, $30, $10, $0c, $2c, $0f, $01
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $D9, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $D9 packed).
 FloorScreen_2C_0B::
 	db $00, $02, $0c, $28, $29, $0c, $00, $0e, $ff, $0c, $14, $07, $2a, $2b, $0c, $20
 	db $0e, $0c, $14, $08, $2c, $2d, $08, $09, $0c, $42, $0a, $24, $25, $0c, $14, $08
@@ -670,6 +763,10 @@ FloorScreen_2C_0B::
 	db $10, $0c, $b0, $0c, $0c, $00, $00, $0c, $c6, $02, $0c, $c4, $14, $0c, $12, $0e
 	db $0c, $e6, $02, $0c, $e4, $14, $0c, $32, $0a
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $DA, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $CC packed).
 FloorScreen_2C_0C::
 	db $00, $02, $0e, $28, $29, $0e, $00
 	db $0e, $ff, $0e, $14, $07, $2a, $2b, $0e, $20, $0e, $0e, $14, $08, $28, $29, $2c
@@ -686,6 +783,10 @@ FloorScreen_2C_0C::
 	db $0f, $03, $0e, $00, $00, $02, $03, $02, $03, $0e, $0a, $0f, $09, $12, $13, $12
 	db $13, $0e, $2a, $0f, $03
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $DB, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $D9 packed).
 FloorScreen_2C_0D::
 	db $00, $02, $00, $28, $29, $00, $00, $0e, $ff, $00, $14
 	db $07, $2a, $2b, $00, $20, $0e, $00, $14, $08, $00, $00, $00, $2c, $2d, $08, $09
@@ -702,6 +803,10 @@ FloorScreen_2C_0D::
 	db $00, $0a, $0f, $03, $2e, $2f, $00, $aa, $00, $00, $66, $10, $00, $2a, $0f, $05
 	db $00, $4a, $16, $00, $0c, $0f, $03, $00, $6a, $16, $00, $2c, $0f, $01
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $E6, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $DB packed).
 FloorScreen_2C_0E::
 	db $00, $02
 	db $0c, $28, $29, $0c, $00, $0e, $ff, $0c, $14, $07, $2a, $2b, $0c, $20, $0e, $0c
@@ -719,6 +824,10 @@ FloorScreen_2C_0E::
 	db $6c, $10, $10, $11, $0c, $32, $0c, $0c, $00, $06, $02, $03, $02, $03, $0c, $10
 	db $0f, $09, $12, $13, $12, $13, $0c, $30, $0c
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $E7, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $58 packed).
 FloorScreen_2C_0F::
 	db $00, $02, $00, $28, $29, $00, $00
 	db $0e, $ff, $00, $14, $07, $2a, $2b, $00, $20, $0e, $00, $14, $08, $00, $00, $0f
@@ -728,6 +837,10 @@ FloorScreen_2C_0F::
 	db $00, $14, $0f, $05, $12, $13, $00, $6c, $12, $00, $34, $0f, $43, $00, $8a, $1f
 	db $23
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $E8, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $B1 packed).
 FloorScreen_2C_10::
 	db $00, $02, $0c, $28, $29, $0c, $00, $0e, $ff, $0c, $14, $07, $2a, $2b, $0c
 	db $20, $0e, $0c, $14, $08, $0c, $00, $04, $2c, $2d, $08, $09, $0c, $4a, $02, $24
@@ -742,6 +855,10 @@ FloorScreen_2C_10::
 	db $10, $0c, $0c, $0f, $07, $12, $13, $0c, $a6, $10, $0c, $2c, $0f, $09, $0c, $08
 	db $0f, $25
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $E9, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $83 packed).
 FloorScreen_2C_11::
 	db $00, $02, $04, $28, $29, $04, $00, $0e, $ff, $04, $14, $07, $2a, $2b
 	db $04, $20, $0e, $04, $14, $08, $2c, $2d, $08, $09, $04, $42, $0a, $24, $25, $04
@@ -753,6 +870,10 @@ FloorScreen_2C_11::
 	db $04, $72, $0a, $28, $29, $02, $03, $04, $c2, $1a, $04, $12, $0c, $12, $13, $04
 	db $e2, $1a, $04, $32, $0a
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $EA, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $ED packed).
 FloorScreen_2C_12::
 	db $00, $02, $04, $28, $29, $04, $00, $0e, $ff, $04, $14
 	db $07, $2a, $2b, $04, $20, $0e, $04, $14, $08, $2c, $2d, $08, $09, $04, $42, $04
@@ -771,6 +892,10 @@ FloorScreen_2C_12::
 	db $82, $10, $04, $82, $10, $04, $10, $0f, $05, $04, $a2, $10, $04, $a2, $10, $04
 	db $30, $0c
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $EB, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $D7 packed).
 FloorScreen_2C_13::
 	db $00, $02, $0e, $28, $29, $0e, $00, $0e, $ff, $0e, $14, $07, $2a, $2b
 	db $0e, $20, $0e, $0e, $14, $08, $0e, $00, $00, $2c, $2d, $08, $09, $0e, $46, $02
@@ -787,6 +912,10 @@ FloorScreen_2C_13::
 	db $6e, $10, $0e, $30, $0f, $01, $0e, $00, $00, $02, $03, $02, $03, $0e, $0c, $0f
 	db $09, $12, $13, $12, $13, $0e, $2c, $0f, $01
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $0C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $8E packed).
 FloorScreen_2C_14::
 	db $00, $02, $0c, $28, $29, $0c, $00
 	db $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $0c, $00, $02, $ff, $0c, $14, $07
@@ -799,6 +928,10 @@ FloorScreen_2C_14::
 	db $12, $13, $0c, $60, $10, $14, $15, $0c, $28, $00, $10, $11, $0c, $60, $12, $0c
 	db $34, $0f, $39, $0c, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $1C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $77 packed).
 FloorScreen_2C_15::
 	db $00, $02, $06, $28, $29, $06, $00, $0e, $ff
 	db $06, $14, $07, $2a, $2b, $06, $20, $0e, $06, $14, $08, $06, $00, $0f, $2d, $08
@@ -809,6 +942,10 @@ FloorScreen_2C_15::
 	db $12, $06, $34, $0e, $2c, $2d, $06, $c0, $00, $24, $25, $06, $0e, $0f, $05, $2e
 	db $2f, $06, $e0, $00, $26, $27, $06, $2e, $0f, $05, $06, $86, $1f, $27
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $2C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $82 packed).
 FloorScreen_2C_16::
 	db $00, $02
 	db $00, $28, $29, $00, $00, $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $00, $00
@@ -819,6 +956,10 @@ FloorScreen_2C_16::
 	db $00, $08, $00, $00, $c0, $0c, $00, $14, $08, $00, $28, $00, $00, $e0, $0c, $00
 	db $b4, $0f, $39, $02, $03, $00, $40, $1e, $00, $14, $08, $12, $13, $00, $60, $1e
 	db $00, $34, $0e, $00, $80, $1a, $00, $14, $0e, $00, $a0, $1a, $00, $74, $1f, $39
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $3C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $6C packed).
 FloorScreen_2C_17::
 	db $00, $02, $04, $28, $29, $04, $00, $00, $2c, $2d, $30, $31, $30, $31, $24, $25
 	db $04, $00, $02, $ff, $04, $14, $07, $2a, $2b, $04, $20, $00, $2e, $2f, $32, $33
@@ -828,6 +969,10 @@ FloorScreen_2C_17::
 	db $0f, $45, $00, $01, $02, $03, $04, $4e, $10, $04, $14, $0f, $05, $10, $11, $12
 	db $13, $04, $6e, $10, $04, $34, $0f, $45, $04, $8c, $1f, $21
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $4C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $72 packed).
 FloorScreen_2C_18::
 	db $00, $02, $00, $28
 	db $29, $00, $00, $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $00, $00, $02, $ff
@@ -838,6 +983,10 @@ FloorScreen_2C_18::
 	db $00, $ac, $0f, $41, $02, $03, $00, $40, $10, $04, $05, $00, $08, $0f, $05, $12
 	db $13, $00, $60, $10, $14, $15, $00, $28, $0f, $45, $00, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $5C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $4E packed).
 FloorScreen_2C_19::
 	db $00, $02
 	db $00, $28, $29, $00, $00, $0e, $ff, $00, $14, $07, $2a, $2b, $00, $20, $0e, $00
@@ -846,6 +995,10 @@ FloorScreen_2C_19::
 	db $00, $e0, $0e, $00, $b4, $0f, $39, $02, $03, $00, $40, $1e, $00, $14, $08, $12
 	db $13, $00, $60, $1e, $00, $34, $0f, $39, $00, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $6C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $68 packed).
 FloorScreen_2C_1A::
 	db $00, $02, $04, $28
 	db $29, $04, $00, $0e, $ff, $04, $14, $07, $2a, $2b, $04, $20, $0e, $04, $14, $08
@@ -856,6 +1009,10 @@ FloorScreen_2C_1A::
 	db $05, $24, $25, $04, $0e, $0f, $05, $04, $e6, $02, $26, $27, $04, $6e, $0f, $07
 	db $04, $88, $1f, $25
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $7C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $66 packed).
 FloorScreen_2C_1B::
 	db $00, $02, $00, $28, $29, $00, $00, $0e, $ff, $00, $14, $07
 	db $2a, $2b, $00, $20, $0e, $00, $14, $08, $00, $00, $0f, $2d, $08, $09, $00, $80
@@ -865,6 +1022,10 @@ FloorScreen_2C_1B::
 	db $60, $10, $14, $15, $00, $e8, $0f, $05, $00, $00, $02, $2c, $2d, $00, $c8, $0f
 	db $05, $00, $20, $02, $2e, $2f, $00, $68, $1f, $45
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $8C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $75 packed).
 FloorScreen_2C_1C::
 	db $00, $02, $00, $28, $29, $00
 	db $00, $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $00, $00, $02, $ff, $00, $14
@@ -875,6 +1036,10 @@ FloorScreen_2C_1C::
 	db $00, $48, $16, $00, $14, $0e, $2a, $2b, $12, $13, $00, $68, $16, $00, $34, $1f
 	db $01, $00, $80, $18, $00, $54, $1f, $01, $00, $a0, $18, $00, $74, $1f, $39
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $9C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $7C packed).
 FloorScreen_2C_1D::
 	db $00
 	db $02, $00, $28, $29, $00, $00, $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $00
@@ -886,6 +1051,10 @@ FloorScreen_2C_1D::
 	db $12, $0a, $12, $13, $00, $60, $16, $00, $20, $02, $00, $32, $0f, $01, $00, $80
 	db $1a, $00, $14, $0e, $00, $a0, $1a, $00, $74, $1f, $39
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $AC, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $3E packed).
 FloorScreen_2C_1E::
 	db $00, $02, $00, $28, $29
 	db $00, $00, $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $00, $00, $02, $ff, $00
@@ -893,6 +1062,10 @@ FloorScreen_2C_1E::
 	db $20, $02, $00, $14, $08, $00, $00, $0f, $4d, $00, $60, $0f, $4d, $00, $c0, $0f
 	db $4d, $00, $20, $1f, $4d, $00, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $BC, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $55 packed).
 FloorScreen_2C_1F::
 	db $00, $02, $00, $28, $29, $00, $00
 	db $00, $2c, $2d, $30, $31, $30, $31, $24, $25, $00, $00, $02, $ff, $00, $14, $07
@@ -901,6 +1074,10 @@ FloorScreen_2C_1F::
 	db $20, $1f, $4d, $00, $40, $12, $28, $29, $02, $03, $02, $03, $00, $c0, $14, $00
 	db $54, $1e, $2a, $2b, $12, $13, $12, $13, $00, $e0, $14, $00, $54, $18
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $CC, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $4B packed).
 FloorScreen_2C_20::
 	db $00, $02
 	db $00, $28, $29, $00, $00, $0e, $ff, $00, $14, $07, $2a, $2b, $00, $20, $0e, $00
@@ -909,6 +1086,10 @@ FloorScreen_2C_20::
 	db $31, $00, $4c, $0f, $09, $32, $33, $32, $33, $00, $6c, $0f, $4d, $00, $cc, $0f
 	db $4d, $00, $2c, $1f, $4d, $00, $8c, $1f, $21
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $DC, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $52 packed).
 FloorScreen_2C_21::
 	db $00, $02, $00, $28, $29, $00, $00
 	db $0e, $ff, $00, $14, $07, $2a, $2b, $00, $20, $0e, $00, $14, $08, $00, $00, $0f
@@ -917,6 +1098,10 @@ FloorScreen_2C_21::
 	db $e0, $0c, $00, $b2, $0f, $3b, $02, $03, $00, $40, $1c, $00, $12, $0a, $12, $13
 	db $00, $60, $1c, $00, $32, $0f, $3b, $00, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (ScreenMapRefs $EC, picked by GetFloorScreenMap): 20 x 16 tiles in rows of 32
+;@ bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $54 packed).
 FloorScreen_2C_22::
 	db $00, $02, $00, $28, $29
 	db $00, $00, $0e, $ff, $00, $14, $07, $2a, $2b, $00, $20, $0e, $00, $14, $08, $00
@@ -925,6 +1110,10 @@ FloorScreen_2C_22::
 	db $33, $00, $e2, $0c, $00, $b4, $0f, $39, $28, $29, $02, $03, $00, $42, $1c, $00
 	db $14, $0a, $12, $13, $00, $62, $1c, $00, $34, $0f, $39, $00, $80, $1f, $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $00, $0E, $0F, $17, $18, $19, ..., picked by
+;@ GetFloorScreenMap): 20 x 16 tiles in rows of 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed
+;@ in the DecompressCore format ($200 bytes unpacked, $A3 packed).
 FloorScreen_2C_23::
 	db $00
 	db $02, $00, $30, $31, $00, $00, $0e, $ff, $00, $14, $07, $32, $33, $00, $20, $0e
@@ -939,6 +1128,10 @@ FloorScreen_2C_23::
 	db $04, $00, $2e, $0f, $01, $00, $00, $06, $00, $8c, $1f, $07, $00, $66, $06, $00
 	db $30, $0c
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $01, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $B4 packed).
 FloorScreen_2C_24::
 	db $00, $02, $02, $0a, $0b, $30, $31, $02, $02, $02, $34, $35, $02, $02
 	db $02, $06, $07, $ff, $02, $14, $07, $1a, $1b, $32, $33, $02, $22, $02, $36, $37
@@ -953,6 +1146,10 @@ FloorScreen_2C_24::
 	db $06, $02, $02, $02, $00, $01, $02, $14, $08, $14, $15, $02, $62, $06, $02, $22
 	db $02, $10, $11, $02, $14, $08
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $02, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $AA packed).
 FloorScreen_2C_25::
 	db $00, $02, $00, $08, $09, $00, $00, $00, $0a, $0b
 	db $30, $31, $30, $31, $06, $07, $00, $00, $02, $ff, $00, $14, $07, $18, $19, $00
@@ -965,6 +1162,10 @@ FloorScreen_2C_25::
 	db $6e, $0f, $01, $00, $00, $14, $00, $c2, $04, $00, $12, $1e, $00, $e6, $04, $00
 	db $a2, $04, $00, $34, $1e, $00, $40, $16, $00, $10, $1f, $01, $00, $66, $06, $00
 	db $2e, $1f, $05, $00, $c0, $1a, $00, $94, $1f, $05, $00, $66, $04, $00, $14, $08
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $03, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $CC packed).
 FloorScreen_2C_26::
 	db $00, $02, $02, $34, $35, $02, $00, $02, $30, $31, $02, $00, $04, $24, $25, $ff
 	db $02, $14, $07, $36, $37, $02, $20, $02, $32, $33, $02, $20, $04, $26, $27, $02
@@ -980,6 +1181,10 @@ FloorScreen_2C_26::
 	db $12, $32, $33, $02, $ae, $00, $02, $60, $00, $02, $32, $0c, $02, $82, $14, $02
 	db $4a, $14, $02, $92, $1f, $05, $02, $6a, $14, $02, $32, $0a
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $04, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $B0 packed).
 FloorScreen_2C_27::
 	db $00, $02, $06, $30
 	db $31, $30, $31, $34, $35, $06, $00, $00, $06, $06, $06, $ff, $06, $14, $07, $32
@@ -994,6 +1199,10 @@ FloorScreen_2C_27::
 	db $00, $00, $00, $01, $06, $c0, $12, $06, $14, $08, $12, $13, $06, $e0, $10, $14
 	db $15, $06, $20, $00, $10, $11, $06, $e0, $12, $06, $14, $08
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $05, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $45 packed).
 FloorScreen_2C_28::
 	db $00, $02, $00, $2c
 	db $2d, $30, $31, $00, $02, $0c, $ff, $00, $14, $07, $2e, $2f, $32, $33, $00, $22
@@ -1002,6 +1211,10 @@ FloorScreen_2C_28::
 	db $3b, $04, $05, $00, $02, $0f, $0b, $14, $15, $00, $22, $0f, $4b, $00, $80, $1f
 	db $2d
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $06, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $A1 packed).
 FloorScreen_2C_29::
 	db $00, $02, $00, $0a, $0b, $30, $31, $00, $02, $0c, $ff, $00, $14, $07, $1a
 	db $1b, $32, $33, $00, $22, $0c, $00, $14, $08, $34, $35, $30, $31, $38, $39, $00
@@ -1015,6 +1228,10 @@ FloorScreen_2C_29::
 	db $18, $00, $f4, $0f, $01, $00, $40, $16, $00, $12, $1f, $03, $00, $60, $16, $00
 	db $32, $0a
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $07, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $A5 packed).
 FloorScreen_2C_2A::
 	db $00, $02, $00, $30, $31, $34, $35, $00, $00, $00, $00, $06, $02, $00
 	db $00, $00, $06, $07, $ff, $00, $14, $07, $32, $33, $36, $37, $00, $20, $00, $00
@@ -1028,6 +1245,10 @@ FloorScreen_2C_2A::
 	db $00, $66, $08, $00, $30, $1f, $03, $00, $46, $06, $00, $02, $00, $00, $94, $1f
 	db $07, $00, $20, $02, $00, $14, $08
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $08, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $83 packed).
 FloorScreen_2C_2B::
 	db $00, $02, $02, $34, $35, $30, $31, $02, $02
 	db $0a, $34, $35, $ff, $02, $14, $07, $36, $37, $32, $33, $02, $22, $0a, $36, $37
@@ -1039,12 +1260,20 @@ FloorScreen_2C_2B::
 	db $02, $c2, $0f, $2d, $02, $82, $0f, $31, $02, $46, $0f, $27, $02, $00, $0e, $00
 	db $01, $02, $14, $0f, $0b, $10, $11, $02, $14, $08
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $09, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $30 packed).
 FloorScreen_2C_2C::
 	db $00, $02, $00, $30, $31, $00
 	db $00, $0e, $ff, $00, $14, $07, $32, $33, $00, $20, $0e, $00, $14, $08, $00, $00
 	db $0f, $4d, $00, $60, $0f, $4d, $00, $c0, $0f, $4d, $00, $20, $1f, $4d, $04, $05
 	db $00, $42, $1f, $0b, $14, $15, $00, $22, $1f, $0b
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $0A, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $EB packed).
 FloorScreen_2C_2D::
 	db $00, $02, $00, $2c, $2d, $08
 	db $09, $08, $09, $0a, $0b, $30, $31, $30, $31, $06, $07, $00, $02, $00, $08, $09
@@ -1063,6 +1292,10 @@ FloorScreen_2C_2D::
 	db $10, $00, $34, $0c, $00, $42, $14, $00, $0c, $1f, $01, $00, $60, $00, $00, $62
 	db $14, $00, $2c, $1f, $01
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $0B, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $B0 packed).
 FloorScreen_2C_2E::
 	db $00, $02, $02, $08, $09, $02, $00, $00, $0a, $0b, $34
 	db $35, $34, $35, $06, $07, $02, $00, $00, $24, $25, $ff, $02, $14, $07, $18, $19
@@ -1077,6 +1310,10 @@ FloorScreen_2C_2E::
 	db $52, $0c, $02, $60, $1c, $02, $32, $0c, $02, $c0, $1c, $02, $92, $1f, $05, $02
 	db $60, $14, $02, $32, $0a
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $0C, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $93 packed).
 FloorScreen_2C_2F::
 	db $00, $02, $08, $30, $31, $08, $00, $0c, $24, $25, $ff
 	db $08, $14, $07, $32, $33, $08, $20, $0c, $26, $27, $08, $14, $08, $30, $31, $34
@@ -1089,6 +1326,10 @@ FloorScreen_2C_2F::
 	db $29, $08, $14, $08, $12, $13, $08, $e0, $10, $14, $15, $08, $20, $00, $10, $11
 	db $08, $e0, $10, $2a, $2b, $08, $14, $08
 
+;@ path: field/gatefloor/screens
+;@ Tilemap of a gate floor room (PresetScreenMapRefs $0D, picked by GetFloorScreenMap): 20 x 16 tiles in rows of
+;@ 32 bytes, unpacked to wSavedTilemap by DrawMapScreen. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $C3 packed).
 FloorScreen_2C_30::
 	db $00, $02, $06, $2c, $2d, $30, $31, $06
 	db $02, $0c, $ff, $06, $14, $07, $2e, $2f, $32, $33, $06, $22, $0c, $06, $14, $08
@@ -1104,6 +1345,8 @@ FloorScreen_2C_30::
 	db $10, $02, $03, $06, $14, $08, $2a, $2b, $12, $13, $12, $13, $14, $15, $06, $22
 	db $00, $10, $11, $06, $e2, $10, $12, $13, $06, $14, $08
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_2C::
 	db $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

@@ -4,6 +4,9 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $068", ROMX[$4000], BANK[$68]
 
+;@ path: unused/leftovers
+;@ Packed data in an unknown format. The bank has no bank number and no entry table, and nothing in the game
+;@ switches to it: leftovers from building the ROM. Data up to $4D18, then filler.
 LeftoverData_68::
 	db $08, $5a, $0a, $00, $86, $80, $80, $fc, $04, $04, $08, $04, $06, $84, $3e, $46
 	db $43, $22, $06, $00, $82, $80, $40, $03, $00, $88, $01, $0f, $3f, $7b, $71, $00

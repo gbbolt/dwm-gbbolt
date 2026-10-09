@@ -4,6 +4,12 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $040", ROMX[$4000], BANK[$40]
 
+;@ path: unused/leftovers
+;@ Nothing in this game switches to bank $40: it has no bank number and no entry table at $4001 (which every bank
+;@ reached by FarCall or Decompress needs), and no bank-switch in the home bank names it. The bytes are Game Boy
+;@ code of another program, left over from building the ROM: it starts with `ld a, [$C6F2]` and `rst $28`
+;@ followed by a table of addresses (in this game `rst $28` lands inside FarCall, so it cannot be a jump-table
+;@ call here). Kept as bytes.
 LeftoverCode_40::
 	db $fa, $f2, $c6, $ef, $06, $1b, $24, $40, $a1, $1d, $8d, $40, $06, $1b, $a1, $40
 	db $a1, $1d, $d8, $40, $06, $1b, $2a, $41, $a1, $1d, $64, $41, $06, $1b, $1d, $42
@@ -294,6 +300,8 @@ LeftoverCode_40::
 	db $01, $00, $98, $3e, $40, $ea, $a1, $c6, $cd, $cc, $2b, $c9, $21, $61, $50, $01
 	db $00, $98, $3e, $40, $ea, $a1, $c6, $cd, $cc, $2b, $c9
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_40::
 	db $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

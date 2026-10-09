@@ -3182,7 +3182,7 @@ AIBonusSlayer::
 ;@ A physical attack (IsPhysicalSkill) gets 10 when the user's attack is at least the enemies' average
 ;@ defense (AverageEnemyDefense, which does not work out a real average), and 5 more when it is at least
 ;@ the lowest defense among the enemies present.
-;@ test: wSkillUser = rand(0, 7)
+;@ test: skip AverageDefense can divide by 0
 AIBonusAttackVsDefense::
 ;> if not IsPhysicalSkill(): return
 	call IsPhysicalSkill
@@ -5725,7 +5725,7 @@ AIBonusRobMagic::
 ;@ counted over the enemies present: the bits of status byte 1 (0-5) and 2 (0-6), bits 6-7 of byte 3,
 ;@ an iron lump or side-stepping (byte 5), a raised stat (byte 6 bit 6), and per enemy bits 2, 3 and 5
 ;@ of the user's own side's wSideFlags.
-;@ test: wSkillUser = rand(0, 7)
+;@ test: skip counts bits with bin(), which the test runner does not know
 AIBonusDeMagic::
 ;> if wSkillId != 0x80: return
 	ld a, [wSkillId]
@@ -14182,7 +14182,7 @@ Personality3Tenth::
 ;@ path: battle/ai
 ;@ Obedience part 3: wBattleItemUsedUp = the TacticWeights entry for the user's tactic and the bands of
 ;@ its personality 1, personality 2 and byte +$67 (band 0 from $C0 up, 1 from $40, 2 below $40).
-;@ test: wSkillUser = rand(0, 7); wBattlerTactic[wSkillUser] = rand(0, 3)
+;@ test: wSkillUser = rand(0, 7)
 TacticWeight::
 ;>@1 index = 0 if wBattlerPersonality1[wSkillUser] >= 0xC0 else 9 if wBattlerPersonality1[wSkillUser] >= 0x40 else 18
 	ld b, $00
@@ -14267,7 +14267,7 @@ TacticWeight::
 	inc b
 
 .tactic
-;>@4 index += 27 * wBattlerTactic[wSkillUser]
+;>@4 index = index + 27 * wBattlerTactic[wSkillUser] & 0xFF
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
@@ -14579,7 +14579,7 @@ HPAboveThreeQuarters::
 	ld h, [hl]
 ;=@m
 	ld l, a
-;>@q q = maxhp >> 2
+;>@q q = (maxhp >> 2) | (0xC000 if maxhp & 0x8000 else 0)      # a signed shift
 	ld a, h
 	or a
 	jr nz, .big
@@ -14589,7 +14589,7 @@ HPAboveThreeQuarters::
 	rrca
 	rrca
 	and $3f
-;>@l limit = 3 * q if q else 1
+;>@l limit = 3 * q & 0xFFFF if q else 1
 	or a
 	jr z, .one
 
@@ -14651,7 +14651,7 @@ HPAboveHalf::
 	ld h, [hl]
 ;=@m
 	ld l, a
-;>@l limit = maxhp >> 1 or 1
+;>@l limit = (maxhp >> 1 | maxhp & 0x8000) or 1                 # a signed shift
 	ld a, h
 	or a
 	jr nz, .big
@@ -14879,7 +14879,7 @@ CopyBattlerName_57::
 ;@ nothing reaches: a sleeping monster's turn (status byte 0 in hl; bit 7 asleep, bits 2-3 turns left).
 ;@ It wakes up if wRandomHigh is at most $FF, $E0, $A0 or $60 as 0-3 turns are left, otherwise one turn
 ;@ less; returns message $0F (sleeping) or $DB (wakes up).
-;@ test: wSkillUser = rand(0, 7)
+;@ test: skip the unreached SleepTurn_57 inside uses its own parameter
 ClearTurnAilments_57::
 ;>@c mem[AddEightTimes(wSkillUser, addr(wBattlerStatus3))] &= 0xC0
 	push af

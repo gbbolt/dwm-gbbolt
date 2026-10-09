@@ -4,9 +4,23 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $061", ROMX[$4000], BANK[$61]
 
+;@ def LeftoverShowScreen_61()
+;@ path: unused/leftovers
+;@ Leftover code of another program (see LeftoverCode_20): it would draw LeftoverScreenRLE_61 to the BG
+;@ map at $9c00 through a routine at $1F94. Nothing calls it, and in this game $1F94 is in the middle of
+;@ PrintNumber7.
+;@ test: skip calls into the middle of another routine
 LeftoverShowScreen_61::
-	db $21, $0a, $40, $01, $00, $9c, $cd, $94, $1f, $c9
+;> call_address(0x1F94, LeftoverScreenRLE_61, 0x9C00)   # (hl = the packed map, bc = the BG map)
+	ld hl, LeftoverScreenRLE_61
+	ld bc, $9c00
+	call $1f94
+	ret
 
+;@ path: unused/leftovers
+;@ A 32 x 32 BG map packed with a simple run-length code: a byte n below $80 repeats the next byte n times, $80 +
+;@ n copies the next n bytes, 0 ends ($400 bytes unpacked). It shows a window with a frame, meant for $9C00
+;@ (LeftoverShowScreen_61). Nothing in this game reads it.
 LeftoverScreenRLE_61::
 	db $94, $00, $01, $02, $03, $02
 	db $03, $02, $03, $02, $03, $02, $03, $02, $03, $02, $03, $02, $03, $06, $07, $0c
@@ -31,6 +45,9 @@ LeftoverScreenRLE_61::
 	db $1b, $1a, $1b, $1a, $1b, $1a, $1b, $1a, $1b, $1a, $1b, $1a, $1b, $1e, $1f, $7f
 	db $ff, $7f, $ff, $7f, $ff, $4f, $ff, $00
 
+;@ path: unused/leftovers
+;@ A 1-bit font (digits, A-Z, a-z and symbols, drawn light on dark) packed with the same run-length code as
+;@ LeftoverScreenRLE_61 ($70A bytes unpacked). Nothing reads it.
 LeftoverFontRLE_61::
 	db $81, $c3, $06, $b9, $83, $c3, $e7, $c7
 	db $05, $e7, $a5, $81, $c3, $b9, $f9, $fb, $e7, $df, $9f, $81, $c3, $b9, $f9, $c3
@@ -134,6 +151,8 @@ LeftoverFontRLE_61::
 	db $7f, $00, $7f, $00, $7f, $00, $7f, $00, $7f, $00, $7f, $00, $7f, $00, $7f, $00
 	db $12, $00, $00
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_61::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

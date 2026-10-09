@@ -4,6 +4,8 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $07e", ROMX[$4000], BANK[$7e]
 
+;@ path: unused/empty
+;@ Empty bank: $4000 bytes of filler. Nothing switches to it.
 UnusedBank_7E::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

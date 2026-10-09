@@ -4,9 +4,23 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $062", ROMX[$4000], BANK[$62]
 
+;@ def LeftoverShowScreen_62()
+;@ path: unused/leftovers
+;@ Leftover code of another program (see LeftoverCode_20): it would draw LeftoverScreenRLE_62 to the BG
+;@ map at $9800 through a routine at $1F94. Nothing calls it, and in this game $1F94 is in the middle of
+;@ PrintNumber7.
+;@ test: skip calls into the middle of another routine
 LeftoverShowScreen_62::
-	db $21, $0a, $40, $01, $00, $98, $cd, $94, $1f, $c9
+;> call_address(0x1F94, LeftoverScreenRLE_62, 0x9800)   # (hl = the packed map, bc = the BG map)
+	ld hl, LeftoverScreenRLE_62
+	ld bc, $9800
+	call $1f94
+	ret
 
+;@ path: unused/leftovers
+;@ A 32 x 32 BG map packed with a simple run-length code: a byte n below $80 repeats the next byte n times, $80 +
+;@ n copies the next n bytes, 0 ends ($400 bytes unpacked). It shows a window with a frame, meant for $9800
+;@ (LeftoverShowScreen_62). Nothing in this game reads it.
 LeftoverScreenRLE_62::
 	db $22, $ff, $90, $00, $01, $02
 	db $03, $02, $03, $02, $03, $02, $03, $02, $03, $02, $03, $06, $07, $10, $ff, $90
@@ -22,6 +36,8 @@ LeftoverScreenRLE_62::
 	db $ff, $90, $18, $19, $1a, $1b, $1a, $1b, $1a, $1b, $1a, $1b, $1a, $1b, $1a, $1b
 	db $1e, $1f, $7f, $ff, $7f, $ff, $7f, $ff, $7f, $ff, $12, $ff, $00
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_62::
 	db $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

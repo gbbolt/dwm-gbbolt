@@ -4,23 +4,93 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $01c", ROMX[$4000], BANK[$1c]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_1C::
 	db $1c
 
+;@ path: sound/data
+;@ The sound records of bank $1C, sounds $00-$20 (see SoundBanks): 4 bytes each - channel (byte offset into
+;@ wSoundChannels, 26 per channel), channel config byte (hardware channel in bits 0-1) and the address of the
+;@ part's event data.
 SoundTable_1C::
-	db $00, $00, $85, $40, $1a, $01, $85, $40, $34, $00, $85, $40, $4e, $01, $85
-	db $40, $68, $02, $85, $40, $82, $03, $85, $40, $34, $00, $8a, $40, $4e, $01, $fb
-	db $42, $68, $02, $8a, $45, $34, $00, $13, $48, $4e, $01, $f3, $4a, $68, $02, $13
-	db $4d, $34, $00, $5c, $50, $4e, $01, $cf, $52, $68, $02, $38, $56, $34, $00, $2e
-	db $58, $4e, $01, $23, $59, $68, $02, $e8, $59, $34, $00, $36, $5b, $4e, $01, $95
-	db $5c, $68, $02, $5a, $5e, $34, $00, $32, $60, $4e, $01, $39, $61, $68, $02, $18
-	db $63, $34, $00, $24, $64, $4e, $01, $e5, $65, $68, $02, $9e, $67, $34, $00, $24
-	db $6a, $4e, $01, $8b, $6b, $68, $02, $1c, $6d, $34, $00, $d4, $6e, $4e, $01, $15
-	db $71, $68, $02, $30, $73
+	db $00, $00
+	dw SoundPartSilent
+	db $1a, $01
+	dw SoundPartSilent
+	db $34, $00
+	dw SoundPartSilent
+	db $4e, $01
+	dw SoundPartSilent
+	db $68, $02
+	dw SoundPartSilent
+	db $82, $03
+	dw SoundPartSilent
+	db $34, $00
+	dw SoundPart_06
+	db $4e, $01
+	dw SoundPart_07
+	db $68, $02
+	dw SoundPart_08
+	db $34, $00
+	dw SoundPart_09
+	db $4e, $01
+	dw SoundPart_0A
+	db $68, $02
+	dw SoundPart_0B
+	db $34, $00
+	dw SoundPart_0C
+	db $4e, $01
+	dw SoundPart_0D
+	db $68, $02
+	dw SoundPart_0E
+	db $34, $00
+	dw SoundPart_0F
+	db $4e, $01
+	dw SoundPart_10
+	db $68, $02
+	dw SoundPart_11
+	db $34, $00
+	dw SoundPart_12
+	db $4e, $01
+	dw SoundPart_13
+	db $68, $02
+	dw SoundPart_14
+	db $34, $00
+	dw SoundPart_15
+	db $4e, $01
+	dw SoundPart_16
+	db $68, $02
+	dw SoundPart_17
+	db $34, $00
+	dw SoundPart_18
+	db $4e, $01
+	dw SoundPart_19
+	db $68, $02
+	dw SoundPart_1A
+	db $34, $00
+	dw SoundPart_1B
+	db $4e, $01
+	dw SoundPart_1C
+	db $68, $02
+	dw SoundPart_1D
+	db $34, $00
+	dw SoundPart_1E
+	db $4e, $01
+	dw SoundPart_1F
+	db $68, $02
+	dw SoundPart_20
 
+;@ path: sound/parts
+;@ The silent part (header and an end event) that sounds $00, $01, $02, $03, $04, $05 point at. A 4-byte header
+;@ (tempo, duty or wave length, envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and
+;@ ReadChannelEvents.
 SoundPartSilent::
 	db $00, $00, $00, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $06: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_06::
 	db $04, $00, $0c, $00, $c1, $35
 	db $2a, $12, $2a, $06, $c1, $5f, $29, $18, $30, $18, $35, $18, $35, $18, $c0, $ff
@@ -63,6 +133,9 @@ SoundPart_06::
 	db $a7, $03, $c1, $30, $19, $03, $1a, $03, $20, $03, $22, $03, $24, $03, $25, $03
 	db $27, $03, $c1, $7f, $29, $19, $1f, $18, $1f, $5a, $ff
 
+;@ path: sound/parts
+;@ Sound part $07: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_07::
 	db $04, $00, $0d, $00, $a3
 	db $1b, $c1, $35, $30, $12, $30, $06, $c1, $5f, $a0, $0c, $35, $18, $37, $18, $a0
@@ -107,6 +180,9 @@ SoundPart_07::
 	db $30, $c1, $78, $a3, $00, $3a, $30, $c4, $78, $a3, $06, $39, $30, $39, $34, $c3
 	db $30, $35, $a7, $c1, $80, $35, $31, $1f, $5a, $ff
 
+;@ path: sound/parts
+;@ Sound part $08: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_08::
 	db $04, $48, $02, $0b, $1f, $18
 	db $25, $18, $24, $18, $23, $18, $22, $18, $a2, $ff, $19, $24, $a0, $04, $19, $0c
@@ -151,6 +227,9 @@ SoundPart_08::
 	db $27, $03, $29, $03, $2a, $03, $30, $03, $32, $03, $34, $03, $35, $19, $1f, $18
 	db $1f, $5a, $ff
 
+;@ path: sound/parts
+;@ Sound part $09: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_09::
 	db $02, $02, $09, $00, $fe, $fe, $a2, $01, $a3, $14, $c1, $32, $1f
 	db $20, $1f, $01, $a0, $05, $17, $0f, $a0, $0c, $22, $20, $a0, $09, $22, $10, $b1
@@ -200,6 +279,9 @@ SoundPart_09::
 	db $00, $2b, $08, $30, $08, $b2, $fc, $67, $01, $2b, $10, $1f, $10, $b0, $fc, $02
 	db $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $0A: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0A::
 	db $02, $02, $0f, $00, $fe, $fe, $a2, $02, $a3, $22, $c1, $2f, $1f
 	db $20, $a0, $0e, $17, $10, $a0, $07, $1b, $20, $1b, $10, $b1, $fc, $07, $00, $a0
@@ -237,6 +319,9 @@ SoundPart_0A::
 	db $30, $32, $08, $34, $08, $b2, $fc, $07, $01, $b6, $00, $32, $20, $b0, $fc, $02
 	db $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $0B: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0B::
 	db $02, $00, $02, $0f, $fe, $fe, $a1, $0f, $a0, $02, $a3, $1f, $a2
 	db $75, $3b, $11, $40, $10, $a2, $48, $42, $5f, $b1, $fc, $05, $00, $a2, $75, $3b
@@ -292,6 +377,9 @@ SoundPart_0B::
 	db $06, $30, $08, $b1, $fc, $84, $01, $a0, $02, $a1, $0b, $a2, $18, $17, $08, $a0
 	db $04, $17, $08, $1f, $10, $b0, $fc, $02, $00, $ff, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $0C: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0C::
 	db $07, $02, $0a, $00
 	db $fd, $fe, $a2, $02, $a0, $04, $c1, $12, $1f, $04, $22, $0a, $29, $0a, $25, $0a
@@ -334,6 +422,9 @@ SoundPart_0C::
 	db $a0, $07, $a2, $01, $09, $14, $a0, $03, $c1, $7f, $09, $14, $a0, $07, $c0, $fe
 	db $12, $28, $a0, $05, $12, $3c, $c1, $7f, $a0, $02, $12, $14, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $0D: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0D::
 	db $07
 	db $02, $0a, $00, $fd, $fe, $a0, $0a, $c1, $2f, $22, $0a, $c1, $10, $29, $0a, $25
@@ -392,6 +483,9 @@ SoundPart_0D::
 	db $0a, $19, $0a, $24, $0a, $27, $0a, $30, $0a, $22, $0a, $29, $0a, $26, $0a, $29
 	db $0a, $b2, $fc, $ad, $01, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $0E: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0E::
 	db $07, $ff, $02, $05, $fd, $fe, $a0, $02
 	db $a1, $05, $42, $14, $49, $14, $47, $28, $a0, $04, $47, $13, $a0, $02, $45, $0b
@@ -426,6 +520,9 @@ SoundPart_0E::
 	db $47, $14, $a0, $02, $45, $0a, $44, $0a, $42, $14, $40, $0a, $3a, $0a, $40, $0a
 	db $39, $0a, $44, $14, $42, $6e, $a0, $04, $42, $0a, $b0, $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $0F: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0F::
 	db $04, $02
 	db $09, $00, $fd, $fe, $a0, $08, $c2, $12, $25, $0c, $29, $0c, $25, $0c, $29, $0c
@@ -445,6 +542,9 @@ SoundPart_0F::
 	db $27, $06, $31, $0c, $24, $0c, $27, $0c, $31, $0c, $24, $0c, $27, $0c, $31, $0c
 	db $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $10: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_10::
 	db $04, $02, $0d, $00, $fd, $fe, $a0, $0d, $a2, $02, $a3, $0b, $c1
 	db $5f, $32, $18, $a3, $00, $a0, $05, $32, $18, $a3, $0b, $a0, $0d, $39, $18, $a3
@@ -460,6 +560,9 @@ SoundPart_10::
 	db $18, $c3, $45, $a4, $20, $29, $0c, $32, $0c, $34, $0c, $a3, $0c, $39, $48, $c1
 	db $30, $a3, $00, $39, $18, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $11: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_11::
 	db $04, $10, $02, $02, $fd, $fe, $a1, $02
 	db $32, $0c, $35, $0c, $a2, $1f, $a1, $0a, $12, $0c, $a2, $10, $a1, $02, $35, $0c
@@ -484,6 +587,9 @@ SoundPart_11::
 	db $09, $18, $a1, $02, $a2, $ff, $29, $24, $a0, $04, $29, $18, $a2, $10, $a0, $02
 	db $19, $0c, $b0, $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $12: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_12::
 	db $0a, $00, $0a, $00, $fd, $fe, $a3, $31, $1f, $0c
 	db $c1, $60, $20, $08, $a0, $05, $c1, $1f, $20, $04, $a0, $0a, $c1, $60, $20, $08
@@ -509,6 +615,9 @@ SoundPart_12::
 	db $23, $18, $22, $18, $c1, $30, $a0, $0e, $1f, $0c, $1b, $0c, $b2, $fc, $a9, $00
 	db $1b, $0c, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $13: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_13::
 	db $0a, $00, $0c, $00, $fd, $fe, $a3, $31, $1f, $0c, $a0
 	db $0d, $c1, $60, $09, $08, $a0, $05, $c1, $20, $09, $04, $a0, $0a, $c1, $60, $19
@@ -540,6 +649,9 @@ SoundPart_13::
 	db $18, $20, $18, $1b, $18, $c1, $30, $a0, $0e, $1f, $0c, $19, $0c, $1f, $0c, $18
 	db $0c, $1f, $0c, $19, $0c, $18, $0c, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $14: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_14::
 	db $0a, $10, $02, $0b, $fd, $fe
 	db $a0, $02, $a2, $10, $a3, $04, $34, $04, $34, $04, $34, $04, $a2, $ff, $39, $0c
@@ -573,6 +685,9 @@ SoundPart_14::
 	db $b2, $fc, $da, $00, $a2, $ff, $34, $04, $a0, $04, $34, $04, $1f, $04, $b0, $00
 	db $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $15: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_15::
 	db $08, $02, $04, $00, $fd, $fe, $a2, $02, $c0, $fe, $a0, $04, $a3, $03
 	db $1f, $05, $37, $10, $35, $08, $33, $08, $35, $10, $33, $08, $32, $08, $33, $10
@@ -592,6 +707,9 @@ SoundPart_15::
 	db $a3, $02, $a0, $0d, $25, $08, $c4, $06, $29, $08, $30, $08, $2b, $08, $c3, $25
 	db $a3, $06, $1f, $08, $2b, $30, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $16: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_16::
 	db $08, $02, $0c, $00, $fd, $fe, $a2
 	db $02, $a0, $0c, $a3, $fe, $c1, $40, $20, $08, $c2, $10, $23, $08, $27, $08, $23
@@ -625,6 +743,9 @@ SoundPart_16::
 	db $05, $a3, $02, $29, $08, $c2, $15, $30, $08, $35, $08, $37, $08, $c3, $40, $a3
 	db $06, $1f, $08, $37, $30, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $17: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_17::
 	db $08, $ff, $02, $05, $fd, $fe, $a1, $05
 	db $a2, $ff, $47, $10, $45, $08, $43, $08, $45, $10, $43, $08, $42, $08, $43, $10
@@ -645,6 +766,9 @@ SoundPart_17::
 	db $a0, $04, $35, $08, $a0, $02, $a2, $50, $32, $08, $a2, $10, $2b, $08, $27, $08
 	db $b0, $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $18: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_18::
 	db $02, $01, $0c, $00, $fe, $fe, $c1, $7f, $a3, $13, $a0, $08
 	db $19, $0e, $24, $1c, $a0, $06, $24, $0e, $a0, $08, $19, $0e, $26, $1c, $a0, $06
@@ -676,6 +800,9 @@ SoundPart_18::
 	db $36, $07, $32, $07, $30, $07, $29, $07, $26, $07, $20, $07, $19, $07, $20, $07
 	db $b0, $fc, $02, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $19: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_19::
 	db $02, $01, $0f, $00, $fd, $fe, $a3, $05, $c3, $20, $29
 	db $8b, $a3, $06, $34, $0f, $32, $0e, $30, $0e, $32, $0e, $2b, $0e, $30, $0e, $a3
@@ -706,6 +833,9 @@ SoundPart_19::
 	db $0e, $40, $0e, $3b, $0e, $39, $0e, $a3, $05, $37, $0e, $c2, $0f, $39, $0e, $c3
 	db $40, $a3, $08, $39, $a8, $c1, $30, $a3, $00, $39, $1c, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $1A: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1A::
 	db $02, $ff
 	db $02, $03, $fd, $fe, $a3, $13, $a2, $ff, $a1, $09, $29, $0e, $a2, $3f, $a1, $0c
@@ -750,6 +880,9 @@ SoundPart_1A::
 	db $a2, $20, $19, $0e, $a2, $30, $32, $0e, $a2, $20, $19, $0e, $b1, $fc, $1f, $01
 	db $b0, $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $1B: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1B::
 	db $0a, $01, $0b, $00, $a3, $02, $c4, $0a, $23, $0c, $b7, $fc
 	db $04, $00, $a2, $01, $a0, $0b, $fd, $fe, $a3, $01, $c4, $15, $23, $0c, $23, $0c
@@ -775,6 +908,9 @@ SoundPart_1B::
 	db $22, $01, $23, $01, $23, $01, $22, $01, $23, $01, $c4, $10, $23, $0c, $b7, $fc
 	db $ac, $00, $20, $0c, $b7, $fc, $af, $00, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $1C: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1C::
 	db $0a, $01, $0e, $00, $a3
 	db $00, $c4, $0a, $27, $0c, $b7, $fc, $04, $00, $a2, $01, $a0, $0e, $fd, $fe, $a2
@@ -803,6 +939,9 @@ SoundPart_1C::
 	db $0c, $25, $0c, $27, $0c, $27, $0c, $28, $0c, $28, $0c, $29, $0c, $29, $0c, $2a
 	db $0c, $2a, $0c, $23, $0c, $b7, $fc, $c4, $00, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $1D: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1D::
 	db $0a, $12, $02, $03
 	db $29, $0c, $30, $0c, $b3, $fc, $02, $00, $a2, $25, $a1, $06, $fd, $fe, $a2, $30
@@ -834,6 +973,9 @@ SoundPart_1D::
 	db $a3, $03, $28, $18, $29, $18, $2a, $10, $2a, $04, $a1, $0a, $a2, $20, $17, $04
 	db $b0, $00, $ff, $ff
 
+;@ path: sound/parts
+;@ Sound part $1E: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1E::
 	db $08, $02, $0b, $00, $fd, $fe, $a0, $0b, $1f, $10, $c4, $05
 	db $34, $08, $34, $08, $34, $08, $30, $08, $32, $08, $32, $08, $32, $08, $2b, $08
@@ -873,6 +1015,9 @@ SoundPart_1E::
 	db $40, $08, $a0, $0d, $42, $08, $3b, $08, $a0, $0c, $37, $08, $32, $08, $a0, $0a
 	db $2b, $10, $b0, $00, $ff
 
+;@ path: sound/parts
+;@ Sound part $1F: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1F::
 	db $08, $01, $0d, $00, $fd, $fe, $a0, $0d, $a3, $02, $c3
 	db $30, $27, $10, $c4, $05, $37, $08, $37, $08, $37, $08, $34, $08, $35, $08, $35
@@ -908,6 +1053,9 @@ SoundPart_1F::
 	db $01, $c4, $0a, $a0, $0d, $3a, $08, $a0, $0f, $38, $08, $38, $08, $35, $08, $c4
 	db $35, $37, $08, $38, $08, $3a, $08, $40, $08, $42, $08, $40, $08, $3a, $08, $38
 	db $08, $a3, $0c, $c3, $30, $37, $60, $c1, $30, $a0, $08, $37, $10, $b0, $00, $ff
+;@ path: sound/parts
+;@ Sound part $20: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
+;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_20::
 	db $08, $20, $02, $02, $fd, $fe, $a2, $20, $a3, $10, $1f, $10, $20, $10, $b5, $fc
 	db $06, $00, $17, $10, $b7, $fc, $09, $00, $a2, $19, $20, $08, $a0, $06, $20, $08
@@ -936,6 +1084,8 @@ SoundPart_20::
 	db $45, $08, $49, $08, $4b, $08, $45, $08, $3b, $08, $35, $08, $27, $10, $b0, $00
 	db $ff, $ff
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_1C::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

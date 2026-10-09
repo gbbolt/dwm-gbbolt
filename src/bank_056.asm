@@ -428,7 +428,7 @@ TextCode_BeepLow::
 ;@ path: text/control
 ;@ Code $EC: a pause whose length follows the message speed setting (TextPauseLengths, 6 to 48
 ;@ frames); at the slowest setting 7 it waits for a button with the prompt arrow instead.
-;@ test: wMessageSpeed = rand(0, 7)
+;@ test: skip indexes a table the test runner only stubs
 TextCode_SpeedPause::
 ;> wTextFlags &= ~0x80
 	ld hl, wTextFlags

@@ -4,15 +4,49 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $024", ROMX[$4000], BANK[$24]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_24::
 	db $24
 
+;@ path: field/tables
+;@ Entry table of bank $24: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_24::
-	db $3d, $40, $c8, $44, $0d, $46, $39, $47, $91, $4c, $c3, $4d, $fa, $4e, $ca
-	db $52, $b4, $53, $a8, $54, $16, $57, $17, $58, $20, $59, $13, $5c, $f3, $5c, $da
-	db $5d, $19, $62, $00, $63, $ed, $63, $de, $66, $ea, $67, $d3, $68, $a4, $6b, $76
-	db $6c, $4a, $6d, $42, $71, $88, $72, $ce, $73, $aa, $79, $d1, $7a
+	dw FieldTiles_24_00
+	dw ScreenMap_24_01
+	dw ScreenMap_24_02
+	dw FieldTiles_24_03
+	dw ScreenMap_24_04
+	dw ScreenMap_24_05
+	dw FieldTiles_24_06
+	dw ScreenMap_24_07
+	dw ScreenMap_24_08
+	dw FieldTiles_24_09
+	dw ScreenMap_24_0A
+	dw ScreenMap_24_0B
+	dw FieldTiles_24_0C
+	dw ScreenMap_24_0D
+	dw ScreenMap_24_0E
+	dw FieldTiles_24_0F
+	dw ScreenMap_24_10
+	dw ScreenMap_24_11
+	dw FieldTiles_24_12
+	dw ScreenMap_24_13
+	dw ScreenMap_24_14
+	dw FieldTiles_24_15
+	dw ScreenMap_24_16
+	dw ScreenMap_24_17
+	dw FieldTiles_24_18
+	dw ScreenMap_24_19
+	dw ScreenMap_24_1A
+	dw FieldTiles_24_1B
+	dw ScreenMap_24_1C
+	dw ScreenMap_24_1D
 
+;@ path: field/tilesets
+;@ BG tiles of field map $3F (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $48B packed).
 FieldTiles_24_00::
 	db $00, $08, $15
 	db $00, $ff, $7f, $7f, $80, $bf, $7f, $7f, $bb, $bb, $91, $91, $91, $bb, $bb, $ff
@@ -89,6 +123,10 @@ FieldTiles_24_00::
 	db $3b, $7e, $c7, $7e, $7f, $3c, $3d, $00, $83, $08, $f7, $f0, $0f, $15, $d8, $00
 	db $15, $41, $7f, $4d, $15, $a1, $7f, $4b
 
+;@ path: field/screens
+;@ Tilemap of map $3F screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $145 packed).
 ScreenMap_24_01::
 	db $00, $02, $0e, $50, $50, $50, $32, $33
 	db $50, $0e, $05, $00, $32, $33, $57, $56, $59, $53, $34, $35, $32, $33, $0e, $f4
@@ -112,6 +150,10 @@ ScreenMap_24_01::
 	db $34, $35, $0e, $e0, $00, $24, $25, $0e, $f4, $fa, $0e, $a0, $10, $0e, $60, $10
 	db $56, $50, $36, $37, $0c, $0d, $0d, $0d, $26, $27, $0e, $a0, $f8
 
+;@ path: field/screens
+;@ Tilemap of map $3F screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $12C packed).
 ScreenMap_24_02::
 	db $00, $02, $0f
 	db $50, $50, $50, $32, $33, $50, $0f, $05, $00, $32, $33, $57, $56, $59, $53, $34
@@ -134,6 +176,9 @@ ScreenMap_24_02::
 	db $35, $0f, $e0, $00, $24, $25, $0f, $b4, $1e, $0f, $ae, $00, $56, $50, $36, $37
 	db $0c, $0d, $0d, $0d, $26, $27, $0f, $a0, $f8
 
+;@ path: field/tilesets
+;@ BG tiles of field map $4F (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $558 packed).
 FieldTiles_24_03::
 	db $00, $08, $13, $04, $87, $04, $84
 	db $fc, $fc, $ff, $ff, $20, $bf, $a0, $b0, $bf, $bf, $ff, $ff, $11, $df, $11, $19
@@ -223,6 +268,10 @@ FieldTiles_24_03::
 	db $3d, $00, $82, $08, $f6, $f0, $0c, $c0, $f0, $13, $a0, $ff, $4d, $13, $9f, $7f
 	db $4d
 
+;@ path: field/screens
+;@ Tilemap of map $4F screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $132 packed).
 ScreenMap_24_04::
 	db $00, $02, $02, $60, $61, $02, $00, $00, $20, $18, $53, $4e, $4f, $4a, $15
 	db $30, $02, $00, $02, $02, $f4, $f8, $62, $63, $62, $63, $22, $10, $11, $1a, $55
@@ -245,6 +294,10 @@ ScreenMap_24_04::
 	db $0f, $00, $62, $2e, $12, $13, $4c, $4d, $48, $49, $54, $1b, $3e, $02, $67, $11
 	db $02, $a0, $f8
 
+;@ path: field/screens
+;@ Tilemap of map $4F screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $137 packed).
 ScreenMap_24_05::
 	db $00, $02, $02, $60, $61, $02, $00, $00, $20, $18, $53, $4e, $4f
 	db $4a, $15, $30, $02, $00, $02, $02, $f4, $f8, $62, $63, $62, $63, $22, $10, $11
@@ -267,6 +320,9 @@ ScreenMap_24_05::
 	db $52, $19, $12, $13, $3c, $02, $11, $0f, $00, $62, $2e, $12, $13, $4c, $4d, $48
 	db $49, $54, $1b, $3e, $02, $69, $11, $02, $a0, $f8
 
+;@ path: field/tilesets
+;@ BG tiles of field map $3B (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $3D0 packed).
 FieldTiles_24_06::
 	db $00, $08, $12, $00, $ff, $00
 	db $ff, $3f, $c0, $20, $df, $20, $d0, $23, $d4, $20, $d4, $20, $d5, $12, $00, $00
@@ -331,6 +387,10 @@ FieldTiles_24_06::
 	db $ff, $46, $3b, $7e, $c7, $7e, $7f, $3c, $3d, $00, $83, $08, $f7, $f0, $0f, $12
 	db $19, $01, $12, $42, $7f, $4d, $12, $a2, $7f, $4a
 
+;@ path: field/screens
+;@ Tilemap of map $3B screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $EA packed).
 ScreenMap_24_07::
 	db $00, $02, $38, $09, $38, $00
 	db $03, $55, $55, $55, $55, $38, $00, $04, $38, $f4, $f8, $19, $38, $20, $03, $38
@@ -349,6 +409,10 @@ ScreenMap_24_07::
 	db $f4, $f8, $58, $59, $30, $31, $38, $ae, $10, $38, $a2, $10, $38, $a4, $12, $58
 	db $59, $38, $a0, $f8
 
+;@ path: field/screens
+;@ Tilemap of map $3B screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $F4 packed).
 ScreenMap_24_08::
 	db $00, $02, $38, $09, $38, $00, $03, $55, $55, $55, $55, $38
 	db $00, $04, $38, $f4, $f8, $19, $38, $20, $03, $38, $08, $00, $38, $20, $04, $38
@@ -367,6 +431,9 @@ ScreenMap_24_08::
 	db $37, $56, $57, $38, $f4, $f8, $58, $59, $30, $31, $38, $ae, $10, $38, $a2, $10
 	db $38, $a4, $12, $58, $59, $38, $a0, $f8
 
+;@ path: field/tilesets
+;@ BG tiles of field map $45 (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $26E packed).
 FieldTiles_24_09::
 	db $00, $08, $06, $00, $ff, $00, $ff, $3f
 	db $c0, $20, $df, $20, $d0, $23, $d4, $20, $d4, $20, $d5, $06, $00, $00, $ff, $06
@@ -409,6 +476,10 @@ FieldTiles_24_09::
 	db $c7, $7e, $7f, $3c, $3d, $00, $83, $08, $f7, $f0, $0f, $06, $19, $01, $06, $42
 	db $7f, $4d, $06, $a2, $7f, $4a
 
+;@ path: field/screens
+;@ Tilemap of map $45 screen 0, map $45 screen 0 (version 2) (MapScreenTable). Unpacked to wSavedTilemap by
+;@ DrawMapScreen: 20 x 16 tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row
+;@ $FF. Compressed in the DecompressCore format ($200 bytes unpacked, $101 packed).
 ScreenMap_24_0A::
 	db $00, $02, $16, $09, $0a, $09, $0a, $19, $1a, $09
 	db $0a, $29, $2f, $28, $1a, $16, $02, $02, $09, $0a, $16, $f4, $f8, $19, $1a, $16
@@ -428,6 +499,10 @@ ScreenMap_24_0A::
 	db $08, $0f, $1f, $16, $c0, $10, $16, $f4, $f8, $20, $21, $16, $e0, $10, $16, $c6
 	db $14, $16, $e0, $12, $16, $a0, $f8
 
+;@ path: field/screens
+;@ Tilemap of map $45 screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $109 packed).
 ScreenMap_24_0B::
 	db $00, $02, $16, $09, $0a, $09, $0a, $19, $1a
 	db $09, $0a, $29, $2f, $28, $1a, $16, $02, $02, $09, $0a, $16, $f4, $f8, $19, $1a
@@ -446,6 +521,9 @@ ScreenMap_24_0B::
 	db $14, $15, $16, $64, $12, $10, $11, $17, $18, $16, $a0, $10, $16, $f4, $f8, $24
 	db $25, $24, $25, $0f, $1f, $04, $16, $a7, $12, $08, $0f, $1f, $16, $c0, $10, $16
 	db $f4, $f8, $20, $21, $16, $e0, $10, $16, $c6, $14, $16, $e0, $12, $16, $a0, $f8
+;@ path: field/tilesets
+;@ BG tiles of field map $48 (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $2F3 packed).
 FieldTiles_24_0C::
 	db $00, $08, $0e, $8f, $d5, $8f, $a5, $0e, $00, $08, $a5, $f5, $ab, $fb, $0e, $10
 	db $08, $8c, $d6, $8c, $a7, $8b, $d3, $88, $a7, $9f, $cf, $b0, $91, $e0, $aa, $ff
@@ -496,6 +574,10 @@ FieldTiles_24_0C::
 	db $7f, $3c, $3d, $00, $82, $08, $f6, $f0, $0c, $c0, $f0, $0e, $a0, $6f, $4d, $0e
 	db $9f, $7f, $4d
 
+;@ path: field/screens
+;@ Tilemap of map $48 screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $E0 packed).
 ScreenMap_24_0D::
 	db $00, $02, $1a, $00, $00, $19, $18, $00, $00, $54, $55, $1a, $07
 	db $01, $56, $01, $01, $19, $18, $01, $01, $1a, $f4, $fa, $16, $17, $00, $00, $57
@@ -513,6 +595,10 @@ ScreenMap_24_0D::
 	db $61, $62, $63, $64, $1a, $c6, $04, $1a, $c2, $12, $1a, $d6, $0e, $1a, $e6, $08
 	db $1a, $72, $1a
 
+;@ path: field/screens
+;@ Tilemap of map $48 screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $E7 packed).
 ScreenMap_24_0E::
 	db $00, $02, $1a, $00, $00, $19, $18, $00, $00, $54, $55, $1a, $07
 	db $01, $56, $01, $01, $19, $18, $01, $01, $1a, $f4, $fa, $16, $17, $00, $00, $57
@@ -530,6 +616,9 @@ ScreenMap_24_0E::
 	db $04, $1a, $a2, $12, $1a, $36, $0a, $61, $62, $63, $64, $1a, $c6, $04, $1a, $c2
 	db $12, $1a, $d6, $0e, $1a, $e6, $08, $1a, $72, $1a
 
+;@ path: field/tilesets
+;@ BG tiles of field map $43 (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $43F packed).
 FieldTiles_24_0F::
 	db $00, $08, $15, $8f, $d5, $8f
 	db $a5, $15, $00, $08, $a5, $f5, $ab, $fb, $15, $10, $08, $8c, $d6, $8c, $a7, $8b
@@ -601,6 +690,10 @@ FieldTiles_24_0F::
 	db $46, $3b, $7e, $c7, $7e, $7f, $3c, $3d, $00, $83, $08, $f7, $f0, $0f, $15, $46
 	db $01, $15, $42, $7f, $4d, $15, $a2, $7f, $4a
 
+;@ path: field/screens
+;@ Tilemap of map $43 screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $E7 packed).
 ScreenMap_24_10::
 	db $00, $02, $05, $06, $07, $05, $01
 	db $0d, $06, $05, $f4, $f9, $0b, $0c, $14, $15, $0d, $0c, $10, $11, $05, $25, $02
@@ -617,6 +710,10 @@ ScreenMap_24_10::
 	db $2d, $2e, $2f, $05, $32, $0c, $05, $44, $14, $05, $8a, $00, $64, $65, $66, $67
 	db $05, $32, $0c, $05, $64, $14, $05, $aa, $00, $5c, $5d, $56, $57, $05, $32, $0b
 	db $0a, $05, $01, $0c, $0a, $05, $13, $0a, $05, $62, $0c, $0c, $0d, $05, $13, $09
+;@ path: field/screens
+;@ Tilemap of map $43 screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $ED packed).
 ScreenMap_24_11::
 	db $00, $02, $05, $06, $07, $05, $01, $0d, $06, $05, $f4, $f9, $0b, $0c, $14, $15
 	db $0d, $0c, $10, $11, $05, $25, $02, $14, $15, $0d, $09, $05, $13, $0b, $0e, $16
@@ -634,6 +731,10 @@ ScreenMap_24_11::
 	db $00, $05, $a8, $02, $52, $53, $5c, $5d, $56, $57, $05, $32, $0b, $0a, $05, $01
 	db $0c, $0a, $05, $13, $0a, $05, $62, $0c, $0c, $0d, $05, $13, $09
 
+;@ path: field/tilesets
+;@ BG tiles of field maps $42, $60, $65, $66, $67, $68, $69, $6A, $6B, $6C, $6D, $6E, ... (MapInfo): 128 tiles,
+;@ unpacked to $9000 by LoadMapTileset. Compressed in the DecompressCore format ($800 bytes unpacked, $2F1
+;@ packed).
 FieldTiles_24_12::
 	db $00, $08, $07
 	db $91, $aa, $c0, $90, $88, $c5, $92, $9e, $60, $52, $4a, $7d, $f4, $fa, $e0, $ee
@@ -684,6 +785,12 @@ FieldTiles_24_12::
 	db $cf, $2e, $e7, $17, $d0, $2f, $46, $3b, $7e, $c7, $7e, $7f, $3c, $3d, $01, $82
 	db $0a, $f5, $f7, $08, $02, $07, $3f, $2f, $4d, $07, $9e, $7f, $4d, $00
 
+;@ path: field/screens
+;@ Tilemap of map $42 screen 0, map $42 screen 0 (version 1), map $42 screen 0 (version 2), map $42 screen 0
+;@ (version 3), map $42 screen 0 (version 4), map $42 screen 0 (version 5), map $42 screen 0 (version 6), map $42
+;@ screen 0 (version 7), and 2 more (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles
+;@ (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $10C packed).
 ScreenMap_24_13::
 	db $00, $02
 	db $05, $02, $01, $02, $09, $50, $51, $04, $02, $01, $05, $07, $00, $09, $54, $55
@@ -704,6 +811,12 @@ ScreenMap_24_13::
 	db $01, $05, $cc, $02, $0b, $05, $c7, $00, $05, $c3, $01, $08, $01, $05, $14, $0e
 	db $17, $16, $16, $16, $05, $e0, $14, $05, $32, $0a
 
+;@ path: field/screens
+;@ Tilemap of map $42 screen 1, map $42 screen 1 (version 1), map $60 screen 0, map $60 screen 0 (version 1), map
+;@ $65 screen 0, map $65 screen 0 (version 1), map $66 screen 0, map $66 screen 0 (version 1), and 2 more
+;@ (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one 160 x 128 pixel screen) in
+;@ rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the DecompressCore format ($200 bytes
+;@ unpacked, $E9 packed).
 ScreenMap_24_14::
 	db $00, $02, $05, $01, $02, $01
 	db $01, $02, $05, $03, $0b, $05, $f4, $f8, $16, $16, $17, $16, $17, $17, $16, $17
@@ -722,6 +835,9 @@ ScreenMap_24_14::
 	db $05, $c8, $06, $05, $12, $0b, $05, $e0, $04, $16, $17, $05, $ed, $02, $16, $16
 	db $05, $33, $09
 
+;@ path: field/tilesets
+;@ BG tiles of field map $32 (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $2D1 packed).
 FieldTiles_24_15::
 	db $00, $08, $06, $ef, $10, $7f, $84, $5f, $ae, $bb, $5f, $f1, $1f
 	db $f9, $33, $e0, $38, $61, $f9, $ff, $00, $77, $98, $ff, $38, $6d, $fa, $55, $ee
@@ -770,6 +886,10 @@ FieldTiles_24_15::
 	db $06, $5f, $6f, $4d, $06, $bf, $6f, $4d, $06, $1f, $7f, $4d, $06, $7f, $7f, $4d
 	db $06, $df, $7f, $0d
 
+;@ path: field/screens
+;@ Tilemap of map $32 screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $D2 packed).
 ScreenMap_24_16::
 	db $00, $02, $19, $2a, $2b, $2a, $2b, $2e, $2f, $19, $04, $02
 	db $19, $00, $00, $00, $01, $00, $01, $ff, $19, $14, $07, $2c, $2d, $2c, $2d, $19
@@ -786,6 +906,10 @@ ScreenMap_24_16::
 	db $03, $19, $40, $12, $19, $c0, $02, $19, $10, $0c, $19, $30, $00, $19, $60, $12
 	db $19, $e0, $02, $19, $30, $0c
 
+;@ path: field/screens
+;@ Tilemap of map $32 screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $D4 packed).
 ScreenMap_24_17::
 	db $00, $02, $19, $2a, $2b, $2a, $2b, $2e, $2f, $19
 	db $04, $02, $19, $00, $00, $00, $01, $00, $01, $ff, $19, $14, $07, $2c, $2d, $2c
@@ -802,6 +926,9 @@ ScreenMap_24_17::
 	db $12, $19, $6e, $1f, $03, $19, $40, $12, $19, $c0, $02, $19, $10, $0c, $19, $30
 	db $00, $19, $60, $12, $19, $e0, $02, $19, $30, $0c
 
+;@ path: field/tilesets
+;@ BG tiles of field map $44 (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $3F8 packed).
 FieldTiles_24_18::
 	db $00, $08, $12, $aa, $aa, $5d
 	db $5d, $aa, $ae, $5b, $5f, $b5, $b1, $69, $65, $bb, $a7, $79, $65, $aa, $aa, $55
@@ -869,6 +996,10 @@ FieldTiles_24_18::
 	db $6f, $4d, $12, $bf, $6f, $4d, $12, $1f, $7f, $4d, $12, $7f, $7f, $4d, $12, $df
 	db $7f, $0d
 
+;@ path: field/screens
+;@ Tilemap of map $44 screen 0 (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16 tiles (one
+;@ 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $146 packed).
 ScreenMap_24_19::
 	db $00, $02, $1e, $0e, $1b, $00, $01, $0f, $0e, $1a, $18, $0c, $0e, $1a
 	db $0e, $0f, $1a, $18, $0e, $1a, $1a, $0e, $1a, $ff, $1e, $14, $07, $0c, $0d, $10
@@ -892,6 +1023,10 @@ ScreenMap_24_19::
 	db $01, $1e, $14, $08, $1e, $22, $01, $1d, $18, $0e, $14, $15, $1e, $e8, $10, $0e
 	db $0d, $18, $1a, $10, $11, $1e, $b4, $18
 
+;@ path: field/screens
+;@ Tilemap of map $44 screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $146 packed).
 ScreenMap_24_1A::
 	db $00, $02, $1e, $0e, $1b, $00, $01, $0f
 	db $0e, $1a, $18, $0c, $0e, $1a, $0e, $0f, $1a, $18, $0e, $1a, $1a, $0e, $1a, $ff
@@ -915,6 +1050,9 @@ ScreenMap_24_1A::
 	db $10, $0e, $18, $0d, $0e, $00, $01, $1e, $14, $08, $1e, $22, $01, $1d, $18, $0e
 	db $14, $15, $1e, $e8, $10, $0e, $0d, $18, $1a, $10, $11, $1e, $b4, $18
 
+;@ path: field/tilesets
+;@ BG tiles of field map $47 (MapInfo): 128 tiles, unpacked to $9000 by LoadMapTileset. Compressed in the
+;@ DecompressCore format ($800 bytes unpacked, $5DC packed).
 FieldTiles_24_1B::
 	db $00, $08
 	db $16, $01, $86, $03, $0c, $07, $18, $0f, $30, $1f, $60, $3e, $c1, $7c, $83, $f8
@@ -1012,6 +1150,10 @@ FieldTiles_24_1B::
 	db $0f, $ee, $07, $f7, $00, $ff, $46, $3b, $7e, $c7, $7e, $7f, $3c, $3d, $00, $83
 	db $08, $f7, $f0, $16, $a7, $01, $16, $c1, $7f, $2b
 
+;@ path: field/screens
+;@ Tilemap of map $47 screen 0, map $47 screen 0 (version 1) (MapScreenTable). Unpacked to wSavedTilemap by
+;@ DrawMapScreen: 20 x 16 tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row
+;@ $FF. Compressed in the DecompressCore format ($200 bytes unpacked, $127 packed).
 ScreenMap_24_1C::
 	db $00, $02, $5a, $00, $01, $00
 	db $01, $35, $59, $60, $60, $60, $1a, $1b, $60, $60, $60, $59, $58, $5a, $00, $00
@@ -1034,6 +1176,10 @@ ScreenMap_24_1C::
 	db $10, $5a, $12, $0c, $04, $05, $20, $21, $5a, $e5, $15, $22, $14, $15, $5a, $32
 	db $0a
 
+;@ path: field/screens
+;@ Tilemap of map $47 screen 0 (version 2) (MapScreenTable). Unpacked to wSavedTilemap by DrawMapScreen: 20 x 16
+;@ tiles (one 160 x 128 pixel screen) in rows of 32 bytes, the last 12 bytes of each row $FF. Compressed in the
+;@ DecompressCore format ($200 bytes unpacked, $12F packed).
 ScreenMap_24_1D::
 	db $00, $02, $5a, $00, $01, $00, $01, $35, $59, $60, $60, $60, $1a, $1b, $60
 	db $60, $60, $59, $58, $5a, $00, $00, $ff, $5a, $14, $07, $10, $11, $10, $11, $35
@@ -1054,6 +1200,8 @@ ScreenMap_24_1D::
 	db $17, $5a, $14, $08, $04, $05, $5a, $60, $10, $72, $73, $5a, $a6, $12, $5a, $70
 	db $10, $14, $15, $5a, $34, $0a, $5a, $80, $10, $63, $5a, $c6, $13, $5a, $90, $10
 	db $5a, $12, $0c, $04, $05, $20, $21, $5a, $e5, $15, $22, $14, $15, $5a, $32, $0a
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_24::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
