@@ -6,12 +6,26 @@ A matching disassembly of *Dragon Warrior Monsters* (Enix, 1999, USA/Europe) for
 2 MiB cartridge with 128 banks. It is read with [gbbolt](https://github.com/gbbolt/gbbolt): code and
 pseudo-code side by side, each short piece of Python directly above the few instructions that do it.
 
-**Work in progress.** The whole ROM is disassembled and rebuilds byte for byte; the code is being
-named, explained and given pseudo-code bank by bank. The viewer always shows the current state.
+**Complete.** All 4,334 code units are named, explained and given pseudo-code, and every unit sits
+in a folder of the code tree; the data banks are split into labelled, described blocks. The ROM
+rebuilds byte for byte.
 
 - **Every bank is its own file** (`src/bank_000.asm` ... `src/bank_07f.asm`). Bank 0 is always mapped;
   each code bank starts with its own number and a table of entry points, and `ld hl, far_Name` +
   `rst $10` calls a routine in another bank through that table (`src/far.inc`).
+- **What the code does:** the field and the gate worlds with their random floors, breeding and its
+  pair tables, the battle engine (commands, skill effects, damage and resistances, the enemy AI's
+  rules and target choice, turn order, recruiting), the Starry Night tournament, link play, the
+  sound engine, the text printer, the opening, the ending and the debug menus.
+- **Info sheets drawn from the game's own tables:** a page for each of the 217 monsters (picture,
+  walking sprite, growth, resistances, experience curve, breeding pairs, where it is met), the
+  breeding chart and special pairs, items, skills, the gate worlds with their monsters floor by floor
+  and their chest items, every monster template, the tournament teams and prizes, experience and
+  growth tables, palettes, the font, every system and story text decoded.
+- **Graphics:** all monster pictures in their own colours, the field sprites of people and monsters,
+  86 maps drawn from their tilesets and screen maps, the gate floor looks, the window tiles, the four
+  Super Game Boy borders and the ending credits.
+- **Music and sound effects**, played by the game's own sound engine: 29 songs and 62 effects.
 - **Screens, played by the game's own code** on an emulated Game Boy Color: the opening from power-on
   (licence screen, the Eidos and Enix logos, the falling star, the logo) and the title screen, in the
   game's own colours.
@@ -41,7 +55,9 @@ src/bank_XXX.asm    the disassembly, one file per ROM bank, with its annotations
 src/ram.inc         RAM variables: names, types, descriptions
 src/far.inc         far-call constants (bank and entry number of each far-callable routine)
 src/hardware.inc    hardware registers (Game Boy Color included)
-assets/*.py         asset plugins: the opening and the title screen, run on an emulated Game Boy Color
+src/sound.json      how the music is played through the game's own sound engine
+assets/*.py         asset plugins: screens run on an emulated Game Boy Color, and the sheets read
+                    from the game's tables (assets/_dwm.py holds the shared readers)
 ```
 
 ## Legal
