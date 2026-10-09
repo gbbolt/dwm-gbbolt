@@ -194,7 +194,7 @@ SpriteViewerUpdate::
 ;@ path: system/debug/spriteviewer
 ;@ States of the sprite viewer: 0 menu, 1 load the chosen monster, 2 loaded, 3 turn the sprite,
 ;@ 4 pick a monster number, 5 leave.
-SpriteViewerStates:
+SpriteViewerStates::
 	dw SpriteViewerMenu
 	dw SpriteViewerLoad
 	dw SpriteViewerLoaded
@@ -919,8 +919,8 @@ BattleTutorInit::
 	call SetUpTextBox
 ;> DrawTutorBattleScreen()
 	call DrawTutorBattleScreen
-;> DrawLayout_59(TutorMessageBoxLayout2, wTilemapBuffer)
-	ld de, TutorMessageBoxLayout2
+;> DrawLayout_59(TutorMessageBoxHighLayout, wTilemapBuffer)
+	ld de, TutorMessageBoxHighLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
 ;> StartFade(0xFC)                              # fade in
@@ -979,7 +979,7 @@ BattleTutorUpdate::
 ;@ text of group 0 (0 the battle screen, 1 FIGHT, 2 what FIGHT does, 3 PLAN, 4 ITEM, 5 RUN, 6 the
 ;@ end), wait, scroll it out again, and move the cursor to the next command; at the end a fade
 ;@ out and back to the opening.
-BattleTutorSteps:
+BattleTutorSteps::
 	dw TutorWaitFade
 	dw TutorStartIntro
 	dw TutorBlink15
@@ -1517,7 +1517,7 @@ CommandTutorUpdate::
 ;@ States of the command tutorial: 0 the command menu, 1 explain a command, 2 the strategy menu,
 ;@ 3 explain a strategy, 4 "Enough?" (leave), 5 ALL or EACH, 6 the order menu, 7 explain ALL /
 ;@ EACH, 8 explain an order.
-CommandTutorStates:
+CommandTutorStates::
 	dw CmdTutorMainMenu
 	dw CmdTutorExplainMain
 	dw CmdTutorStrategyMenu
@@ -1704,7 +1704,7 @@ CmdTutorExplainMain::
 
 ;@ path: system/debug/commandtutor
 ;@ Steps of state 1: show only the message box, start the text, continue when it is done.
-CmdTutorExplainMainSteps:
+CmdTutorExplainMainSteps::
 	dw CmdTutorClearMenu
 	dw CmdTutorStartMainText
 	dw CmdTutorAfterMainText
@@ -2091,7 +2091,7 @@ CmdTutorExplainStrategy::
 
 ;@ path: system/debug/commandtutor
 ;@ Steps of state 3: show only the message box, start the text, continue when it is done.
-CmdTutorExplainStrategySteps:
+CmdTutorExplainStrategySteps::
 	dw CmdTutorClearMenu
 	dw CmdTutorStartStrategyText
 	dw CmdTutorAfterStrategyText
@@ -2184,7 +2184,7 @@ CmdTutorQuit::
 
 ;@ path: system/debug/commandtutor
 ;@ Steps of state 4: ask, the yes / no menu, act on the answer, leave after the fade out.
-CmdTutorQuitSteps:
+CmdTutorQuitSteps::
 	dw CmdTutorAskQuit
 	dw CmdTutorQuitMenu
 	dw CmdTutorQuitAnswer
@@ -2738,7 +2738,7 @@ CmdTutorExplainTarget::
 
 ;@ path: system/debug/commandtutor
 ;@ Steps of state 7: show only the message box, start the text, continue when it is done.
-CmdTutorExplainTargetSteps:
+CmdTutorExplainTargetSteps::
 	dw CmdTutorClearMenu
 	dw CmdTutorStartTargetText
 	dw CmdTutorAfterTargetText
@@ -2801,7 +2801,7 @@ CmdTutorExplainOrder::
 
 ;@ path: system/debug/commandtutor
 ;@ Steps of state 8: show only the message box, start the text, continue when it is done.
-CmdTutorExplainOrderSteps:
+CmdTutorExplainOrderSteps::
 	dw CmdTutorClearMenu
 	dw CmdTutorStartOrderText
 	dw CmdTutorAfterOrderText
@@ -2856,12 +2856,26 @@ CmdTutorAfterOrderText::
 	call CmdTutorDrawMenu
 	ret
 
+;@ def CmdTutorDrawMenu()
+;@ path: system/debug/commandtutor
+;@ Draws menu wCommandSubStep of the command tutorial when asked to (wCommandStep 0): 0 the
+;@ command menu, 1 just the message box, 2 the strategies, 3 yes / no, 4 ALL / EACH, 5 the orders.
+;@ wBattleListCount 0 redraws the whole screen first, otherwise only the menu box is drawn again.
+;@ test: skip jumps through a table to the menu routines
 CmdTutorDrawMenu::
+;> if wCommandStep:                            # already drawn
+;>     return
 	ld a, [wCommandStep]
 	or a
 	ret nz
+
+;> CmdTutorMenus[wCommandSubStep]()
 	ld a, [wCommandSubStep]
 	rst $00
+
+;@ path: system/debug/commandtutor
+;@ Drawing routines of the command tutorial's menus (wCommandSubStep).
+CmdTutorMenus::
 	dw CmdTutorDrawMain
 	dw CmdTutorDrawMessageBox
 	dw CmdTutorDrawStrategy
@@ -2869,386 +2883,588 @@ CmdTutorDrawMenu::
 	dw CmdTutorDrawTarget
 	dw CmdTutorDrawOrder
 
+;@ def CmdTutorDrawMain()
+;@ path: system/debug/commandtutor
+;@ Menu 0, the command box: the whole screen first when wBattleListCount is 0.
+;@ test: skip jumps through a table
 CmdTutorDrawMain::
+;> [CmdTutorDrawMainFull, CmdTutorDrawMainBox, CmdTutorDrawMainBox][wBattleListCount]()
 	ld a, [wBattleListCount]
 	rst $00
 	dw CmdTutorDrawMainFull
 	dw CmdTutorDrawMainBox
 	dw CmdTutorDrawMainBox
 
+;@ def CmdTutorDrawMainFull()
+;@ path: system/debug/commandtutor
+;@ Redraws the whole screen, then the command box (falls into CmdTutorDrawMainBox).
+;@ test: skip writes VRAM
 CmdTutorDrawMainFull::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> CmdTutorDrawScreen()
 	call CmdTutorDrawScreen
 
+;@ def CmdTutorDrawMainBox()
+;@ path: system/debug/commandtutor
+;@ Draws the command box (FIGHT / PLAN / ITEM / RUN) with the cursor on wMenuChoice, then
+;@ finishes like every menu (CmdTutorDrawFinish).
+;@ test: skip writes VRAM
 CmdTutorDrawMainBox::
+;> DrawLayout_59(TutorMainMenuLayout, wTilemapBuffer)
 	ld de, TutorMainMenuLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;>@p p = wTilemapBuffer + ReadTableWord_59(wMenuChoice & 0x0F, TutorMainCursorSpots)
 	ld a, [wMenuChoice]
 	and $0f
 	ld hl, TutorMainCursorSpots
 	call ReadTableWord_59
+;=@p
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
+;> wConfirmChoice2 = lo(p); wMenuChoice3 = hi(p)   # the cursor's place, for the blinking
 	ld a, l
 	ld [wConfirmChoice2], a
 	ld a, h
 	ld [wMenuChoice3], a
+;> if wMenuChoice & 0x80:
 	ld a, [wMenuChoice]
 	bit 7, a
-	jr z, jr_059_4f1b
+	jr z, .arrow
+
+;>     mem[p] = 0xE9                            # chosen
+;>     return CmdTutorDrawFinish()
 	ld [hl], $e9
-	jp jr_059_504d
+	jp CmdTutorDrawFinish
 
 
-jr_059_4f1b:
+.arrow
+;> mem[p] = 0xE8
 	ld [hl], $e8
-	jp jr_059_504d
+;> return CmdTutorDrawFinish()
+	jp CmdTutorDrawFinish
+;@ def CmdTutorDrawMessageBox()
+;@ path: system/debug/commandtutor
+;@ Menu 1: the whole screen with just the message box (while a text is shown).
+;@ test: skip writes VRAM
 CmdTutorDrawMessageBox::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> CmdTutorDrawScreen()
 	call CmdTutorDrawScreen
+;> DrawLayout_59(TutorMessageBoxLayout, wTilemapBuffer)
 	ld de, TutorMessageBoxLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
-	jp jr_059_504d
+;> return CmdTutorDrawFinish()
+	jp CmdTutorDrawFinish
 
+;@ def CmdTutorDrawStrategy()
+;@ path: system/debug/commandtutor
+;@ Menu 2, the strategies: the whole screen first when wBattleListCount is 0.
+;@ test: skip jumps through a table
 CmdTutorDrawStrategy::
+;> [CmdTutorDrawStrategyFull, CmdTutorDrawStrategyBox, CmdTutorDrawStrategyBox][wBattleListCount]()
 	ld a, [wBattleListCount]
 	rst $00
 	dw CmdTutorDrawStrategyFull
 	dw CmdTutorDrawStrategyBox
 	dw CmdTutorDrawStrategyBox
 
+;@ def CmdTutorDrawStrategyFull()
+;@ path: system/debug/commandtutor
+;@ Redraws the whole screen, then the strategy box.
+;@ test: skip writes VRAM
 CmdTutorDrawStrategyFull::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> CmdTutorDrawScreen()
 	call CmdTutorDrawScreen
 
+;@ def CmdTutorDrawStrategyBox()
+;@ path: system/debug/commandtutor
+;@ Draws the strategy box (CHARGE!, MIXED, CAUTIOUS, COMMAND) with the cursor on wMenuChoice2.
+;@ test: skip writes VRAM
 CmdTutorDrawStrategyBox::
+;> DrawLayout_59(TutorStrategyMenuLayout, wTilemapBuffer)
 	ld de, TutorStrategyMenuLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;>@p p = wTilemapBuffer + ReadTableWord_59(wMenuChoice2 & 0x0F, TutorListCursorSpots)
 	ld a, [wMenuChoice2]
 	and $0f
 	ld hl, TutorListCursorSpots
 	call ReadTableWord_59
+;=@p
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
+;> wConfirmChoice2 = lo(p); wMenuChoice3 = hi(p)
 	ld a, l
 	ld [wConfirmChoice2], a
 	ld a, h
 	ld [wMenuChoice3], a
+;> if wMenuChoice2 & 0x80:
 	ld a, [wMenuChoice2]
 	bit 7, a
-	jr z, jr_059_4f72
+	jr z, .arrow
+
+;>     mem[p] = 0xE9
+;>     return CmdTutorDrawFinish()
 	ld [hl], $e9
-	jp jr_059_504d
+	jp CmdTutorDrawFinish
 
 
-jr_059_4f72:
+.arrow
+;> mem[p] = 0xE8
 	ld [hl], $e8
-	jp jr_059_504d
+;> return CmdTutorDrawFinish()
+	jp CmdTutorDrawFinish
 
+;@ def CmdTutorDrawYesNo()
+;@ path: system/debug/commandtutor
+;@ Menu 3, yes / no: the whole screen and the message box first when wBattleListCount is 0.
+;@ test: skip jumps through a table
 CmdTutorDrawYesNo::
+;> [CmdTutorDrawYesNoFull, CmdTutorDrawYesNoBox][wBattleListCount]()
 	ld a, [wBattleListCount]
 	rst $00
 	dw CmdTutorDrawYesNoFull
 	dw CmdTutorDrawYesNoBox
 
+;@ def CmdTutorDrawYesNoFull()
+;@ path: system/debug/commandtutor
+;@ Redraws the whole screen with the message box, then the yes / no box.
+;@ test: skip writes VRAM
 CmdTutorDrawYesNoFull::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> CmdTutorDrawScreen()
 	call CmdTutorDrawScreen
+;> DrawLayout_59(TutorMessageBoxLayout, wTilemapBuffer)
 	ld de, TutorMessageBoxLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
 
+;@ def CmdTutorDrawYesNoBox()
+;@ path: system/debug/commandtutor
+;@ Draws the yes / no box with the cursor on wListCursor; after a full redraw the text box is set
+;@ up again, otherwise (the "Enough?" text is still printing) only the buffer is copied.
+;@ test: skip writes VRAM
 CmdTutorDrawYesNoBox::
+;> DrawLayout_59(TutorYesNoLayout, wTilemapBuffer)
 	ld de, TutorYesNoLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;>@p p = wTilemapBuffer + ReadTableWord_59(wListCursor & 0x0F, TutorYesNoCursorSpots)
 	ld a, [wListCursor]
 	and $0f
 	ld hl, TutorYesNoCursorSpots
 	call ReadTableWord_59
+;=@p
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
+;> wConfirmChoice2 = lo(p); wMenuChoice3 = hi(p)
 	ld a, l
 	ld [wConfirmChoice2], a
 	ld a, h
 	ld [wMenuChoice3], a
+;> mem[p] = 0xE9 if wListCursor & 0x80 else 0xE8
 	ld a, [wListCursor]
 	bit 7, a
-	jr z, jr_059_4fbd
+	jr z, .arrow
+
 	ld [hl], $e9
-	jr jr_059_4fbf
+	jr .placed
 
 
-jr_059_4fbd:
+.arrow
 	ld [hl], $e8
 
-jr_059_4fbf:
+.placed
+;> if wBattleListCount:
+;>     return CmdTutorDrawCopy()
 	ld a, [wBattleListCount]
 	or a
-	jp nz, jr_059_5056
-	jp jr_059_504d
+	jp nz, CmdTutorDrawCopy
 
+;> return CmdTutorDrawFinish()
+	jp CmdTutorDrawFinish
+
+;@ def CmdTutorDrawTarget()
+;@ path: system/debug/commandtutor
+;@ Menu 4, ALL / EACH: the whole screen first when wBattleListCount is 0.
+;@ test: skip jumps through a table
 CmdTutorDrawTarget::
+;> [CmdTutorDrawTargetFull, CmdTutorDrawTargetBox][wBattleListCount]()
 	ld a, [wBattleListCount]
 	rst $00
 	dw CmdTutorDrawTargetFull
 	dw CmdTutorDrawTargetBox
 
+;@ def CmdTutorDrawTargetFull()
+;@ path: system/debug/commandtutor
+;@ Redraws the whole screen, then the ALL / EACH box.
+;@ test: skip writes VRAM
 CmdTutorDrawTargetFull::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> CmdTutorDrawScreen()
 	call CmdTutorDrawScreen
 
+;@ def CmdTutorDrawTargetBox()
+;@ path: system/debug/commandtutor
+;@ Draws the ALL / EACH box with the cursor on wListPage (rows 3 and 4 of TutorListCursorSpots).
+;@ test: skip writes VRAM
 CmdTutorDrawTargetBox::
+;> DrawLayout_59(TutorTargetMenuLayout, wTilemapBuffer)
 	ld de, TutorTargetMenuLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;>@p p = wTilemapBuffer + ReadTableWord_59((wListPage & 0x0F) + 2, TutorListCursorSpots)
 	ld a, [wListPage]
 	and $0f
 	add $02
 	ld hl, TutorListCursorSpots
 	call ReadTableWord_59
+;=@p
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
+;> wConfirmChoice2 = lo(p); wMenuChoice3 = hi(p)
 	ld a, l
 	ld [wConfirmChoice2], a
 	ld a, h
 	ld [wMenuChoice3], a
+;> if wListPage & 0x80:
 	ld a, [wListPage]
 	bit 7, a
-	jr z, jr_059_5008
+	jr z, .arrow
+
+;>     mem[p] = 0xE9
+;>     return CmdTutorDrawFinish()
 	ld [hl], $e9
-	jr jr_059_504d
+	jr CmdTutorDrawFinish
 
 
-jr_059_5008:
+.arrow
+;> mem[p] = 0xE8
 	ld [hl], $e8
-	jr jr_059_504d
+;> return CmdTutorDrawFinish()
+	jr CmdTutorDrawFinish
 
+;@ def CmdTutorDrawOrder()
+;@ path: system/debug/commandtutor
+;@ Menu 5, the orders: the whole screen first when wBattleListCount is 0.
+;@ test: skip jumps through a table
 CmdTutorDrawOrder::
+;> [CmdTutorDrawOrderFull, CmdTutorDrawOrderBox][wBattleListCount]()
 	ld a, [wBattleListCount]
 	rst $00
 	dw CmdTutorDrawOrderFull
 	dw CmdTutorDrawOrderBox
 
+;@ def CmdTutorDrawOrderFull()
+;@ path: system/debug/commandtutor
+;@ Redraws the whole screen, then the order box.
+;@ test: skip writes VRAM
 CmdTutorDrawOrderFull::
+;> ClearTilemapBuffer_59()
 	call ClearTilemapBuffer_59
+;> CmdTutorDrawScreen()
 	call CmdTutorDrawScreen
 
+;@ def CmdTutorDrawOrderBox()
+;@ path: system/debug/commandtutor
+;@ Draws the order box (ATK, skills, defense) with the cursor on wListCursor2 (rows 2-4 of
+;@ TutorListCursorSpots). Then, as every menu does (CmdTutorDrawFinish), sets the message box up
+;@ as the text box again, copies wTilemapBuffer to the screen (CmdTutorDrawCopy) and marks the
+;@ menu as drawn (wCommandStep 1).
+;@ test: skip writes VRAM
 CmdTutorDrawOrderBox::
+;> DrawLayout_59(TutorOrderMenuLayout, wTilemapBuffer)
 	ld de, TutorOrderMenuLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
+;>@p p = wTilemapBuffer + ReadTableWord_59((wListCursor2 & 0x0F) + 1, TutorListCursorSpots)
 	ld a, [wListCursor2]
 	and $0f
 	add $01
 	ld hl, TutorListCursorSpots
 	call ReadTableWord_59
+;=@p
 	ld a, l
-	add $00
+	add LOW(wTilemapBuffer)
 	ld l, a
 	ld a, h
-	adc $c5
+	adc HIGH(wTilemapBuffer)
 	ld h, a
+;> wConfirmChoice2 = lo(p); wMenuChoice3 = hi(p)
 	ld a, l
 	ld [wConfirmChoice2], a
 	ld a, h
 	ld [wMenuChoice3], a
+;> mem[p] = 0xE9 if wListCursor2 & 0x80 else 0xE8
 	ld a, [wListCursor2]
 	bit 7, a
-	jr z, jr_059_504b
+	jr z, .arrow
+
 	ld [hl], $e9
-	jr jr_059_504d
+	jr CmdTutorDrawFinish
 
 
-jr_059_504b:
+.arrow
 	ld [hl], $e8
 
-jr_059_504d:
+CmdTutorDrawFinish:
+;> SetUpTextBox(0x8B00, lines=2, line_length=18)   # the message box
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
 
-jr_059_5056:
+CmdTutorDrawCopy:
+;> CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;> wCommandStep = 1                             # drawn
 	ld a, $01
 	ld [wCommandStep], a
 	ret
+;@ def CmdTutorDrawScreen()
+;@ path: system/debug/commandtutor
+;@ Draws the base of the command tutorial's screen into wTilemapBuffer: the party panel for the
+;@ number of monsters (TutorPartyLayouts) with their HP and MP, blank status icons, and the enemy
+;@ picture.
+;@ test: skip writes VRAM
 CmdTutorDrawScreen::
+;> if wPartyCount:
 	ld a, [wPartyCount]
 	or a
-	jr z, jr_059_507d
+	jr z, .noParty
+
+;>@l     DrawLayout_59(mem16[TutorPartyLayouts + 2 * wPartyCount], wTilemapBuffer)
 	ld hl, TutorPartyLayouts
 	ld a, [wPartyCount]
 	call ReadTableWord_59
 	ld d, h
 	ld e, l
 	ld hl, wTilemapBuffer
+;=@l
 	call DrawLayout_59
+;>     CmdTutorDrawHPMP()
 	call CmdTutorDrawHPMP
-	call CmdTutorClearSlot0
+;>     CmdTutorClearIcons()
+	call CmdTutorClearIcons
 
-jr_059_507d:
-	ld de, TutorPartyPicLayout
+.noParty
+;> DrawLayout_59(TutorEnemyPicLowLayout, wTilemapBuffer)
+	ld de, TutorEnemyPicLowLayout
 	ld hl, wTilemapBuffer
 	call DrawLayout_59
 	ret
 
+;@ def CmdTutorPrintLabels()
+;@ path: system/debug/commandtutor
+;@ Prints five label texts of text group 3 of bank $4C (entries 0, 1, 3, 4, 5) into their tiles
+;@ ($96C0, $97C0, $8850, $8990, $8800). In this version every entry of that group holds the same
+;@ item message, so these labels do not come out as intended.
+;@ test: skip runs the text printer
 CmdTutorPrintLabels::
+;>@t1 for tiles, size, i in ((0x96C0, 0x0401, 0), (0x97C0, 0x0401, 1), (0x8850, 0x1401, 3), (0x8990, 0x0501, 4), (0x8800, 0x0501, 5)):
+;>@t2     wTextTiles = tiles
 	ld hl, $96c0
 	ld de, $0401
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;>@t3     wTextBoxLines = size & 0xFF; wTextBoxLineLength = size >> 8
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;>@t4     wTextIndex = i; wTextGroup = 3
 	ld a, $00
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
+;>@t5     PrintText_4C()
 	ld hl, far_PrintText_4C
 	rst $10
+;=@t2
 	ld hl, $97c0
 	ld de, $0401
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;=@t3
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;=@t4
 	ld a, $01
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
+;=@t5
 	ld hl, far_PrintText_4C
 	rst $10
+;=@t2
 	ld hl, $8850
 	ld de, $1401
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;=@t3
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;=@t4
 	ld a, $03
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
+;=@t5
 	ld hl, far_PrintText_4C
 	rst $10
+;=@t2
 	ld hl, $8990
 	ld de, $0501
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;=@t3
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;=@t4
 	ld a, $04
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
+;=@t5
 	ld hl, far_PrintText_4C
 	rst $10
+;=@t2
 	ld hl, $8800
 	ld de, $0501
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;=@t3
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;=@t4
 	ld a, $05
 	ld [wTextIndex], a
 	ld a, $03
 	ld [wTextGroup], a
+;=@t5
 	ld hl, far_PrintText_4C
 	rst $10
 	ret
 
+;@ def CmdTutorPrintNames()
+;@ path: system/debug/commandtutor
+;@ Prints the names of the party's monsters into 4-letter boxes at $9700, $9740 and $9780 (one
+;@ per party position, wSceneObjects[19] counts them), then sets the message box up as the text
+;@ box again.
+;@ test: skip runs the text printer
 CmdTutorPrintNames::
+;> if wPartyCount == 0:
+;>     return
 	ld a, [wPartyCount]
 	or a
 	ret z
+
+;> wSceneObjects[19] = 0
 	xor a
 	ld [wSceneObjects + 19], a
+;> wTextTiles = 0x9700
 	ld hl, $9700
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1; wTextBoxLineLength = 4
 	ld de, $0401
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
 
-jr_059_515b:
+.loop
+;> while True:
+;>@m     CmdTutorPrintName(wParty[wSceneObjects[19]])
 	ld a, [wSceneObjects + 19]
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
 	call CmdTutorPrintName
+;>     wSceneObjects[19] += 1
 	ld hl, wSceneObjects + 19
 	inc [hl]
+;>@w     wTextTiles += 0x40                       # the next box
 	ld a, [wTextTiles]
 	ld l, a
 	ld a, [wTextTiles + 1]
 	ld h, a
 	ld a, l
 	add $40
+;=@w
 	ld l, a
 	ld a, h
 	adc $00
 	ld h, a
 	ld a, l
 	ld [wTextTiles], a
+;=@w
 	ld a, h
 	ld [wTextTiles + 1], a
+;>     if wSceneObjects[19] == wPartyCount:
+;>         break
 	ld a, [wSceneObjects + 19]
 	ld d, a
 	ld a, [wPartyCount]
 	cp d
-	jr nz, jr_059_515b
+	jr nz, .loop
+
+;> wTextTiles = 0x8B00
 	ld hl, $8b00
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
 	ld [wTextTiles + 1], a
+;> wTextBoxLines = 2; wTextBoxLineLength = 18
 	ld de, $1202
 	ld a, e
 	ld [wTextBoxLines], a
@@ -3256,194 +3472,297 @@ jr_059_515b:
 	ld [wTextBoxLineLength], a
 	ret
 
+;@ def CmdTutorDrawHPMP()
+;@ path: system/debug/commandtutor
+;@ Writes the HP and MP of each party monster into the party panel (CmdTutorDrawSlotHPMP).
+;@ test: skip reads monster records through computed addresses
 CmdTutorDrawHPMP::
+;> wSceneObjects[19] = 0
 	xor a
 	ld [wSceneObjects + 19], a
 
-jr_059_51ac:
+.loop
+;> while True:
+;>@m     CmdTutorDrawSlotHPMP(wParty[wSceneObjects[19]])
 	ld a, [wSceneObjects + 19]
 	ld hl, wParty
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
 	call CmdTutorDrawSlotHPMP
+;>     wSceneObjects[19] += 1
 	ld hl, wSceneObjects + 19
 	inc [hl]
+;>     if wSceneObjects[19] == wPartyCount:
+;>         break
 	ld a, [wSceneObjects + 19]
 	ld d, a
 	ld a, [wPartyCount]
 	cp d
-	jr nz, jr_059_51ac
+	jr nz, .loop
+
 	ret
 
+;@ def CmdTutorDrawSlotHPMP(mon: a)
+;@ path: system/debug/commandtutor
+;@ Writes the HP and MP of monster slot `mon` (party records of $95 bytes) as numbers into the
+;@ panel spots of party position wSceneObjects[19] (TutorHPDigitSpots, TutorMPDigitSpots).
+;@ test: skip reads monster records through computed addresses
 CmdTutorDrawSlotHPMP::
+;> offset = Multiply_59(mon, 0x95)              # the monster's record
 	ld c, $95
 	ld b, $00
 	call Multiply_59
 	push bc
+;> SplitDecimal_59(ReadWordAt_59(wMonHP, offset))
 	ld hl, wMonHP
 	call ReadWordAt_59
 	call SplitDecimal_59
+;> CmdTutorPutNumber(ReadTableWord_59(wSceneObjects[19], TutorHPDigitSpots))
 	ld a, [wSceneObjects + 19]
 	ld hl, TutorHPDigitSpots
 	call ReadTableWord_59
 	call CmdTutorPutNumber
+;> SplitDecimal_59(ReadWordAt_59(wMonMP, offset))
 	pop bc
 	ld hl, wMonMP
 	call ReadWordAt_59
 	call SplitDecimal_59
+;> CmdTutorPutNumber(ReadTableWord_59(wSceneObjects[19], TutorMPDigitSpots))
 	ld a, [wSceneObjects + 19]
 	ld hl, TutorMPDigitSpots
 	call ReadTableWord_59
 	call CmdTutorPutNumber
 	ret
 
+;@ def CmdTutorPutNumber(dest: hl)
+;@ path: system/debug/commandtutor
+;@ Writes the 3 digits in wSceneObjects[16-18] as tiles $F0-$F9 at `dest`, leaving leading zeros
+;@ out (their places keep what was there).
+;@ test: dest = rand(0xC500, 0xC700)
 CmdTutorPutNumber::
+;> if wSceneObjects[16]:
+;>     mem[dest] = wSceneObjects[16] + 0xF0
 	ld a, [wSceneObjects + 16]
 	ld e, a
 	or a
-	jr z, jr_059_5209
+	jr z, .tens
+
 	add $f0
 	ld [hl], a
 
-jr_059_5209:
+.tens
+;> if wSceneObjects[17] or wSceneObjects[16]:
 	inc hl
 	ld a, [wSceneObjects + 17]
 	or e
-	jr z, jr_059_5216
+	jr z, .ones
+
+;>     mem[dest + 1] = wSceneObjects[17] + 0xF0
 	ld a, [wSceneObjects + 17]
 	add $f0
 	ld [hl], a
 
-jr_059_5216:
+.ones
+;> mem[dest + 2] = wSceneObjects[18] + 0xF0
 	inc hl
 	ld a, [wSceneObjects + 18]
 	add $f0
 	ld [hl], a
 	ret
 
+;@ def CmdTutorPrintName(mon: a)
+;@ path: system/debug/commandtutor
+;@ Prints the name of monster slot `mon` into the current text box (system text 2/0, which is
+;@ just its first word, wTextArg0).
+;@ test: skip runs the text printer
 CmdTutorPrintName::
+;> offset = Multiply_59(mon, 0x95)
 	ld c, $95
 	ld b, $00
 	call Multiply_59
+;> CopyName(wMonName + offset, wTextArg0)
 	ld hl, wMonName
 	add hl, bc
 	ld d, h
 	ld e, l
 	ld hl, wTextArg0
 	call CopyName
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
 	ret
-CmdTutorClearSlot0::
+;@ def CmdTutorClearIcons()
+;@ path: system/debug/commandtutor
+;@ Clears the status icon tiles of the party panel (CmdTutorClearIconTiles for position 0).
+;@ test: skip runs the text printer
+CmdTutorClearIcons::
+;> wSceneObjects[19] = 0
 	xor a
 	ld [wSceneObjects + 19], a
-	call CmdTutorClearSlotText
+;> CmdTutorClearIconTiles()
+	call CmdTutorClearIconTiles
 	ret
 
-CmdTutorClearSlotText::
+;@ def CmdTutorClearIconTiles()
+;@ path: system/debug/commandtutor
+;@ Prints an empty name (system text 2/0 with wTextArg0 empty) into a 3-tile box from the status
+;@ icon tile of party position wSceneObjects[19] (TutorIconTiles): from position 0 that blanks
+;@ the three icons.
+;@ test: skip runs the text printer
+CmdTutorClearIconTiles::
+;> wTextArg0[0] = 0xF0                          # an empty word
 	ld hl, wTextArg0
 	ld a, $f0
 	ld [hl], a
+;>@x wTextTiles = mem16[TutorIconTiles + 2 * wSceneObjects[19]]
 	ld a, [wSceneObjects + 19]
-	ld hl, TutorSlotTextTiles
+	ld hl, TutorIconTiles
 	call ReadTableWord_59
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
+;=@x
 	ld [wTextTiles + 1], a
+;> wTextBoxLines = 1; wTextBoxLineLength = 3
 	ld de, $0301
 	ld a, e
 	ld [wTextBoxLines], a
 	ld a, d
 	ld [wTextBoxLineLength], a
+;> wTextGroup = 2
 	ld a, $02
 	ld [wTextGroup], a
+;> wTextIndex = 0
 	ld a, $00
 	ld [wTextIndex], a
+;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
 	ret
 
+;@ def CmdTutorBlinkCursor()
+;@ path: system/debug/commandtutor
+;@ Blinks the menu cursor (its address in wConfirmChoice2 / wMenuChoice3), timed by
+;@ wLinkPartnerChoice: gone after 10 frames, back after 20. While wListLastRows is set (an entry
+;@ was chosen) the cursor stays.
+;@ test: skip calls a far routine
 CmdTutorBlinkCursor::
+;> if wListLastRows:
+;>     return
 	ld a, [wListLastRows]
 	or a
 	ret nz
+
+;> wLinkPartnerChoice += 1
 	ld hl, wLinkPartnerChoice
 	inc [hl]
+;> if wLinkPartnerChoice == 10:
 	ld a, [wLinkPartnerChoice]
 	cp $0a
-	jr z, jr_059_528e
+	jr z, .hide
+
+;>@h1     mem[wConfirmChoice2 | wMenuChoice3 << 8] = 0xE0
+;>@h2     CopyTilemapBufferToScreen_50()
+;> elif wLinkPartnerChoice == 20:
 	cp $14
-	jr z, jr_059_529d
+	jr z, .show
+
 	ret
 
 
-jr_059_528e:
+.hide
+;=@h1
 	ld a, [wConfirmChoice2]
 	ld l, a
 	ld a, [wMenuChoice3]
 	ld h, a
 	ld [hl], $e0
+;=@h2
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
 	ret
 
 
-jr_059_529d:
+.show
+;>     mem[wConfirmChoice2 | wMenuChoice3 << 8] = 0xE8
 	ld a, [wConfirmChoice2]
 	ld l, a
 	ld a, [wMenuChoice3]
 	ld h, a
 	ld [hl], $e8
+;>     CopyTilemapBufferToScreen_50()
 	ld hl, far_CopyTilemapBufferToScreen_50
 	rst $10
+;>     wLinkPartnerChoice = 0
 	xor a
 	ld [wLinkPartnerChoice], a
 	ret
+;@ path: system/debug/commandtutor
+;@ wTilemapBuffer addresses of the HP number of party positions 0-2 in the panel.
 TutorHPDigitSpots::
 	dw $c562
 	dw $c568
 	dw $c56e
 
+;@ path: system/debug/commandtutor
+;@ wTilemapBuffer addresses of the MP number of party positions 0-2.
 TutorMPDigitSpots::
 	dw $c582
 	dw $c588
 	dw $c58e
 
+;@ path: unused/data
+;@ The name boxes' tile addresses ($9700, $9740, $9780) of the three party positions; nothing
+;@ reads this table (CmdTutorPrintNames steps through them itself).
 TutorNameTileSpots::
 	dw $9700
 	dw $9740
 	dw $9780
 
+;@ path: system/debug/commandtutor
+;@ Party panel layout by the number of monsters (entry 0 is never used).
 TutorPartyLayouts::
 	dw TutorParty1Layout
 	dw TutorParty1Layout
 	dw TutorParty2Layout
 	dw TutorParty3Layout
 
-TutorSlotTextTiles::
+;@ path: system/debug/commandtutor
+;@ Tile addresses of the status icons of party positions 0-2 (tiles $DA-$DC).
+TutorIconTiles::
 	dw $8da0
 	dw $8db0
 	dw $8dc0
+;@ path: system/debug/commandtutor
+;@ wTilemapBuffer offsets of the command menu cursor: FIGHT (row 14), PLAN (row 16) in column 1,
+;@ ITEM and RUN in column 7.
 TutorMainCursorSpots::
 	dw $01c1
 	dw $0201
 	dw $01c7
 	dw $0207
 
+;@ path: system/debug/commandtutor
+;@ wTilemapBuffer offsets of the cursor in the list menus: rows 10, 12, 14 and 16 of column 1
+;@ (the strategy box uses all four, the order box rows 2-4, ALL / EACH rows 3-4).
 TutorListCursorSpots::
 	dw $0141
 	dw $0181
 	dw $01c1
 	dw $0201
+;@ path: system/debug/commandtutor
+;@ wTilemapBuffer offsets of the yes / no cursor (rows 9 and 11, column 15).
 TutorYesNoCursorSpots::
 	dw $012f
 	dw $016f
@@ -4137,6 +4456,9 @@ Multiply_59::
 	ld bc, $0000
 	ret
 
+;@ path: system/debug/battletutor
+;@ Box layout (format: DrawLayout_59): the 6 x 6 tiles of the enemy picture ($00-$23, unpacked
+;@ to $9000 by LoadTutorEnemyPic) at row 1, column 7 - the battle screen tutorial.
 TutorEnemyPicLayout::
 	dw $0027
 	db $00, $01, $02, $03, $04, $05, $d8
@@ -4146,7 +4468,10 @@ TutorEnemyPicLayout::
 	db $18, $19, $1a, $1b, $1c, $1d, $d8
 	db $1e, $1f, $20, $21, $22, $23, $d9
 
-TutorPartyPicLayout::
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the enemy picture's 6 x 6 tiles at row 6, column 7, lower
+;@ than in the battle screen tutorial, above the command tutorial's party panel.
+TutorEnemyPicLowLayout::
 	dw $00c7
 	db $00, $01, $02, $03, $04, $05, $d8
 	db $06, $07, $08, $09, $0a, $0b, $d8
@@ -4155,6 +4480,9 @@ TutorPartyPicLayout::
 	db $18, $19, $1a, $1b, $1c, $1d, $d8
 	db $1e, $1f, $20, $21, $22, $23, $d9
 
+;@ path: system/debug/battletutor
+;@ Box layout (format: DrawLayout_59): the 20 x 5 message box at the bottom (rows 13-17), its two
+;@ text lines being the letter tiles $B0-$C1 and $C2-$D3 of the text box at $8B00.
 TutorMessageBoxLayout::
 	dw $01a0
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4163,7 +4491,10 @@ TutorMessageBoxLayout::
 	db $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd, $ce, $cf, $d0, $d1, $d2, $d3, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
-TutorMessageBoxLayout2::
+;@ path: system/debug/battletutor
+;@ The same message box one row higher up the map, at rows 8-12 (BattleTutorInit draws it there
+;@ once, under the screen's first scroll position).
+TutorMessageBoxHighLayout::
 	dw $0100
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $b0, $b1, $b2, $b3, $b4, $b5, $b6, $b7, $b8, $b9, $ba, $bb, $bc, $bd, $be, $bf, $c0, $c1, $ff, $d8
@@ -4171,6 +4502,9 @@ TutorMessageBoxLayout2::
 	db $fe, $c2, $c3, $c4, $c5, $c6, $c7, $c8, $c9, $ca, $cb, $cc, $cd, $ce, $cf, $d0, $d1, $d2, $d3, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/battletutor
+;@ Box layout (format: DrawLayout_59): the 13 x 5 command box at row 8 with the labels FIGHT, PLAN,
+;@ ITEM and RUN made of tiles from $6C on.
 TutorCommandBoxLayout::
 	dw $0100
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4179,6 +4513,9 @@ TutorCommandBoxLayout::
 	db $fe, $e0, $7e, $7d, $7f, $82, $e0, $e0, $81, $80, $6f, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/battletutor
+;@ Box layout (format: DrawLayout_59): the enemy name box (name tiles $70-$73) with the HP / MP
+;@ divider, drawn straight into BG map row 27 (DrawTutorBattleScreen).
 TutorEnemyNameLayout::
 	dw $0000
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4187,10 +4524,15 @@ TutorEnemyNameLayout::
 	db $fe, $e1, $e0, $f1, $f9, $e0, $e0, $ff, $d8
 	db $fe, $e2, $e0, $e0, $f2, $e0, $e0, $ff, $d9
 
+;@ path: system/debug/battletutor
+;@ Box layout (format: DrawLayout_59): the bottom edge of the enemy name box, at row 0 of the
+;@ buffer (the map wraps from row 31 to row 0).
 TutorEnemyNameBottomLayout::
 	dw $0000
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the yes / no box at row 8, column 14.
 TutorYesNoLayout::
 	dw $010e
 	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4199,6 +4541,8 @@ TutorYesNoLayout::
 	db $fe, $e0, $d5, $d5, $d6, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the order box (ATK, the skills, the defense) at rows 11-17.
 TutorOrderMenuLayout::
 	dw $0160
 	db $fa, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4209,6 +4553,9 @@ TutorOrderMenuLayout::
 	db $fe, $e0, $8a, $7c, $9c, $8b, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the party panel for three monsters (20 x 6 at the top): the
+;@ name tiles, status icons $DA-$DC, the HP ($E1) and MP ($E2) rows.
 TutorParty3Layout::
 	dw $0000
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4218,6 +4565,8 @@ TutorParty3Layout::
 	db $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the party panel for two monsters (14 x 6).
 TutorParty2Layout::
 	dw $0000
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4227,6 +4576,8 @@ TutorParty2Layout::
 	db $fe, $e2, $e0, $e0, $e0, $e0, $e0, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the party panel for one monster (8 x 6).
 TutorParty1Layout::
 	dw $0000
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4236,6 +4587,8 @@ TutorParty1Layout::
 	db $fe, $e2, $e0, $e0, $e0, $e0, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the command box (FIGHT / PLAN / ITEM / RUN) at rows 13-17.
 TutorMainMenuLayout::
 	dw $01a0
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4244,6 +4597,8 @@ TutorMainMenuLayout::
 	db $fe, $e0, $7c, $81, $80, $7f, $e0, $e0, $7d, $7e, $7f, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the ALL / EACH box at rows 13-17.
 TutorTargetMenuLayout::
 	dw $01a0
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4252,12 +4607,17 @@ TutorTargetMenuLayout::
 	db $fe, $e0, $92, $93, $94, $84, $9c, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused/data
+;@ Box layout (format: DrawLayout_59) nothing draws: a 6 x 3 box at row 8 with tiles $6C-$6F.
 UnusedLayout_59_6106::
 	dw $0100
 	db $fa, $ef, $ef, $ef, $ef, $fb, $d8
 	db $fe, $6c, $6d, $6e, $6f, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: system/debug/commandtutor
+;@ Box layout (format: DrawLayout_59): the strategy box (CHARGE!, MIXED, CAUTIOUS, COMMAND) at
+;@ rows 9-17.
 TutorStrategyMenuLayout::
 	dw $0120
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4270,6 +4630,9 @@ TutorStrategyMenuLayout::
 	db $fe, $e0, $96, $90, $8b, $8b, $91, $8f, $95, $e0, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: unused/data
+;@ Thirteen more box layouts (format: DrawLayout_59) that nothing draws, from $618B to $6727:
+;@ further variants of the battle windows (lists, small boxes, a 20 x 7 box with tiles $00-$35).
 UnusedLayouts_59::
 	dw $0120
 	db $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $fb, $d8
@@ -4444,5 +4807,7 @@ UnusedLayouts_59::
 	db $fe, $e0, $a7, $a8, $a9, $aa, $ab, $ac, $ad, $ae, $af, $ff, $d8
 	db $fc, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $ee, $fd, $d9
 
+;@ path: data
+;@ Unused space at the end of bank $59 (zero bytes).
 Bank59Padding::
 	ds 6360, $00

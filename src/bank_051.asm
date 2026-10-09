@@ -51,11 +51,11 @@ SetUpBattleScreen::
 	ld a, $fc
 	call StartFade
 ;> Decompress(0x5B, 0, 0x9600)     # battle window and symbol tiles
-	ld de, $5b00
+	ld de, far_BattleFrameGfx
 	ld hl, $9600
 	call Decompress
 ;> Decompress(0x5B, 1, 0x8800)
-	ld de, $5b01
+	ld de, far_BattleSymbolGfx
 	ld hl, $8800
 	call Decompress
 ;> Decompress(0x2E, 0, 0x8D00)
@@ -8518,11 +8518,11 @@ RecruitStep25::
 ;@ titles and the newcomer's picture, redraws the list and the two-choice window and returns to step 11.
 RecruitStep26::
 ;>@g DecompressVRAM(0x5B, 0, 0x9600); DecompressVRAM(0x5B, 1, 0x8800)
-	ld de, $5b00
+	ld de, far_BattleFrameGfx
 	ld hl, $9600
 	call DecompressVRAM
 ;=@g
-	ld de, $5b01
+	ld de, far_BattleSymbolGfx
 	ld hl, $8800
 	call DecompressVRAM
 ;> wTextIndex = 0x0A; wTextGroup = 0x0B
@@ -8624,11 +8624,11 @@ RecruitStep27::
 ;@ (system text $0B18) at once, redraws the swap list and its two-choice window and returns to step 23.
 RecruitStep28::
 ;>@g DecompressVRAM(0x5B, 0, 0x9600); DecompressVRAM(0x5B, 1, 0x8800)
-	ld de, $5b00
+	ld de, far_BattleFrameGfx
 	ld hl, $9600
 	call DecompressVRAM
 ;=@g
-	ld de, $5b01
+	ld de, far_BattleSymbolGfx
 	ld hl, $8800
 	call DecompressVRAM
 ;> wTextIndex = 0x0A; wTextGroup = 0x0B
@@ -8930,11 +8930,11 @@ RecruitStep36::
 	ld hl, wCommandStep
 	inc [hl]
 ;>@g DecompressVRAM(0x5B, 0, 0x9600); DecompressVRAM(0x5B, 1, 0x8800)
-	ld de, $5b00
+	ld de, far_BattleFrameGfx
 	ld hl, $9600
 	call DecompressVRAM
 ;=@g
-	ld de, $5b01
+	ld de, far_BattleSymbolGfx
 	ld hl, $8800
 	call DecompressVRAM
 ;> wTextIndex = 0x0A; wTextGroup = 0x0B

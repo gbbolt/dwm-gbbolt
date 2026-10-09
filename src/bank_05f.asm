@@ -1103,7 +1103,7 @@ OpeningInitLogo2::
 	ld bc, $0028
 	call FillMemory
 ;> Decompress(0x5B, 0x1F, 0x9000)
-	ld de, $5b1f
+	ld de, far_OpeningLogo2Tiles
 	ld hl, $9000
 	call Decompress
 ;> DrawTilemap_5F(OpeningLogo2Tilemap, 0x9800)
@@ -1149,11 +1149,11 @@ OpeningInitStarScene::
 	ld bc, $0010
 	call FillMemory
 ;> DecompressVRAM(0x5B, 0x18, 0x8000)
-	ld de, $5b18
+	ld de, far_ShootingStarSprites
 	ld hl, $8000
 	call DecompressVRAM
 ;> DecompressVRAM(0x5B, 0x19, 0x8040)
-	ld de, $5b19
+	ld de, far_SparkleSprites
 	ld hl, $8040
 	call DecompressVRAM
 ;> wPaletteSet = 0
@@ -1203,11 +1203,11 @@ OpeningInitPicture::
 	ld bc, $0028
 	call FillMemory
 ;> Decompress(0x5B, 0x20, 0x9000)
-	ld de, $5b20
+	ld de, far_TitlePictureTiles
 	ld hl, $9000
 	call Decompress
 ;> Decompress(0x5B, 0x21, 0x8800)
-	ld de, $5b21
+	ld de, far_TitlePictureTilesHigh
 	ld hl, $8800
 	call Decompress
 ;> DrawTilemap_5F(OpeningPictureTilemap, 0x9800)
@@ -1253,11 +1253,11 @@ OpeningInitTitle::
 	ld bc, $0028
 	call FillMemory
 ;> DecompressVRAM(0x5B, 0x20, 0x9000)
-	ld de, $5b20
+	ld de, far_TitlePictureTiles
 	ld hl, $9000
 	call DecompressVRAM
 ;> DecompressVRAM(0x5B, 0x21, 0x8800)
-	ld de, $5b21
+	ld de, far_TitlePictureTilesHigh
 	ld hl, $8800
 	call DecompressVRAM
 ;> DrawTilemap_5F(OpeningTitleTilemap, 0x9800)
@@ -7127,12 +7127,12 @@ AnimViewerOBP0::
 ;@ Sprite graphics of each of the 45 skill animations for DecompressVRAM: bank in the high
 ;@ byte ($5A, $5B), entry in the low byte.
 AnimViewerSpriteGfx::
-	dw $5a00, $5a01, $5a02, $5a03, $5a04, $5a05, $5a06, $5a07
-	dw $5a08, $5a09, $5a0a, $5a0b, $5a0c, $5a0d, $5a0e, $5a0f
-	dw $5a10, $5a11, $5a12, $5a13, $5a14, $5a15, $5a16, $5a17
-	dw $5a18, $5a19, $5a1a, $5a1b, $5a1c, $5a1d, $5a1e, $5a1f
-	dw $5b0a, $5b0b, $5b0c, $5b0d, $5b0e, $5b0f, $5b10, $5b11
-	dw $5b12, $5b13, $5b14, $5b15, $5b16
+	dw far_SkillAnimSprites00, far_SkillAnimSprites01, far_SkillAnimSprites02, far_SkillAnimSprites03, far_SkillAnimSprites04, far_SkillAnimSprites05, far_SkillAnimSprites06, far_SkillAnimSprites07
+	dw far_SkillAnimSprites08, far_SkillAnimSprites09, far_SkillAnimSprites0A, far_SkillAnimSprites0B, far_SkillAnimSprites0C, far_SkillAnimSprites0D, far_SkillAnimSprites0E, far_SkillAnimSprites0F
+	dw far_SkillAnimSprites10, far_SkillAnimSprites11, far_SkillAnimSprites12, far_SkillAnimSprites13, far_SkillAnimSprites14, far_SkillAnimSprites15, far_SkillAnimSprites16, far_SkillAnimSprites17
+	dw far_SkillAnimSprites18, far_SkillAnimSprites19, far_SkillAnimSprites1A, far_SkillAnimSprites1B, far_SkillAnimSprites1C, far_SkillAnimSprites1D, far_SkillAnimSprites1E, far_SkillAnimSprites1F
+	dw far_SkillAnimSprites20, far_SkillAnimSprites21, far_SkillAnimSprites22, far_SkillAnimSprites23, far_SkillAnimSprites24, far_SkillAnimSprites25, far_SkillAnimSprites26, far_SkillAnimSprites27
+	dw far_SkillAnimSprites28, far_SkillAnimSprites29, far_SkillAnimSprites2A, far_SkillAnimSprites2B, far_SkillAnimSprites2C
 
 ;@ def HighNibble_5F(a: a) -> a
 ;@ path: unused/debug

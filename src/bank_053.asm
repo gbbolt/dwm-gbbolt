@@ -9368,7 +9368,7 @@ Revive_Revive_53::
 	adc h
 ;=@t
 	ld h, a
-	ld de, $5b02
+	ld de, far_StatusIconGfx0
 	call DecompressVRAM
 
 .done

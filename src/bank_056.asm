@@ -2225,8 +2225,8 @@ MsgViewText4E::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $59 (far entry 6 of bank $59).
 ;@ test: skip calls a routine in another bank
 MsgViewText59::
-;> far_call(0x59, 0x06)()
-	ld hl, $5906
+;> StartText_59()
+	ld hl, far_StartText_59
 	rst $10
 	ret
 

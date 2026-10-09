@@ -692,31 +692,31 @@ InitGameMode07::
 
 ;@ def InitGameMode08()
 ;@ path: system/modes
-;@ Starts game mode $08: entry 0 of bank $59.
+;@ Starts game mode $08, the debug monster sprite viewer (bank $59).
 ;@ test: skip calls a routine in another bank
 InitGameMode08::
-;> far_call(0x59, 0x00)
-	ld hl, $5900
+;> SpriteViewerInit()
+	ld hl, far_SpriteViewerInit
 	rst $10
 	ret
 
 ;@ def InitGameMode09()
 ;@ path: system/modes
-;@ Starts game mode $09: entry 2 of bank $59.
+;@ Starts game mode $09, the battle screen tutorial (bank $59).
 ;@ test: skip calls a routine in another bank
 InitGameMode09::
-;> far_call(0x59, 0x02)
-	ld hl, $5902
+;> BattleTutorInit()
+	ld hl, far_BattleTutorInit
 	rst $10
 	ret
 
 ;@ def InitGameMode0A()
 ;@ path: system/modes
-;@ Starts game mode $0A: entry 4 of bank $59.
+;@ Starts game mode $0A, the battle command tutorial (bank $59).
 ;@ test: skip calls a routine in another bank
 InitGameMode0A::
-;> far_call(0x59, 0x04)
-	ld hl, $5904
+;> CommandTutorInit()
+	ld hl, far_CommandTutorInit
 	rst $10
 	ret
 
@@ -1218,31 +1218,31 @@ UpdateGameMode07::
 
 ;@ def UpdateGameMode08()
 ;@ path: system/modes
-;@ Per-frame routine of game mode $08: entry 1 of bank $59.
+;@ Per-frame routine of game mode $08, the debug monster sprite viewer (bank $59).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode08::
-;> far_call(0x59, 0x01)
-	ld hl, $5901
+;> SpriteViewerUpdate()
+	ld hl, far_SpriteViewerUpdate
 	rst $10
 	ret
 
 ;@ def UpdateGameMode09()
 ;@ path: system/modes
-;@ Per-frame routine of game mode $09: entry 3 of bank $59.
+;@ Per-frame routine of game mode $09, the battle screen tutorial (bank $59).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode09::
-;> far_call(0x59, 0x03)
-	ld hl, $5903
+;> BattleTutorUpdate()
+	ld hl, far_BattleTutorUpdate
 	rst $10
 	ret
 
 ;@ def UpdateGameMode0A()
 ;@ path: system/modes
-;@ Per-frame routine of game mode $0A: entry 5 of bank $59.
+;@ Per-frame routine of game mode $0A, the battle command tutorial (bank $59).
 ;@ test: skip calls a routine in another bank
 UpdateGameMode0A::
-;> far_call(0x59, 0x05)
-	ld hl, $5905
+;> CommandTutorUpdate()
+	ld hl, far_CommandTutorUpdate
 	rst $10
 	ret
 

@@ -587,19 +587,19 @@ InitCutscene0::
 	ld a, $fc
 	call StartFade
 ;> Decompress(0x5B, 0x17, 0x9000)          # background tiles
-	ld de, $5b17
+	ld de, far_Cutscene0Tiles
 	ld hl, $9000
 	call Decompress
 ;> Decompress(0x5B, 0x18, 0x8600)          # sprite tiles
-	ld de, $5b18
+	ld de, far_ShootingStarSprites
 	ld hl, $8600
 	call Decompress
 ;> Decompress(0x5B, 0x19, 0x8640)
-	ld de, $5b19
+	ld de, far_SparkleSprites
 	ld hl, $8640
 	call Decompress
 ;> Decompress(0x5B, 0x1A, 0x8670)
-	ld de, $5b1a
+	ld de, far_Cutscene0ExtraTiles
 	ld hl, $8670
 	call Decompress
 ;> Decompress(0x2F, 0x00, 0x8800)
@@ -703,11 +703,11 @@ InitCutscene1::
 	ld a, $fc
 	call StartFade
 ;> Decompress(0x5B, 0x1B, 0x9000)
-	ld de, $5b1b
+	ld de, far_Cutscene12Tiles
 	ld hl, $9000
 	call Decompress
 ;> Decompress(0x5B, 0x1C, 0x8800)
-	ld de, $5b1c
+	ld de, far_Cutscene12TilesHigh
 	ld hl, $8800
 	call Decompress
 ;> FillWordPattern(0x8FF0, 8, 0xFF00)   # tile $FF: color 1 everywhere
@@ -790,11 +790,11 @@ InitCutscene2::
 	ld a, $fc
 	call StartFade
 ;> Decompress(0x5B, 0x1B, 0x9000)
-	ld de, $5b1b
+	ld de, far_Cutscene12Tiles
 	ld hl, $9000
 	call Decompress
 ;> Decompress(0x5B, 0x1C, 0x8800)
-	ld de, $5b1c
+	ld de, far_Cutscene12TilesHigh
 	ld hl, $8800
 	call Decompress
 ;> FillWordPattern(0x8FF0, 8, 0xFF00)
@@ -877,11 +877,11 @@ InitCutscene3::
 	ld a, $fc
 	call StartFade
 ;> Decompress(0x5B, 0x1D, 0x9000)
-	ld de, $5b1d
+	ld de, far_Cutscene3Tiles
 	ld hl, $9000
 	call Decompress
 ;> Decompress(0x5B, 0x1E, 0x8800)
-	ld de, $5b1e
+	ld de, far_Cutscene3TilesHigh
 	ld hl, $8800
 	call Decompress
 ;> FillWordPattern(0x8FF0, 8, 0xFF00)
@@ -3873,11 +3873,11 @@ Cutscene3End::
 ;@ test: skip decompresses graphics into VRAM
 InitShootingStars::
 ;> DecompressVRAM(0x5B, 0x18, 0x8700)       # star tiles
-	ld de, $5b18
+	ld de, far_ShootingStarSprites
 	ld hl, $8700
 	call DecompressVRAM
 ;> DecompressVRAM(0x5B, 0x19, 0x8740)       # sparkle tiles
-	ld de, $5b19
+	ld de, far_SparkleSprites
 	ld hl, $8740
 	call DecompressVRAM
 ;> fill(wSceneObjects, 0, 0x28)

@@ -7555,12 +7555,12 @@ BattleFrameLogic::
 ;@ to $8000. Animations 0-$1F use bank $5A entries 0-$1F, animations $20-$2C bank $5B
 ;@ entries $0A-$16.
 SkillAnimGfx::
-	dw $5a00, $5a01, $5a02, $5a03, $5a04, $5a05, $5a06, $5a07
-	dw $5a08, $5a09, $5a0a, $5a0b, $5a0c, $5a0d, $5a0e, $5a0f
-	dw $5a10, $5a11, $5a12, $5a13, $5a14, $5a15, $5a16, $5a17
-	dw $5a18, $5a19, $5a1a, $5a1b, $5a1c, $5a1d, $5a1e, $5a1f
-	dw $5b0a, $5b0b, $5b0c, $5b0d, $5b0e, $5b0f, $5b10, $5b11
-	dw $5b12, $5b13, $5b14, $5b15, $5b16
+	dw far_SkillAnimSprites00, far_SkillAnimSprites01, far_SkillAnimSprites02, far_SkillAnimSprites03, far_SkillAnimSprites04, far_SkillAnimSprites05, far_SkillAnimSprites06, far_SkillAnimSprites07
+	dw far_SkillAnimSprites08, far_SkillAnimSprites09, far_SkillAnimSprites0A, far_SkillAnimSprites0B, far_SkillAnimSprites0C, far_SkillAnimSprites0D, far_SkillAnimSprites0E, far_SkillAnimSprites0F
+	dw far_SkillAnimSprites10, far_SkillAnimSprites11, far_SkillAnimSprites12, far_SkillAnimSprites13, far_SkillAnimSprites14, far_SkillAnimSprites15, far_SkillAnimSprites16, far_SkillAnimSprites17
+	dw far_SkillAnimSprites18, far_SkillAnimSprites19, far_SkillAnimSprites1A, far_SkillAnimSprites1B, far_SkillAnimSprites1C, far_SkillAnimSprites1D, far_SkillAnimSprites1E, far_SkillAnimSprites1F
+	dw far_SkillAnimSprites20, far_SkillAnimSprites21, far_SkillAnimSprites22, far_SkillAnimSprites23, far_SkillAnimSprites24, far_SkillAnimSprites25, far_SkillAnimSprites26, far_SkillAnimSprites27
+	dw far_SkillAnimSprites28, far_SkillAnimSprites29, far_SkillAnimSprites2A, far_SkillAnimSprites2B, far_SkillAnimSprites2C
 
 ;@ def RunBattleStep()
 ;@ path: battle/flow
@@ -13377,14 +13377,14 @@ LoadStatusIcon::
 ;@ 1 status bit 0 (poison), 2 bit 1, 3 bit 7, 4 bit 4, 5 bit 5, 6 bit 6, 7 out of action.
 ;@ Each is one tile, shown after the monster's name on the party panel.
 StatusFaceGfx::
-	db $02, $5b
-	db $03, $5b
-	db $04, $5b
-	db $05, $5b
-	db $06, $5b
-	db $07, $5b
-	db $08, $5b
-	db $09, $5b
+	dw far_StatusIconGfx0
+	dw far_StatusIconGfx1
+	dw far_StatusIconGfx2
+	dw far_StatusIconGfx3
+	dw far_StatusIconGfx4
+	dw far_StatusIconGfx5
+	dw far_StatusIconGfx6
+	dw far_StatusIconGfx7
 
 ;@ def UpdateStatusIcon_50()
 ;@ path: battle/panel
