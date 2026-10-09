@@ -713,10 +713,10 @@ AIRulesAttack::
 	dw AIRuleImmuneCanAct
 	dw AIRuleImmunePoison
 	dw AIRuleSacrificeLowHP
-	dw Call_57_6848
-	dw Call_57_6A0D
-	dw Call_57_6A67
-	dw Call_57_6C62
+	dw AIRuleSlayerNoTarget
+	dw AIRuleAllInSky
+	dw AIRuleSquallHitSlowFoes
+	dw AIRuleScriptedNoKill
 	dw AIPenaltyGroupVsOne
 	dw AIPenaltyIfGuarded
 	dw AIPenaltyImitated
@@ -734,8 +734,8 @@ AIRulesAttack::
 	dw AIBonusResistPoison
 	dw AIBonusRamming
 	dw AIBonusUserBlinded
-	dw Call_57_6B89
-	dw Call_57_6C8C
+	dw AIBonusHurtTwinSlash
+	dw AIBonusEnemyDamage
 	dw $0000
 
 AIRulesStatus::
@@ -789,20 +789,20 @@ AIRulesStatus::
 	dw AIRuleImmuneMouthShut
 	dw AIRuleNoEnemyMP
 	dw AIRuleCallTaken
-	dw Call_57_695E
-	dw Call_57_6975
-	dw Call_57_6A0D
-	dw Call_57_6AB4
-	dw Call_57_6AF5
-	dw Call_57_6BCB
-	dw Call_57_6C0F
+	dw AIRuleSuckAirHeld
+	dw AIRuleUltraDownUseless
+	dw AIRuleAllInSky
+	dw AIRuleMPAlmostFull
+	dw AIRuleThickFogNoBigSpells
+	dw AIRuleNothingToDispel
+	dw AIRuleMagicWallUseless
 	dw AIRuleBarrier
 	dw AIRuleResistEnemies
-	dw Call_57_6C62
-	dw Call_57_6CC0
+	dw AIRuleScriptedNoKill
+	dw AIRuleBarrierNoBreath
 	dw AIPenaltyImitated
 	dw AIPenaltyAllImitating
-	dw Call_57_69CB
+	dw AIPenaltyDeMagicHelpsFoes
 	dw AIBonusIfWeakResist
 	dw AIBonusBoostUseful
 	dw AIBonusLowerDefense
@@ -9935,351 +9935,489 @@ AIBonusUserBlinded::
 	ret
 
 
-Call_57_6848::
+;@ def AIRuleSlayerNoTarget()
+;@ path: battle/ai/rules
+;@ The cuts that hit one family harder are ruled out when no enemy present is of that family: MetalCut
+;@ needs one with type bit 0 (wBattlerTypeBits), DrakSlash a dragon (family 1), BeastCut a beast (2),
+;@ BirdBlow a bird (3), DevilCut a devil (6), ZombieCut a zombie (7), CleanCut a material (8), SmashLime a
+;@ slime (0), ShellDodge a bug (5) and Branching a plant (4). The family is byte 0 of the monster's
+;@ MonsterStats record (GetMonsterStats).
+;@ test: skip calls a routine in another bank
+AIRuleSlayerNoTarget::
+;>@k if not (0x48 <= wSkillId < 0x4F or 0xD6 <= wSkillId < 0xD9): return
 	ld a, [wSkillId]
 	cp $48
 	ret c
+
+;>@i index = wSkillId - 0x48 if wSkillId < 0x4F else wSkillId - 0xD6 + 7
 	cp $4f
-	jr c, jr_057_685c
+	jr c, .cuts
+
+;=@k
 	cp $d6
 	ret c
+
 	cp $d9
 	ret nc
+
+;=@i
 	sub $cf
-	jr jr_057_685e
+	jr .dispatch
 
-
-jr_057_685c:
+.cuts
+;=@i
 	sub $48
 
-jr_057_685e:
+.dispatch
+;> if index == 0:                              # MetalCut
 	rst $00
 
-	dw jr_057_6873
-	dw jr_057_6897
-	dw jr_057_68cf
-	dw jr_057_68e0
-	dw jr_057_68f1
-	dw jr_057_6902
-	dw jr_057_6913
-	dw jr_057_6924
-	dw jr_057_6936
-	dw jr_057_6948
+	dw .metal
+	dw .dragon
+	dw .beast
+	dw .bird
+	dw .devil
+	dw .zombie
+	dw .material
+	dw .slime
+	dw .bug
+	dw .plant
 
-jr_057_6873:
+.metal
+;>     side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_687d:
+;>@f     for pos in range(side, side + 3):
+.metalLoop
+;>@c         if not CheckBattlerPresent(pos) and wBattlerTypeBits[pos] & 1: return
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6890
+	jr c, .metalNext
+
+;=@c
 	ld a, c
 	ld hl, wBattlerTypeBits
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c
 	ld h, a
 	bit 0, [hl]
 	ret nz
 
-jr_057_6890:
+.metalNext
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_687d
-	jp jr_057_695a
+	jr nz, .metalLoop
+
+;>@o     AIRuleOut()
+	jp .out
 
 
-jr_057_6897:
+.dragon
+;> else:
+;>@s2     side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;>@n     wBattleArg0 = (1, 2, 3, 6, 7, 8, 0, 5, 4)[index - 1]     # the family
 	ld a, $01
 	ld [wBattleArg0], a
 
-jr_057_68a6:
+;>@g     for pos in range(side, side + 3):
+.familyLoop
+;>         if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_68c8
+	jr c, .familyNext
+
+;>@m         wMonSpecies = wBattlerSpecies[pos]
 	ld a, c
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@m
 	ld h, a
 	ld a, [hl]
 	ld [wMonSpecies], a
+;>         GetMonsterStats()
 	push bc
 	ld hl, far_GetMonsterStats
 	rst $10
 	pop bc
+;>         if wMonStats[0] == wBattleArg0: return
 	ld a, [wMonStats]
 	ld hl, wBattleArg0
 	cp [hl]
 	ret z
 
-jr_057_68c8:
+.familyNext
+;=@g
 	inc c
 	dec b
-	jr nz, jr_057_68a6
-	jp jr_057_695a
+	jr nz, .familyLoop
+
+;>@p     AIRuleOut()
+	jp .out
 
 
-jr_057_68cf:
+.beast
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $02
 	ld [wBattleArg0], a
-	jr jr_057_68a6
+	jr .familyLoop
 
-
-jr_057_68e0:
+.bird
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $03
 	ld [wBattleArg0], a
-	jr jr_057_68a6
+	jr .familyLoop
 
-
-jr_057_68f1:
+.devil
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $06
 	ld [wBattleArg0], a
-	jr jr_057_68a6
+	jr .familyLoop
 
-
-jr_057_6902:
+.zombie
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $07
 	ld [wBattleArg0], a
-	jr jr_057_68a6
+	jr .familyLoop
 
-
-jr_057_6913:
+.material
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $08
 	ld [wBattleArg0], a
-	jr jr_057_68a6
+	jr .familyLoop
 
-
-jr_057_6924:
+.slime
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $00
 	ld [wBattleArg0], a
-	jp jr_057_68a6
+	jp .familyLoop
 
-
-jr_057_6936:
+.bug
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $05
 	ld [wBattleArg0], a
-	jp jr_057_68a6
+	jp .familyLoop
 
-
-jr_057_6948:
+.plant
+;=@s2
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
+;=@n
 	ld a, $04
 	ld [wBattleArg0], a
-	jp jr_057_68a6
+	jp .familyLoop
 
 
-jr_057_695a:
+.out
+;=@o
 	call AIRuleOut
+;=@p
 	ret
 
 
-Call_57_695E::
+;@ def AIRuleSuckAirHeld()
+;@ path: battle/ai/rules
+;@ SuckAir ($43) is ruled out while the user holds its breath already (status byte 4 bits 4-5).
+;@ test: wSkillUser = rand(0, 7)
+AIRuleSuckAirHeld::
+;> if wSkillId != 0x43: return
 	ld a, [wSkillId]
 	cp $43
 	ret nz
+
+;> if not mem[AddEightTimes(wSkillUser, addr(wBattlerStatus4))] & 0x30: return
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
 	ld a, [hl]
 	and $30
 	ret z
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6975::
+;@ def AIRuleUltraDownUseless()
+;@ path: battle/ai/rules
+;@ UltraDown ($82) is ruled out when every enemy present either resists it fully (bits 4-5 of
+;@ resistance byte 2 at level 3) or has agility and defense down to 1 or less and is wrapped in an
+;@ illusion already (status byte 1 bit 1).
+;@ test: skip calls a routine in another bank
+AIRuleUltraDownUseless::
+;> if wSkillId != 0x82: return
 	ld a, [wSkillId]
 	cp $82
 	ret nz
+
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_6985:
+;>@f for pos in range(side, side + 3):
+.loop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_69c3
+	jr c, .next
+
+;>     wSkillTarget = pos
 	ld a, c
 	ld [wSkillTarget], a
+;>     wBattleArg0 = 2
 	ld a, $02
 	ld [wBattleArg0], a
+;>     GetResistByte()
 	push bc
 	ld hl, far_GetResistByte
 	rst $10
 	pop bc
+;>     if (wBattleArg0 & 0x30) == 0x30: continue
 	ld a, [wBattleArg0]
 	and $30
 	cp $30
-	jr z, jr_057_69c3
+	jr z, .next
+
+;>     if not IsZeroOrOne(WordTableEntry_57(pos, addr(wBattlerAgility))): return
 	ld a, c
 	ld hl, wBattlerAgility
 	call WordTableEntry_57
 	call IsZeroOrOne
 	ret nc
+
+;>     if not IsZeroOrOne(WordTableEntry_57(pos, addr(wBattlerDefense))): return
 	ld a, c
 	ld hl, wBattlerDefense
 	call WordTableEntry_57
 	call IsZeroOrOne
 	ret nc
+
+;>     if not mem[AddEightTimes(pos, addr(wBattlerStatus1))] & 2: return
 	ld a, c
 	ld hl, wBattlerStatus1
 	call AddEightTimes
 	bit 1, [hl]
 	ret z
 
-jr_057_69c3:
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_6985
+	jr nz, .loop
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_69CB::
+;@ def AIPenaltyDeMagicHelpsFoes()
+;@ path: battle/ai/rules
+;@ DeMagic ($80) gets a penalty of 20 when an enemy present suffers from something it would lift: an
+;@ illusion, dancing stopped or mouth bound (status byte 1 bits 1, 6, 7), status byte 2 bit 4, blinded
+;@ (status byte 5 bits 0-1) or a stat that went down (status byte 6 bit 7).
+;@ test: wSkillUser = rand(0, 7)
+AIPenaltyDeMagicHelpsFoes::
+;> if wSkillId != 0x80: return
 	ld a, [wSkillId]
 	cp $80
 	ret nz
+
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_69db:
+;>@f for pos in range(side, side + 3):
+.loop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6a08
+	jr c, .next
+
+;>@s     s = AddEightTimes(pos, addr(wBattlerStatus))
 	ld a, c
 	ld hl, wBattlerStatus
 	call AddEightTimes
 	ld a, [hli]
+;>@t     if mem[s + 1] & 0xC2 or mem[s + 2] & 0x10 or mem[s + 5] & 0x03 or mem[s + 6] & 0x80:
 	ld a, [hli]
 	and $c2
-	jr nz, jr_057_69ff
+	jr nz, .penalty
+
+;=@t
 	ld a, [hli]
 	and $10
-	jr nz, jr_057_69ff
+	jr nz, .penalty
+
 	ld a, [hli]
 	inc hl
+;=@t
 	ld a, [hli]
 	and $03
-	jr nz, jr_057_69ff
+	jr nz, .penalty
+
 	ld a, [hl]
 	and $80
-	jr z, jr_057_6a08
+	jr z, .next
 
-jr_057_69ff:
+.penalty
+;>         AddCapped_57(addr(wAIPenalty), 20)
+;>         return
 	ld hl, wAIPenalty
 	ld b, $14
 	call AddCapped_57
 	ret
 
 
-jr_057_6a08:
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_69db
+	jr nz, .loop
+
 	ret
 
 
-Call_57_6A0D::
+;@ def AIRuleAllInSky()
+;@ path: battle/ai/rules
+;@ The skills that have to reach the target (TwinSlash to EvilSlash, FireSlash to CleanCut, BiAttack to
+;@ YellHelp, SquallHit to RainSlash, PoisonHit to Paralyze, Ahhh, LushLicks to BigTrip, SmashLime to
+;@ GigaSlash) are ruled out when every enemy present is high in the sky (status byte 4 bits 2-3).
+;@ test: wSkillUser = rand(0, 7)
+AIRuleAllInSky::
+;>@k if not (0x3B <= wSkillId < 0x41 or 0x44 <= wSkillId < 0x4F or 0x50 <= wSkillId < 0x54 or 0x55 <= wSkillId < 0x58 or 0x67 <= wSkillId < 0x6A or wSkillId == 0x70 or 0x79 <= wSkillId < 0x7D or 0xD6 <= wSkillId < 0xDA):
 	ld a, [wSkillId]
 	cp $3b
 	ret c
+
 	cp $41
-	jr c, jr_057_6a44
+	jr c, .check
+
 	cp $44
+;=@k
 	ret c
+
 	cp $4f
-	jr c, jr_057_6a44
+	jr c, .check
+
 	cp $50
 	ret c
+
 	cp $54
-	jr c, jr_057_6a44
+;=@k
+	jr c, .check
+
 	cp $55
 	ret c
+
 	cp $58
-	jr c, jr_057_6a44
+	jr c, .check
+
 	cp $67
+;=@k
 	ret c
+
 	cp $6a
-	jr c, jr_057_6a44
+	jr c, .check
+
 	cp $70
-	jr z, jr_057_6a44
+	jr z, .check
+
 	cp $79
+;=@k
 	ret c
+
 	cp $7d
-	jr c, jr_057_6a44
+	jr c, .check
+
 	cp $d6
 	ret c
+
 	cp $da
+;>     return
 	ret nc
 
-jr_057_6a44:
+.check
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_6a4e:
+;>@f for pos in range(side, side + 3):
+.loop
+;>@c     if not CheckBattlerPresent(pos) and not mem[AddEightTimes(pos, addr(wBattlerStatus4))] & 0x0C: return
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6a5f
+	jr c, .next
+
+;=@c
 	ld a, c
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -10287,684 +10425,1019 @@ jr_057_6a4e:
 	and $0c
 	ret z
 
-jr_057_6a5f:
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_6a4e
+	jr nz, .loop
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6A67::
+;@ def AIRuleSquallHitSlowFoes()
+;@ path: battle/ai/rules
+;@ SquallHit ($55) is ruled out when no enemy present has more agility than 3/10 of the user's.
+;@ test: wSkillUser = rand(0, 7)
+AIRuleSquallHitSlowFoes::
+;> if wSkillId != 0x55: return
 	ld a, [wSkillId]
 	cp $55
 	ret nz
+
+;>@a limit = (mem16[addr(wBattlerAgility) + 2 * wSkillUser] * 3 & 0xFFFF) // 10
 	ld a, [wSkillUser]
 	ld hl, wBattlerAgility
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	ld b, h
+;=@a
 	ld c, l
 	add hl, bc
 	add hl, bc
 	ld a, $0a
 	call Divide16
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_6a90:
+;>@f for pos in range(side, side + 3):
+.loop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6aac
+	jr c, .next
+
+;>@g     if limit < mem16[addr(wBattlerAgility) + 2 * pos]: return
 	push bc
 	push hl
 	ld a, c
 	ld hl, wBattlerAgility
 	add a
 	add l
+;=@g
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
+;=@g
 	ld c, a
 	pop hl
 	call CompareHLBC
 	pop bc
 	ret c
 
-jr_057_6aac:
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_6a90
+	jr nz, .loop
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6AB4::
+;@ def AIRuleMPAlmostFull()
+;@ path: battle/ai/rules
+;@ RobMagic, TakeMagic and RobDance ($1A, $1B, $76) are ruled out while the user has more than 3/4 of
+;@ its maximum MP.
+;@ test: wSkillUser = rand(0, 7)
+AIRuleMPAlmostFull::
+;>@k if not (wSkillId in (0x1A, 0x1B, 0x76)):
 	ld a, [wSkillId]
 	cp $1a
-	jr z, jr_057_6ac2
+	jr z, .check
+
 	cp $1b
-	jr z, jr_057_6ac2
+	jr z, .check
+
 	cp $76
+;>     return
 	ret nz
 
-jr_057_6ac2:
+.check
+;>@m mp = mem16[addr(wBattlerMP) + 2 * wSkillUser]
 	ld a, [wSkillUser]
 	add a
 	ld hl, wBattlerMP
 	add l
 	ld l, a
 	ld a, $00
+;=@m
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;>@x top = mem16[addr(wBattlerMaxMP) + 2 * wSkillUser]
 	ld a, [wSkillUser]
 	add a
 	ld hl, wBattlerMaxMP
 	add l
 	ld l, a
 	ld a, $00
+;=@x
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@y limit = (top >> 1) + (top >> 2)
 	srl h
 	rr l
 	ld d, h
 	ld e, l
 	srl h
 	rr l
+;=@y
 	add hl, de
+;> if limit >= mp: return
 	call CompareHLBC
 	ret nc
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6AF5::
+;@ def AIRuleThickFogNoBigSpells()
+;@ path: battle/ai/rules
+;@ ThickFog ($83) is ruled out when no enemy present knows one of the strongest attack spells (Blazemost,
+;@ Firebolt, Explodet, Infermost, Blizzard, Thordain, Beat, Defeat; skill kind 1). A second loop over the
+;@ user's side would also rule it out when two healing spells (Heal to Farewell, $2B-$32) are known
+;@ there, but it compares the kind byte (1 at that point) instead of the skill number, so it never
+;@ counts one and the routine just returns.
+;@ test: wSkillUser = rand(0, 7)
+AIRuleThickFogNoBigSpells::
+;> if wSkillId != 0x83: return
 	ld a, [wSkillId]
 	cp $83
 	ret nz
+
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_6b05:
+;> found = False
+;>@f for pos in range(side, side + 3):
+.loop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6b42
+	jr c, .next
+
+;>@p     p = addr(wBattlerSkills) + pos * 16
 	ld a, c
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;>@g     for k in range(8):
 	ld d, $08
 
-jr_057_6b19:
+.skills
+;>         kind = mem[p]; p += 1
 	ld a, [hli]
+;>         if kind == 0: break
 	or a
-	jr z, jr_057_6b42
+	jr z, .next
+
+;>@b         if kind == 1 and (mem[p] in (0x02, 0x05, 0x08, 0x0B, 0x0E) or 0x11 <= mem[p] < 0x14):
 	cp $01
-	jr nz, jr_057_6b3e
+	jr nz, .skip
+
 	ld a, [hl]
 	cp $02
-	jr z, jr_057_6b48
-	cp $05
-	jr z, jr_057_6b48
-	cp $08
-	jr z, jr_057_6b48
-	cp $0b
-	jr z, jr_057_6b48
-	cp $0e
-	jr z, jr_057_6b48
-	cp $11
-	jr c, jr_057_6b3e
-	cp $14
-	jr c, jr_057_6b48
+	jr z, .found
 
-jr_057_6b3e:
+;=@b
+	cp $05
+	jr z, .found
+
+	cp $08
+	jr z, .found
+
+	cp $0b
+	jr z, .found
+
+;=@b
+	cp $0e
+	jr z, .found
+
+	cp $11
+	jr c, .skip
+
+	cp $14
+	jr c, .found
+
+;>             found = True; break
+.skip
+;>         p += 1
+;=@g
 	inc hl
 	dec d
-	jr nz, jr_057_6b19
+	jr nz, .skills
 
-jr_057_6b42:
+;>     if found: break
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_6b05
-	jr jr_057_6b85
+	jr nz, .loop
+
+;>@o if not found: return AIRuleOut()
+	jr .out
 
 
-jr_057_6b48:
+.found
+;>@w side = wSkillUser & 4
 	ld a, [wSkillUser]
 	and $04
 	ld c, a
 	ld b, $03
+;> heals = 0
 	ld e, $00
 
-jr_057_6b52:
+;>@F for pos in range(side, side + 3):
+.ownLoop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6b7a
+	jr c, .ownNext
+
+;>@P     p = addr(wBattlerSkills) + pos * 16
 	ld a, c
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@P
 	adc h
 	ld h, a
+;>@G     for k in range(8):
 	ld d, $08
 
-jr_057_6b66:
+.ownSkills
+;>         kind = mem[p]; p += 1
 	ld a, [hli]
+;>         if kind == 0: break
 	or a
-	jr z, jr_057_6b7a
-	cp $01
-	jr nz, jr_057_6b76
-	cp $2b
-	jr c, jr_057_6b76
-	cp $33
-	jr c, jr_057_6b7f
+	jr z, .ownNext
 
-jr_057_6b76:
+;>@h         if kind == 1 and 0x2B <= kind < 0x33:     # the kind, not the skill: never true
+	cp $01
+	jr nz, .ownSkip
+
+	cp $2b
+	jr c, .ownSkip
+
+	cp $33
+	jr c, .heal
+
+;>@H             heals = kind
+;>@I             if heals >= 2: return AIRuleOut()
+.ownSkip
+;>         p += 1
+;=@G
 	inc hl
 	dec d
-	jr nz, jr_057_6b66
+	jr nz, .ownSkills
 
-jr_057_6b7a:
+.ownNext
+;=@F
 	inc c
 	dec b
-	jr nz, jr_057_6b52
+	jr nz, .ownLoop
+
 	ret
 
 
-jr_057_6b7f:
+.heal
+;=@H
 	inc e
 	ld e, a
+;=@I
 	cp $02
-	jr c, jr_057_6b76
+	jr c, .ownSkip
 
-jr_057_6b85:
+.out
+;=@o
 	call AIRuleOut
 	ret
 
 
-Call_57_6B89::
+;@ def AIBonusHurtTwinSlash()
+;@ path: battle/ai/rules
+;@ TwinSlash and Beserker ($3B, $3D) get 20 while the user has no more than 3/4 of its maximum HP.
+;@ test: wSkillUser = rand(0, 7)
+AIBonusHurtTwinSlash::
+;> if wSkillId not in (0x3B, 0x3D): return
 	ld a, [wSkillId]
 	cp $3b
-	jr z, jr_057_6b93
+	jr z, .check
+
 	cp $3d
 	ret nz
 
-jr_057_6b93:
+.check
+;>@h hp = mem16[addr(wBattlerHP) + 2 * wSkillUser]
 	ld a, [wSkillUser]
 	add a
 	ld hl, wBattlerHP
 	add l
 	ld l, a
 	ld a, $00
+;=@h
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
+;>@x top = mem16[addr(wBattlerMaxHP) + 2 * wSkillUser]
 	ld a, [wSkillUser]
 	add a
 	ld hl, wBattlerMaxHP
 	add l
 	ld l, a
 	ld a, $00
+;=@x
 	adc h
 	ld h, a
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
+;>@y limit = (top >> 1) + (top >> 2)
 	srl h
 	rr l
 	ld d, h
 	ld e, l
 	srl h
 	rr l
+;=@y
 	add hl, de
+;> if limit < hp: return
 	call CompareHLBC
 	ret c
+
+;> AddCapped_57(addr(wAttackWeight), 20)
 	ld hl, wAttackWeight
 	ld b, $14
 	call AddCapped_57
 	ret
 
 
-Call_57_6BCB::
+;@ def AIRuleNothingToDispel()
+;@ path: battle/ai/rules
+;@ DeMagic ($80) is ruled out when the enemy side has nothing to lift: no called dragon, fog, magic wall
+;@ or wind (wSideFlags bits 2, 3, 5) and none of status byte 1 bits 2-5, status byte 2 bits 0-3 and 5-6,
+;@ status byte 3 bit 6, status byte 5 bits 2-3 and 6-7 or status byte 6 bit 6. The loop never moves on
+;@ from the first enemy position, so only that one is looked at (three times).
+;@ test: wSkillUser = rand(0, 7)
+AIRuleNothingToDispel::
+;> if wSkillId != 0x80: return
 	ld a, [wSkillId]
 	cp $80
 	ret nz
+
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
+;>@w if wSideFlags[side >> 2] & 0x2C: return
 	srl a
 	srl a
 	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
+;=@w
 	adc h
 	ld h, a
 	ld a, [hl]
 	and $2c
 	ret nz
+
+;>@f for k in range(3):                          # the position is never advanced
 	ld b, $03
 
-jr_057_6bec:
+.loop
+;>     s = AddEightTimes(side, addr(wBattlerStatus1))
 	ld a, c
 	ld hl, wBattlerStatus1
 	call AddEightTimes
+;>@t     if mem[s] & 0x3C or mem[s + 1] & 0x6F or mem[s + 2] & 0x40 or mem[s + 4] & 0xCC or mem[s + 5] & 0x40: return
 	ld a, [hli]
 	and $3c
 	ret nz
+
 	ld a, [hli]
 	and $6f
 	ret nz
+
+;=@t
 	ld a, [hli]
 	and $40
 	ret nz
+
 	inc hl
 	ld a, [hli]
 	and $cc
+;=@t
 	ret nz
+
 	ld a, [hli]
 	and $40
 	ret nz
+
+;=@f
 	dec b
-	jr nz, jr_057_6bec
+	jr nz, .loop
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6C0F::
+;@ def AIRuleMagicWallUseless()
+;@ path: battle/ai/rules
+;@ Only for a smart monster: MagicWall ($26) is ruled out when no enemy knows a skill whose record byte
+;@ +6 is not 0 (read with GetSkillWord). Empty positions are looked at too.
+;@ test: skip calls a routine in another bank
+AIRuleMagicWallUseless::
+;> if not IsUserSmart(): return
 	call IsUserSmart
 	ret nz
+
+;> if wSkillId != 0x26: return
 	ld a, [wSkillId]
 	cp $26
 	ret nz
+
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_6c23:
+;>@f for pos in range(side, side + 3):
+.loop
+;>     left = 8
 	ld e, $08
+;>@p     p = addr(wBattlerSkills) + 1 + pos * 16
 	ld a, c
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
 
-jr_057_6c31:
+.skills
+;>@g     while left:
+;>         if mem[p] == 0xFF: break
 	ld a, [hl]
 	cp $ff
-	jr z, jr_057_6c5a
+	jr z, .next
+
+;>         wBattleArg0 = mem[p]; p += 1
 	ld a, [hli]
 	ld [wBattleArg0], a
+;>         wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;>         wBattleArg2 = 6
 	ld a, $06
 	ld [wBattleArg2], a
+;>@c         GetSkillWord()
 	push af
 	push bc
 	push de
 	push hl
 	ld hl, far_GetSkillWord
 	rst $10
+;=@c
 	pop hl
 	pop de
 	pop bc
 	pop af
+;>         if wBattleArg0 != 0: return
 	ld a, [wBattleArg0]
 	cp $00
 	ret nz
-	inc hl
-	dec e
-	jr nz, jr_057_6c31
 
-jr_057_6c5a:
+;>         p += 1
+	inc hl
+;>         left -= 1
+;=@g
+	dec e
+	jr nz, .skills
+
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_6c23
+	jr nz, .loop
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6C62::
+;@ def AIRuleScriptedNoKill()
+;@ path: battle/ai/rules
+;@ In a scripted battle (wBattleType 1, not a link battle) the monsters of the player's side (positions
+;@ 0-3) leave out Beat, Defeat, Sacrifice, Paralyze, PalsyAir and KODance ($12-$14, $69, $6B, $71).
+;@ test: wSkillUser = rand(0, 7)
+AIRuleScriptedNoKill::
+;> if wLinkActive: return
 	ld a, [wLinkActive]
 	or a
 	ret nz
+
+;> if wSkillUser >= 4: return
 	ld a, [wSkillUser]
 	cp $04
 	ret nc
+
+;> if wBattleType != 1: return
 	ld a, [wBattleType]
 	cp $01
 	ret nz
+
+;>@k if not (0x12 <= wSkillId < 0x15 or wSkillId in (0x69, 0x6B, 0x71)):
 	ld a, [wSkillId]
 	cp $12
 	ret c
+
 	cp $15
-	jr c, jr_057_6c88
+	jr c, .check
+
 	cp $69
-	jr z, jr_057_6c88
+;=@k
+	jr z, .check
+
 	cp $6b
-	jr z, jr_057_6c88
+	jr z, .check
+
 	cp $71
+;>     return
 	ret nz
 
-jr_057_6c88:
+.check
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-Call_57_6C8C::
+;@ def AIBonusEnemyDamage()
+;@ path: battle/ai/rules
+;@ Outside a link battle, the enemies at positions 4-6 (not a called helper at 7) get 20 for the skills
+;@ that do damage: Blaze to Sacrifice ($00-$14), TwinSlash to Paralyze ($3B-$69) but ChargeUP, SuckAir and
+;@ Focus, and SmashLime to GigaSlash ($D6-$D9).
+;@ test: wSkillUser = rand(0, 7)
+AIBonusEnemyDamage::
+;> if wLinkActive: return
 	ld a, [wLinkActive]
 	or a
 	ret nz
+
+;> if wSkillUser < 4 or wSkillUser == 7: return
 	ld a, [wSkillUser]
 	cp $04
 	ret c
+
 	cp $07
 	ret z
+
+;>@k if not (wSkillId < 0x15 or 0x3B <= wSkillId < 0x6A and wSkillId not in (0x41, 0x43, 0x54) or 0xD6 <= wSkillId < 0xDA):
 	ld a, [wSkillId]
 	cp $15
-	jr c, jr_057_6cb7
+	jr c, .check
+
 	cp $3b
 	ret c
+
 	cp $41
+;=@k
 	ret z
+
 	cp $43
 	ret z
+
 	cp $54
 	ret z
+
 	cp $6a
-	jr c, jr_057_6cb7
+;=@k
+	jr c, .check
+
 	cp $d6
 	ret c
+
 	cp $da
+;>     return
 	ret nc
 
-jr_057_6cb7:
+.check
+;> AddCapped_57(addr(wAttackWeight), 20)
 	ld hl, wAttackWeight
 	ld b, $14
 	call AddCapped_57
 	ret
 
 
-Call_57_6CC0::
+;@ def AIRuleBarrierNoBreath()
+;@ path: battle/ai/rules
+;@ Only for a smart monster: Barrier ($24) is ruled out when no enemy present knows a fire or ice breath
+;@ (FireAir to WhiteAir, KnowsElementBreath).
+;@ test: wSkillUser = rand(0, 7)
+AIRuleBarrierNoBreath::
+;> if wSkillId != 0x24: return
 	ld a, [wSkillId]
 	cp $24
 	ret nz
+
+;> if not IsUserSmart(): return
 	call IsUserSmart
 	ret nz
+
+;> side = (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
 	xor $04
 	ld c, a
 	ld b, $03
 
-jr_057_6cd4:
+;>@f for pos in range(side, side + 3):
+.loop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_6cdf
-	call Call_57_6CE8
-	jr c, jr_057_6ce7
+	jr c, .next
 
-jr_057_6cdf:
+;>@k     if KnowsElementBreath(pos): return
+	call KnowsElementBreath
+	jr c, .done
+
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_6cd4
+	jr nz, .loop
+
+;> AIRuleOut()
 	call AIRuleOut
 	ret
 
 
-jr_057_6ce7:
+.done
+;=@k
 	ret
 
 
-Call_57_6CE8::
-	ld hl, $dc65
+;@ def KnowsElementBreath(pos: a) -> carry
+;@ path: battle/ai/rules
+;@ Carry when the monster at battle position `pos` knows a fire or ice breath (IsElementBreath). All
+;@ eight skill entries are looked at.
+;@ test: pos = rand(0, 7)
+KnowsElementBreath::
+;>@p p = addr(wBattlerSkills) + 1 + pos * 16
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@p
 	ld h, a
+;>@g for k in range(8):
 	ld d, $08
 
-jr_057_6cf5:
+.loop
+;>     if IsElementBreath(mem[p]): return True
 	ld a, [hli]
-	call Call_57_6D00
+	call IsElementBreath
 	ret c
+
+;>     p += 2
 	inc hl
+;=@g
 	dec d
-	jr nz, jr_057_6cf5
+	jr nz, .loop
+
+;> return False
 	or a
 	ret
 
 
-Call_57_6D00::
+;@ def IsElementBreath(skill: a) -> carry
+;@ path: battle/ai/rules
+;@ Carry when `skill` is a fire or ice breath: FireAir to WhiteAir ($5C-$63).
+;@ test: skill = rand(0, 255)
+IsElementBreath::
+;> return 0x5C <= skill < 0x64
 	cp $5c
-	jr c, jr_057_6d07
+	jr c, .no
+
 	cp $64
 	ret c
 
-jr_057_6d07:
+.no
 	or a
 	ret
 
-Call_57_6D09::
+;@ def GetBattlerNameTo_57(pos: a, dest: hl) -> hl
+;@ path: battle/names
+;@ Bank $57's copy of GetBattlerNameTo: writes the name of the monster at battle position `pos` to
+;@ `dest`. An own monster's (and in a link battle the partner's) own name from its record; a wild
+;@ enemy's species name with its letter (CopyBattlerSpeciesName_57, AppendEnemyLetter), or, when it has
+;@ transformed, the name of the monster it became plus "Like" (CopyMorphedEnemyName_57). Position 3 or 7
+;@ always gets the species name.
+;@ test: skip calls routines in other banks
+GetBattlerNameTo_57::
+;> if pos >= 3:
 	cp $03
-	jr nc, jr_057_6d27
+;>     return CopyEnemyName_57(pos, dest)
+;> return CopyPartyMonName_57(pos, dest)       # runs on into it
+	jr nc, CopyEnemyName_57
 
-Call_57_6D0D::
+;@ def CopyPartyMonName_57(pos: a, dest: hl) -> hl
+;@ path: battle/names
+;@ Copies the name of party monster `pos` (the record's own name) to `dest` and returns the address of
+;@ its $F0 end mark. CopyEnemyName_57, the name of a far-side monster, follows inside this block: the
+;@ link partner's own name (its monsters have party records too, positions 4-6), a transformed enemy's
+;@ "Like" name, or the species name with the enemy's letter; slot 3 (the called helper) always gets the
+;@ species name.
+;@ test: skip follows name and record pointers that random states leave invalid
+CopyPartyMonName_57::
+;>@n CopyName(PartyMonsterField(pos, wMonName), dest)
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@n
 	push hl
 	call CopyName
 	pop hl
 
-jr_057_6d1c:
+.findEnd
+;> while mem[dest] != 0xF0:
+;>@c     dest += 1
 	ld a, [hl]
 	cp $f0
+;>@r return dest
 	ret z
 
+;=@c
 	inc hl
-	jr jr_057_6d1c
+	jr .findEnd
 
-jr_057_6d23:
+.linkPartner
+;> # CopyEnemyName_57 in a link battle:
+;> return CopyPartyMonName_57(pos, dest)
 	ld a, b
 	pop bc
-	jr Call_57_6D0D
+	jr CopyPartyMonName_57
 
-jr_057_6d27:
+CopyEnemyName_57:
+;> # CopyEnemyName_57(pos, dest) -> dest:
+;>@x if (pos & 3) != 3:
 	push bc
 	ld b, a
 	and $03
 	cp $03
 	ld a, b
 	pop bc
-	jr z, jr_057_6d50
+;=@x
+	jr z, .species
 
+;>@l     if wLinkActive:
+;>@l2         return CopyPartyMonName_57(pos, dest)
 	push bc
 	ld b, a
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_6d23
+	jr nz, CopyPartyMonName_57.linkPartner
 
+;>@m     morph = wEnemyMorph[pos & 3]
 	push hl
 	ld a, b
 	and $03
 	ld hl, wEnemyMorph
 	add l
 	ld l, a
+;=@m
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	pop hl
+;>     if morph != 0xFF:
+;>@t         return CopyMorphedEnemyName_57(morph, dest)
 	cp $ff
-	jr nz, jr_057_6d4d
+	jr nz, .morphed
 
 	ld a, b
 
-jr_057_6d4d:
+.morphed
+;=@t
 	pop bc
-	jr nz, jr_057_6d78
+	jr nz, CopyMorphedEnemyName_57
 
-jr_057_6d50:
+.species
+;> CopyBattlerSpeciesName_57(pos, dest)
 	push af
-	call Call_57_6D5A
+	call CopyBattlerSpeciesName_57
 	pop af
+;> AppendEnemyLetter()
 	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret
 
 
-Call_57_6D5A::
+;@ def CopyBattlerSpeciesName_57(pos: a, dest: hl)
+;@ path: battle/names
+;@ Copies the species name of battle position `pos` (system text group 5) to `dest`, and notes both for
+;@ AppendEnemyLetter (wNameBattler, wNameDest). CopyMorphedEnemyName_57 follows inside this block: the
+;@ name of an enemy that transformed into an own monster, that monster's name followed by "Like"; when
+;@ another enemy turned into the same monster, a number 1-3 follows, counted by the enemy's place
+;@ (wNamePos), and is also left in wBattleArg1 (0 = none).
+;@ test: skip follows name and record pointers that random states leave invalid
+CopyBattlerSpeciesName_57::
+;> wNameBattler = pos
 	ld [wNameBattler], a
+;>@s species = wBattlerSpecies[pos]
 	push hl
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hl]
+;>@w wNameDest = dest
 	ld l, a
 	ld h, $05
 	pop de
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
-	ld [$db5f], a
+;=@w
+	ld [wNameDest + 1], a
+;> CopySystemText(0x0500 | species, dest)
 	call CopySystemText
 	ret
 
 
-jr_057_6d78:
-	call Call_57_6D0D
+CopyMorphedEnemyName_57:
+;> # CopyMorphedEnemyName_57(party_pos, dest):
+;> end = CopyPartyMonName_57(party_pos, dest)
+	call CopyPartyMonName_57
+;>@k mem[end:end + 5] = [0x2F, 0x46, 0x48, 0x42, 0xF0]   # "Like"
 	ld a, $2f
 	ld [hli], a
 	ld a, $46
 	ld [hli], a
 	ld a, $48
 	ld [hli], a
+;=@k
 	ld a, $42
 	ld [hli], a
 	ld [hl], $f0
+;> end += 4
 	push hl
 	ld hl, wEnemyMorph
+;>@s2 slot = wNamePos & 3
 	ld a, [wNamePos]
 	and $03
+;> if slot == 0:
 	cp $01
-	jr z, jr_057_6da4
+	jr z, .slot1
 
 	cp $02
-	jr z, jr_057_6dae
+	jr z, .slot2
 
+;>@0     if wEnemyMorph[1] == wEnemyMorph[0] or wEnemyMorph[2] == wEnemyMorph[0]:
+;>@a         n = 1
 	ld a, [hli]
 	cp [hl]
-	jr z, jr_057_6dca
+	jr z, .number1
 
 	inc hl
 	cp [hl]
-	jr z, jr_057_6dca
+	jr z, .number1
 
-	jr jr_057_6dd9
+;>@z0     else:
+;>@z         n = 0
+	jr .none
 
-jr_057_6da4:
+.slot1
+;>@1 elif slot == 1:
+;>@1b     if wEnemyMorph[1] == wEnemyMorph[0]:
+;>@b         n = 2
 	ld a, [hli]
 	cp [hl]
-	jr z, jr_057_6dcf
+	jr z, .number2
 
+;>@1a     elif wEnemyMorph[2] == wEnemyMorph[1]:
+;>@a1         n = 1
 	ld a, [hli]
 	cp [hl]
-	jr z, jr_057_6dca
+	jr z, .number1
 
-	jr jr_057_6dd9
+;>@z1     else:
+;>@z2         n = 0
+	jr .none
 
-jr_057_6dae:
+.slot2
+;>@2 else:
+;>@2s     same = (wEnemyMorph[0] == wEnemyMorph[2]) + (wEnemyMorph[1] == wEnemyMorph[2])
 	ld d, $00
 	inc hl
 	inc hl
 	ld a, [hld]
 	dec hl
 	cp [hl]
-	jr nz, jr_057_6db8
+;=@2s
+	jr nz, .notFirst
 
 	inc d
 
-jr_057_6db8:
+.notFirst
+;=@2s
 	inc hl
 	cp [hl]
-	jr nz, jr_057_6dbd
+	jr nz, .count
 
 	inc d
 
-jr_057_6dbd:
+.count
+;>@2c     n = (0, 2, 3)[same]
 	ld a, d
 	or a
-	jr z, jr_057_6dd9
+	jr z, .none
 
 	cp $01
-	jr z, jr_057_6dcf
+	jr z, .number2
 
+;=@2c
 	pop hl
 	ld a, $03
-	jr jr_057_6dd2
+	jr .store
 
-jr_057_6dca:
+.number1
+;=@a
 	pop hl
 	ld a, $01
-	jr jr_057_6dd2
+	jr .store
 
-jr_057_6dcf:
+.number2
+;=@b
 	pop hl
 	ld a, $02
 
-jr_057_6dd2:
+.store
+;> wBattleArg1 = n
 	ld [wBattleArg1], a
+;> if n:
+;>     mem[end:end + 2] = [n, 0xF0]
 	ld [hli], a
 	ld [hl], $f0
 	ret
 
 
-jr_057_6dd9:
+.none
+;=@z
 	pop hl
 	xor a
 	ld [wBattleArg1], a
@@ -10972,34 +11445,58 @@ jr_057_6dd9:
 
 
 
-Call_57_6DDF::
+;@ def TargetNameToArg2_57()
+;@ path: battle/names
+;@ Unused: writes the skill target's name to wTextArg2 (TargetNameTo_57).
+;@ test: skip calls routines in other banks
+TargetNameToArg2_57::
+;> TargetNameTo_57(addr(wTextArg2))
 	ld hl, wTextArg2
-	jr jr_057_6de7
+	jr TargetNameTo_57
 
 
-Call_57_6DE4::
+;@ def TargetNameToArg0_57()
+;@ path: battle/names
+;@ Unused: writes the skill target's name to wTextArg0 for the next message. TargetNameTo_57 inside it
+;@ does the same for the buffer in hl (GetBattlerNameTo_57; wBattleArg2/3 hold the buffer's address).
+;@ test: skip calls routines in other banks
+TargetNameToArg0_57::
+;> dest = addr(wTextArg0)
 	ld hl, wTextArg0
 
-jr_057_6de7:
+TargetNameTo_57:
+;> # TargetNameTo_57(dest):
+;> wBattleArg2 = lo(dest)
+;> wBattleArg3 = hi(dest)
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillTarget
 	ld a, [wSkillTarget]
 	ld [wNamePos], a
-	call Call_57_6D09
+;> GetBattlerNameTo_57(wSkillTarget, dest)
+	call GetBattlerNameTo_57
 	ret
 
 
-Call_57_6DF9::
+;@ def UserNameToArg0_57()
+;@ path: battle/names
+;@ Unused: writes the skill user's name to wTextArg0 for the next message (GetBattlerNameTo_57).
+;@ test: skip calls routines in other banks
+UserNameToArg0_57::
+;> wBattleArg2 = lo(wTextArg0)
+;> wBattleArg3 = hi(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> wNamePos = wSkillUser
 	ld a, [wSkillUser]
 	ld [wNamePos], a
-	call Call_57_6D09
+;> GetBattlerNameTo_57(wSkillUser, wTextArg0)
+	call GetBattlerNameTo_57
 	ret
 
 Call_57_6E0E::
@@ -14225,7 +14722,7 @@ Call_57_7E82::
 	ld a, h
 	ld [wBattleArg3], a
 	ld a, [wSkillUser]
-	call Call_57_6D09
+	call GetBattlerNameTo_57
 	ret
 
 
