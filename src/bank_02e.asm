@@ -4,16 +4,60 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $02e", ROMX[$4000], BANK[$2e]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_2E::
 	db $2e
 
+;@ path: gfx/menus
+;@ Entry table of bank $2E: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_2E::
-	db $4f, $40, $0b, $42, $2d, $42, $4a, $42, $5d, $42, $70, $42, $83, $42, $96
-	db $42, $a9, $42, $bc, $42, $cf, $42, $e2, $42, $f5, $42, $08, $43, $0d, $44, $98
-	db $44, $f7, $44, $57, $46, $24, $47, $34, $48, $d8, $48, $1a, $4a, $55, $4a, $97
-	db $4a, $d1, $4a, $02, $4b, $44, $4b, $7e, $4b, $bc, $4b, $ed, $4b, $4c, $4c, $10
-	db $4f, $2c, $4f, $3f, $4f, $23, $50, $5f, $50, $82, $51, $82, $61, $de, $49
+	dw CommonUITiles
+	dw UnusedGfx_2E_01
+	dw UnusedGfx_2E_02
+	dw FamilyIcon_Slime
+	dw FamilyIcon_Dragon
+	dw FamilyIcon_Beast
+	dw FamilyIcon_Bird
+	dw FamilyIcon_Plant
+	dw FamilyIcon_Bug
+	dw FamilyIcon_Devil
+	dw FamilyIcon_Zombie
+	dw FamilyIcon_Material
+	dw FamilyIcon_Boss
+	dw MenuFontTiles
+	dw ShopWindowTiles
+	dw VaultWindowTiles
+	dw FarmWindowTiles
+	dw ListWindowTiles
+	dw BreedWindowTiles
+	dw AppraiserWindowTiles
+	dw LibraryWindowTiles
+	dw GateFloorObjTiles0
+	dw GateFloorObjTiles1
+	dw GateFloorObjTiles2
+	dw GateFloorObjTiles3
+	dw GateFloorObjTiles4
+	dw GateFloorObjTiles5
+	dw GateFloorObjTiles6
+	dw GateFloorObjTiles7
+	dw TerryExtraTiles
+	dw MainFontTiles
+	dw TitleMenuTiles
+	dw NameEntryKeyTiles
+	dw UnusedGfx_2E_21
+	dw UnusedGfx_2E_22
+	dw FloorMapFrameTiles
+	dw SGBBorder3TilesA
+	dw SGBBorder3TilesB
+	dw MonsterPageFrameTiles
 
+;@ path: gfx/menus
+;@ The shared window and status tiles (frame pieces, YES/NO, HP/MP, G, LV, digits and symbols), 48 tiles unpacked
+;@ to $8D00 by the field (LoadMapGfxAndSong), the title menus, the battle screen (SetUpBattleScreen), the VS
+;@ result, the ending and the animation viewer. Compressed in the DecompressCore format ($300 bytes unpacked,
+;@ $1BC packed).
 CommonUITiles::
 	db $00
 	db $03, $01, $01, $ff, $ff, $2d, $ff, $82, $ff, $44, $ff, $28, $ff, $10, $01, $46
@@ -45,56 +89,95 @@ CommonUITiles::
 	db $70, $ff, $3f, $ff, $1f, $ff, $00, $01, $b8, $25, $0e, $ff, $fc, $ff, $f8, $01
 	db $be, $15, $01, $e1, $26, $01, $b9, $24, $01, $b9, $23
 
+;@ path: unused/gfx
+;@ Graphics (4 tiles) that no code or table asks for. Compressed in the DecompressCore format ($40 bytes
+;@ unpacked, $22 packed).
 UnusedGfx_2E_01::
 	db $40, $00, $01, $da, $de
 	db $df, $e4, $f9, $f9, $e0, $db, $01, $01, $02, $dc, $01, $01, $01, $01, $f4, $f8
 	db $e0, $e1, $e3, $f9, $f9, $f9, $e0, $01, $20, $09, $01, $a0, $f8
 
+;@ path: unused/gfx
+;@ Graphics (4 tiles) that no code or table asks for. Compressed in the DecompressCore format ($40 bytes
+;@ unpacked, $1D packed).
 UnusedGfx_2E_02::
 	db $40, $00, $01
 	db $da, $e2, $e3, $f9, $f9, $f9, $e0, $db, $01, $01, $02, $dc, $01, $01, $01, $01
 	db $f4, $f8, $e0, $01, $20, $0f, $00, $01, $a0, $f8
 
+;@ path: gfx/monsters/families
+;@ Family icon of the slime family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Slime::
 	db $10, $00, $00, $ff, $10, $ff
 	db $10, $ef, $38, $ef, $54, $ff, $aa, $ab, $d6, $83, $fe, $ff, $7c
 
+;@ path: gfx/monsters/families
+;@ Family icon of the dragon family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Dragon::
 	db $10, $00, $00
 	db $f7, $0e, $ff, $0c, $ff, $1e, $f7, $ec, $ff, $fe, $ff, $ae, $ff, $1c, $ef, $70
+;@ path: gfx/monsters/families
+;@ Family icon of the beast family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Beast::
 	db $10, $00, $01, $ff, $00, $ff, $18, $ff, $db, $ff, $c3, $ff, $3c, $ff, $7e, $ff
 	db $7e, $ff, $3c
 
+;@ path: gfx/monsters/families
+;@ Family icon of the bird family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Bird::
 	db $10, $00, $00, $ff, $06, $fd, $0b, $ff, $16, $fd, $23, $e7, $56
 	db $bb, $c6, $f3, $b0, $ff, $c0
 
+;@ path: gfx/monsters/families
+;@ Family icon of the plant family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Plant::
 	db $10, $00, $00, $ff, $18, $e7, $24, $e7, $24, $c3
 	db $42, $d3, $52, $f7, $76, $ff, $18, $db, $18
 
+;@ path: gfx/monsters/families
+;@ Family icon of the bug family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Bug::
 	db $10, $00, $00, $bb, $82, $ff, $44
 	db $ff, $28, $ff, $7c, $bb, $fe, $d7, $92, $ff, $fe, $ff, $7c
 
+;@ path: gfx/monsters/families
+;@ Family icon of the devil family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Devil::
 	db $10, $00, $00, $ff
 	db $18, $ff, $36, $eb, $2a, $f7, $15, $eb, $2b, $df, $56, $bf, $a0, $ff, $c0
 
+;@ path: gfx/monsters/families
+;@ Family icon of the zombie family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Zombie::
 	db $10
 	db $00, $01, $ff, $00, $ff, $7c, $ff, $fe, $ff, $92, $ff, $ee, $ff, $fe, $ff, $54
 	db $ff, $38
 
+;@ path: gfx/monsters/families
+;@ Family icon of the material family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Material::
 	db $10, $00, $01, $ff, $00, $ff, $7c, $c7, $c6, $ef, $aa, $ab, $82, $d7
 	db $d6, $ab, $aa, $ff, $7c
 
+;@ path: gfx/monsters/families
+;@ Family icon of the boss family: one tile, read through FamilyIconRefs (and its copies FamilyIconGfx,
+;@ FamilyIconGfx0A, SaveFamilyIconGfx). Compressed in the DecompressCore format ($10 bytes unpacked, $13 packed).
 FamilyIcon_Boss::
 	db $10, $00, $00, $bb, $7c, $7d, $c6, $ff, $ba, $7d, $f6
 	db $bb, $6c, $d7, $38, $ff, $28, $d7, $38
 
+;@ path: gfx/menus
+;@ Letters of the menu words (23 tiles), unpacked to $9000 by OptionMenuDraw and SetUpMenuScreen. Compressed in
+;@ the DecompressCore format ($170 bytes unpacked, $105 packed).
 MenuFontTiles::
 	db $70, $01, $01, $ff, $10, $ff, $28, $ff
 	db $28, $ff, $44, $ff, $7c, $ff, $82, $ff, $82, $ff, $00, $ff, $3c, $ff, $42, $ff
@@ -114,6 +197,9 @@ MenuFontTiles::
 	db $03, $01, $51, $02, $01, $3f, $10, $01, $4d, $14, $22, $01, $4c, $13, $f0, $ff
 	db $20, $ff, $40, $ff, $f0, $ff, $0f, $ff, $02, $ff, $04, $ff, $0f
 
+;@ path: gfx/menus
+;@ Window letters of the shop (48 tiles), unpacked to $8800 by ShopInit. Compressed in the DecompressCore format
+;@ ($300 bytes unpacked, $8B packed).
 ShopWindowTiles::
 	db $00, $03, $01
 	db $01, $a0, $ff, $4d, $01, $5f, $0f, $4d, $01, $bf, $0f, $4d, $01, $1f, $1f, $4d
@@ -126,6 +212,9 @@ ShopWindowTiles::
 	db $ff, $44, $ff, $c6, $ff, $00, $01, $4e, $21, $08, $ff, $3c, $ff, $42, $ff, $9a
 	db $ff, $24, $ff, $18, $01, $e0, $1f, $1d
 
+;@ path: gfx/menus
+;@ Window letters of the vault (48 tiles), unpacked to $8800 by VaultInit. Compressed in the DecompressCore
+;@ format ($300 bytes unpacked, $5F packed).
 VaultWindowTiles::
 	db $00, $03, $01, $01, $a0, $ff, $4d, $01
 	db $5f, $0f, $4d, $01, $bf, $0f, $4d, $01, $1f, $1f, $4d, $01, $7f, $1f, $4d, $01
@@ -135,6 +224,9 @@ VaultWindowTiles::
 	db $28, $ff, $f4, $ff, $2a, $ff, $4a, $ff, $88, $01, $de, $23, $48, $ff, $44, $ff
 	db $64, $ff, $44, $ff, $08, $ff, $10
 
+;@ path: gfx/menus
+;@ Window letters of the farm keeper's menus (48 tiles), unpacked to $8800 by FarmKeeperInit and the farm screens
+;@ returning from a status page. Compressed in the DecompressCore format ($300 bytes unpacked, $160 packed).
 FarmWindowTiles::
 	db $00, $03, $07, $07, $a0, $ff, $4d, $07, $5f
 	db $0f, $4d, $07, $a0, $0f, $2d, $ff, $10, $ff, $28, $ff, $28, $ff, $44, $ff, $7c
@@ -160,6 +252,10 @@ FarmWindowTiles::
 	db $ff, $a2, $ff, $54, $ff, $07, $ff, $00, $10, $ff, $20, $ff, $30, $ff, $68, $ff
 	db $4a, $ff, $8c, $07, $a0, $0f, $4d
 
+;@ path: gfx/menus
+;@ Window letters of the arena reception, the partner list and the monster choice (48 tiles), unpacked to $8800
+;@ by ArenaEntryInit, PartnerBreedInit, ChooseMonsterInit and PBReturnFromStatus. Compressed in the
+;@ DecompressCore format ($300 bytes unpacked, $CD packed).
 ListWindowTiles::
 	db $00, $03, $01, $01, $a0, $ff, $4d, $01, $5f
 	db $0f, $4d, $01, $a0, $0f, $2d, $ff, $10, $ff, $28, $ff, $28, $ff, $44, $ff, $7c
@@ -176,6 +272,10 @@ ListWindowTiles::
 	db $14, $8a, $ff, $8a, $ff, $84, $ff, $f4, $01, $a0, $0f, $4d, $01, $5f, $2f, $4d
 	db $01, $bf, $2f, $2d
 
+;@ path: gfx/menus
+;@ Window letters of the breeding house, the hatching service and the join screen (48 tiles), unpacked to $8800
+;@ by BreedingInit, JPInit and the screens returning from a status page. Compressed in the DecompressCore format
+;@ ($300 bytes unpacked, $110 packed).
 BreedWindowTiles::
 	db $00, $03, $01, $01, $a0, $ff, $4d, $01, $40, $0f, $2d, $ff
 	db $f8, $ff, $84, $ff, $84, $ff, $fc, $ff, $82, $ff, $82, $ff, $fc, $ff, $00, $ff
@@ -196,6 +296,9 @@ BreedWindowTiles::
 	db $6f, $14, $01, $eb, $00, $84, $ff, $f4, $01, $40, $0f, $4d, $01, $5f, $2f, $4d
 	db $01, $bf, $2f, $2d
 
+;@ path: gfx/menus
+;@ Window letters of the egg appraiser (48 tiles), unpacked to $8800 by EAInit, APReturnFromStatus and
+;@ GCReturnFromStatus. Compressed in the DecompressCore format ($300 bytes unpacked, $A4 packed).
 AppraiserWindowTiles::
 	db $00, $03, $01, $01, $a0, $ff, $4d, $01, $5f, $0f, $4d, $01
 	db $bf, $0f, $4d, $01, $1f, $1f, $4d, $01, $7f, $1f, $4d, $01, $90, $1c, $ff, $10
@@ -209,6 +312,9 @@ AppraiserWindowTiles::
 	db $84, $ff, $84, $01, $00, $25, $01, $2f, $20, $80, $ff, $80, $ff, $fc, $01, $92
 	db $21, $80, $ff, $01, $90, $1f, $4d, $00
 
+;@ path: gfx/menus
+;@ Window letters and frame of the monster library (128 tiles), unpacked to $9000 by LibraryInit. Compressed in
+;@ the DecompressCore format ($800 bytes unpacked, $106 packed).
 LibraryWindowTiles::
 	db $00, $08, $02, $ff, $02, $ff, $ff, $00
 	db $f3, $0b, $db, $3c, $af, $70, $57, $e8, $af, $d0, $97, $a8, $02, $00, $01, $ff
@@ -228,6 +334,9 @@ LibraryWindowTiles::
 	db $5f, $4d, $02, $61, $5f, $4d, $02, $c1, $5f, $4d, $02, $21, $6f, $4d, $02, $81
 	db $6f, $4d, $02, $e1, $6f, $4d, $02, $41, $7f, $4d, $02, $a1, $7f, $4b
 
+;@ path: gfx/menus
+;@ Frame tiles of the library's monster page (7 tiles), unpacked to $8A50 by DrawMonsterPageFrame. Compressed in
+;@ the DecompressCore format ($70 bytes unpacked, $3C packed).
 MonsterPageFrameTiles::
 	db $70, $00
 	db $01, $ff, $78, $ff, $84, $ff, $80, $ff, $7c, $ff, $02, $ff, $82, $ff, $7c, $ff
@@ -235,6 +344,10 @@ MonsterPageFrameTiles::
 	db $00, $ff, $7c, $ff, $10, $01, $22, $05, $01, $0d, $00, $80, $01, $30, $07, $fe
 	db $01, $2e, $0f, $00, $01, $01, $0b, $01, $5f, $0c
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $8500 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $3B
+;@ packed).
 GateFloorObjTiles0::
 	db $40, $00, $01, $01, $ff, $f0
 	db $0e, $00, $0f, $04, $1f, $06, $19, $0f, $1a, $0d, $1e, $05, $01, $ff, $f0, $7c
@@ -242,6 +355,10 @@ GateFloorObjTiles0::
 	db $05, $3f, $08, $3c, $10, $38, $01, $ff, $f1, $38, $e0, $dc, $30, $9c, $f8, $fc
 	db $60, $f0, $01, $a0, $f3
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $8540 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $42
+;@ packed).
 GateFloorObjTiles1::
 	db $40, $00, $05, $00, $00, $01, $00, $03, $00, $03, $01
 	db $07, $01, $07, $02, $07, $01, $0f, $03, $00, $00, $c0, $00, $e0, $80, $e0, $40
@@ -249,6 +366,10 @@ GateFloorObjTiles1::
 	db $1f, $04, $0f, $03, $07, $00, $00, $00, $dc, $30, $ec, $18, $05, $32, $00, $dc
 	db $30, $f8, $e0, $f0, $00, $00, $00
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $8580 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $3A
+;@ packed).
 GateFloorObjTiles2::
 	db $40, $00, $01, $01, $ff, $f6, $07, $00, $0f
 	db $03, $7d, $06, $00, $00, $3c, $00, $7e, $18, $76, $2c, $e6, $3c, $fe, $58, $fc
@@ -256,12 +377,20 @@ GateFloorObjTiles2::
 	db $0e, $0f, $00, $e0, $40, $60, $c0, $e0, $80, $c0, $00, $80, $01, $37, $01, $00
 	db $00
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $85C0 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $31
+;@ packed).
 GateFloorObjTiles3::
 	db $40, $00, $01, $01, $ff, $f4, $07, $00, $0f, $03, $1c, $07, $3b, $0c, $01
 	db $ff, $f4, $c0, $00, $e0, $80, $70, $c0, $38, $e0, $34, $1b, $3a, $0d, $1c, $07
 	db $0f, $03, $07, $01, $ff, $f3, $58, $b0, $38, $e0, $70, $c0, $e0, $80, $c0, $01
 	db $a0, $f3
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $8600 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $42
+;@ packed).
 GateFloorObjTiles4::
 	db $40, $00, $02, $02, $ff, $f0, $03, $00, $07, $01, $06, $03, $0e, $03
 	db $3c, $07, $78, $1f, $1c, $00, $3e, $08, $ff, $14, $ff, $d2, $3f, $ec, $1e, $f0
@@ -269,12 +398,20 @@ GateFloorObjTiles4::
 	db $7f, $10, $38, $00, $0c, $f8, $3c, $f0, $78, $c0, $e0, $80, $c0, $80, $c0, $00
 	db $80, $00, $00, $00
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $8640 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $3A
+;@ packed).
 GateFloorObjTiles5::
 	db $40, $00, $02, $02, $ff, $f0, $01, $00, $03, $00, $03, $01
 	db $03, $01, $03, $00, $07, $00, $00, $00, $fc, $00, $fe, $78, $87, $fc, $23, $fe
 	db $f3, $de, $f3, $1e, $e3, $fe, $1f, $03, $3c, $0f, $71, $1f, $67, $3e, $7f, $18
 	db $3c, $02, $ff, $f1, $07, $fc, $7e, $f8, $fc, $80, $c0, $02, $a0, $f5
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $8680 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $3E
+;@ packed).
 GateFloorObjTiles6::
 	db $40, $00
 	db $02, $02, $ff, $f0, $03, $00, $07, $01, $0e, $03, $1f, $04, $1e, $09, $1e, $09
@@ -282,12 +419,19 @@ GateFloorObjTiles6::
 	db $1e, $09, $1c, $0b, $1c, $0b, $3d, $0b, $3a, $17, $3b, $16, $3f, $0c, $1e, $00
 	db $dc, $b0, $f8, $60, $b0, $c0, $c0, $00, $80, $02, $a0, $f3
 
+;@ path: field/gatefloor/tiles
+;@ One of the eight 4-tile sets that FieldMenuClose, NameEntryFinish and the gate floor setup in bank $16 reload
+;@ to $86C0 after a menu on a gate floor. Compressed in the DecompressCore format ($40 bytes unpacked, $31
+;@ packed).
 GateFloorObjTiles7::
 	db $40, $00, $01, $01
 	db $ff, $f4, $07, $00, $0f, $03, $1f, $04, $1c, $0b, $01, $ff, $f4, $e0, $00, $f0
 	db $c0, $b8, $60, $58, $b0, $1d, $0a, $1c, $0b, $1f, $04, $0f, $03, $07, $01, $ff
 	db $f3, $d8, $30, $d8, $30, $b8, $60, $f0, $c0, $e0, $01, $a0, $f3
 
+;@ path: gfx/sprites/terry
+;@ Eight more sprite tiles of Terry, unpacked to $8180 by PlacePlayerOnMap. Compressed in the DecompressCore
+;@ format ($80 bytes unpacked, $5F packed).
 TerryExtraTiles::
 	db $80, $00, $02
 	db $00, $00, $ff, $ff, $d8, $a7, $da, $a5, $d9, $a6, $fe, $81, $fd, $fe, $fb, $86
@@ -297,6 +441,9 @@ TerryExtraTiles::
 	db $82, $ff, $ff, $bf, $ff, $bf, $ff, $ff, $80, $02, $40, $00, $1b, $e5, $bf, $41
 	db $ff, $ff, $fd, $ff, $fd, $ff, $ff, $01, $02, $20, $0f, $0d
 
+;@ path: gfx/menus
+;@ The full font (digits, A-Z, a-z, punctuation; 128 tiles), unpacked to $9000 by the title menus, the name entry
+;@ and the link screens. Compressed in the DecompressCore format ($800 bytes unpacked, $2C4 packed).
 MainFontTiles::
 	db $00, $08, $01, $ff
 	db $01, $ff, $ff, $2d, $7c, $ff, $82, $01, $42, $05, $7c, $ff, $00, $ff, $10, $ff
@@ -343,14 +490,23 @@ MainFontTiles::
 	db $01, $bc, $01, $01, $75, $38, $01, $7d, $30, $01, $61, $20, $42, $ff, $1c, $01
 	db $38, $65, $01, $65, $22, $8a, $ff, $8a, $ff, $84, $ff, $f4, $01, $e0, $1f, $4d
 	db $01, $bc, $6f, $4d, $01, $1c, $7f, $4d, $01, $7c, $7f, $4d, $01, $00, $0f, $0f
+;@ path: gfx/menus
+;@ Title menu tiles with the DRAGON QUEST MONSTERS banner letters (32 tiles), unpacked to $8800 next to
+;@ MainFontTiles by the same routines. Compressed in the DecompressCore format ($200 bytes unpacked, $1C packed).
 TitleMenuTiles::
 	db $00, $02, $01, $ff, $01, $ff, $ff, $4d, $01, $5f, $0f, $4d, $01, $bf, $0f, $4d
 	db $01, $1f, $1f, $4d, $01, $7f, $1f, $4d, $01, $9f, $1f, $0c
 
+;@ path: gfx/menus
+;@ Four tiles unpacked to $8A00 by the title menus and the name entry. Compressed in the DecompressCore format
+;@ ($40 bytes unpacked, $13 packed).
 NameEntryKeyTiles::
 	db $40, $00, $01, $ff
 	db $00, $ff, $01, $02, $00, $01, $ff, $f0, $01, $07, $04, $01, $03, $0f, $1a
 
+;@ path: unused/gfx
+;@ Graphics (128 tiles) that no code or table asks for. Compressed in the DecompressCore format ($800 bytes
+;@ unpacked, $E4 packed).
 UnusedGfx_2E_21::
 	db $00
 	db $08, $02, $ff, $02, $00, $0e, $87, $ff, $bb, $ff, $bd, $02, $16, $01, $bb, $ff
@@ -369,12 +525,18 @@ UnusedGfx_2E_21::
 	db $1f, $6f, $4d, $02, $7f, $6f, $4d, $02, $df, $6f, $4d, $02, $3f, $7f, $4d, $02
 	db $9f, $7f, $4d
 
+;@ path: unused/gfx
+;@ Graphics (36 tiles) that no code or table asks for. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $3C packed).
 UnusedGfx_2E_22::
 	db $40, $02, $0e, $0e, $ff, $ff, $01, $ff, $0e, $14, $07, $0e, $00
 	db $0f, $4d, $0e, $60, $0f, $4d, $0e, $ff, $f0, $01, $02, $03, $04, $05, $06, $00
 	db $07, $08, $09, $0a, $0b, $0e, $70, $0f, $22, $0d, $0c, $05, $06, $0a, $0b, $09
 	db $02, $0a, $0d, $0e, $6f, $0f, $4d, $0e, $6f, $1f, $4d, $0e, $cf, $1f, $3e
 
+;@ path: gfx/menus
+;@ Tiles of the floor map screen (32 tiles), unpacked to $8B00 by GateMapInit. Compressed in the DecompressCore
+;@ format ($200 bytes unpacked, $123 packed).
 FloorMapFrameTiles::
 	db $00
 	db $02, $01, $03, $00, $0f, $03, $1f, $0f, $3f, $1e, $7f, $3c, $7f, $38, $ff, $70
@@ -397,6 +559,9 @@ FloorMapFrameTiles::
 	db $01, $16, $19, $7e, $7f, $3e, $01, $06, $17, $01, $51, $10, $0c, $fe, $0c, $01
 	db $18, $14
 
+;@ path: system/sgb/border
+;@ Super Game Boy border 3, first half of its tiles (CHR_TRN packet $10): $1000 bytes of uncompressed 4-bit SNES
+;@ tiles, copied as they are by SGBTransfer from LoadSGBBorder.
 SGBBorder3TilesA::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
@@ -656,6 +821,9 @@ SGBBorder3TilesA::
 	db $9d, $00, $00, $00, $00, $00, $00, $40, $00, $40, $00, $44, $00, $52, $00, $62
 	db $00, $62
 
+;@ path: system/sgb/border
+;@ Super Game Boy border 3, second half of its tiles (CHR_TRN packet $11): $1000 bytes of uncompressed 4-bit SNES
+;@ tiles, copied as they are by SGBTransfer from LoadSGBBorder.
 SGBBorder3TilesB::
 	db $ff, $00, $ff, $00, $ff, $00, $7f, $00, $ef, $00, $ff, $00, $fd, $00
 	db $7f, $00, $00, $00, $00, $00, $00, $00, $00, $80, $00, $10, $00, $00, $00, $02
@@ -915,6 +1083,8 @@ SGBBorder3TilesB::
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff
 	db $ff, $ff
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_2E::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

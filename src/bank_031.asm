@@ -4,20 +4,86 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $031", ROMX[$4000], BANK[$31]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_31::
 	db $31
 
+;@ path: gfx/sprites/people
+;@ Entry table of bank $31: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_31::
-	db $87, $40, $32, $41, $e6, $41, $a7, $42, $6d, $43, $49, $44, $18, $45, $de
-	db $45, $ad, $46, $98, $47, $89, $48, $5c, $49, $35, $4a, $18, $4b, $d7, $4b, $ac
-	db $4c, $92, $4d, $74, $4e, $42, $4f, $12, $50, $e7, $50, $c9, $51, $e2, $52, $90
-	db $53, $71, $54, $4c, $55, $04, $56, $c0, $56, $a5, $57, $97, $58, $54, $59, $3f
-	db $5a, $06, $5b, $f5, $5b, $ee, $5c, $97, $5d, $d5, $5e, $52, $60, $9d, $60, $fb
-	db $60, $2a, $62, $80, $63, $1e, $65, $e2, $65, $d2, $66, $97, $67, $2e, $69, $2c
-	db $6b, $93, $6c, $0e, $6e, $77, $6f, $bb, $70, $66, $72, $6e, $73, $e0, $74, $7d
-	db $76, $45, $77, $02, $78, $f3, $78, $30, $79, $71, $79, $1f, $7a, $3e, $7a, $7a
-	db $7a, $94, $7b, $4d, $7c, $97, $7c
+	dw PeopleGfx_00
+	dw PeopleGfx_01
+	dw PeopleGfx_02
+	dw PeopleGfx_03
+	dw PeopleGfx_04
+	dw PeopleGfx_05
+	dw PeopleGfx_06
+	dw PeopleGfx_07
+	dw PeopleGfx_08
+	dw PeopleGfx_09
+	dw PeopleGfx_0A
+	dw PeopleGfx_0B
+	dw PeopleGfx_0C
+	dw PeopleGfx_0D
+	dw PeopleGfx_0E
+	dw PeopleGfx_0F
+	dw PeopleGfx_10
+	dw PeopleGfx_11
+	dw PeopleGfx_12
+	dw PeopleGfx_13
+	dw PeopleGfx_14
+	dw PeopleGfx_15
+	dw PeopleGfx_16
+	dw PeopleGfx_17
+	dw PeopleGfx_18
+	dw PeopleGfx_19
+	dw PeopleGfx_1A
+	dw PeopleGfx_1B
+	dw PeopleGfx_1C
+	dw PeopleGfx_1D
+	dw PeopleGfx_1E
+	dw PeopleGfx_1F
+	dw PeopleGfx_20
+	dw PeopleGfx_21
+	dw PeopleGfx_22
+	dw PeopleGfx_23
+	dw PeopleGfx_24
+	dw PeopleGfx_25
+	dw PeopleGfx_26
+	dw PeopleGfx_27
+	dw PeopleGfx_28
+	dw PeopleGfx_29
+	dw PeopleGfx_2A
+	dw PeopleGfx_2B
+	dw PeopleGfx_2C
+	dw PeopleGfx_2D
+	dw PeopleGfx_2E
+	dw PeopleGfx_2F
+	dw PeopleGfx_30
+	dw PeopleGfx_31
+	dw PeopleGfx_32
+	dw PeopleGfx_33
+	dw PeopleGfx_34
+	dw PeopleGfx_35
+	dw PeopleGfx_36
+	dw PeopleGfx_37
+	dw PeopleGfx_38
+	dw PeopleGfx_39
+	dw PeopleGfx_50
+	dw PeopleGfx_51
+	dw PeopleGfx_52
+	dw PeopleGfx_53
+	dw PeopleGfx_54
+	dw EggSprite
+	dw MonSpritePlaceholder
+	dw PeopleGfx_57
+	dw PeopleGfx_4D
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $00, $4E, $4F (ActorGfx), 16 tiles, unpacked by LoadActorGfx and
+;@ LoadFieldActorGfx. Compressed in the DecompressCore format ($100 bytes unpacked, $AB packed).
 PeopleGfx_00::
 	db $00, $01, $01, $01, $ff, $f2, $07, $07, $0f
 	db $0f, $0f, $0f, $0d, $0e, $1f, $15, $01, $ff, $f2, $f0, $f0, $f8, $f8, $f8, $f8
@@ -32,6 +98,9 @@ PeopleGfx_00::
 	db $24, $09, $fc, $f8, $f8, $f0, $f0, $d8, $38, $14, $fc, $01, $3a, $08, $01, $e5
 	db $0f, $07
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $01 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $B4 packed).
 PeopleGfx_01::
 	db $00, $01, $01, $01, $ff, $f2, $3b, $3f, $7f, $7f, $4f, $4f, $0d, $0e
 	db $1f, $15, $01, $ff, $f2, $ee, $fe, $ff, $ff, $79, $f9, $d8, $38, $fc, $54, $17
@@ -46,6 +115,9 @@ PeopleGfx_01::
 	db $1f, $0f, $0f, $01, $24, $09, $fc, $f8, $f8, $f0, $f0, $f8, $18, $f4, $1c, $01
 	db $3a, $08, $01, $e5, $0f, $07
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $02 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $C1 packed).
 PeopleGfx_02::
 	db $00, $01, $01, $00, $00, $0e, $0e, $1f, $1f, $3f
 	db $3f, $3e, $3f, $7f, $7c, $7f, $54, $7f, $54, $00, $00, $e0, $e0, $f0, $f0, $f8
@@ -61,6 +133,9 @@ PeopleGfx_02::
 	db $3f, $0f, $0f, $30, $3f, $70, $5f, $78, $01, $29, $03, $f8, $f8, $01, $72, $01
 	db $01, $37, $07, $01, $e1, $0f, $0b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $03 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $C6 packed).
 PeopleGfx_03::
 	db $00, $01, $01, $00, $00, $0e, $0e, $1f, $1f
 	db $3f, $3f, $3f, $3e, $7f, $7c, $7f, $74, $7f, $54, $00, $00, $e0, $e0, $f0, $f0
@@ -76,6 +151,9 @@ PeopleGfx_03::
 	db $01, $01, $aa, $02, $7f, $7f, $5f, $7f, $6f, $01, $2b, $01, $fc, $fc, $fe, $01
 	db $d2, $01, $f4, $fc, $ec, $f4, $01, $3c, $02, $01, $e1, $0f, $0b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $04 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $DC packed).
 PeopleGfx_04::
 	db $00, $01, $01
 	db $07, $07, $0c, $0f, $1f, $1f, $1f, $1f, $3f, $3e, $3f, $3c, $7f, $54, $7f, $54
@@ -93,6 +171,9 @@ PeopleGfx_04::
 	db $78, $f0, $9f, $01, $28, $00, $40, $7f, $3f, $3f, $fc, $fc, $f8, $f8, $c4, $3c
 	db $0e, $fa, $01, $38, $04, $01, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $05 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $CF packed).
 PeopleGfx_05::
 	db $00, $01, $01, $00, $00, $0f, $0f
 	db $1f, $1f, $3f, $3b, $3f, $30, $7f, $74, $7f, $54, $7f, $51, $00, $00, $e0, $e0
@@ -109,6 +190,9 @@ PeopleGfx_05::
 	db $30, $3f, $70, $5f, $78, $01, $29, $03, $f8, $f8, $f0, $f0, $10, $f0, $18, $f8
 	db $1c, $01, $39, $05, $01, $e1, $0f, $0b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $06 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $C6 packed).
 PeopleGfx_06::
 	db $00, $01, $01, $00, $00, $07, $07, $0b
 	db $0f, $17, $1c, $17, $1f, $3f, $3c, $7f, $54, $7f, $53, $00, $00, $c0, $c0, $a0
@@ -124,6 +208,9 @@ PeopleGfx_06::
 	db $5f, $01, $10, $00, $20, $e0, $10, $f0, $10, $f0, $78, $f8, $fc, $f4, $fc, $f4
 	db $7f, $7f, $01, $22, $0b, $fc, $e2, $01, $33, $0b, $01, $e1, $0f, $0b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $07 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $CF packed).
 PeopleGfx_07::
 	db $00, $01
 	db $01, $07, $07, $0f, $0c, $0f, $0b, $0f, $0c, $1f, $10, $3f, $21, $3f, $23, $7f
@@ -140,6 +227,9 @@ PeopleGfx_07::
 	db $fc, $0c, $7f, $57, $38, $3f, $20, $3f, $60, $01, $27, $06, $d4, $38, $f8, $08
 	db $01, $35, $01, $08, $f8, $e8, $f8, $f8, $f8, $01, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $08 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $EB packed).
 PeopleGfx_08::
 	db $00, $01, $09
 	db $09, $ff, $f0, $03, $03, $0e, $0d, $14, $1b, $14, $1b, $27, $3f, $2f, $3c, $09
@@ -158,6 +248,9 @@ PeopleGfx_08::
 	db $fd, $07, $ff, $05, $ff, $75, $ff, $fe, $fe, $09, $e8, $00, $07, $ff, $0f, $f9
 	db $0e, $fe, $0a, $fe, $0a, $fe, $fc, $fc
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $09 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $F1 packed).
 PeopleGfx_09::
 	db $00, $01, $00, $15, $15, $7f, $7f, $3f
 	db $3f, $7f, $7f, $7f, $75, $ff, $a8, $ff, $a8, $7f, $77, $00, $02, $00, $77, $7d
@@ -176,6 +269,9 @@ PeopleGfx_09::
 	db $c4, $00, $7c, $77, $bf, $df, $95, $f6, $67, $67, $fe, $fe, $f8, $f8, $00, $d4
 	db $00, $0f, $f9, $fe, $fe, $78, $f8, $f0, $f0
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $0A (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $D3 packed).
 PeopleGfx_0A::
 	db $00, $01, $01, $60, $60, $77, $57
 	db $78, $4f, $70, $5f, $30, $3f, $20, $3f, $2c, $3f, $60, $7f, $0c, $0c, $dc, $d4
@@ -192,6 +288,9 @@ PeopleGfx_0A::
 	db $08, $f8, $f3, $9f, $f9, $9f, $ff, $b7, $fd, $92, $7f, $70, $01, $2a, $02, $9c
 	db $f4, $3e, $f2, $fe, $ca, $7c, $8c, $f4, $6c, $01, $3a, $02
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $0B (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $D9 packed).
 PeopleGfx_0B::
 	db $00, $01, $01, $00
 	db $00, $c7, $c7, $fa, $bf, $fc, $9f, $f1, $de, $7c, $7f, $7f, $57, $7f, $74, $00
@@ -209,6 +308,9 @@ PeopleGfx_0B::
 	db $bf, $fc, $9f, $63, $01, $2b, $01, $94, $fc, $01, $32, $02, $7c, $fc, $01, $3a
 	db $02, $01, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $0C (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $E3 packed).
 PeopleGfx_0C::
 	db $00, $01, $01, $67, $67, $7f, $7f, $7c, $7f, $af, $bc
 	db $e3, $fd, $cf, $ff, $7f, $74, $7f, $64, $cc, $cc, $fc, $fc, $7c, $fc, $ea, $7a
@@ -226,6 +328,10 @@ PeopleGfx_0C::
 	db $7f, $4c, $37, $3c, $1f, $1f, $01, $52, $00, $3c, $fc, $8e, $fa, $f6, $76, $f0
 	db $70, $01, $3c, $00, $01, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $0D (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx. The
+;@ opening cutscene (InitCutscene0) loads it too. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $BF packed).
 PeopleGfx_0D::
 	db $00, $01, $03, $19, $19, $1f, $16, $15
 	db $1a, $1f, $1f, $3f, $26, $3f, $28, $7f, $6a, $77, $5b, $5b, $7e, $27, $3f, $5a
@@ -241,6 +347,10 @@ PeopleGfx_0D::
 	db $03, $5c, $00, $da, $3e, $ec, $fc, $02, $fe, $02, $fe, $fe, $fe, $02, $fe, $01
 	db $ff, $ff, $ff, $03, $a0, $ff, $2d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $0E (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx. The
+;@ opening cutscene (InitCutscene0) loads it too. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $D5 packed).
 PeopleGfx_0E::
 	db $00, $01, $01, $19, $19, $1f, $16, $17, $1a
 	db $1f, $1f, $3f, $26, $3f, $2a, $7f, $4a, $77, $58, $7b, $5f, $7f, $5c, $7b, $5d
@@ -257,6 +367,9 @@ PeopleGfx_0E::
 	db $4a, $75, $4a, $75, $6a, $9d, $fe, $ff, $ff, $01, $c0, $00, $f7, $88, $f5, $8a
 	db $ed, $92, $db, $e4, $bb, $fc, $ff, $ff, $01, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $0F (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $E6 packed).
 PeopleGfx_0F::
 	db $00, $01, $09, $1f
 	db $1f, $22, $3f, $79, $7f, $7f, $7f, $ff, $ff, $ff, $fb, $ff, $d1, $ff, $91, $20
@@ -275,6 +388,10 @@ PeopleGfx_0F::
 	db $e4, $fc, $58, $b8, $f0, $f0, $09, $d0, $06, $7c, $fc, $a8, $d8, $f0, $f0, $09
 	db $a0, $fc
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $10 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx. The
+;@ opening cutscene (InitCutscene0) loads it too. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $E2 packed).
 PeopleGfx_10::
 	db $00, $01, $01, $38, $38, $de, $de, $cf, $cf, $1c, $1f, $1f, $1f, $3b
 	db $3c, $3f, $36, $13, $1c, $38, $38, $f6, $f6, $e6, $e6, $70, $f0, $f0, $f0, $b8
@@ -292,6 +409,9 @@ PeopleGfx_10::
 	db $fe, $ae, $fe, $fa, $bc, $5c, $b4, $5c, $fc, $fc, $58, $b8, $78, $88, $f8, $f8
 	db $01, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $11 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $CE packed).
 PeopleGfx_11::
 	db $00, $01, $01, $0f, $0f, $11, $1e, $13, $1c, $11, $1e, $1f
 	db $13, $3f, $3c, $3f, $34, $3f, $24, $e0, $e0, $10, $f0, $90, $70, $10, $f0, $f0
@@ -308,6 +428,9 @@ PeopleGfx_11::
 	db $78, $57, $01, $2a, $03, $f0, $01, $32, $00, $34, $dc, $01, $38, $04, $01, $a0
 	db $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $12 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $D0 packed).
 PeopleGfx_12::
 	db $00, $01, $0a, $18, $18, $7e, $66, $ff, $83, $ff, $fc, $2f, $3b, $2f
 	db $3c, $5f, $74, $7f, $64, $30, $30, $fc, $cc, $fe, $82, $fe, $7e, $e8, $b8, $e8
@@ -324,6 +447,9 @@ PeopleGfx_12::
 	db $7f, $77, $0a, $29, $03, $02, $fe, $02, $fe, $04, $fc, $0a, $36, $06, $0a, $a0
 	db $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $13 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $D5 packed).
 PeopleGfx_13::
 	db $00, $01, $00, $19, $19, $1f, $16, $15, $1a, $1f, $1f, $3f, $26, $3f
 	db $28, $7f, $6a, $77, $5b, $7b, $5e, $7f, $7f, $7b, $4e, $71, $5f, $71, $7f, $70
@@ -340,6 +466,9 @@ PeopleGfx_13::
 	db $fe, $fa, $ae, $da, $f4, $f4, $00, $c0, $06, $1f, $1f, $15, $1b, $0f, $00, $cf
 	db $07, $0e, $fa, $fe, $fa, $94, $f4
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $14 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $E2 packed).
 PeopleGfx_14::
 	db $00, $01, $00, $0e, $0f, $1e, $11, $39, $26
 	db $36, $2f, $39, $2f, $68, $5f, $7f, $54, $7f, $54, $77, $58, $7f, $5f, $73, $7f
@@ -357,6 +486,9 @@ PeopleGfx_14::
 	db $6d, $72, $5d, $7a, $57, $6f, $3f, $30, $1f, $1f, $00, $b0, $00, $6e, $96, $6e
 	db $9a, $7e, $be, $d4, $ec, $d8, $38, $e0, $e0
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $15 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $119 packed).
 PeopleGfx_15::
 	db $00, $02, $05, $05, $ff, $fa, $03
 	db $03, $05, $ff, $fa, $c0, $c0, $cc, $cf, $fb, $ff, $6c, $7f, $33, $3f, $4c, $7f
@@ -378,6 +510,9 @@ PeopleGfx_15::
 	db $30, $14, $01, $ff, $02, $fe, $0c, $fc, $f8, $f8, $05, $a0, $ff, $4d, $05, $bf
 	db $1f, $2d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $16 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $AE packed).
 PeopleGfx_16::
 	db $00, $01, $02, $07, $07, $08, $0f, $10, $1f, $10, $1f, $22, $3d, $47
 	db $7a, $42, $7d, $44, $7f, $23, $3f, $1c, $1f, $1b, $17, $3f, $2a, $3f, $2a, $3f
@@ -390,6 +525,9 @@ PeopleGfx_16::
 	db $f8, $a8, $fc, $b4, $fc, $5c, $e0, $60, $80, $80, $20, $3f, $18, $1f, $1f, $02
 	db $15, $07, $08, $f8, $30, $f0, $02, $84, $00, $02, $28, $04, $02, $90, $00, $0f
 	db $0f, $02, $36, $06, $02, $a0, $00, $e0, $e0, $02, $46, $06, $02, $cf, $0f, $1d
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $17 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $E1 packed).
 PeopleGfx_17::
 	db $00, $01, $04, $01, $01, $03, $02, $05, $06, $75, $76, $3c, $2f, $1e, $17, $09
 	db $0f, $d2, $dd, $00, $00, $e0, $e0, $e0, $a0, $70, $b0, $b8, $48, $f0, $d0, $20
@@ -407,6 +545,9 @@ PeopleGfx_17::
 	db $fe, $ab, $77, $49, $d6, $fd, $ff, $aa, $be, $eb, $43, $7f, $3c, $3c, $04, $a0
 	db $fe
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $18 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $DB packed).
 PeopleGfx_18::
 	db $00, $01, $02, $bb, $f7, $bf, $f9, $d7, $f7, $ab, $fb, $69, $79, $d8, $f8
 	db $30, $30, $00, $00, $f8, $f8, $b8, $f8, $b8, $e8, $1f, $ff, $e1, $7f, $ff, $9f
@@ -423,6 +564,9 @@ PeopleGfx_18::
 	db $09, $0f, $19, $1f, $60, $7f, $9a, $ff, $15, $1f, $0b, $0f, $8b, $8f, $8b, $8f
 	db $92, $9e, $e6, $fe, $cc, $02, $3d, $03, $02, $e3, $0f, $09
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $19 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $B8 packed).
 PeopleGfx_19::
 	db $00, $01, $01, $01
 	db $ff, $f4, $30, $30, $3a, $2a, $2d, $37, $1c, $17, $19, $1f, $33, $3e, $57, $7c
@@ -438,6 +582,9 @@ PeopleGfx_19::
 	db $c8, $02, $a0, $ff, $a0, $ff, $88, $ff, $40, $7f, $50, $7f, $32, $3f, $1f, $1f
 	db $01, $a0, $ff, $0f
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $1A (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $BC packed).
 PeopleGfx_1A::
 	db $00, $01, $04, $1c, $1c, $39, $39, $7e, $5f, $4d, $7f, $37
 	db $3a, $2f, $3e, $47, $7f, $5f, $7a, $7a, $6f, $35, $2f, $3f, $33, $78, $4f, $7f
@@ -451,6 +598,9 @@ PeopleGfx_1A::
 	db $00, $02, $4c, $7f, $30, $3f, $20, $3f, $50, $7f, $20, $3f, $48, $7f, $50, $7f
 	db $34, $3f, $7c, $4f, $7c, $47, $32, $3f, $4d, $75, $78, $78, $12, $fe, $0a, $fe
 	db $2c, $fc, $1c, $f4, $5c, $f4, $64, $fc, $c8, $04, $2d, $01, $04, $c1, $0f, $2b
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $1B (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $E5 packed).
 PeopleGfx_1B::
 	db $00, $01, $0d, $02, $02, $1f, $1f, $0b, $0f, $e4, $e7, $9a, $ff, $56, $7f, $2f
 	db $3b, $2f, $3c, $80, $80, $f0, $f0, $a0, $e0, $40, $c0, $a0, $e0, $d0, $f0, $e8
@@ -468,6 +618,9 @@ PeopleGfx_1B::
 	db $06, $05, $0f, $0f, $12, $fe, $0a, $fe, $06, $fe, $07, $fd, $0e, $fa, $94, $fc
 	db $f8, $f8, $0d, $a0, $fe
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $1C (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $F2 packed).
 PeopleGfx_1C::
 	db $00, $01, $05, $1c, $1c, $2a, $36, $3e, $2a, $2a, $36
 	db $1e, $1e, $0f, $09, $30, $3f, $46, $7f, $39, $3f, $13, $1c, $1c, $1f, $37, $2f
@@ -486,6 +639,9 @@ PeopleGfx_1C::
 	db $7a, $7f, $88, $ff, $e2, $ff, $90, $9f, $0f, $0f, $58, $f8, $30, $f0, $05, $f0
 	db $00, $05, $50, $00, $05, $2c, $00
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $1D (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $BD packed).
 PeopleGfx_1D::
 	db $00, $01, $01, $01, $ff, $f4, $3c, $3c, $77
 	db $4f, $fb, $9a, $fb, $ba, $01, $fe, $f6, $8c, $8c, $92, $9e, $96, $9e, $f6, $b7
@@ -501,6 +657,9 @@ PeopleGfx_1D::
 	db $ff, $1f, $ff, $15, $ff, $25, $ff, $dd, $ff, $0a, $fe, $1c, $01, $59, $0f, $00
 	db $01, $e1, $0f, $0b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $1E (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $EB packed).
 PeopleGfx_1E::
 	db $00, $01, $06, $01, $01, $01, $01, $02, $03, $67, $64, $7e
 	db $5b, $3f, $2b, $2b, $3c, $37, $3f, $6e, $5f, $d9, $af, $dc, $af, $b2, $df, $78
@@ -518,6 +677,9 @@ PeopleGfx_1E::
 	db $70, $4e, $79, $c6, $fd, $e2, $bf, $f1, $9f, $c8, $bf, $5f, $7f, $3c, $2f, $fa
 	db $0e, $fd, $07, $dd, $37, $ea, $36, $f6, $fa, $32, $fe, $fc, $fc, $78, $e8
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $1F (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $C7 packed).
 PeopleGfx_1F::
 	db $00
 	db $01, $08, $08, $ff, $fa, $01, $01, $03, $02, $1b, $1a, $3f, $26, $3d, $2b, $70
@@ -534,6 +696,9 @@ PeopleGfx_1F::
 	db $06, $05, $ff, $99, $fe, $b2, $fc, $24, $b8, $48, $f0, $10, $ff, $1f, $ff, $01
 	db $fe, $9e, $08, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $20 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $EF packed).
 PeopleGfx_20::
 	db $00, $01, $01, $01, $ff, $f6, $3c, $3c, $42, $7e
 	db $a5, $ff, $3b, $3f, $4c, $7f, $4b, $7f, $c7, $ff, $a4, $ff, $e3, $ff, $90, $ff
@@ -552,6 +717,9 @@ PeopleGfx_20::
 	db $ff, $f7, $ff, $19, $ff, $21, $ff, $e1, $ff, $1e, $fe, $1c, $fc, $e4, $01, $47
 	db $01, $cc, $fc, $fc, $fc
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $21 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $F9 packed).
 PeopleGfx_21::
 	db $00, $01, $03, $03, $ff, $f2, $39, $39, $27, $3e, $17
 	db $1c, $1f, $1b, $1c, $17, $60, $60, $60, $60, $80, $80, $ce, $ce, $f2, $be, $f4
@@ -570,6 +738,9 @@ PeopleGfx_21::
 	db $60, $8f, $f0, $bf, $e0, $ff, $e0, $3f, $20, $2f, $30, $03, $6c, $00, $fc, $04
 	db $fe, $02, $fe, $12, $ea, $1e, $ec, $1c, $c8, $38, $70, $f0, $f0, $f0
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $22 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $A9 packed).
 PeopleGfx_22::
 	db $00, $01
 	db $05, $01, $01, $01, $01, $03, $02, $07, $07, $19, $1f, $33, $3f, $67, $7e, $77
@@ -584,6 +755,9 @@ PeopleGfx_22::
 	db $0c, $0f, $05, $56, $07, $05, $5f, $01, $80, $ff, $7f, $05, $0f, $05, $05, $40
 	db $00, $20, $05, $47, $05, $00, $ff
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $23 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $13E packed).
 PeopleGfx_23::
 	db $00, $02, $0c, $20, $3f, $43, $7d, $4f, $77
 	db $59, $69, $56, $77, $59, $7f, $67, $7f, $1a, $1b, $de, $ff, $59, $ff, $4e, $ff
@@ -607,6 +781,9 @@ PeopleGfx_23::
 	db $ff, $00, $0c, $52, $10, $9f, $e7, $70, $7f, $1f, $1c, $2f, $39, $0c, $a0, $ff
 	db $4d, $0c, $bf, $1f, $2d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $24 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $17D packed).
 PeopleGfx_24::
 	db $00, $02, $04, $00, $00, $01, $01, $07, $07, $05, $07
 	db $0f, $0a, $1d, $1f, $20, $3f, $3f, $3f, $82, $82, $c7, $c7, $ef, $ef, $39, $ff
@@ -634,6 +811,9 @@ PeopleGfx_24::
 	db $80, $c0, $c0, $f8, $b8, $c4, $7c, $8c, $fc, $3c, $f4, $04, $a0, $ff, $4d, $04
 	db $ef, $1c
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $25 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $4B packed).
 PeopleGfx_25::
 	db $00, $01, $01, $07, $07, $1b, $1c, $2c, $33, $53, $6c, $6c, $73, $5b
 	db $7c, $57, $7f, $6c, $7f, $e0, $e0, $d8, $38, $34, $cc, $ca, $36, $36, $ce, $da
@@ -641,6 +821,9 @@ PeopleGfx_25::
 	db $ff, $27, $3f, $38, $38, $76, $de, $62, $fe, $ca, $fe, $f5, $7f, $e3, $ff, $12
 	db $fe, $9e, $fe, $70, $70, $01, $a0, $ff, $4d, $01, $9f, $0f, $4d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $26 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $5E packed).
 PeopleGfx_26::
 	db $00, $01, $01
 	db $01, $ff, $f0, $0c, $0c, $12, $01, $06, $01, $07, $07, $0a, $0f, $1a, $1f, $6a
@@ -650,6 +833,9 @@ PeopleGfx_26::
 	db $01, $ff, $f0, $01, $10, $06, $fd, $ff, $df, $ff, $a3, $ff, $4f, $ff, $51, $ff
 	db $01, $48, $04, $01, $6b, $0f, $4d, $01, $cb, $0f, $21
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $27 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $12F packed).
 PeopleGfx_27::
 	db $00, $02, $09, $00, $00
 	db $03, $03, $02, $03, $09, $02, $00, $02, $03, $01, $01, $00, $00, $60, $60, $b8
@@ -672,6 +858,9 @@ PeopleGfx_27::
 	db $80, $80, $09, $70, $02, $07, $07, $09, $7a, $02, $00, $00, $ff, $fc, $2f, $09
 	db $83, $05, $09, $a0, $ff, $4d, $09, $ab, $1f, $41
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $28 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $156 packed).
 PeopleGfx_28::
 	db $00, $02, $05, $05, $ff, $f0
 	db $07, $07, $08, $0f, $10, $1f, $13, $1f, $26, $3f, $27, $3f, $00, $00, $e0, $e0
@@ -695,6 +884,9 @@ PeopleGfx_28::
 	db $08, $07, $07, $0a, $0f, $0a, $0f, $07, $07, $0f, $ff, $10, $f0, $c8, $f8, $90
 	db $f0, $50, $f0, $90, $f0, $a0, $e0, $e0, $e0, $05, $60, $00, $1c, $ff, $28, $ef
 	db $d3, $df, $9d, $9e, $bf, $b4, $cf, $f8, $05, $a0, $ff, $4d, $05, $bf, $1f, $2d
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $29 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $19E packed).
 PeopleGfx_29::
 	db $00, $02, $04, $04, $ff, $f6, $02, $02, $02, $02, $03, $03, $30, $30, $38, $28
 	db $04, $12, $00, $68, $58, $70, $50, $d3, $b3, $d1, $b1, $40, $40, $6f, $6f, $5b
@@ -723,6 +915,9 @@ PeopleGfx_29::
 	db $fe, $07, $ff, $07, $ff, $87, $ff, $67, $7f, $17, $1f, $0e, $0e, $0e, $0e, $1c
 	db $1c, $86, $86, $84, $84, $88, $88, $88, $88, $80, $80, $04, $6a, $12
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $2A (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $C4 packed).
 PeopleGfx_2A::
 	db $00, $01
 	db $0c, $03, $03, $01, $01, $0f, $0e, $1f, $12, $2b, $2c, $13, $1d, $1f, $13, $3f
@@ -739,6 +934,9 @@ PeopleGfx_2A::
 	db $b4, $cc, $e8, $58, $e8, $18, $7c, $84, $fc, $bc, $a0, $e0, $c0, $c0, $0c, $a0
 	db $ff, $2d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $2B (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $F0 packed).
 PeopleGfx_2B::
 	db $00, $01, $01, $1c, $1c, $2e, $32, $35, $2d, $6e, $5f, $7c, $5f, $db
 	db $ff, $ff, $ed, $df, $ef, $30, $30, $48, $78, $74, $4c, $e6, $fe, $5b, $fd, $d7
@@ -757,6 +955,9 @@ PeopleGfx_2B::
 	db $73, $5f, $7f, $35, $3e, $3d, $01, $2b, $01, $9f, $ff, $ab, $fd, $76, $fa, $01
 	db $b6, $06
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $2C (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $C5 packed).
 PeopleGfx_2C::
 	db $00, $01, $01, $01, $ff, $f2, $03, $03, $0d, $0e, $1b, $17, $17, $1f
 	db $2e, $3f, $1c, $1c, $3e, $22, $57, $7d, $fd, $ff, $77, $ef, $bb, $dd, $db, $f5
@@ -772,6 +973,9 @@ PeopleGfx_2C::
 	db $4c, $7b, $2f, $3f, $23, $fd, $71, $ff, $d2, $fe, $6c, $dc, $de, $b2, $ef, $7d
 	db $01, $9c, $06, $01, $e5, $0f, $07
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $2D (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $197 packed).
 PeopleGfx_2D::
 	db $00, $02, $06, $1c, $1c, $1e, $1e, $1f, $1f
 	db $0f, $0f, $0f, $0f, $07, $07, $03, $03, $05, $07, $00, $00, $0f, $0f, $b0, $bf
@@ -800,6 +1004,9 @@ PeopleGfx_2D::
 	db $fa, $06, $30, $16, $a2, $be, $06, $3c, $1f, $01, $d8, $f8, $d8, $f8, $06, $54
 	db $16, $06, $60, $14, $06, $f4, $00, $70, $f0, $80, $80, $06, $a0, $f0
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $2E (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $1FE packed).
 PeopleGfx_2E::
 	db $00, $02
 	db $02, $30, $30, $48, $78, $fc, $b4, $fc, $cc, $b4, $fc, $4b, $7b, $4b, $7a, $29
@@ -835,6 +1042,9 @@ PeopleGfx_2E::
 	db $2d, $3f, $14, $1f, $16, $1f, $37, $3f, $57, $7f, $7c, $7c, $f9, $0f, $fd, $1f
 	db $ff, $3f, $e3, $ff, $66, $fe, $3c, $fc, $f2, $fe, $fe, $fe
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $2F (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $167 packed).
 PeopleGfx_2F::
 	db $00, $02, $08, $08
 	db $ff, $f6, $07, $07, $0a, $0e, $16, $1e, $03, $03, $07, $05, $0a, $0f, $18, $1f
@@ -861,6 +1071,9 @@ PeopleGfx_2F::
 	db $fb, $fa, $08, $5b, $01, $f4, $bf, $f1, $bf, $f9, $bf, $08, $26, $1f, $11, $08
 	db $c9, $1f, $23
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $30 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $17B packed).
 PeopleGfx_30::
 	db $00, $02, $04, $04, $ff, $f6, $06, $06, $03, $03, $02, $03, $04
 	db $ff, $f0, $08, $08, $0c, $0c, $0c, $0c, $0b, $0f, $d7, $d8, $3f, $fc, $04, $ff
@@ -887,6 +1100,9 @@ PeopleGfx_30::
 	db $ff, $f3, $fc, $ef, $ff, $d0, $ff, $04, $ca, $02, $00, $00, $df, $e0, $ff, $30
 	db $ff, $08, $ff, $c4, $2f, $f0, $9b, $fc, $f7, $f7, $04, $a0, $ff, $3f
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $31 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $169 packed).
 PeopleGfx_31::
 	db $00, $02
 	db $04, $04, $ff, $f8, $03, $03, $8c, $8f, $04, $ff, $f8, $f0, $f0, $0c, $fc, $01
@@ -913,6 +1129,9 @@ PeopleGfx_31::
 	db $db, $04, $83, $09, $f9, $3f, $35, $ef, $f6, $3f, $f7, $ed, $04, $98, $04, $e8
 	db $04, $a1, $0b, $04, $a0, $ff, $3d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $32 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $144 packed).
 PeopleGfx_32::
 	db $00, $02, $02, $01, $02, $00, $01, $00, $00
 	db $03, $03, $05, $07, $06, $07, $0f, $0d, $00, $00, $80, $80, $e1, $61, $ff, $9f
@@ -936,6 +1155,9 @@ PeopleGfx_32::
 	db $df, $ff, $79, $02, $59, $0f, $04, $7f, $cb, $be, $ff, $5c, $ff, $f0, $ff, $4e
 	db $ff, $f9, $ff, $d6, $ff, $2b, $ff, $02, $a0, $ff, $4d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $33 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $1AB packed).
 PeopleGfx_33::
 	db $00, $02, $10, $0f, $0f
 	db $1a, $16, $34, $2c, $34, $2c, $72, $4e, $10, $08, $02, $01, $10, $10, $03, $10
@@ -966,6 +1188,9 @@ PeopleGfx_33::
 	db $10, $fc, $f0, $60, $e0, $20, $e0, $60, $e0, $b0, $f0, $7c, $fc, $fe, $92, $10
 	db $1e, $02, $10, $d1, $1f, $1b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $34 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $108 packed).
 PeopleGfx_34::
 	db $00, $02, $02, $06, $06, $03, $03, $01, $01, $00
 	db $00, $79, $79, $46, $7f, $5b, $66, $37, $2a, $07, $07, $9b, $9c, $7f, $f0, $9f
@@ -985,6 +1210,9 @@ PeopleGfx_34::
 	db $1f, $00, $00, $ff, $7f, $dc, $7f, $c6, $7f, $e0, $ff, $3c, $ff, $80, $ff, $e0
 	db $ff, $3f, $3f, $02, $a0, $ff, $4d, $02, $8f, $1f, $4d, $02, $ef, $1c
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $35 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $172 packed).
 PeopleGfx_35::
 	db $00, $02
 	db $01, $01, $ff, $f8, $0f, $0f, $14, $1f, $20, $20, $30, $30, $38, $38, $1c, $1c
@@ -1010,6 +1238,9 @@ PeopleGfx_35::
 	db $ff, $bf, $ff, $08, $08, $f8, $f8, $98, $f8, $79, $f9, $ae, $ff, $e2, $ff, $1b
 	db $ff, $fa, $ff, $bf, $ea, $bf, $ef, $bf, $ff, $b8, $ff, $b0, $ff, $55, $ff, $5f
 	db $fa, $a7, $ff, $18, $ff, $0f, $01, $73, $09, $01, $a0, $ff, $4d, $01, $ef, $1c
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $36 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $19D packed).
 PeopleGfx_36::
 	db $00, $02, $0a, $38, $38, $7c, $44, $ce, $b2, $ce, $b2, $fe, $8a, $ff, $cf, $b4
 	db $ff, $c4, $ff, $0e, $0e, $15, $1f, $1f, $1b, $15, $1f, $7b, $75, $5f, $6a, $f5
@@ -1038,6 +1269,9 @@ PeopleGfx_36::
 	db $1b, $0a, $bc, $00, $14, $0a, $a3, $11, $5f, $7f, $b0, $f0, $0a, $f2, $00, $00
 	db $00, $0a, $b0, $04, $7e, $7f, $0a, $ba, $12, $0a, $a0, $ff, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $37 (ActorGfx), 32 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $C8 packed).
 PeopleGfx_37::
 	db $00, $02, $01
 	db $3b, $3b, $35, $2e, $1b, $14, $1f, $1f, $3e, $27, $7f, $5a, $6f, $74, $2b, $37
@@ -1054,6 +1288,9 @@ PeopleGfx_37::
 	db $ff, $23, $ff, $ff, $ff, $01, $a0, $ff, $4d, $01, $1f, $1f, $4d, $01, $7f, $1f
 	db $4d, $01, $df, $1f, $0d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $38 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $BD packed).
 PeopleGfx_38::
 	db $00, $01, $01, $03, $03, $0d, $0f, $1b, $14, $1f, $1f
 	db $3f, $2a, $2f, $3a, $1f, $14, $1b, $17, $2f, $3c, $25, $3e, $27, $3e, $29, $3f
@@ -1069,6 +1306,9 @@ PeopleGfx_38::
 	db $f8, $08, $f8, $28, $f8, $c4, $fc, $04, $fc, $04, $fc, $01, $2e, $00, $01, $c1
 	db $0f, $2b
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $39 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $F1 packed).
 PeopleGfx_39::
 	db $00, $01, $03, $03, $ff, $f2, $39, $39, $3e, $3f, $1c, $1f, $1b, $1f
 	db $16, $1d, $60, $60, $60, $60, $80, $80, $ce, $ce, $be, $fe, $1c, $fc, $6c, $fc
@@ -1087,11 +1327,17 @@ PeopleGfx_39::
 	db $03, $6c, $00, $04, $fc, $02, $fe, $12, $fe, $0e, $fa, $0c, $fc, $68, $f8, $f0
 	db $90, $f0, $f0
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $50, $58, $59, $5A, $5B, $5C, $5D (ActorGfx), 16 tiles, unpacked by
+;@ LoadActorGfx and LoadFieldActorGfx. Compressed in the DecompressCore format ($100 bytes unpacked, $3D packed).
 PeopleGfx_50::
 	db $00, $01, $01, $03, $03, $0c, $0f, $16, $1f, $2d, $3b, $3e, $31
 	db $2d, $32, $5d, $72, $7b, $5c, $c0, $c0, $30, $f0, $68, $f8, $b4, $dc, $7c, $8c
 	db $b4, $4c, $ba, $4e, $de, $3a, $37, $3e, $1b, $1c, $3f, $3f, $01, $f6, $f6, $ec
 	db $7c, $d8, $38, $fc, $fc, $01, $a0, $ff, $4d, $01, $95, $0f, $4d, $01, $f5, $06
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $51 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $41 packed).
 PeopleGfx_51::
 	db $00, $01, $01, $00, $00, $0e, $0f, $1e, $11, $39, $26, $36, $2f, $79, $4f, $68
 	db $5f, $7f, $50, $00, $00, $e0, $e0, $f0, $10, $38, $c8, $d8, $e8, $3c, $e4, $2c
@@ -1099,6 +1345,9 @@ PeopleGfx_51::
 	db $de, $32, $fd, $ff, $03, $03, $01, $a0, $ff, $4d, $01, $97, $0f, $4d, $01, $f7
 	db $04
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $52 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $AE packed).
 PeopleGfx_52::
 	db $00, $01, $01, $01, $ff, $f4, $03, $03, $04, $07, $0b, $0c, $0a, $0d, $01
 	db $fe, $f6, $80, $80, $60, $e0, $90, $f0, $05, $07, $0b, $0c, $17, $18, $16, $19
@@ -1112,11 +1361,17 @@ PeopleGfx_52::
 	db $00, $bc, $e4, $9a, $fe, $42, $7e, $24, $3c, $18, $18, $80, $80, $00, $00, $0c
 	db $0c, $12, $1e, $3d, $23, $2d, $33, $12, $1e, $0c, $0c, $01, $a0, $ff, $2d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $53 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $1F packed).
 PeopleGfx_53::
 	db $00
 	db $01, $01, $18, $18, $18, $18, $24, $3c, $24, $3c, $42, $7e, $42, $7e, $24, $3c
 	db $18, $18, $01, $a0, $ff, $4d, $01, $6f, $0f, $4d, $01, $cf, $0f, $1d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $54 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $3C packed).
 PeopleGfx_54::
 	db $00, $01
 	db $01, $01, $ff, $f0, $6c, $6c, $92, $fe, $82, $fe, $44, $7c, $28, $38, $10, $10
@@ -1124,6 +1379,9 @@ PeopleGfx_54::
 	db $10, $20, $20, $01, $1a, $06, $04, $04, $08, $08, $01, $f8, $f8, $20, $20, $01
 	db $0e, $04, $01, $4d, $0f, $4d, $01, $ad, $0f, $3f
 
+;@ path: gfx/sprites/people
+;@ The egg's sprite (32 tiles), shown by VSResultInit for a prize egg; also people graphics $55 in ActorGfx.
+;@ Compressed in the DecompressCore format ($200 bytes unpacked, $11A packed).
 EggSprite::
 	db $00, $02, $09, $03, $03, $05
 	db $06, $0b, $0c, $17, $18, $17, $18, $2f, $30, $2f, $30, $4f, $70, $c0, $c0, $a0
@@ -1145,6 +1403,9 @@ EggSprite::
 	db $14, $08, $08, $09, $f6, $f6, $1c, $1c, $3e, $22, $7c, $44, $78, $58, $20, $20
 	db $09, $a0, $ff, $3d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite used for MonsterGfxRefs entries 1-$0F (a fainted party monster shows sprite 1) and people
+;@ graphics $56. Compressed in the DecompressCore format ($100 bytes unpacked, $B9 packed).
 MonSpritePlaceholder::
 	db $00, $01, $05, $07, $07, $08, $0f, $09, $0e, $11, $1e, $11
 	db $1e, $21, $3e, $27, $38, $37, $38, $e0, $e0, $10, $f0, $90, $70, $88, $78, $88
@@ -1159,6 +1420,9 @@ MonSpritePlaceholder::
 	db $18, $1f, $17, $1f, $08, $0f, $08, $0f, $07, $07, $8c, $7c, $05, $30, $00, $18
 	db $f8, $e8, $f8, $10, $f0, $10, $f0, $e0, $e0, $05, $a0, $ff, $2d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $57 (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $4A packed).
 PeopleGfx_57::
 	db $00, $01, $01
 	db $01, $ff, $f0, $18, $18, $3d, $25, $2f, $23, $19, $19, $6d, $6d, $b6, $90, $60
@@ -1167,6 +1431,9 @@ PeopleGfx_57::
 	db $78, $d0, $10, $38, $08, $7c, $64, $ac, $a4, $d8, $58, $40, $40, $80, $80, $01
 	db $a0, $ff, $4d, $01, $9f, $0f, $4d
 
+;@ path: gfx/sprites/people
+;@ Sprite tiles of people graphics $4D (ActorGfx), 16 tiles, unpacked by LoadActorGfx and LoadFieldActorGfx.
+;@ Compressed in the DecompressCore format ($100 bytes unpacked, $4B packed).
 PeopleGfx_4D::
 	db $00, $01, $01, $00, $00, $00, $0f, $0e, $1f
 	db $1f, $3f, $23, $3f, $1e, $61, $3f, $40, $26, $5f, $00, $00, $00, $e0, $d0, $38
@@ -1175,6 +1442,8 @@ PeopleGfx_4D::
 	db $c4, $fc, $f8, $fc, $70, $f8, $00, $f0, $01, $a0, $ff, $4d, $01, $9d, $0f, $4d
 	db $00, $00
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_31::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

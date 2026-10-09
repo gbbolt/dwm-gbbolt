@@ -7,11 +7,11 @@ SECTION "ROM Bank $061", ROMX[$4000], BANK[$61]
 ;@ def LeftoverShowScreen_61()
 ;@ path: unused/leftovers
 ;@ Leftover code of another program (see LeftoverCode_20): it would draw LeftoverScreenRLE_61 to the BG
-;@ map at $9c00 through a routine at $1F94. Nothing calls it, and in this game $1F94 is in the middle of
+;@ map at $9C00 through a routine at $1F94. Nothing calls it, and in this game $1F94 is in the middle of
 ;@ PrintNumber7.
 ;@ test: skip calls into the middle of another routine
 LeftoverShowScreen_61::
-;> call_address(0x1F94, LeftoverScreenRLE_61, 0x9C00)   # (hl = the packed map, bc = the BG map)
+;> pass                                  # calls $1F94 with hl = LeftoverScreenRLE_61 (the packed map) and bc = $9C00 (the BG map)
 	ld hl, LeftoverScreenRLE_61
 	ld bc, $9c00
 	call $1f94

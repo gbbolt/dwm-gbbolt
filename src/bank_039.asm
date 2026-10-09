@@ -4,21 +4,93 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $039", ROMX[$4000], BANK[$39]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_39::
 	db $39
 
+;@ path: gfx/monsters/tables
+;@ Entry table of bank $39: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_39::
-	db $91, $40, $76, $41, $48, $42, $24, $43, $1b, $44, $c4, $44, $9f, $45, $87
-	db $46, $31, $47, $ec, $47, $e3, $48, $c3, $49, $a8, $4a, $88, $4b, $33, $4c, $e6
-	db $4c, $a6, $4d, $9a, $4e, $53, $4f, $4b, $50, $f6, $50, $d3, $51, $cc, $52, $b2
-	db $53, $a6, $54, $61, $55, $1c, $56, $bc, $56, $90, $57, $82, $58, $58, $59, $1f
-	db $5a, $d4, $5a, $b4, $5b, $89, $5c, $76, $5d, $45, $5e, $18, $5f, $e3, $5f, $bf
-	db $60, $78, $61, $6e, $62, $61, $63, $1c, $64, $08, $65, $e8, $65, $b1, $66, $76
-	db $67, $40, $68, $10, $69, $11, $6a, $ec, $6a, $9a, $6b, $87, $6c, $85, $6d, $66
-	db $6e, $64, $6f, $4d, $70, $28, $71, $10, $72, $ec, $72, $ec, $73, $e7, $74, $d8
-	db $75, $d0, $76, $ae, $77, $a2, $78, $a1, $79, $66, $7a, $67, $7b, $48, $7c, $2d
-	db $7d
+	dw MonSprite_FunkyBird
+	dw MonSprite_RainHawk
+	dw MonSprite_MadPlant
+	dw MonSprite_FireWeed
+	dw MonSprite_FloraMan
+	dw MonSprite_WingTree
+	dw MonSprite_CactiBall
+	dw MonSprite_Gulpple
+	dw MonSprite_Toadstool
+	dw MonSprite_AmberWeed
+	dw MonSprite_Stubsuck
+	dw MonSprite_Oniono
+	dw MonSprite_DanceVegi
+	dw MonSprite_TreeBoy
+	dw MonSprite_FaceTree
+	dw MonSprite_HerbMan
+	dw MonSprite_BeanMan
+	dw MonSprite_EvilSeed
+	dw MonSprite_ManEater
+	dw MonSprite_Snapper
+	dw MonSprite_Rosevine
+	dw MonSprite_Watabou
+	dw MonSprite_GiantSlug
+	dw MonSprite_Catapila
+	dw MonSprite_Gophecada
+	dw MonSprite_Butterfly
+	dw MonSprite_WeedBug
+	dw MonSprite_GiantWorm
+	dw MonSprite_Lipsy
+	dw MonSprite_StagBug
+	dw MonSprite_ArmyAnt
+	dw MonSprite_GoHopper
+	dw MonSprite_TailEater
+	dw MonSprite_ArmorPede
+	dw MonSprite_Eyeder
+	dw MonSprite_GiantMoth
+	dw MonSprite_Droll
+	dw MonSprite_ArmyCrab
+	dw MonSprite_MadHornet
+	dw MonSprite_HornBeet
+	dw MonSprite_Armorpion
+	dw MonSprite_Digster
+	dw MonSprite_Pixy
+	dw MonSprite_ArcDemon
+	dw MonSprite_AgDevil
+	dw MonSprite_Demonite
+	dw MonSprite_DarkEye
+	dw MonSprite_EyeBall
+	dw MonSprite_SkulRider
+	dw MonSprite_EvilBeast
+	dw MonSprite_X1EyeClown
+	dw MonSprite_Gremlin
+	dw MonSprite_MedusaEye
+	dw MonSprite_Lionex
+	dw MonSprite_GoatHorn
+	dw MonSprite_Orc
+	dw MonSprite_Ogre
+	dw MonSprite_GateGuard
+	dw MonSprite_ChopClown
+	dw MonSprite_Grendal
+	dw MonSprite_Akubar
+	dw MonSprite_MadKnight
+	dw MonSprite_Gigantes
+	dw MonSprite_Centasaur
+	dw MonSprite_EvilArmor
+	dw MonSprite_Jamirus
+	dw MonSprite_Durran
+	dw MonSprite_Spooky
+	dw MonSprite_Skullgon
+	dw MonSprite_Putrepup
+	dw MonSprite_RotRaven
+	dw MonSprite_Mummy
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of FunkyBird (species $58) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E5 packed).
 MonSprite_FunkyBird::
 	db $00, $01, $0d, $02, $02, $1f, $1f, $0b, $0f, $e4, $e7, $9a, $ff, $56, $7f
 	db $2f, $3b, $2f, $3c, $80, $80, $f0, $f0, $a0, $e0, $40, $c0, $a0, $e0, $d0, $f0
@@ -36,6 +108,11 @@ MonSprite_FunkyBird::
 	db $1e, $06, $05, $0f, $0f, $12, $fe, $0a, $fe, $06, $fe, $07, $fd, $0e, $fa, $94
 	db $fc, $f8, $f8, $0d, $a0, $fe
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of RainHawk (species $59) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $D2 packed).
 MonSprite_RainHawk::
 	db $00, $01, $02, $3c, $3c, $56, $6a, $b9, $ff, $4f
 	db $4d, $0c, $0f, $57, $5d, $b0, $ff, $8c, $ff, $aa, $ff, $bd, $f3, $df, $d8, $97
@@ -52,6 +129,11 @@ MonSprite_RainHawk::
 	db $08, $17, $18, $33, $3c, $cd, $fe, $83, $fc, $a6, $f9, $be, $fb, $d4, $df, $54
 	db $5f, $02, $1a, $04, $02, $e1, $0f, $0b
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of MadPlant (species $5A) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DC packed).
 MonSprite_MadPlant::
 	db $00, $01, $05, $03, $03, $04, $07, $1e
 	db $1b, $22, $3d, $1c, $1f, $2f, $3b, $2f, $3c, $47, $7f, $c0, $c0, $20, $e0, $78
@@ -69,6 +151,11 @@ MonSprite_MadPlant::
 	db $7f, $33, $3f, $05, $26, $06, $52, $fe, $66, $fe, $8c, $fc, $f0, $f0, $05, $38
 	db $06, $05, $f1, $0a
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of FireWeed (species $5B) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F7 packed).
 MonSprite_FireWeed::
 	db $00, $01, $01, $01, $ff, $f0, $07, $07, $0f, $08, $1f, $10
 	db $1f, $1b, $1f, $1c, $0f, $08, $07, $04, $03, $03, $1d, $1d, $33, $3f, $47, $7f
@@ -87,6 +174,11 @@ MonSprite_FireWeed::
 	db $ff, $45, $7d, $33, $3f, $51, $7f, $e9, $ff, $1f, $1f, $20, $e0, $e0, $e0, $b8
 	db $b8, $cc, $fc, $e2, $fe, $1d, $ff, $6b, $fb, $9c, $9c
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of FloraMan (species $5C) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Also people graphics $46 in ActorGfx. Compressed in the
+;@ DecompressCore format ($100 bytes unpacked, $A9 packed).
 MonSprite_FloraMan::
 	db $00, $01, $01, $09, $09
 	db $16, $1f, $19, $1f, $22, $3f, $1f, $1d, $76, $7f, $fc, $9f, $fd, $af, $fe, $bf
@@ -101,6 +193,11 @@ MonSprite_FloraMan::
 	db $19, $03, $0f, $fd, $0a, $fa, $08, $f8, $04, $fc, $24, $fc, $48, $f8, $f0, $f0
 	db $01, $a0, $ff, $2f
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of WingTree (species $5D) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DB packed).
 MonSprite_WingTree::
 	db $00, $01, $02, $20, $20, $68, $68, $5d, $7d, $9e, $ff, $88
 	db $ff, $eb, $fd, $9b, $9c, $09, $0e, $04, $04, $86, $86, $5a, $de, $79, $ff, $11
@@ -117,6 +214,11 @@ MonSprite_WingTree::
 	db $1a, $1b, $2e, $3f, $24, $3f, $22, $3f, $38, $3f, $2c, $2f, $00, $00, $08, $08
 	db $a8, $a8, $74, $fc, $24, $fc, $44, $fc, $1c, $fc, $34, $f4, $02, $a0, $fc
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of CactiBall (species $5E) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Also people graphics $4A in ActorGfx. Compressed in the
+;@ DecompressCore format ($100 bytes unpacked, $E8 packed).
 MonSprite_CactiBall::
 	db $00
 	db $01, $01, $04, $04, $05, $05, $62, $67, $97, $f7, $9c, $ff, $b2, $ff, $47, $7f
@@ -135,6 +237,11 @@ MonSprite_CactiBall::
 	db $5f, $3f, $3f, $03, $03, $00, $00, $3f, $ff, $24, $fc, $37, $ff, $2c, $fc, $7a
 	db $fa, $44, $fc, $c4, $fc, $78, $78
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Gulpple (species $5F) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $AA packed).
 MonSprite_Gulpple::
 	db $00, $01, $05, $00, $00, $01, $01, $01, $01
 	db $07, $07, $19, $1f, $23, $3f, $20, $3f, $5b, $7d, $c0, $c0, $c0, $c0, $80, $80
@@ -149,6 +256,11 @@ MonSprite_Gulpple::
 	db $06, $18, $f8, $04, $05, $3b, $01, $05, $ae, $02, $05, $86, $02, $09, $0f, $07
 	db $07
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Toadstool (species $60) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Also people graphics $3E in ActorGfx. Compressed in the
+;@ DecompressCore format ($100 bytes unpacked, $BB packed).
 MonSprite_Toadstool::
 	db $00, $01, $01, $01, $ff, $f0, $07, $07, $09, $0e, $38, $37, $72, $4d, $5f
 	db $7f, $2f, $39, $17, $1b, $7f, $75, $ff, $93, $7e, $63, $2e, $33, $3d, $3f, $3f
@@ -163,6 +275,11 @@ MonSprite_Toadstool::
 	db $12, $1f, $1a, $3f, $27, $01, $4c, $00, $00, $00, $f8, $a8, $f4, $1c, $fa, $8e
 	db $fc, $8c, $1c, $fc, $f2, $fe, $1c, $1c, $01, $a0, $ff, $2f
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of AmberWeed (species $61) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F7 packed).
 MonSprite_AmberWeed::
 	db $00, $01, $01, $00
 	db $00, $3e, $3e, $21, $3f, $20, $3f, $11, $1f, $3e, $3f, $7b, $4e, $7a, $4f, $01
@@ -182,6 +299,11 @@ MonSprite_AmberWeed::
 	db $22, $3e, $3e, $bc, $4c, $d4, $3c, $fc, $3c, $10, $f0, $b8, $48, $f8, $c8, $78
 	db $78, $00, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Stubsuck (species $62) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E0 packed).
 MonSprite_Stubsuck::
 	db $00, $01, $00, $07, $07, $1b, $1c, $2c, $33, $53, $6c, $6c, $73
 	db $5b, $7c, $57, $7f, $6c, $7f, $6e, $7b, $46, $7f, $93, $ff, $8f, $fe, $b7, $ff
@@ -199,6 +321,11 @@ MonSprite_Stubsuck::
 	db $00, $3b, $01, $02, $fe, $02, $fe, $09, $ff, $45, $ff, $45, $ff, $76, $fe, $5c
 	db $dc, $80, $80
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Oniono (species $63) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E5 packed).
 MonSprite_Oniono::
 	db $00, $01, $01, $00, $00, $0d, $0d, $13, $1f, $69, $7f, $55, $77
 	db $25, $27, $65, $66, $ff, $9c, $c0, $c0, $38, $f8, $44, $fc, $9a, $fe, $25, $e7
@@ -216,6 +343,11 @@ MonSprite_Oniono::
 	db $28, $2b, $34, $35, $3a, $01, $6c, $00, $ff, $09, $fe, $0a, $fc, $04, $ac, $54
 	db $a4, $5c, $7c, $9c, $fe, $e2, $3e, $3e
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of DanceVegi (species $64) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E0 packed).
 MonSprite_DanceVegi::
 	db $00, $01, $00, $0c, $0c, $1a, $1e, $05
 	db $07, $04, $07, $04, $07, $18, $1f, $2c, $3f, $57, $7d, $70, $70, $88, $f8, $36
@@ -233,6 +365,11 @@ MonSprite_DanceVegi::
 	db $0a, $fe, $54, $77, $27, $27, $0c, $0f, $00, $66, $06, $2a, $fe, $8a, $fe, $1a
 	db $fe, $15, $f7, $63, $e3, $00, $7a, $02
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of TreeBoy (species $65) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $AB packed).
 MonSprite_TreeBoy::
 	db $00, $01, $01, $00, $00, $19, $19, $16
 	db $1f, $52, $5f, $a8, $ff, $43, $7f, $24, $3f, $16, $1f, $1b, $1d, $1f, $1a, $29
@@ -247,6 +384,11 @@ MonSprite_TreeBoy::
 	db $7f, $38, $3f, $2f, $01, $15, $07, $46, $fe, $1a, $fe, $fe, $01, $25, $0b, $01
 	db $c3, $0f, $29
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of FaceTree (species $66) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $B3 packed).
 MonSprite_FaceTree::
 	db $00, $01, $01, $1e, $1e, $6f, $7f, $67, $7f, $3f, $3f, $77, $7f
 	db $3d, $3f, $08, $0f, $3c, $3b, $fc, $fc, $ce, $fe, $f4, $fc, $fe, $fe, $fe, $fe
@@ -261,6 +403,11 @@ MonSprite_FaceTree::
 	db $55, $77, $66, $66, $42, $fe, $5d, $ff, $13, $f3, $0c, $fc, $02, $fe, $9a, $01
 	db $7b, $01, $01, $a0, $ff, $2d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of HerbMan (species $67) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $C0 packed).
 MonSprite_HerbMan::
 	db $00, $01, $01, $0a, $0a, $0f, $0f, $07, $07, $02
 	db $03, $04, $07, $27, $27, $5a, $7f, $88, $ff, $50, $50, $f0, $f0, $e0, $e0, $40
@@ -276,6 +423,11 @@ MonSprite_HerbMan::
 	db $5d, $03, $37, $01, $25, $07, $26, $e6, $79, $ff, $e6, $fe, $f8, $f8, $98, $f8
 	db $01, $3a, $02, $01, $a0, $fc
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of BeanMan (species $68) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F4 packed).
 MonSprite_BeanMan::
 	db $00, $01, $00, $10, $10, $38, $28, $39, $29, $3e
 	db $2f, $19, $1f, $2f, $3f, $2f, $39, $2e, $3f, $c0, $c0, $e0, $a0, $70, $d0, $30
@@ -294,6 +446,11 @@ MonSprite_BeanMan::
 	db $00, $c1, $00, $17, $1d, $1f, $1d, $1e, $17, $0c, $0f, $00, $b0, $00, $1f, $11
 	db $3f, $27, $1b, $1f, $1e, $1f, $1e, $13, $0c, $0f
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of EvilSeed (species $69) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $B9 packed).
 MonSprite_EvilSeed::
 	db $00, $01, $05, $00, $00, $01
 	db $01, $0a, $0b, $1f, $16, $1f, $17, $2a, $3b, $3c, $2f, $3b, $2f, $cc, $cc, $dc
@@ -309,6 +466,11 @@ MonSprite_EvilSeed::
 	db $7e, $da, $36, $fe, $1c, $f4, $10, $1f, $05, $c0, $02, $08, $05, $29, $03, $05
 	db $cf, $0f, $1d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of ManEater (species $6A) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F8 packed).
 MonSprite_ManEater::
 	db $00, $01, $06, $4c, $4c, $ef, $ab, $fe, $bf, $7c, $4f, $3c, $3f
 	db $47, $7f, $67, $7d, $47, $7f, $00, $00, $9f, $9f, $7f, $e1, $3e, $ee, $3c, $fc
@@ -327,6 +489,11 @@ MonSprite_ManEater::
 	db $1e, $17, $3f, $2b, $3f, $2a, $77, $55, $06, $3c, $00, $bc, $fc, $3e, $e6, $3e
 	db $fa, $fe, $d6, $fc, $d4, $fe, $96, $ff, $31, $ff, $ff
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Snapper (species $6B) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $AB packed).
 MonSprite_Snapper::
 	db $00, $01, $02, $02, $ff
 	db $f0, $03, $03, $7f, $7c, $7f, $4c, $ff, $9b, $ff, $e8, $ff, $8c, $7b, $7b, $09
@@ -341,6 +508,11 @@ MonSprite_Snapper::
 	db $ff, $8d, $02, $10, $0f, $04, $c8, $7f, $68, $7e, $7d, $fe, $cb, $ff, $9d, $02
 	db $10, $0c, $02, $a0, $ff, $0d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Rosevine (species $6C) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DD packed).
 MonSprite_Rosevine::
 	db $00, $01, $01, $30, $30, $48, $78, $93, $f3, $ad
 	db $ee, $bc, $f3, $b7, $ef, $78, $4f, $5b, $6f, $54, $7f, $ac, $ff, $ae, $ff, $5b
@@ -358,6 +530,11 @@ MonSprite_Rosevine::
 	db $ae, $ff, $5a, $7f, $6a, $01, $19, $0f, $00, $b1, $ee, $d4, $eb, $df, $fa, $a5
 	db $01, $33, $09
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Watabou (species $6D) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F9 packed).
 MonSprite_Watabou::
 	db $00, $01, $03, $03, $ff, $f2, $39, $39, $27, $3e, $17, $1c, $1f
 	db $1b, $1c, $17, $60, $60, $60, $60, $80, $80, $ce, $ce, $f2, $be, $f4, $1c, $fc
@@ -376,6 +553,11 @@ MonSprite_Watabou::
 	db $f0, $bf, $e0, $ff, $e0, $3f, $20, $2f, $30, $03, $6c, $00, $fc, $04, $fe, $02
 	db $fe, $12, $ea, $1e, $ec, $1c, $c8, $38, $70, $f0, $f0, $f0
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of GiantSlug (species $6E) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E6 packed).
 MonSprite_GiantSlug::
 	db $00, $01, $06, $1c
 	db $1c, $2a, $36, $3e, $2a, $2a, $36, $de, $de, $fa, $ba, $77, $5d, $6b, $74, $ef
@@ -394,6 +576,11 @@ MonSprite_GiantSlug::
 	db $f0, $f0, $06, $c0, $00, $06, $c6, $06, $00, $00, $06, $d0, $00, $06, $d6, $06
 	db $00, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Catapila (species $6F) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F4 packed).
 MonSprite_Catapila::
 	db $00, $01, $02, $02, $ff, $f0, $03, $03, $0c, $0f, $13, $1f, $27, $3c
 	db $2b, $3e, $6f, $7a, $fe, $9f, $fd, $a3, $77, $78, $ff, $af, $f7, $f8, $7f, $5f
@@ -412,6 +599,11 @@ MonSprite_Catapila::
 	db $71, $5f, $70, $5f, $2f, $2f, $dc, $f4, $5c, $f4, $58, $f8, $9c, $f4, $9c, $fc
 	db $1e, $fa, $3c, $ec, $f8, $f8
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Gophecada (species $70) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $BB packed).
 MonSprite_Gophecada::
 	db $00, $01, $01, $08, $08, $04, $04, $37, $37, $79
 	db $4f, $69, $5f, $4c, $7f, $3f, $33, $1f, $14, $3f, $3a, $7f, $4f, $ff, $9c, $f7
@@ -427,6 +619,11 @@ MonSprite_Gophecada::
 	db $01, $c6, $04, $78, $5f, $fb, $9f, $01, $14, $00, $cf, $cc, $1b, $1f, $01, $1a
 	db $02
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Butterfly (species $71) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $BB packed).
 MonSprite_Butterfly::
 	db $00, $01, $02, $02, $ff, $f2, $0c, $0c, $72, $72, $8e, $fe, $b3, $cf, $74
 	db $4f, $4e, $7b, $4a, $7d, $39, $3f, $16, $1f, $2c, $37, $22, $3f, $1d, $1d, $02
@@ -441,6 +638,11 @@ MonSprite_Butterfly::
 	db $08, $71, $4f, $42, $7f, $46, $7f, $3b, $3f, $12, $1f, $2b, $02, $19, $0f, $00
 	db $41, $7f, $26, $3f, $2e, $3f, $02, $d4, $00, $02, $36, $06
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of WeedBug (species $72) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $A0 packed).
 MonSprite_WeedBug::
 	db $00, $01, $01, $18
 	db $18, $2c, $34, $34, $2c, $01, $02, $00, $a8, $b8, $b9, $a9, $7e, $7e, $02, $03
@@ -454,6 +656,11 @@ MonSprite_WeedBug::
 	db $f0, $f0, $02, $03, $1f, $1f, $3c, $27, $2c, $37, $1d, $1f, $01, $1a, $05, $f2
 	db $9a, $f6, $96, $fe, $5c, $01, $29, $03, $01, $a0, $ff, $3d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of GiantWorm (species $73) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $D4 packed).
 MonSprite_GiantWorm::
 	db $00, $01, $09, $09
 	db $ff, $f2, $01, $01, $03, $02, $03, $03, $03, $02, $07, $07, $09, $ff, $f0, $c0
@@ -469,6 +676,11 @@ MonSprite_GiantWorm::
 	db $7e, $42, $09, $c8, $00, $7f, $5f, $09, $c4, $06, $7e, $42, $5a, $66, $5f, $7f
 	db $0f, $0c, $1b, $14, $2d, $32, $6f, $53, $b4, $cf, $db, $aa, $f1, $91, $60, $60
 	db $78, $98, $6c, $94, $5c, $a4, $fe, $c2, $a2, $7e, $5e, $a2, $ec, $94, $78, $78
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Lipsy (species $74) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F2 packed).
 MonSprite_Lipsy::
 	db $00, $01, $05, $1c, $1c, $2a, $36, $3e, $2a, $2a, $36, $1e, $1e, $0f, $09, $30
 	db $3f, $46, $7f, $39, $3f, $13, $1c, $1c, $1f, $37, $2f, $5e, $73, $6f, $7c, $50
@@ -487,6 +699,11 @@ MonSprite_Lipsy::
 	db $ff, $90, $9f, $0f, $0f, $58, $f8, $30, $f0, $05, $f0, $00, $05, $50, $00, $05
 	db $2c, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of StagBug (species $75) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $D6 packed).
 MonSprite_StagBug::
 	db $00, $01, $01, $18, $18, $14, $1c, $0b, $0f, $38, $3f, $5b, $5f, $fc
 	db $f7, $bc, $bf, $9f, $93, $18, $18, $28, $38, $d0, $f0, $1c, $fc, $da, $fa, $3f
@@ -503,6 +720,11 @@ MonSprite_StagBug::
 	db $1f, $1f, $3e, $23, $3f, $3f, $01, $fc, $f0, $1c, $f4, $fc, $f4, $38, $e8, $f8
 	db $f8, $40, $c0, $80, $80, $01, $a0, $f0
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of ArmyAnt (species $76) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Also people graphics $3F in ActorGfx. Compressed in the
+;@ DecompressCore format ($100 bytes unpacked, $C7 packed).
 MonSprite_ArmyAnt::
 	db $00, $01, $01, $00, $00, $18, $18, $24
 	db $3c, $2a, $3a, $12, $12, $07, $07, $4e, $4b, $7a, $7f, $00, $00, $60, $60, $90
@@ -518,6 +740,11 @@ MonSprite_ArmyAnt::
 	db $12, $12, $01, $9a, $08, $99, $ff, $cf, $ff, $7d, $7d, $01, $ba, $00, $64, $fc
 	db $f4, $dc, $a8, $b8, $54, $5c, $4c, $4c, $20, $20, $90, $90, $01, $a0, $fe
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of GoHopper (species $77) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $B5 packed).
 MonSprite_GoHopper::
 	db $00
 	db $01, $05, $3c, $3c, $42, $42, $0f, $0f, $1a, $17, $16, $1f, $0e, $0f, $04, $07
@@ -533,6 +760,11 @@ MonSprite_GoHopper::
 	db $a8, $06, $03, $03, $25, $26, $5f, $7d, $6f, $79, $5e, $5f, $2c, $2f, $2b, $2b
 	db $05, $a0, $ff, $0d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of TailEater (species $78) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E0 packed).
 MonSprite_TailEater::
 	db $00, $01, $03, $03, $ff, $f2, $35, $35, $3a, $2f, $1b, $1f
 	db $27, $3c, $1f, $1a, $2f, $38, $1f, $19, $1f, $13, $3f, $32, $37, $38, $57, $78
@@ -550,6 +782,11 @@ MonSprite_TailEater::
 	db $24, $17, $18, $2b, $3c, $03, $ec, $00, $1f, $18, $37, $38, $53, $7c, $2a, $3f
 	db $55, $7f, $2f, $2f
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of ArmorPede (species $79) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $D5 packed).
 MonSprite_ArmorPede::
 	db $00, $01, $02, $02, $ff, $f2, $01, $01, $01, $01, $03, $03
 	db $06, $07, $3d, $3f, $00, $00, $80, $80, $80, $80, $40, $c0, $40, $c0, $20, $e0
@@ -566,6 +803,11 @@ MonSprite_ArmorPede::
 	db $ff, $b0, $bf, $6f, $7f, $b0, $02, $2b, $01, $2f, $3f, $f0, $ff, $af, $bf, $30
 	db $3f, $ff, $ff, $7a, $7a, $a8, $a8, $20, $20
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Eyeder (species $7A) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $ED packed).
 MonSprite_Eyeder::
 	db $00, $01, $05, $00, $00, $30, $30
 	db $48, $78, $2b, $3b, $2f, $3f, $1f, $1f, $0f, $0f, $0f, $0e, $0f, $0d, $3b, $3e
@@ -584,6 +826,11 @@ MonSprite_Eyeder::
 	db $ff, $67, $7f, $05, $8c, $00, $05, $d0, $00, $57, $7f, $67, $7f, $2b, $3f, $12
 	db $1f, $0e, $0f, $05, $de, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of GiantMoth (species $7B) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $CF packed).
 MonSprite_GiantMoth::
 	db $00, $01, $01, $00, $00, $04, $04, $06, $06, $06
 	db $06, $72, $72, $ff, $8f, $ef, $93, $7e, $47, $3e, $3f, $0c, $0f, $3b, $37, $6f
@@ -600,6 +847,11 @@ MonSprite_GiantMoth::
 	db $07, $00, $00, $30, $30, $7c, $4c, $01, $28, $02, $3f, $31, $0f, $0f, $07, $05
 	db $0e, $0b, $01, $36, $06
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Droll (species $7C) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $D3 packed).
 MonSprite_Droll::
 	db $00, $01, $01, $72, $72, $ad, $df, $fd, $af, $b8, $df
 	db $70, $7f, $21, $3e, $61, $7e, $a1, $fe, $4e, $4e, $b5, $fb, $bf, $f5, $1d, $fb
@@ -616,6 +868,11 @@ MonSprite_Droll::
 	db $5f, $fe, $9f, $f0, $ff, $0f, $0f, $00, $00, $01, $d8, $00, $c4, $fc, $ee, $fa
 	db $7f, $f9, $7f, $ff, $dc, $e4, $7e, $7e
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of ArmyCrab (species $7D) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $CB packed).
 MonSprite_ArmyCrab::
 	db $00, $01, $01, $20, $20, $72, $72, $5a
 	db $7a, $8e, $fe, $8d, $fb, $dc, $f7, $64, $7b, $23, $3f, $7f, $7d, $ef, $ff, $97
@@ -632,6 +889,11 @@ MonSprite_ArmyCrab::
 	db $60, $7f, $e0, $ff, $90, $ff, $f8, $01, $17, $0d, $01, $c8, $06, $a0, $ff, $f0
 	db $01, $35, $07
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of MadHornet (species $7E) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DC packed).
 MonSprite_MadHornet::
 	db $00, $01, $08, $70, $70, $7e, $4e, $7e, $46, $3e, $22, $1d, $13
 	db $7e, $7f, $f6, $8f, $7c, $7f, $1a, $1f, $2f, $39, $78, $57, $f3, $9c, $fc, $9b
@@ -648,6 +910,11 @@ MonSprite_MadHornet::
 	db $27, $08, $1c, $02, $66, $66, $92, $f2, $ea, $fa, $fb, $9b, $fe, $87, $7f, $63
 	db $1d, $1b, $7e, $7f, $ff, $82, $fc, $8f, $73, $7c, $0c, $0b, $08, $3a, $02
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of HornBeet (species $7F) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $B9 packed).
 MonSprite_HornBeet::
 	db $00
 	db $01, $01, $84, $84, $c9, $c9, $75, $7d, $1e, $1f, $02, $03, $16, $17, $0a, $0f
@@ -663,6 +930,11 @@ MonSprite_HornBeet::
 	db $e5, $01, $1b, $01, $d0, $f0, $b8, $f8, $1c, $fc, $14, $fc, $34, $fc, $74, $fc
 	db $f8, $01, $2d, $07, $01, $c7, $0f, $25
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Armorpion (species $80) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F6 packed).
 MonSprite_Armorpion::
 	db $00, $01, $01, $03, $03, $04, $07, $05
 	db $07, $07, $06, $03, $02, $63, $63, $5b, $7a, $24, $3f, $80, $80, $40, $c0, $40
@@ -681,6 +953,11 @@ MonSprite_Armorpion::
 	db $d8, $ff, $ff, $ff, $f8, $ff, $d7, $ff, $dc, $ff, $4b, $7b, $f0, $f0, $dc, $fc
 	db $2c, $fc, $f4, $fc, $2e, $fe, $ac, $fc, $66, $fe, $f8, $f8, $70, $70
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Digster (species $81) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F3 packed).
 MonSprite_Digster::
 	db $00, $01
 	db $01, $01, $ff, $f0, $37, $37, $4c, $4f, $1a, $1f, $6a, $7f, $b3, $df, $f6, $bd
@@ -700,6 +977,11 @@ MonSprite_Digster::
 	db $7f, $6f, $7f, $b8, $ff, $d2, $ff, $a2, $ff, $a4, $ff, $44, $7f, $64, $7f, $1f
 	db $1f
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Pixy (species $82) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $BB packed).
 MonSprite_Pixy::
 	db $00, $01, $02, $01, $01, $07, $06, $6d, $6e, $5d, $7e, $2e, $3f, $2f, $3f
 	db $fb, $fe, $f8, $8f, $77, $5f, $35, $3f, $18, $1f, $0f, $0f, $1c, $14, $18, $18
@@ -714,6 +996,11 @@ MonSprite_Pixy::
 	db $55, $3f, $3f, $14, $1f, $0f, $0b, $02, $18, $08, $02, $c4, $04, $1f, $1f, $7f
 	db $7f, $df, $a1, $77, $6b, $1c, $1f, $0f, $0b, $02, $38, $04
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of ArcDemon (species $83) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $EC packed).
 MonSprite_ArcDemon::
 	db $00, $01, $01, $08
 	db $08, $5c, $54, $fb, $b7, $db, $bf, $e1, $bf, $fa, $bd, $c5, $ff, $85, $ff, $14
@@ -732,6 +1019,11 @@ MonSprite_ArcDemon::
 	db $12, $1f, $28, $3f, $47, $7f, $01, $2c, $00, $7f, $d5, $ab, $ff, $91, $ff, $99
 	db $ff, $2e, $fe, $c8, $f8, $01, $3c, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of AgDevil (species $84) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E0 packed).
 MonSprite_AgDevil::
 	db $00, $01, $05, $00, $00, $01, $01, $03
 	db $02, $83, $82, $5b, $5a, $e5, $fd, $73, $7f, $f1, $fe, $e0, $e0, $f0, $10, $f8
@@ -749,6 +1041,11 @@ MonSprite_AgDevil::
 	db $ef, $b0, $bf, $f8, $71, $7f, $0f, $0f, $f4, $fc, $fa, $66, $fe, $42, $ff, $09
 	db $ff, $09, $ff, $11, $d2, $fe, $3e, $3e
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Demonite (species $85) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Also people graphics $40 in ActorGfx. Compressed in the
+;@ DecompressCore format ($100 bytes unpacked, $C9 packed).
 MonSprite_Demonite::
 	db $00, $01, $04, $00, $00, $08, $08, $cf
 	db $cf, $7f, $7f, $75, $7a, $fd, $b7, $55, $7a, $37, $3f, $2a, $2a, $aa, $aa, $9c
@@ -765,6 +1062,11 @@ MonSprite_Demonite::
 	db $40, $04, $ce, $02, $f6, $fe, $dc, $fe, $fc, $bc, $f8, $f8, $3c, $3c, $04, $a0
 	db $fe
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of DarkEye (species $86) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $C5 packed).
 MonSprite_DarkEye::
 	db $00, $01, $01, $00, $00, $0a, $0a, $0d, $0f, $02, $03, $07, $07, $08, $0f
 	db $13, $1f, $36, $3d, $d5, $ff, $b6, $fd, $5b, $7f, $a6, $ff, $b6, $ff, $56, $7f
@@ -780,6 +1082,11 @@ MonSprite_DarkEye::
 	db $ad, $01, $25, $07, $a8, $f8, $5e, $fe, $6a, $fe, $2c, $fc, $b4, $fc, $da, $fe
 	db $a6, $a6, $01, $a0, $ff, $0f
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of EyeBall (species $87) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $CA packed).
 MonSprite_EyeBall::
 	db $00, $01, $02, $18, $18, $0c, $0c, $67, $67, $3c
 	db $3f, $09, $0e, $0b, $0d, $3b, $3d, $49, $4e, $04, $07, $0f, $0f, $12, $1f, $20
@@ -794,6 +1101,11 @@ MonSprite_EyeBall::
 	db $c0, $02, $fe, $f6, $02, $5a, $02, $48, $4f, $04, $07, $0e, $02, $13, $03, $0a
 	db $0f, $02, $1a, $00, $20, $e0, $70, $02, $23, $03, $50, $f0, $f8, $f8, $00, $00
 	db $0c, $02, $c3, $05, $1f, $1f, $02, $fc, $f0, $30, $02, $d3, $05, $02, $48, $02
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of SkulRider (species $88) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $D0 packed).
 MonSprite_SkulRider::
 	db $00, $01, $01, $02, $02, $07, $07, $07, $07, $0f, $0f, $09, $0f, $0a, $0d, $3c
 	db $3f, $3f, $2f, $6f, $74, $9e, $fb, $ff, $fa, $f7, $ac, $fd, $9f, $7f, $5a, $ef
@@ -808,6 +1120,11 @@ MonSprite_SkulRider::
 	db $1e, $1e, $01, $00, $04, $0f, $0f, $3f, $3f, $6f, $5f, $37, $2f, $7c, $7f, $eb
 	db $9c, $fc, $ff, $f7, $af, $fb, $9d, $7f, $5c, $eb, $9b, $01, $1e, $08, $01, $c8
 	db $03, $3f, $4c, $7f, $7b, $5c, $7c, $5f, $ef, $9f, $fb, $fd, $4f, $7c, $7b, $7b
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of EvilBeast (species $89) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $101 packed).
 MonSprite_EvilBeast::
 	db $00, $01, $00, $19, $19, $3f, $2e, $2f, $3a, $fb, $fe, $7e, $49, $f7, $ee, $f5
 	db $9f, $df, $f6, $bf, $e8, $ff, $a6, $fd, $bf, $ff, $c7, $ff, $c4, $3f, $33, $7c
@@ -827,6 +1144,11 @@ MonSprite_EvilBeast::
 	db $2c, $00, $00, $c0, $00, $7f, $42, $77, $4b, $e5, $9b, $f7, $99, $f7, $b9, $d7
 	db $ab
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of 1EyeClown (species $8A) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DB packed).
 MonSprite_X1EyeClown::
 	db $00, $01, $05, $01, $01, $02, $03, $04, $07, $04, $07, $08, $0f, $0f, $0f
 	db $ff, $fe, $67, $7d, $f0, $f0, $20, $e0, $c7, $c7, $47, $c5, $2f, $ef, $fc, $f4
@@ -843,6 +1165,11 @@ MonSprite_X1EyeClown::
 	db $17, $0e, $0b, $06, $07, $05, $88, $00, $1c, $fc, $e8, $f8, $18, $f8, $1c, $f4
 	db $3e, $e2, $3e, $fe, $a0, $e0, $40, $40, $05, $a0, $ff, $0d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Gremlin (species $8B) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $AE packed).
 MonSprite_Gremlin::
 	db $00, $01, $02, $00
 	db $00, $04, $04, $cb, $cf, $7f, $78, $3f, $32, $15, $1f, $2a, $3d, $3b, $3f, $7d
@@ -857,6 +1184,11 @@ MonSprite_Gremlin::
 	db $27, $3e, $1b, $1a, $02, $1a, $02, $f0, $10, $e8, $38, $c8, $78, $02, $26, $0f
 	db $00, $f8, $7f, $02, $ab, $01, $02, $a0, $ff, $0d
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of MedusaEye (species $8C) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $ED packed).
 MonSprite_MedusaEye::
 	db $00, $01, $02, $33, $33, $4e
 	db $7d, $6c, $77, $46, $7f, $71, $7f, $9f, $ff, $5f, $6e, $67, $7d, $4f, $7d, $9f
@@ -875,6 +1207,11 @@ MonSprite_MedusaEye::
 	db $ff, $79, $7f, $9e, $ef, $61, $7f, $8e, $ff, $7d, $7f, $79, $7f, $63, $5f, $96
 	db $ff, $65, $7d, $3c, $3c, $00, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Lionex (species $8D) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $FE packed).
 MonSprite_Lionex::
 	db $00, $01, $01, $60, $60, $58, $78, $66, $7e
 	db $79, $7f, $b0, $ff, $ba, $ff, $cf, $fd, $cc, $ff, $ba, $ff, $f1, $ff, $9e, $ff
@@ -894,6 +1231,11 @@ MonSprite_Lionex::
 	db $ff, $fc, $ff, $68, $7f, $33, $3f, $1e, $1e, $aa, $fe, $6a, $fe, $fa, $fe, $9a
 	db $fe, $fc, $01, $49, $03
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of GoatHorn (species $8E) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E1 packed).
 MonSprite_GoatHorn::
 	db $00, $01, $01, $1c, $1c, $23, $3f, $4d, $7f, $5c, $7f
 	db $2a, $2f, $6b, $6d, $fc, $ff, $bf, $bb, $38, $38, $c4, $fc, $b2, $fe, $3a, $fe
@@ -911,6 +1253,10 @@ MonSprite_GoatHorn::
 	db $7f, $1f, $1f, $01, $3c, $00, $3c, $fc, $62, $fe, $0a, $fe, $8e, $fe, $fe, $fe
 	db $fc, $fc, $3c, $3c, $0e, $0e
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Orc (species $8F) on the field: 16 tiles (four 16 x 16 frames). Found through MonsterGfxRefs
+;@ (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx, MonsterSpriteGfx_18,
+;@ NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes unpacked, $FE packed).
 MonSprite_Orc::
 	db $00, $01, $01, $00, $00, $1b, $1b, $15, $1f, $0c
 	db $0f, $08, $0f, $14, $1f, $12, $1f, $37, $3b, $04, $04, $ee, $ea, $5e, $fa, $1c
@@ -930,6 +1276,11 @@ MonSprite_Orc::
 	db $59, $67, $3e, $3e, $0a, $fe, $0f, $ff, $09, $ff, $09, $ff, $07, $ff, $fe, $fe
 	db $fc, $fc, $78, $78
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Ogre (species $90) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E9 packed).
 MonSprite_Ogre::
 	db $00, $01, $01, $1b, $1b, $6f, $7c, $bf, $f8, $ed, $fa, $a0
 	db $ff, $72, $7f, $3a, $3d, $4f, $78, $c0, $c0, $e0, $20, $fc, $1c, $b4, $5c, $04
@@ -947,6 +1298,11 @@ MonSprite_Ogre::
 	db $10, $02, $f4, $1c, $e4, $1c, $ec, $1c, $d8, $38, $fe, $7e, $49, $01, $61, $01
 	db $01, $26, $06, $95, $ff, $1b, $ff, $fd, $ff, $e6, $01, $37, $05
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of GateGuard (species $91) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DB packed).
 MonSprite_GateGuard::
 	db $00, $01, $02
 	db $00, $00, $32, $32, $3f, $2d, $5f, $55, $bf, $fa, $af, $f8, $a7, $fe, $ff, $fb
@@ -964,6 +1320,11 @@ MonSprite_GateGuard::
 	db $2f, $39, $02, $c8, $04, $81, $ff, $f1, $7f, $f9, $1f, $fa, $4e, $fa, $4e, $fc
 	db $e4, $98, $98, $80, $80, $02, $a0, $fc
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of ChopClown (species $92) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E8 packed).
 MonSprite_ChopClown::
 	db $00, $01, $02, $1e, $1e, $6f, $6f, $67
 	db $67, $0f, $0f, $0f, $0f, $5d, $5f, $fe, $bd, $ee, $bf, $3c, $3c, $7b, $7b, $f3
@@ -980,6 +1341,11 @@ MonSprite_ChopClown::
 	db $fc, $f8, $f8, $02, $00, $06, $5f, $5f, $f0, $bf, $ec, $02, $0f, $06, $f8, $fc
 	db $fc, $04, $fc, $1a, $fe, $e3, $bf, $c0, $ff, $c6, $ff, $df, $ff, $6e, $6f, $53
 	db $5f, $1d, $13, $0f, $0f, $e2, $fe, $01, $ff, $31, $ff, $fd, $ff, $02, $38, $04
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Grendal (species $93) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DC packed).
 MonSprite_Grendal::
 	db $00, $01, $01, $00, $00, $05, $05, $0b, $0f, $0d, $0f, $17, $1e, $29, $3f, $7f
 	db $7f, $81, $ff, $80, $80, $d0, $50, $e8, $f8, $5c, $fc, $f2, $be, $c9, $ff, $f7
@@ -996,6 +1362,11 @@ MonSprite_Grendal::
 	db $ff, $ff, $fe, $fe, $fc, $fc, $c4, $fc, $38, $38, $01, $c0, $06, $1f, $1f, $11
 	db $1f, $0e, $0e, $01, $d0, $06, $e4, $fc, $d2, $fe, $7e, $7e
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Akubar (species $94) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $100 packed).
 MonSprite_Akubar::
 	db $00, $01, $00, $1c
 	db $1c, $33, $3f, $7c, $7f, $9a, $ff, $b7, $fd, $9f, $ff, $e7, $fa, $bf, $f7, $d8
@@ -1015,6 +1386,11 @@ MonSprite_Akubar::
 	db $fe, $6a, $fe, $ae, $fe, $3a, $fa, $d8, $f8, $90, $00, $2b, $01, $1b, $1b, $26
 	db $3f, $4a, $7f, $5b, $7f, $00, $ca, $00, $a5, $ff, $af, $ff
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of MadKnight (species $95) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $FB packed).
 MonSprite_MadKnight::
 	db $00, $01, $04, $31
 	db $31, $71, $51, $cb, $bb, $cd, $bf, $7c, $5f, $2e, $3f, $6b, $7f, $7d, $7e, $c0
@@ -1034,6 +1410,11 @@ MonSprite_MadKnight::
 	db $dc, $ff, $4f, $7f, $3c, $3c, $00, $00, $04, $c0, $00, $f2, $fe, $2c, $fc, $64
 	db $fc, $cc, $fc, $4c, $74, $7c, $7c
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Gigantes (species $96) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F1 packed).
 MonSprite_Gigantes::
 	db $00, $01, $04, $01, $01, $03, $02, $07, $07
 	db $3d, $3a, $2b, $3d, $1d, $12, $1f, $17, $36, $3b, $00, $00, $8e, $8e, $d1, $df
@@ -1052,6 +1433,11 @@ MonSprite_Gigantes::
 	db $04, $c0, $06, $10, $1f, $04, $4c, $00, $fc, $14, $fe, $82, $76, $da, $fe, $fa
 	db $0c, $fc, $3a, $f6, $ce, $f2, $7e, $7e
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Centasaur (species $97) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F8 packed).
 MonSprite_Centasaur::
 	db $00, $01, $06, $01, $01, $03, $02, $03
 	db $02, $1d, $1f, $15, $1f, $3b, $3e, $7f, $4f, $cc, $b7, $c0, $c0, $60, $a0, $e0
@@ -1069,6 +1455,11 @@ MonSprite_Centasaur::
 	db $6f, $7f, $c0, $c0, $e0, $20, $e0, $20, $bc, $7c, $e4, $3c, $ac, $7c, $f2, $be
 	db $7a, $fe, $56, $7f, $62, $7f, $44, $7f, $44, $7f, $34, $3f, $45, $7f, $4d, $7f
 	db $7e, $7e, $35, $ff, $23, $ff, $42, $fe, $a6, $fe, $eb, $ff, $e3, $06, $3b, $01
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of EvilArmor (species $98) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DE packed).
 MonSprite_EvilArmor::
 	db $00, $01, $00, $18, $18, $1f, $17, $1f, $1f, $3f, $27, $67, $5b, $e7, $bd, $ff
 	db $bd, $ff, $a5, $18, $18, $fc, $ec, $3e, $ea, $1f, $f9, $0f, $f9, $2f, $f9, $cf
@@ -1085,6 +1476,11 @@ MonSprite_EvilArmor::
 	db $7f, $00, $ce, $00, $ed, $1f, $fa, $fe, $00, $ac, $00, $38, $38, $7f, $57, $ff
 	db $97, $00, $b6, $02, $7f, $5f, $78, $5f, $00, $d0, $08, $00, $6c, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Jamirus (species $99) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $F4 packed).
 MonSprite_Jamirus::
 	db $00, $01
 	db $00, $19, $19, $2e, $3f, $48, $7f, $59, $7f, $97, $fe, $9f, $fb, $9b, $fe, $97
@@ -1104,6 +1500,11 @@ MonSprite_Jamirus::
 	db $fc, $00, $2c, $02, $26, $3f, $2a, $3f, $4b, $7f, $59, $7f, $55, $7f, $95, $ff
 	db $b7, $ff
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Durran (species $9A) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $FF packed).
 MonSprite_Durran::
 	db $00, $01, $00, $c7, $c7, $be, $ff, $8e, $ff, $df, $ff, $7e, $7f, $3b
 	db $3f, $dd, $fb, $96, $ff, $fe, $ff, $59, $7f, $a3, $fd, $ff, $e3, $be, $ff, $f7
@@ -1123,6 +1524,11 @@ MonSprite_Durran::
 	db $0f, $ce, $fe, $0b, $fd, $07, $fd, $03, $ff, $03, $ff, $27, $fd, $ff, $fd, $f6
 	db $f6
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Spooky (species $9B) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $C5 packed).
 MonSprite_Spooky::
 	db $00, $01, $05, $01, $01, $03, $03, $07, $07, $04, $07, $1f, $1f, $3f, $3f
 	db $3f, $38, $7d, $56, $80, $80, $c0, $c0, $e0, $e0, $20, $e0, $f8, $f8, $fc, $fc
@@ -1138,6 +1544,11 @@ MonSprite_Spooky::
 	db $fe, $12, $fe, $16, $fc, $1c, $ff, $0f, $fe, $02, $fc, $04, $f8, $f8, $05, $de
 	db $04, $f0, $10, $05, $58, $04
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Skullgon (species $9C) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $101 packed).
 MonSprite_Skullgon::
 	db $00, $01, $00, $26, $26, $77, $55, $77, $55, $ff
 	db $af, $fd, $bb, $ff, $ad, $ae, $ff, $d9, $fe, $d8, $d8, $dc, $54, $dc, $54, $fc
@@ -1157,6 +1568,11 @@ MonSprite_Skullgon::
 	db $7f, $5e, $7f, $fc, $8f, $00, $2c, $00, $fe, $aa, $fe, $aa, $fa, $ae, $ec, $bc
 	db $ba, $fe, $6e, $fe, $00, $3c, $00
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Putrepup (species $9D) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E1 packed).
 MonSprite_Putrepup::
 	db $00, $01, $04, $18, $18, $1f, $17, $14, $1f
 	db $18, $1f, $26, $3f, $17, $1d, $23, $3f, $19, $1f, $00, $00, $80, $80, $c0, $40
@@ -1174,6 +1590,11 @@ MonSprite_Putrepup::
 	db $11, $1f, $0e, $0f, $38, $3f, $78, $47, $18, $18, $e8, $f8, $28, $f8, $18, $f8
 	db $c4, $fc, $28, $f8, $54, $fc, $88, $f8
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of RotRaven (species $9E) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $E5 packed).
 MonSprite_RotRaven::
 	db $00, $01, $04, $04, $ff, $f0, $07, $07
 	db $1a, $1d, $2f, $37, $3f, $25, $df, $d8, $2f, $2d, $04, $ff, $f0, $c0, $c0, $b0
@@ -1191,6 +1612,11 @@ MonSprite_RotRaven::
 	db $05, $07, $08, $04, $2b, $01, $04, $40, $04, $7a, $7b, $2c, $04, $4b, $01, $b0
 	db $f0, $a0, $e0, $68, $e8, $14, $fc, $92, $fe, $6a, $04, $5b, $01
 
+;@ path: gfx/monsters/sprites
+;@ Walking sprite of Mummy (species $9F) on the field: 16 tiles (four 16 x 16 frames). Found through
+;@ MonsterGfxRefs (index species + $10) and its copies ActorGfxIds, ActorGfxRefs, MonsterSpriteGfx,
+;@ MonsterSpriteGfx_18, NamePictures and BreedIconGfx. Compressed in the DecompressCore format ($100 bytes
+;@ unpacked, $DC packed).
 MonSprite_Mummy::
 	db $00, $01, $01
 	db $00, $00, $07, $07, $0b, $0c, $16, $19, $2d, $32, $2b, $34, $16, $19, $18, $17
@@ -1208,6 +1634,8 @@ MonSprite_Mummy::
 	db $68, $04, $ec, $7c, $1e, $fa, $fe, $0a, $0c, $fc, $f0, $10, $18, $f8, $01, $7c
 	db $00, $01, $fe, $f2, $01, $c4, $04, $14, $1b
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_39::
 	db $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

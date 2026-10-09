@@ -11,7 +11,7 @@ SECTION "ROM Bank $062", ROMX[$4000], BANK[$62]
 ;@ PrintNumber7.
 ;@ test: skip calls into the middle of another routine
 LeftoverShowScreen_62::
-;> call_address(0x1F94, LeftoverScreenRLE_62, 0x9800)   # (hl = the packed map, bc = the BG map)
+;> pass                                  # calls $1F94 with hl = LeftoverScreenRLE_62 (the packed map) and bc = $9800 (the BG map)
 	ld hl, LeftoverScreenRLE_62
 	ld bc, $9800
 	call $1f94

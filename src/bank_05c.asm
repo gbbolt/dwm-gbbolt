@@ -95,7 +95,7 @@ DrawSkillAnimSprite_5C::
 
 ;>     mem[0xDD65] = 4                      # go on with animation command 4
 	ld a, $04
-	ld [$dd65], a
+	ld [wBattleAnimStep], a
 ;>     wSkillAnimPhase = 1
 	ld a, $01
 	ld [wSkillAnimPhase], a

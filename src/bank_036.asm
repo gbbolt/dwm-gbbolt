@@ -4,17 +4,60 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $036", ROMX[$4000], BANK[$36]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_36::
 	db $36
 
+;@ path: gfx/monsters/tables
+;@ Entry table of bank $36: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_36::
-	db $51, $40, $30, $42, $fb, $43, $bc, $45, $5c, $47, $31, $49, $07, $4b, $2f
-	db $4c, $0d, $4d, $9c, $4e, $60, $4f, $7e, $50, $3b, $52, $4d, $53, $e6, $54, $28
-	db $56, $3a, $57, $dc, $58, $f5, $59, $33, $5b, $bc, $5c, $8e, $5e, $76, $5f, $6a
-	db $60, $0d, $62, $12, $63, $96, $64, $7e, $66, $b0, $68, $8e, $6a, $f9, $6b, $b5
-	db $6d, $29, $6f, $5f, $70, $b5, $71, $14, $73, $09, $75, $1c, $76, $1f, $77, $fc
-	db $77
+	dw MonPic_WingSnake
+	dw MonPic_Coatol
+	dw MonPic_Orochi
+	dw MonPic_BattleRex
+	dw MonPic_SkyDragon
+	dw MonPic_Divinegon
+	dw MonPic_Tonguella
+	dw MonPic_Almiraj
+	dw MonPic_CatFly
+	dw MonPic_PillowRat
+	dw MonPic_Saccer
+	dw MonPic_GulpBeast
+	dw MonPic_Skullroo
+	dw MonPic_WindBeast
+	dw MonPic_Anteater
+	dw MonPic_SuperTen
+	dw MonPic_IronTurt
+	dw MonPic_Mommonja
+	dw MonPic_HammerMan
+	dw MonPic_Grizzly
+	dw MonPic_Yeti
+	dw MonPic_MadGopher
+	dw MonPic_FairyRat
+	dw MonPic_Unicorn
+	dw MonPic_Goategon
+	dw MonPic_WildApe
+	dw MonPic_Trumpeter
+	dw MonPic_KingLeo
+	dw MonPic_DarkHorn
+	dw MonPic_MadCat
+	dw MonPic_BigEye
+	dw MonPic_Picky
+	dw MonPic_Wyvern
+	dw MonPic_BullBird
+	dw MonPic_Florajay
+	dw MonPic_DuckKite
+	dw MonPic_MadPecker
+	dw MonPic_MadRaven
+	dw MonPic_MistyWing
+	dw MonPic_Dracky
 
+;@ path: gfx/monsters/pictures
+;@ Picture of WingSnake (species $27): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $1DF packed).
 MonPic_WingSnake::
 	db $40, $02, $02, $ff, $02, $ff, $f4, $ff, $e0, $6d, $ff, $1f, $fc, $04, $02
 	db $00, $05, $00, $ff, $f1, $8e, $ff, $73, $7f, $ff, $00, $ff, $0f, $f0, $3a, $cf
@@ -46,6 +89,10 @@ MonPic_WingSnake::
 	db $0f, $fe, $07, $02, $cc, $00, $02, $00, $02, $08, $f7, $c0, $ff, $3f, $7f, $80
 	db $b6, $ff, $02, $1f, $00, $00, $ff, $00, $18, $f4, $60, $e7, $a1, $99, $0f, $ce
 	db $ff, $f0, $02, $00, $02, $3f, $20, $7f, $c0, $ff, $02, $1f, $1e, $02, $ff, $f5
+;@ path: gfx/monsters/pictures
+;@ Picture of Coatol (species $28): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1CB packed).
 MonPic_Coatol::
 	db $40, $02, $05, $ff, $05, $ff, $f0, $ff, $e6, $27, $f1, $11, $f9, $09, $fe, $07
 	db $fd, $07, $05, $00, $01, $f0, $0f, $fc, $b3, $fe, $55, $ff, $aa, $bb, $31, $31
@@ -77,6 +124,10 @@ MonPic_Coatol::
 	db $02, $df, $0d, $7d, $f8, $fb, $88, $8e, $03, $fb, $ff, $fc, $ff, $00, $4f, $78
 	db $8f, $e8, $9f, $d0, $3f, $a0, $ff, $c0, $05, $5a, $02
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Orochi (species $29): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1C1 packed).
 MonPic_Orochi::
 	db $40, $02, $15, $ff, $15
 	db $ff, $ff, $05, $01, $fe, $06, $f9, $0d, $f6, $07, $ff, $00, $ff, $30, $df, $50
@@ -108,6 +159,10 @@ MonPic_Orochi::
 	db $3c, $74, $7f, $eb, $ff, $ae, $ff, $60, $bf, $a0, $bf, $20, $7f, $c0, $ff, $80
 	db $0f, $3c, $9f, $96, $ff, $6c, $ff, $18, $15, $00, $0f, $05
 
+;@ path: gfx/monsters/pictures
+;@ Picture of BattleRex (species $2A): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $1A0 packed).
 MonPic_BattleRex::
 	db $40, $02, $04, $ff
 	db $04, $ff, $ff, $0b, $03, $ff, $40, $ff, $60, $ff, $60, $df, $78, $ef, $38, $f7
@@ -137,6 +192,10 @@ MonPic_BattleRex::
 	db $ff, $c0, $f8, $19, $f9, $29, $fc, $3c, $ff, $03, $04, $00, $04, $3f, $fc, $9f
 	db $fa, $df, $d6, $ff, $bc, $ff, $04, $cf, $1e, $04, $ff, $f1
 
+;@ path: gfx/monsters/pictures
+;@ Picture of SkyDragon (species $2B): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $1D5 packed).
 MonPic_SkyDragon::
 	db $40, $02, $05, $ff
 	db $05, $ff, $ff, $05, $01, $fe, $03, $fc, $07, $f9, $0f, $ff, $00, $ff, $07, $f8
@@ -170,6 +229,10 @@ MonPic_SkyDragon::
 	db $ff, $24, $ff, $2b, $ff, $30, $ee, $4e, $05, $1e, $15, $05, $1d, $1a, $05, $ff
 	db $f3
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Divinegon (species $2C): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $1D6 packed).
 MonPic_Divinegon::
 	db $40, $02, $0a, $ff, $0a, $ff, $ff, $05, $01, $fe, $03, $fd, $06, $fb, $0d
 	db $ff, $00, $ff, $07, $fb, $3c, $df, $e7, $7a, $bf, $df, $75, $bf, $ef, $7b, $df
@@ -202,6 +265,10 @@ MonPic_Divinegon::
 	db $ff, $bf, $f5, $5f, $e7, $41, $ff, $24, $ff, $2b, $ff, $30, $ee, $4e, $0a, $1e
 	db $15, $0a, $1d, $1a, $0a, $ff, $f3
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Tonguella (species $2D): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $128 packed).
 MonPic_Tonguella::
 	db $40, $02, $05, $ff, $05, $ff, $ff, $4d, $05
 	db $5f, $0f, $4d, $05, $73, $0e, $01, $ff, $01, $ff, $03, $fd, $0f, $f1, $3f, $c6
@@ -223,6 +290,10 @@ MonPic_Tonguella::
 	db $50, $ff, $20, $05, $72, $00, $03, $83, $0d, $0d, $f6, $f7, $fb, $3d, $ff, $07
 	db $05, $72, $02, $7f, $70, $ff, $c0, $ff, $60, $05, $f8, $14, $05, $72, $0e
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Almiraj (species $2E): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $DE packed).
 MonPic_Almiraj::
 	db $40
 	db $02, $03, $ff, $03, $ff, $ff, $4d, $03, $5f, $0f, $4d, $03, $87, $0f, $13, $01
@@ -240,6 +311,10 @@ MonPic_Almiraj::
 	db $00, $b0, $6f, $f9, $d7, $da, $37, $eb, $f3, $ff, $22, $ff, $1c, $03, $86, $01
 	db $c0, $3f, $f0, $ff, $08, $d7, $84, $ff, $78, $03, $86, $0f, $03
 
+;@ path: gfx/monsters/pictures
+;@ Picture of CatFly (species $2F): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $18F packed).
 MonPic_CatFly::
 	db $40, $02, $0d
 	db $ff, $0d, $ff, $fa, $03, $0d, $00, $01, $08, $ff, $18, $e7, $3c, $e7, $3c, $c7
@@ -268,6 +343,10 @@ MonPic_CatFly::
 	db $1f, $0a, $0d, $90, $07, $0d, $ff, $f1, $7f, $e0, $1f, $fe, $c1, $ff, $f8, $3d
 	db $fc, $06, $0d, $0e, $03, $0d, $cb, $16, $0d, $d7, $1f, $02
 
+;@ path: gfx/monsters/pictures
+;@ Picture of PillowRat (species $30): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $C4 packed).
 MonPic_PillowRat::
 	db $40, $02, $02, $ff
 	db $02, $ff, $ff, $4d, $02, $5f, $0f, $4d, $02, $7b, $0f, $07, $10, $ef, $3c, $ff
@@ -282,6 +361,10 @@ MonPic_PillowRat::
 	db $ff, $c0, $02, $7a, $0f, $13, $f9, $1e, $fe, $07, $ff, $01, $fe, $07, $fc, $07
 	db $ff, $03, $02, $7a, $02, $00, $ff, $ff, $ff, $1c, $dd, $ff, $e3, $02, $7a, $02
 	db $8f, $7c, $3f, $f0, $ff, $c0, $3f, $f0, $9f, $f0, $ff, $60, $02, $7a, $0f, $11
+;@ path: gfx/monsters/pictures
+;@ Picture of Saccer (species $31): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $11E packed).
 MonPic_Saccer::
 	db $40, $02, $04, $ff, $04, $ff, $ff, $19, $01, $fe, $03, $04, $00, $09, $80, $7f
 	db $c0, $04, $00, $0f, $1a, $04, $21, $09, $04, $2c, $00, $fe, $03, $fe, $23, $dc
@@ -302,6 +385,10 @@ MonPic_Saccer::
 	db $11, $04, $41, $0f, $1e, $f5, $1d, $ed, $3f, $ff, $12, $04, $00, $06, $9b, $9a
 	db $bf, $a4, $bf, $a0, $bf, $e0, $bf, $e0, $ff, $40, $04, $00, $0f, $11
 
+;@ path: gfx/monsters/pictures
+;@ Picture of GulpBeast (species $32): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $1BD packed).
 MonPic_GulpBeast::
 	db $40, $02
 	db $09, $ff, $09, $ff, $f8, $07, $f8, $18, $09, $00, $09, $f0, $0f, $0c, $09, $00
@@ -333,6 +420,10 @@ MonPic_GulpBeast::
 	db $a1, $ff, $60, $09, $00, $00, $fb, $0c, $ff, $07, $ff, $80, $09, $04, $21, $09
 	db $ff, $f1, $bf, $60, $09, $3e, $0f, $0f, $09, $00, $08
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Skullroo (species $33): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $112 packed).
 MonPic_Skullroo::
 	db $40, $02, $05, $ff, $05
 	db $ff, $ff, $4d, $05, $1d, $0f, $09, $01, $ff, $02, $05, $1c, $06, $fe, $80, $7e
@@ -353,6 +444,10 @@ MonPic_Skullroo::
 	db $44, $67, $9e, $99, $e3, $ff, $f7, $78, $ff, $0f, $05, $1c, $00, $3f, $20, $3f
 	db $20, $7f, $c0, $ff, $80, $ff, $40, $ff, $c0, $05, $1c, $0f, $01
 
+;@ path: gfx/monsters/pictures
+;@ Picture of WindBeast (species $34): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $199 packed).
 MonPic_WindBeast::
 	db $40, $02, $05
 	db $ff, $05, $ff, $f4, $06, $fd, $07, $fe, $03, $ff, $01, $ff, $00, $ff, $20, $df
@@ -382,6 +477,10 @@ MonPic_WindBeast::
 	db $e7, $9b, $ff, $7c, $fd, $07, $ff, $02, $ff, $07, $ff, $08, $05, $22, $05, $05
 	db $13, $22, $05, $c5, $1f, $10
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Anteater (species $35): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $142 packed).
 MonPic_Anteater::
 	db $40, $02, $02, $ff, $02, $ff, $ff, $4d, $02, $5f
 	db $0f, $4d, $02, $6d, $08, $07, $fe, $03, $02, $6c, $09, $80, $ff, $40, $02, $6c
@@ -405,6 +504,10 @@ MonPic_Anteater::
 	db $01, $0e, $3f, $e0, $f8, $ff, $19, $ff, $07, $02, $d8, $03, $c0, $bf, $f0, $9f
 	db $08, $ff, $bc, $ff, $60, $02, $6c, $00
 
+;@ path: gfx/monsters/pictures
+;@ Picture of SuperTen (species $36): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $112 packed).
 MonPic_SuperTen::
 	db $40, $02, $06, $ff, $06, $ff, $ff, $4d
 	db $06, $2b, $0f, $18, $fd, $3c, $fd, $41, $06, $2c, $01, $60, $ff, $10, $ff, $08
@@ -425,6 +528,10 @@ MonPic_SuperTen::
 	db $ff, $a8, $ff, $10, $06, $88, $01, $ab, $fb, $87, $ff, $80, $e7, $5f, $ff, $38
 	db $06, $2c, $05, $80, $ff, $40, $06, $ce, $1f, $07
 
+;@ path: gfx/monsters/pictures
+;@ Picture of IronTurt (species $37): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1A2 packed).
 MonPic_IronTurt::
 	db $40, $02, $09, $ff, $09, $ff
 	db $ff, $19, $02, $ff, $82, $09, $00, $0b, $08, $09, $00, $0f, $1a, $09, $ff, $f2
@@ -454,6 +561,10 @@ MonPic_IronTurt::
 	db $f7, $7f, $f8, $0c, $fd, $06, $fe, $03, $fe, $03, $ff, $01, $09, $00, $00, $9f
 	db $b0, $0f, $9c, $7f, $1a, $ef, $34, $7f, $de, $09, $f8, $12
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Mommonja (species $38): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $119 packed).
 MonPic_Mommonja::
 	db $40, $02, $05, $ff
 	db $05, $ff, $ff, $4d, $05, $5f, $0f, $4d, $05, $75, $0f, $01, $01, $ff, $01, $fe
@@ -475,6 +586,10 @@ MonPic_Mommonja::
 	db $ff, $01, $05, $74, $00, $0f, $08, $1f, $10, $7f, $6c, $bf, $d2, $df, $6e, $ff
 	db $f8, $05, $74, $0f, $11
 
+;@ path: gfx/monsters/pictures
+;@ Picture of HammerMan (species $39): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $13E packed).
 MonPic_HammerMan::
 	db $40, $02, $05, $ff, $05, $ff, $ff, $4d, $05, $5f, $0f
 	db $4d, $05, $7b, $0f, $07, $01, $fe, $03, $fc, $07, $05, $7a, $01, $10, $ef, $38
@@ -498,6 +613,10 @@ MonPic_HammerMan::
 	db $fc, $ff, $fc, $05, $fc, $11, $1f, $ff, $0f, $05, $7a, $08, $1f, $d8, $ff, $e0
 	db $05, $7a, $08
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Grizzly (species $3A): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $189 packed).
 MonPic_Grizzly::
 	db $40, $02, $11, $ff, $11, $ff, $f4, $1a, $ff, $0d, $ff, $77, $f8
 	db $3f, $11, $00, $05, $11, $ff, $f0, $80, $ff, $80, $11, $10, $09, $11, $21, $0f
@@ -525,6 +644,10 @@ MonPic_Grizzly::
 	db $04, $fc, $0d, $fa, $0a, $f0, $12, $fe, $0f, $11, $4e, $04, $03, $d2, $0f, $0c
 	db $f7, $fe, $5f, $ff, $ff, $fc, $ff, $30, $11, $20, $0f, $01
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Yeti (species $3B): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked by
+;@ LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1D2 packed).
 MonPic_Yeti::
 	db $40, $02, $09, $ff
 	db $09, $ff, $f2, $03, $fc, $07, $fd, $35, $cd, $7d, $c4, $4c, $09, $00, $03, $00
@@ -557,6 +680,10 @@ MonPic_Yeti::
 	db $bf, $09, $b2, $12, $09, $00, $00, $70, $f3, $80, $80, $8e, $9e, $d7, $4d, $09
 	db $f8, $14, $f3, $f2, $7f, $cc, $7f, $20, $09, $70, $01, $09, $0b, $21
 
+;@ path: gfx/monsters/pictures
+;@ Picture of MadGopher (species $3C): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $E8 packed).
 MonPic_MadGopher::
 	db $40, $02
 	db $05, $ff, $05, $ff, $ff, $4d, $05, $3d, $0f, $29, $01, $fc, $05, $3d, $06, $70
@@ -575,6 +702,10 @@ MonPic_MadGopher::
 	db $88, $1f, $1c, $33, $36, $c3, $d1, $ff, $33, $ff, $0e, $05, $3c, $00, $05, $64
 	db $15, $20, $05, $3c, $0f, $03
 
+;@ path: gfx/monsters/pictures
+;@ Picture of FairyRat (species $3D): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $F4 packed).
 MonPic_FairyRat::
 	db $40, $02, $06, $ff, $06, $ff, $ff, $4d, $06, $11
 	db $0d, $fb, $38, $fb, $42, $3f, $01, $fe, $80, $ff, $80, $fd, $82, $fe, $80, $06
@@ -593,6 +724,10 @@ MonPic_FairyRat::
 	db $ff, $05, $ff, $0a, $ff, $0c, $ff, $10, $ff, $20, $ff, $00, $77, $3e, $bf, $fc
 	db $f7, $f0, $06, $12, $0f, $4d, $06, $e0, $1f, $17
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Unicorn (species $3E): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1A3 packed).
 MonPic_Unicorn::
 	db $40, $02, $06, $ff, $06, $ff
 	db $f5, $f9, $1a, $f7, $07, $fa, $03, $06, $00, $06, $06, $00, $01, $c0, $06, $00
@@ -622,6 +757,10 @@ MonPic_Unicorn::
 	db $fb, $ee, $f1, $16, $f7, $10, $f3, $10, $f8, $08, $ff, $07, $ff, $00, $63, $be
 	db $23, $e2, $e7, $24, $7f, $d8, $7f, $06, $19, $12, $06, $7b, $1d
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Goategon (species $3F): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $105 packed).
 MonPic_Goategon::
 	db $40, $02, $0a
 	db $ff, $0a, $ff, $ff, $4d, $0a, $5f, $0f, $4d, $0a, $75, $0f, $02, $f7, $07, $f6
@@ -642,6 +781,10 @@ MonPic_Goategon::
 	db $7d, $65, $ff, $83, $0a, $22, $13, $0a, $cd, $10, $0a, $cd, $10, $c0, $0a, $76
 	db $0f, $03
 
+;@ path: gfx/monsters/pictures
+;@ Picture of WildApe (species $40): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $184 packed).
 MonPic_WildApe::
 	db $40, $02, $04, $ff, $04, $ff, $f6, $03, $fc, $07, $f8, $0b, $04, $00
 	db $07, $c0, $3f, $f0, $0f, $a8, $04, $00, $07, $04, $21, $0f, $22, $f8, $09, $ff
@@ -669,6 +812,10 @@ MonPic_WildApe::
 	db $67, $fe, $ff, $dc, $df, $70, $7f, $e0, $ff, $80, $04, $00, $03, $0c, $ff, $03
 	db $04, $20, $09, $04, $af, $0b
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Trumpeter (species $41): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $1E8 packed).
 MonPic_Trumpeter::
 	db $40, $02, $0d, $ff, $00, $ff, $01, $fe, $07, $f8
 	db $0f, $f8, $0f, $f8, $1f, $e0, $3f, $e0, $3f, $ff, $00, $f7, $f0, $05, $f4, $01
@@ -702,6 +849,10 @@ MonPic_Trumpeter::
 	db $a3, $36, $c1, $c7, $e1, $ef, $e3, $25, $e7, $32, $ff, $1c, $ff, $00, $fe, $02
 	db $ff, $01, $0d, $d2, $19, $20, $ff, $0d, $aa, $02, $0d, $d3, $1f, $04
 
+;@ path: gfx/monsters/pictures
+;@ Picture of KingLeo (species $42): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $232 packed).
 MonPic_KingLeo::
 	db $40, $02
 	db $14, $ff, $00, $ff, $0e, $ff, $19, $ff, $15, $ff, $36, $e8, $df, $ef, $bf, $ff
@@ -739,6 +890,10 @@ MonPic_KingLeo::
 	db $00, $ff, $00, $f8, $0f, $f9, $0f, $fb, $0c, $ff, $09, $ff, $06, $ff, $02, $14
 	db $ea, $10, $79, $ce, $ff, $fc, $cb, $37, $d5, $1f, $ff, $ad, $ff, $eb, $ff, $10
 	db $ff, $00, $ff, $0a, $ef, $be, $ff, $da, $ff, $30, $14, $10, $01, $00, $ff, $00
+;@ path: gfx/monsters/pictures
+;@ Picture of DarkHorn (species $43): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1DE packed).
 MonPic_DarkHorn::
 	db $40, $02, $0a, $ff, $0a, $ff, $f0, $01, $ff, $02, $fe, $05, $f2, $00, $fd, $0b
 	db $fd, $09, $ff, $00, $7b, $7c, $4f, $2e, $3f, $b0, $7f, $40, $ff, $80, $0a, $1a
@@ -771,6 +926,10 @@ MonPic_DarkHorn::
 	db $ff, $c1, $0a, $22, $14, $c0, $fa, $27, $d7, $7f, $84, $3f, $c3, $0d, $7c, $de
 	db $f2, $ff, $3b, $ff, $06, $0a, $1e, $05, $0a, $d5, $10, $c0, $ff, $00
 
+;@ path: gfx/monsters/pictures
+;@ Picture of MadCat (species $44): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $16B packed).
 MonPic_MadCat::
 	db $40, $02
 	db $02, $ff, $02, $ff, $ff, $0b, $05, $02, $00, $03, $01, $fe, $23, $fc, $6f, $90
@@ -797,6 +956,10 @@ MonPic_MadCat::
 	db $1d, $ff, $06, $02, $00, $01, $30, $ff, $c8, $ff, $38, $ff, $78, $bf, $60, $ff
 	db $c0, $02, $40, $0f, $1c, $02, $ff, $ff, $02
 
+;@ path: gfx/monsters/pictures
+;@ Picture of BigEye (species $45): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1BC packed).
 MonPic_BigEye::
 	db $40, $02, $09, $ff, $09, $ff, $ff
 	db $01, $03, $ff, $02, $ff, $02, $fe, $03, $fe, $03, $fc, $09, $ff, $f4, $80, $7f
@@ -828,6 +991,10 @@ MonPic_BigEye::
 	db $ff, $0a, $09, $d5, $00, $97, $ff, $0f, $fc, $1f, $d8, $e7, $fc, $7f, $d4, $ff
 	db $88, $09, $00, $0f, $01
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Picky (species $46): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked by
+;@ LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $174 packed).
 MonPic_Picky::
 	db $40, $02, $08, $ff, $08, $ff, $ff, $0e, $df, $40, $ff
 	db $30, $ff, $18, $e7, $14, $df, $ea, $bf, $75, $fc, $1d, $08, $00, $05, $40, $ff
@@ -854,6 +1021,10 @@ MonPic_Picky::
 	db $5d, $dd, $e7, $ef, $e7, $b2, $fb, $1e, $ff, $06, $08, $10, $12, $7f, $c0, $ff
 	db $80, $08, $00, $07, $40, $08, $00, $0f, $0b
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Wyvern (species $47): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $136 packed).
 MonPic_Wyvern::
 	db $40, $02, $02, $ff, $02, $ff, $ff
 	db $27, $60, $ff, $60, $ff, $c0, $02, $00, $09, $03, $ff, $03, $02, $00, $0b, $80
@@ -876,6 +1047,10 @@ MonPic_Wyvern::
 	db $12, $fc, $ff, $7c, $ff, $fc, $ff, $f8, $ff, $f0, $ff, $e0, $02, $3e, $0b, $02
 	db $ff, $ff, $15, $01, $02, $00, $0b, $f0, $02, $00, $0f, $28, $00, $ff, $00
 
+;@ path: gfx/monsters/pictures
+;@ Picture of BullBird (species $48): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $156 packed).
 MonPic_BullBird::
 	db $40
 	db $02, $06, $ff, $06, $ff, $ff, $4d, $06, $25, $0f, $11, $01, $fe, $07, $f9, $1f
@@ -901,6 +1076,10 @@ MonPic_BullBird::
 	db $24, $0f, $05, $e7, $2c, $c3, $5e, $ff, $7f, $e0, $2d, $fa, $1e, $ff, $07, $06
 	db $a0, $08, $06, $76, $14
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Florajay (species $49): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $15F packed).
 MonPic_Florajay::
 	db $40, $02, $06, $ff, $06, $ff, $ff, $19, $02, $fd, $05
 	db $06, $00, $09, $80, $7f, $40, $06, $00, $0f, $0e, $10, $ef, $38, $e7, $3c, $f3
@@ -926,6 +1105,10 @@ MonPic_Florajay::
 	db $ff, $f7, $fe, $9b, $ff, $13, $ff, $03, $ff, $02, $ff, $04, $06, $00, $03, $c0
 	db $06, $c8, $1f, $1b
 
+;@ path: gfx/monsters/pictures
+;@ Picture of DuckKite (species $4A): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $1F5 packed).
 MonPic_DuckKite::
 	db $40, $02, $06, $ff, $00, $ff, $0c, $f3, $12, $ff, $1e, $ff
 	db $07, $ff, $37, $ce, $4e, $bf, $bf, $ff, $06, $ff, $f0, $00, $ff, $30, $df, $50
@@ -960,6 +1143,10 @@ MonPic_DuckKite::
 	db $07, $fb, $0b, $ff, $0e, $ff, $08, $06, $10, $00, $ef, $ec, $fb, $fa, $ff, $e6
 	db $ff, $70, $df, $50, $ff, $60, $06, $cc, $00
 
+;@ path: gfx/monsters/pictures
+;@ Picture of MadPecker (species $4B): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $113 packed).
 MonPic_MadPecker::
 	db $40, $02, $04, $ff, $04, $ff, $ff
 	db $4d, $04, $1d, $0f, $09, $01, $fe, $02, $04, $1c, $01, $03, $fe, $1c, $f5, $22
@@ -980,6 +1167,10 @@ MonPic_MadPecker::
 	db $ff, $03, $04, $1c, $04, $f7, $77, $ae, $ae, $ff, $f7, $f9, $09, $ff, $0e, $ff
 	db $0c, $04, $1c, $01, $80, $04, $08, $13, $04, $1d, $0f, $04
 
+;@ path: gfx/monsters/pictures
+;@ Picture of MadRaven (species $4C): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $103 packed).
 MonPic_MadRaven::
 	db $40, $02, $06, $ff
 	db $06, $ff, $ff, $4d, $06, $2b, $0f, $17, $03, $fc, $0c, $f0, $d0, $06, $2a, $07
@@ -999,6 +1190,10 @@ MonPic_MadRaven::
 	db $e3, $fb, $5e, $ff, $55, $ff, $9e, $06, $2a, $00, $f4, $d7, $e0, $2b, $81, $bd
 	db $cf, $ee, $ff, $30, $06, $2a, $02, $7f, $c0, $ff, $80, $06, $2a, $0f, $09
 
+;@ path: gfx/monsters/pictures
+;@ Picture of MistyWing (species $4D): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and
+;@ unpacked by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240
+;@ bytes unpacked, $DD packed).
 MonPic_MistyWing::
 	db $40
 	db $02, $01, $ff, $01, $ff, $ff, $4d, $01, $25, $0f, $12, $fe, $01, $85, $03, $fa
@@ -1016,6 +1211,10 @@ MonPic_MistyWing::
 	db $01, $25, $0f, $00, $cf, $00, $df, $01, $25, $09, $01, $7c, $1c, $bf, $01, $25
 	db $0b, $e7, $00, $f7, $01, $25, $0f, $4d, $01, $df, $1f, $0a
 
+;@ path: gfx/monsters/pictures
+;@ Picture of Dracky (species $4E): 36 tiles, 6 x 6 (48 x 48 pixels). Found through MonsterPicRefs and unpacked
+;@ by LoadMonsterPicture and the other picture loaders. Compressed in the DecompressCore format ($240 bytes
+;@ unpacked, $BA packed).
 MonPic_Dracky::
 	db $40, $02, $02, $ff
 	db $02, $ff, $ff, $4d, $02, $19, $0f, $06, $de, $3f, $bf, $3f, $7f, $7f, $02, $1a
@@ -1031,6 +1230,8 @@ MonPic_Dracky::
 	db $bf, $78, $ff, $fc, $7f, $8c, $02, $1a, $0f, $2d, $bf, $c6, $fb, $7c, $02, $1a
 	db $0f, $4d, $02, $e0, $1f, $19
 
+;@ path: unused/filler
+;@ Unused filler up to the end of the bank.
 Unused_36::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

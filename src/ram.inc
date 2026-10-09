@@ -674,3 +674,4 @@ DEF wAIBlindCount EQU $DB6C ;@ u8 Battle AI: number of enemies wrapped in an ill
 DEF hLoopPosHi EQU $FFFE ;@ u8 High byte of the loop point of the sound channel being read (one byte shared by all channels)
 DEF wAIKindBonus2 EQU $DB51 ;@ u8 Battle AI: bonus the tactic gives skill kind 2 (status) this turn; the bonus of kind 1 is kept in wNamePos
 DEF wAIKindBonus3 EQU $DB52 ;@ u8 Battle AI: bonus the tactic gives skill kind 3 (heal and support) this turn
+DEF wBattleAnimStep EQU $DD65 ;@ u8 Script step of the battle animation object (byte 3 of the object at wBattleAnimRunning)

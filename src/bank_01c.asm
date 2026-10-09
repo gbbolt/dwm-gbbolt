@@ -89,7 +89,8 @@ SoundPartSilent::
 	db $00, $00, $00, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $06: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $06: events for channel 2 (hardware channel: pulse 1). First part of sound $06 (parts $06-$08 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_06::
 	db $04, $00, $0c, $00, $c1, $35
@@ -134,7 +135,8 @@ SoundPart_06::
 	db $27, $03, $c1, $7f, $29, $19, $1f, $18, $1f, $5a, $ff
 
 ;@ path: sound/parts
-;@ Sound part $07: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $07: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $06 (parts $06-$08 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_07::
 	db $04, $00, $0d, $00, $a3
@@ -181,8 +183,9 @@ SoundPart_07::
 	db $30, $35, $a7, $c1, $80, $35, $31, $1f, $5a, $ff
 
 ;@ path: sound/parts
-;@ Sound part $08: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $08: events for channel 4 (hardware channel: wave). Part 3 of sound $06 (parts $06-$08 on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_08::
 	db $04, $48, $02, $0b, $1f, $18
 	db $25, $18, $24, $18, $23, $18, $22, $18, $a2, $ff, $19, $24, $a0, $04, $19, $0c
@@ -228,7 +231,8 @@ SoundPart_08::
 	db $1f, $5a, $ff
 
 ;@ path: sound/parts
-;@ Sound part $09: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $09: events for channel 2 (hardware channel: pulse 1). First part of sound $09 (parts $09-$0B on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_09::
 	db $02, $02, $09, $00, $fe, $fe, $a2, $01, $a3, $14, $c1, $32, $1f
@@ -280,7 +284,8 @@ SoundPart_09::
 	db $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $0A: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $0A: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $09 (parts $09-$0B on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0A::
 	db $02, $02, $0f, $00, $fe, $fe, $a2, $02, $a3, $22, $c1, $2f, $1f
@@ -320,8 +325,9 @@ SoundPart_0A::
 	db $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $0B: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $0B: events for channel 4 (hardware channel: wave). Part 3 of sound $09 (parts $09-$0B on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0B::
 	db $02, $00, $02, $0f, $fe, $fe, $a1, $0f, $a0, $02, $a3, $1f, $a2
 	db $75, $3b, $11, $40, $10, $a2, $48, $42, $5f, $b1, $fc, $05, $00, $a2, $75, $3b
@@ -378,7 +384,8 @@ SoundPart_0B::
 	db $04, $17, $08, $1f, $10, $b0, $fc, $02, $00, $ff, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $0C: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $0C: events for channel 2 (hardware channel: pulse 1). First part of sound $0C (parts $0C-$0E on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0C::
 	db $07, $02, $0a, $00
@@ -423,7 +430,8 @@ SoundPart_0C::
 	db $12, $28, $a0, $05, $12, $3c, $c1, $7f, $a0, $02, $12, $14, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $0D: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $0D: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $0C (parts $0C-$0E on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0D::
 	db $07
@@ -484,8 +492,9 @@ SoundPart_0D::
 	db $0a, $b2, $fc, $ad, $01, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $0E: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $0E: events for channel 4 (hardware channel: wave). Part 3 of sound $0C (parts $0C-$0E on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0E::
 	db $07, $ff, $02, $05, $fd, $fe, $a0, $02
 	db $a1, $05, $42, $14, $49, $14, $47, $28, $a0, $04, $47, $13, $a0, $02, $45, $0b
@@ -521,7 +530,8 @@ SoundPart_0E::
 	db $39, $0a, $44, $14, $42, $6e, $a0, $04, $42, $0a, $b0, $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $0F: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $0F: events for channel 2 (hardware channel: pulse 1). First part of sound $0F (parts $0F-$11 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_0F::
 	db $04, $02
@@ -543,7 +553,8 @@ SoundPart_0F::
 	db $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $10: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $10: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $0F (parts $0F-$11 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_10::
 	db $04, $02, $0d, $00, $fd, $fe, $a0, $0d, $a2, $02, $a3, $0b, $c1
@@ -561,8 +572,9 @@ SoundPart_10::
 	db $30, $a3, $00, $39, $18, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $11: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $11: events for channel 4 (hardware channel: wave). Part 3 of sound $0F (parts $0F-$11 on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_11::
 	db $04, $10, $02, $02, $fd, $fe, $a1, $02
 	db $32, $0c, $35, $0c, $a2, $1f, $a1, $0a, $12, $0c, $a2, $10, $a1, $02, $35, $0c
@@ -588,7 +600,8 @@ SoundPart_11::
 	db $19, $0c, $b0, $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $12: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $12: events for channel 2 (hardware channel: pulse 1). First part of sound $12 (parts $12-$14 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_12::
 	db $0a, $00, $0a, $00, $fd, $fe, $a3, $31, $1f, $0c
@@ -616,7 +629,8 @@ SoundPart_12::
 	db $1b, $0c, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $13: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $13: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $12 (parts $12-$14 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_13::
 	db $0a, $00, $0c, $00, $fd, $fe, $a3, $31, $1f, $0c, $a0
@@ -650,8 +664,9 @@ SoundPart_13::
 	db $0c, $1f, $0c, $19, $0c, $18, $0c, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $14: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $14: events for channel 4 (hardware channel: wave). Part 3 of sound $12 (parts $12-$14 on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_14::
 	db $0a, $10, $02, $0b, $fd, $fe
 	db $a0, $02, $a2, $10, $a3, $04, $34, $04, $34, $04, $34, $04, $a2, $ff, $39, $0c
@@ -686,7 +701,8 @@ SoundPart_14::
 	db $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $15: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $15: events for channel 2 (hardware channel: pulse 1). First part of sound $15 (parts $15-$17 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_15::
 	db $08, $02, $04, $00, $fd, $fe, $a2, $02, $c0, $fe, $a0, $04, $a3, $03
@@ -708,7 +724,8 @@ SoundPart_15::
 	db $a3, $06, $1f, $08, $2b, $30, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $16: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $16: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $15 (parts $15-$17 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_16::
 	db $08, $02, $0c, $00, $fd, $fe, $a2
@@ -744,8 +761,9 @@ SoundPart_16::
 	db $06, $1f, $08, $37, $30, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $17: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $17: events for channel 4 (hardware channel: wave). Part 3 of sound $15 (parts $15-$17 on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_17::
 	db $08, $ff, $02, $05, $fd, $fe, $a1, $05
 	db $a2, $ff, $47, $10, $45, $08, $43, $08, $45, $10, $43, $08, $42, $08, $43, $10
@@ -767,7 +785,8 @@ SoundPart_17::
 	db $b0, $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $18: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $18: events for channel 2 (hardware channel: pulse 1). First part of sound $18 (parts $18-$1A on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_18::
 	db $02, $01, $0c, $00, $fe, $fe, $c1, $7f, $a3, $13, $a0, $08
@@ -801,7 +820,8 @@ SoundPart_18::
 	db $b0, $fc, $02, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $19: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $19: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $18 (parts $18-$1A on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_19::
 	db $02, $01, $0f, $00, $fd, $fe, $a3, $05, $c3, $20, $29
@@ -834,8 +854,9 @@ SoundPart_19::
 	db $40, $a3, $08, $39, $a8, $c1, $30, $a3, $00, $39, $1c, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $1A: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $1A: events for channel 4 (hardware channel: wave). Part 3 of sound $18 (parts $18-$1A on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1A::
 	db $02, $ff
 	db $02, $03, $fd, $fe, $a3, $13, $a2, $ff, $a1, $09, $29, $0e, $a2, $3f, $a1, $0c
@@ -881,7 +902,8 @@ SoundPart_1A::
 	db $b0, $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $1B: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $1B: events for channel 2 (hardware channel: pulse 1). First part of sound $1B (parts $1B-$1D on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1B::
 	db $0a, $01, $0b, $00, $a3, $02, $c4, $0a, $23, $0c, $b7, $fc
@@ -909,7 +931,8 @@ SoundPart_1B::
 	db $ac, $00, $20, $0c, $b7, $fc, $af, $00, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $1C: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $1C: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $1B (parts $1B-$1D on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1C::
 	db $0a, $01, $0e, $00, $a3
@@ -940,8 +963,9 @@ SoundPart_1C::
 	db $0c, $2a, $0c, $23, $0c, $b7, $fc, $c4, $00, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $1D: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $1D: events for channel 4 (hardware channel: wave). Part 3 of sound $1B (parts $1B-$1D on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1D::
 	db $0a, $12, $02, $03
 	db $29, $0c, $30, $0c, $b3, $fc, $02, $00, $a2, $25, $a1, $06, $fd, $fe, $a2, $30
@@ -974,7 +998,8 @@ SoundPart_1D::
 	db $b0, $00, $ff, $ff
 
 ;@ path: sound/parts
-;@ Sound part $1E: events for channel 2 (hardware channel: pulse 1). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $1E: events for channel 2 (hardware channel: pulse 1). First part of sound $1E (parts $1E-$20 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1E::
 	db $08, $02, $0b, $00, $fd, $fe, $a0, $0b, $1f, $10, $c4, $05
@@ -1016,7 +1041,8 @@ SoundPart_1E::
 	db $2b, $10, $b0, $00, $ff
 
 ;@ path: sound/parts
-;@ Sound part $1F: events for channel 3 (hardware channel: pulse 2). A 4-byte header (tempo, duty or wave length,
+;@ Sound part $1F: events for channel 3 (hardware channel: pulse 2). Part 2 of sound $1E (parts $1E-$20 on
+;@ channels 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length,
 ;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_1F::
 	db $08, $01, $0d, $00, $fd, $fe, $a0, $0d, $a3, $02, $c3
@@ -1054,8 +1080,9 @@ SoundPart_1F::
 	db $35, $37, $08, $38, $08, $3a, $08, $40, $08, $42, $08, $40, $08, $3a, $08, $38
 	db $08, $a3, $0c, $c3, $30, $37, $60, $c1, $30, $a0, $08, $37, $10, $b0, $00, $ff
 ;@ path: sound/parts
-;@ Sound part $20: events for channel 4 (hardware channel: wave). A 4-byte header (tempo, duty or wave length,
-;@ envelope, sweep or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
+;@ Sound part $20: events for channel 4 (hardware channel: wave). Part 3 of sound $1E (parts $1E-$20 on channels
+;@ 2-4, started together by PlayMusic or PlaySound). A 4-byte header (tempo, duty or wave length, envelope, sweep
+;@ or wave) and 2-byte events up to $FF, read by UpdateSound and ReadChannelEvents.
 SoundPart_20::
 	db $08, $20, $02, $02, $fd, $fe, $a2, $20, $a3, $10, $1f, $10, $20, $10, $b5, $fc
 	db $06, $00, $17, $10, $b7, $fc, $09, $00, $a2, $19, $20, $08, $a0, $06, $20, $08

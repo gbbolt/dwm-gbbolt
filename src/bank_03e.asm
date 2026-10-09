@@ -4,33 +4,118 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $03e", ROMX[$4000], BANK[$3e]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_3E::
 	db $3e
 
+;@ path: gfx/palettes/floorattrmaps
+;@ Entry table of bank $3E: the address of each compressed block (entry number = position), as DecompressSetup
+;@ finds it for Decompress / DecompressVRAM (bank, entry).
 FarTable_3E::
-	db $9d, $40, $c4, $40, $f9, $40, $4c, $41, $89, $41, $c6, $41, $de, $41, $10
-	db $42, $38, $42, $57, $42, $72, $42, $b9, $42, $fc, $42, $3f, $43, $8d, $43, $c4
-	db $43, $e4, $43, $24, $44, $78, $44, $9d, $44, $de, $44, $03, $45, $30, $45, $7b
-	db $45, $9f, $45, $d9, $45, $27, $46, $53, $46, $90, $46, $c6, $46, $e6, $46, $1d
-	db $47, $6a, $47, $af, $47, $dc, $47, $23, $48, $5b, $48, $99, $48, $c5, $48, $f0
-	db $48, $2a, $49, $80, $49, $b0, $49, $ec, $49, $11, $4a, $39, $4a, $66, $4a, $a9
-	db $4a, $e9, $4a, $3d, $4b, $6a, $4b, $b3, $4b, $eb, $4b, $21, $4c, $6b, $4c, $9b
-	db $4c, $e5, $4c, $1d, $4d, $67, $4d, $b6, $4d, $e5, $4d, $26, $4e, $62, $4e, $9b
-	db $4e, $dc, $4e, $0e, $4f, $4b, $4f, $7f, $4f, $9f, $4f, $ca, $4f, $f2, $4f, $33
-	db $50, $5c, $50, $87, $50, $ae, $50, $f0, $50, $18, $51, $53, $51
+	dw FloorAttrMap_3E_00
+	dw FloorAttrMap_3E_01
+	dw FloorAttrMap_3E_02
+	dw FloorAttrMap_3E_03
+	dw FloorAttrMap_3E_04
+	dw FloorAttrMap_3E_05
+	dw FloorAttrMap_3E_06
+	dw FloorAttrMap_3E_07
+	dw FloorAttrMap_3E_08
+	dw FloorAttrMap_3E_09
+	dw FloorAttrMap_3E_0A
+	dw FloorAttrMap_3E_0B
+	dw FloorAttrMap_3E_0C
+	dw FloorAttrMap_3E_0D
+	dw FloorAttrMap_3E_0E
+	dw FloorAttrMap_3E_0F
+	dw FloorAttrMap_3E_10
+	dw FloorAttrMap_3E_11
+	dw FloorAttrMap_3E_12
+	dw FloorAttrMap_3E_13
+	dw FloorAttrMap_3E_14
+	dw FloorAttrMap_3E_15
+	dw FloorAttrMap_3E_16
+	dw FloorAttrMap_3E_17
+	dw FloorAttrMap_3E_18
+	dw FloorAttrMap_3E_19
+	dw FloorAttrMap_3E_1A
+	dw FloorAttrMap_3E_1B
+	dw FloorAttrMap_3E_1C
+	dw FloorAttrMap_3E_1D
+	dw FloorAttrMap_3E_1E
+	dw FloorAttrMap_3E_1F
+	dw FloorAttrMap_3E_20
+	dw FloorAttrMap_3E_21
+	dw FloorAttrMap_3E_22
+	dw FloorAttrMap_3E_23
+	dw FloorAttrMap_3E_24
+	dw FloorAttrMap_3E_25
+	dw FloorAttrMap_3E_26
+	dw FloorAttrMap_3E_27
+	dw FloorAttrMap_3E_28
+	dw FloorAttrMap_3E_29
+	dw FloorAttrMap_3E_2A
+	dw FloorAttrMap_3E_2B
+	dw FloorAttrMap_3E_2C
+	dw FloorAttrMap_3E_2D
+	dw FloorAttrMap_3E_2E
+	dw FloorAttrMap_3E_2F
+	dw FloorAttrMap_3E_30
+	dw FloorAttrMap_3E_31
+	dw FloorAttrMap_3E_32
+	dw FloorAttrMap_3E_33
+	dw FloorAttrMap_3E_34
+	dw FloorAttrMap_3E_35
+	dw FloorAttrMap_3E_36
+	dw FloorAttrMap_3E_37
+	dw FloorAttrMap_3E_38
+	dw FloorAttrMap_3E_39
+	dw FloorAttrMap_3E_3A
+	dw FloorAttrMap_3E_3B
+	dw FloorAttrMap_3E_3C
+	dw FloorAttrMap_3E_3D
+	dw FloorAttrMap_3E_3E
+	dw FloorAttrMap_3E_3F
+	dw FloorAttrMap_3E_40
+	dw FloorAttrMap_3E_41
+	dw FloorAttrMap_3E_42
+	dw FloorAttrMap_3E_43
+	dw FloorAttrMap_3E_44
+	dw FloorAttrMap_3E_45
+	dw FloorAttrMap_3E_46
+	dw FloorAttrMap_3E_47
+	dw FloorAttrMap_3E_48
+	dw FloorAttrMap_3E_49
+	dw FloorAttrMap_3E_4A
+	dw FloorAttrMap_3E_4B
+	dw FloorAttrMap_3E_4C
+	dw FloorAttrMap_3E_4D
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $00, $0E, $0F, $17, $18, $19, ..., by the room's layout
+;@ byte), unpacked to wScreenMap by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the
+;@ DecompressCore format ($100 bytes unpacked, $27 packed).
 FloorAttrMap_3E_00::
 	db $00, $01, $01
 	db $33, $01, $00, $05, $01, $fa, $ff, $45, $01, $ff, $f0, $01, $62, $01, $01, $5b
 	db $0f, $04, $33, $01, $fe, $f3, $01, $7a, $0f, $07, $01, $04, $0b, $01, $a3, $0c
 	db $01, $03, $0f, $2a
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $01, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $35 packed).
 FloorAttrMap_3E_01::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff
 	db $03, $01, $01, $04, $33, $33, $01, $1a, $0f, $0b, $00, $01, $39, $0f, $0b, $00
 	db $01, $58, $0f, $0c, $01, $47, $0f, $0d, $01, $27, $0f, $0e, $01, $28, $0f, $05
 	db $22, $01, $01, $04, $22, $01, $fa, $ff, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $02, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $53 packed).
 FloorAttrMap_3E_02::
 	db $00, $01, $01, $11, $11, $11, $11
 	db $33, $33, $01, $00, $00, $01, $fa, $ff, $03, $33, $00, $00, $33, $33, $33, $33
@@ -39,6 +124,10 @@ FloorAttrMap_3E_02::
 	db $0d, $01, $29, $01, $01, $40, $00, $01, $9b, $0f, $05, $01, $67, $01, $01, $98
 	db $07, $01, $c3, $0f, $00, $01, $c2, $02, $01, $dc, $0f, $01
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $03, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3D packed).
 FloorAttrMap_3E_03::
 	db $00, $01, $01, $33
 	db $01, $00, $04, $11, $01, $fa, $ff, $07, $01, $ff, $f1, $01, $19, $0f, $09, $01
@@ -46,6 +135,10 @@ FloorAttrMap_3E_03::
 	db $01, $7a, $0f, $05, $01, $fd, $f3, $22, $01, $9a, $0b, $01, $09, $08, $01, $ff
 	db $f0, $01, $b9, $0f, $09, $01, $05, $0f, $08
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $04, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3D packed).
 FloorAttrMap_3E_04::
 	db $00, $01, $01, $33, $01, $00, $05
 	db $01, $fa, $ff, $4a, $00, $01, $58, $0f, $07, $01, $ff, $f2, $00, $01, $79, $0f
@@ -53,30 +146,54 @@ FloorAttrMap_3E_04::
 	db $22, $22, $33, $33, $01, $e0, $00, $01, $fa, $f2, $11, $11, $11, $11, $33, $33
 	db $01, $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $05, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $18 packed).
 FloorAttrMap_3E_05::
 	db $00, $01, $01, $11, $33, $01, $01, $04, $01, $fa
 	db $ff, $43, $01, $01, $05, $01, $59, $0f, $24, $22, $01, $01, $0f, $4c
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $06, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $32 packed).
 FloorAttrMap_3E_06::
 	db $00, $01
 	db $01, $11, $33, $01, $01, $04, $01, $fa, $ff, $03, $01, $08, $02, $33, $01, $24
 	db $01, $01, $1c, $0f, $03, $01, $06, $01, $01, $17, $07, $01, $42, $0f, $01, $01
 	db $45, $00, $01, $5a, $0f, $0a, $01, $57, $0c, $01, $87, $0f, $4d, $01, $07, $05
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $07, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $28 packed).
 FloorAttrMap_3E_07::
 	db $00, $01, $01, $33, $01, $00, $04, $11, $01, $fa, $ff, $0b, $00, $33, $01, $1a
 	db $0f, $09, $00, $01, $37, $0f, $0c, $33, $00, $01, $58, $0f, $2b, $01, $46, $0f
 	db $2e, $01, $64, $01, $01, $dc, $0f, $01
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $08, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $1F packed).
 FloorAttrMap_3E_08::
 	db $00, $01, $01, $33, $01, $00, $05, $01
 	db $fa, $ff, $46, $00, $01, $61, $01, $01, $59, $0f, $27, $01, $03, $0f, $33, $22
 	db $01, $fa, $fb, $11, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $09, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $1B packed).
 FloorAttrMap_3E_09::
 	db $00, $01, $01, $33, $01, $00, $05, $01, $fa
 	db $ff, $4d, $01, $5a, $0f, $4d, $01, $7a, $0f, $03, $22, $01, $71, $0b, $11, $01
 	db $71, $0b
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $0A, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $47 packed).
 FloorAttrMap_3E_0A::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa
 	db $ff, $04, $33, $00, $33, $33, $33, $33, $00, $00, $33, $01, $1a, $0f, $05, $01
@@ -84,6 +201,10 @@ FloorAttrMap_3E_0A::
 	db $01, $7c, $0f, $01, $22, $01, $23, $03, $01, $48, $09, $01, $a5, $08, $01, $85
 	db $04, $01, $b9, $0f, $05, $01, $41, $0f, $0c
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $0B, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $43 packed).
 FloorAttrMap_3E_0B::
 	db $00, $01, $01, $11, $11, $11, $11
 	db $33, $33, $01, $00, $00, $01, $fa, $ff, $03, $33, $01, $1d, $00, $01, $20, $00
@@ -91,6 +212,10 @@ FloorAttrMap_3E_0B::
 	db $01, $73, $0f, $0d, $01, $69, $02, $22, $01, $9a, $0b, $01, $59, $05, $01, $67
 	db $03, $01, $b9, $0f, $09, $01, $64, $00, $01, $d9, $0f, $04
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $0C, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $43 packed).
 FloorAttrMap_3E_0C::
 	db $00, $01, $01, $33
 	db $01, $00, $04, $11, $01, $fa, $ff, $0b, $00, $01, $19, $0f, $0c, $01, $08, $0f
@@ -98,6 +223,10 @@ FloorAttrMap_3E_0C::
 	db $00, $01, $27, $0b, $01, $c6, $06, $22, $22, $22, $22, $33, $33, $22, $22, $22
 	db $01, $09, $03, $11, $11, $11, $11, $33, $33, $01, $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $0D, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4E packed).
 FloorAttrMap_3E_0D::
 	db $00
 	db $01, $01, $11, $33, $01, $01, $04, $01, $fa, $ff, $0a, $00, $01, $18, $0f, $0a
@@ -106,6 +235,10 @@ FloorAttrMap_3E_0D::
 	db $09, $01, $c1, $0c, $22, $22, $22, $33, $33, $22, $22, $22, $01, $a0, $01, $00
 	db $00, $11, $11, $11, $11, $33, $33, $01, $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $10, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $37 packed).
 FloorAttrMap_3E_0E::
 	db $00, $01, $01
 	db $11, $01, $00, $05, $01, $fa, $ff, $03, $33, $33, $00, $33, $01, $1f, $00, $00
@@ -113,11 +246,19 @@ FloorAttrMap_3E_0E::
 	db $1d, $02, $01, $5b, $0f, $05, $01, $45, $01, $01, $78, $0f, $0a, $01, $80, $02
 	db $01, $9b, $0f, $42
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $11, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $20 packed).
 FloorAttrMap_3E_0F::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $03, $33
 	db $01, $20, $04, $01, $19, $0f, $2d, $33, $01, $5a, $0f, $2c, $22, $01, $1a, $0f
 	db $3c, $01, $09, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $12, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $40 packed).
 FloorAttrMap_3E_10::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $03, $33
 	db $01, $20, $05, $01, $1a, $0f, $27, $01, $5e, $04, $01, $5c, $0f, $04, $01, $7c
@@ -125,6 +266,10 @@ FloorAttrMap_3E_10::
 	db $ba, $0f, $03, $22, $22, $22, $22, $33, $33, $01, $e0, $00, $01, $fa, $f6, $33
 	db $33, $01, $06, $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $13, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $54 packed).
 FloorAttrMap_3E_11::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $04, $33
 	db $00, $00, $00, $33, $00, $33, $33, $01, $21, $00, $01, $1d, $0f, $01, $01, $24
@@ -133,11 +278,19 @@ FloorAttrMap_3E_11::
 	db $02, $01, $47, $0a, $01, $a5, $08, $01, $a5, $01, $01, $81, $01, $01, $bb, $0f
 	db $06, $01, $e1, $02, $01, $da, $0f, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $14, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $25 packed).
 FloorAttrMap_3E_12::
 	db $00, $01, $01, $11, $01, $00, $05, $01
 	db $fa, $ff, $03, $33, $01, $20, $04, $01, $19, $0f, $2d, $33, $01, $5a, $0f, $2c
 	db $22, $01, $1a, $0f, $23, $22, $01, $21, $0b, $11, $01, $21, $0b
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $15, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $41 packed).
 FloorAttrMap_3E_13::
 	db $00, $01, $01
 	db $11, $01, $00, $05, $01, $fa, $ff, $04, $33, $01, $21, $04, $01, $1a, $0f, $09
@@ -145,16 +298,28 @@ FloorAttrMap_3E_13::
 	db $5d, $05, $01, $7c, $0f, $01, $22, $01, $43, $03, $01, $28, $08, $01, $a4, $0c
 	db $01, $24, $0f, $0f, $33, $33, $33, $22, $01, $1a, $0b, $01, $09, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $16, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $25 packed).
 FloorAttrMap_3E_14::
 	db $00, $01
 	db $01, $11, $01, $00, $05, $01, $fa, $ff, $03, $33, $01, $20, $05, $01, $1a, $0f
 	db $4d, $01, $7a, $0f, $43, $22, $01, $80, $04, $22, $01, $fa, $f3, $01, $80, $04
 	db $01, $09, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $20, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2D packed).
 FloorAttrMap_3E_15::
 	db $00, $01, $01, $33, $01, $00, $05, $01, $fa, $ff, $4d, $01, $3a
 	db $0f, $29, $00, $01, $a5, $00, $01, $9b, $0f, $04, $01, $bf, $01, $00, $01, $b8
 	db $0f, $05, $22, $01, $e0, $05, $01, $3a, $02, $11, $01, $f0, $05, $01, $a0, $f2
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $21, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4B packed).
 FloorAttrMap_3E_16::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $03
 	db $33, $01, $20, $01, $01, $1f, $00, $01, $1a, $0f, $09, $01, $25, $00, $01, $3a
@@ -162,11 +327,19 @@ FloorAttrMap_3E_16::
 	db $01, $40, $04, $01, $9b, $0f, $04, $01, $c0, $04, $01, $ba, $0f, $03, $22, $01
 	db $e0, $05, $01, $fa, $f6, $01, $f0, $02, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $22, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $24 packed).
 FloorAttrMap_3E_17::
 	db $00, $01, $01, $33, $01
 	db $00, $04, $11, $01, $fa, $ff, $4c, $33, $01, $5a, $0f, $2c, $22, $01, $fa, $ff
 	db $23, $22, $01, $e0, $04, $01, $09, $03, $11, $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $23, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3A packed).
 FloorAttrMap_3E_18::
 	db $00
 	db $01, $01, $11, $33, $01, $01, $04, $01, $fa, $ff, $43, $01, $03, $04, $01, $58
@@ -174,6 +347,10 @@ FloorAttrMap_3E_18::
 	db $fa, $f3, $01, $a1, $0c, $01, $87, $02, $01, $b7, $0f, $07, $22, $01, $e1, $04
 	db $01, $fa, $f3, $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $24, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4E packed).
 FloorAttrMap_3E_19::
 	db $00, $01, $01, $11, $33, $01, $01
 	db $03, $11, $01, $fa, $ff, $03, $01, $01, $02, $00, $33, $00, $01, $19, $0f, $09
@@ -182,34 +359,58 @@ FloorAttrMap_3E_19::
 	db $01, $19, $06, $01, $66, $02, $01, $b9, $0f, $04, $22, $01, $e0, $04, $01, $09
 	db $04, $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $25, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2C packed).
 FloorAttrMap_3E_1A::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11
 	db $01, $fa, $ff, $0c, $33, $01, $1a, $0f, $23, $01, $21, $05, $01, $59, $0f, $24
 	db $22, $01, $21, $0f, $2c, $11, $22, $01, $e1, $04, $01, $fa, $f3, $01, $f0, $05
 	db $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $26, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3D packed).
 FloorAttrMap_3E_1B::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff, $03
 	db $01, $01, $04, $33, $33, $01, $1a, $0f, $47, $01, $1f, $02, $01, $7a, $0f, $05
 	db $00, $33, $01, $7e, $03, $01, $9b, $0f, $03, $01, $a2, $00, $01, $bf, $00, $01
 	db $b9, $0f, $04, $22, $01, $e0, $05, $01, $fa, $f3, $01, $f0, $05, $01, $a0, $f2
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $30, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $36 packed).
 FloorAttrMap_3E_1C::
 	db $00, $01, $01, $11, $33, $01, $01, $04, $01, $fa, $ff, $08, $00, $01, $16, $0f
 	db $0b, $00, $00, $01, $25, $00, $01, $3a, $0f, $07, $01, $43, $02, $01, $5a, $0f
 	db $08, $01, $23, $01, $01, $7a, $0f, $0a, $33, $00, $01, $99, $0f, $0c, $01, $08
 	db $0f, $0a, $01, $05, $0f, $08
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $31, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $20 packed).
 FloorAttrMap_3E_1D::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01
 	db $00, $00, $01, $fa, $ff, $04, $33, $01, $21, $04, $01, $1a, $0f, $4d, $01, $7a
 	db $0f, $4d, $01, $9a, $0f, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $32, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $37 packed).
 FloorAttrMap_3E_1E::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01
 	db $fa, $ff, $0b, $00, $01, $19, $0f, $05, $00, $01, $23, $02, $01, $08, $05, $01
 	db $41, $0d, $00, $00, $01, $45, $00, $00, $33, $01, $5a, $0f, $25, $01, $42, $03
 	db $22, $01, $3a, $0f, $04, $01, $21, $0f, $0d, $01, $01, $0f, $0c
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $33, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4D packed).
 FloorAttrMap_3E_1F::
 	db $00, $01, $01
 	db $11, $33, $01, $01, $04, $01, $fa, $ff, $04, $00, $01, $12, $0f, $0c, $33, $01
@@ -218,6 +419,10 @@ FloorAttrMap_3E_1F::
 	db $b9, $0f, $05, $22, $22, $22, $33, $33, $22, $22, $22, $22, $01, $fa, $f3, $11
 	db $11, $11, $33, $33, $01, $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $34, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $45 packed).
 FloorAttrMap_3E_20::
 	db $00, $01, $01, $11, $11, $11
 	db $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $04, $33, $33, $33, $33, $01, $fc
@@ -225,12 +430,20 @@ FloorAttrMap_3E_20::
 	db $0f, $04, $00, $01, $56, $0f, $0c, $01, $42, $02, $01, $7b, $0f, $09, $01, $37
 	db $0d, $01, $38, $0f, $1a, $01, $21, $00, $22, $01, $7a, $0b, $01, $09, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $35, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2D packed).
 FloorAttrMap_3E_21::
 	db $00
 	db $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff, $0c, $33, $01, $1a, $0f
 	db $4d, $01, $7a, $0f, $44, $22, $22, $22, $33, $33, $22, $22, $22, $22, $01, $fa
 	db $f3, $11, $11, $11, $33, $33, $01, $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $36, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $47 packed).
 FloorAttrMap_3E_22::
 	db $00, $01, $01, $11
 	db $33, $01, $01, $03, $11, $01, $fa, $ff, $04, $00, $01, $01, $04, $01, $1a, $0f
@@ -239,12 +452,20 @@ FloorAttrMap_3E_22::
 	db $00, $01, $35, $0c, $01, $25, $0f, $0a, $01, $22, $0b, $01, $01, $04, $22, $01
 	db $fa, $ff, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $40, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $38 packed).
 FloorAttrMap_3E_23::
 	db $00, $01, $01, $33, $01, $00, $04, $11, $01, $fa, $ff, $04, $01
 	db $ff, $f4, $01, $19, $0f, $05, $01, $20, $04, $01, $39, $0f, $05, $01, $fd, $f4
 	db $01, $59, $0f, $05, $33, $01, $1f, $03, $01, $79, $0f, $06, $01, $20, $03, $01
 	db $99, $0f, $07, $01, $03, $0f, $0b, $01, $01, $0f, $0c
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $41, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3E packed).
 FloorAttrMap_3E_24::
 	db $00, $01, $01, $11, $11
 	db $11, $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $03, $33, $01, $20, $04, $01
@@ -252,22 +473,38 @@ FloorAttrMap_3E_24::
 	db $01, $47, $0b, $01, $86, $0a, $00, $00, $01, $66, $0a, $01, $a4, $0b, $01, $fa
 	db $f3, $01, $ba, $0f, $06, $01, $23, $0f, $0a
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $42, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2C packed).
 FloorAttrMap_3E_25::
 	db $00, $01, $01, $33, $01, $00, $04
 	db $11, $01, $fa, $ff, $4d, $01, $5a, $0f, $4d, $01, $7a, $0f, $03, $22, $22, $22
 	db $22, $33, $33, $22, $22, $22, $01, $79, $03, $11, $11, $11, $11, $33, $33, $01
 	db $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $43, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2B packed).
 FloorAttrMap_3E_26::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa
 	db $ff, $24, $00, $01, $32, $0f, $0b, $33, $00, $01, $41, $03, $01, $59, $0f, $05
 	db $01, $60, $04, $01, $79, $0f, $04, $22, $01, $41, $0f, $0c, $01, $00, $0f, $2d
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $44, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3A packed).
 FloorAttrMap_3E_27::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $03
 	db $33, $01, $20, $04, $01, $19, $0f, $07, $01, $1c, $02, $01, $39, $0f, $08, $01
 	db $61, $01, $01, $59, $0f, $08, $01, $44, $0f, $0c, $01, $23, $0f, $0d, $01, $23
 	db $0f, $0a, $22, $01, $21, $0b, $11, $01, $21, $0b
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $45, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $56 packed).
 FloorAttrMap_3E_28::
 	db $00, $01, $01, $11, $33, $01
 	db $01, $03, $11, $01, $fa, $ff, $03, $33, $00, $01, $01, $02, $00, $01, $19, $0f
@@ -275,33 +512,57 @@ FloorAttrMap_3E_28::
 	db $0f, $06, $01, $40, $01, $00, $01, $78, $0f, $08, $33, $01, $fb, $f2, $01, $9a
 	db $0f, $07, $01, $a2, $01, $01, $b9, $0f, $04, $22, $22, $22, $22, $33, $33, $22
 	db $22, $22, $01, $09, $04, $11, $11, $11, $33, $33, $01, $f0, $00, $01, $a0, $f2
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $46, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $30 packed).
 FloorAttrMap_3E_29::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff, $03, $01, $01, $04
 	db $01, $18, $0f, $07, $01, $1b, $03, $01, $39, $0f, $07, $33, $01, $60, $01, $01
 	db $59, $0f, $27, $01, $43, $0f, $0c, $01, $12, $0f, $0b, $22, $01, $01, $0f, $0c
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $50, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3C packed).
 FloorAttrMap_3E_2A::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $03, $33, $33, $01, $1d, $01
 	db $33, $01, $20, $01, $01, $1d, $0f, $01, $01, $3f, $00, $01, $35, $0f, $09, $01
 	db $60, $05, $01, $5a, $0f, $29, $01, $24, $00, $01, $9a, $0f, $08, $01, $3e, $02
 	db $01, $bb, $0f, $02, $22, $01, $e0, $05, $01, $fa, $ff, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $51, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $25 packed).
 FloorAttrMap_3E_2B::
 	db $00, $01, $01, $11
 	db $01, $00, $05, $01, $fa, $ff, $03, $33, $01, $20, $04, $01, $19, $0f, $2d, $33
 	db $01, $5a, $0f, $2c, $22, $01, $1a, $0f, $23, $22, $01, $e0, $04, $01, $09, $0f
 	db $04
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $52, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $28 packed).
 FloorAttrMap_3E_2C::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $04, $33, $01, $21, $04
 	db $01, $1a, $0f, $23, $01, $21, $05, $01, $59, $0f, $24, $22, $01, $21, $0f, $2c
 	db $11, $22, $01, $e1, $04, $01, $fa, $ff, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $53, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2D packed).
 FloorAttrMap_3E_2D::
 	db $00, $01, $01, $11, $01, $00, $05
 	db $01, $fa, $ff, $04, $33, $01, $21, $03, $01, $19, $0f, $24, $01, $21, $04, $33
 	db $33, $01, $5a, $0f, $23, $22, $01, $21, $04, $22, $01, $1a, $0f, $24, $22, $01
 	db $e1, $03, $01, $09, $0f, $04
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $60, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $43 packed).
 FloorAttrMap_3E_2E::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff
 	db $04, $33, $01, $21, $04, $01, $1a, $0f, $06, $00, $01, $26, $01, $01, $39, $0f
@@ -309,6 +570,10 @@ FloorAttrMap_3E_2E::
 	db $02, $01, $79, $0f, $06, $01, $29, $00, $01, $76, $08, $01, $a2, $0c, $01, $82
 	db $02, $01, $b8, $0f, $06, $01, $21, $0f, $0c
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $61, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $40 packed).
 FloorAttrMap_3E_2F::
 	db $00, $01, $01, $11, $01, $00, $05
 	db $01, $fa, $ff, $04, $33, $01, $21, $00, $00, $33, $33, $01, $19, $0f, $08, $00
@@ -316,6 +581,10 @@ FloorAttrMap_3E_2F::
 	db $5d, $0f, $03, $01, $23, $02, $01, $79, $0f, $08, $01, $44, $01, $22, $01, $3a
 	db $0f, $07, $01, $21, $01, $01, $b9, $0f, $24
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $62, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $54 packed).
 FloorAttrMap_3E_30::
 	db $00, $01, $01, $11, $01, $00, $05
 	db $01, $fa, $ff, $04, $33, $33, $00, $33, $00, $33, $33, $33, $33, $01, $1a, $0f
@@ -324,12 +593,20 @@ FloorAttrMap_3E_30::
 	db $47, $08, $01, $a3, $0c, $01, $27, $02, $01, $b9, $0f, $05, $22, $22, $22, $33
 	db $33, $22, $22, $22, $22, $01, $fa, $f6, $33, $33, $01, $06, $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $63, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2D packed).
 FloorAttrMap_3E_31::
 	db $00, $01, $01
 	db $11, $01, $00, $05, $01, $fa, $ff, $04, $33, $01, $21, $03, $01, $19, $0f, $2d
 	db $33, $01, $5a, $0f, $2c, $22, $01, $1a, $0f, $24, $22, $22, $22, $33, $33, $22
 	db $22, $22, $01, $09, $07, $33, $33, $01, $06, $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $64, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $49 packed).
 FloorAttrMap_3E_32::
 	db $00, $01, $01, $11, $01, $00
 	db $05, $01, $fa, $ff, $04, $00, $33, $00, $00, $00, $33, $33, $33, $01, $22, $00
@@ -338,12 +615,20 @@ FloorAttrMap_3E_32::
 	db $45, $09, $01, $a2, $0e, $01, $c1, $02, $01, $ba, $0f, $0c, $22, $01, $ba, $0b
 	db $01, $09, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $70, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $38 packed).
 FloorAttrMap_3E_33::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $03, $33, $00
 	db $33, $01, $22, $02, $01, $19, $0f, $05, $33, $01, $3e, $00, $01, $36, $0f, $0b
 	db $01, $21, $01, $01, $59, $0f, $25, $01, $62, $03, $01, $98, $0f, $06, $01, $20
 	db $04, $01, $b9, $0f, $06, $01, $32, $0c, $01, $22, $0a
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $71, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $36 packed).
 FloorAttrMap_3E_34::
 	db $00, $01, $01, $11, $01
 	db $00, $05, $01, $fa, $ff, $03, $33, $01, $20, $01, $01, $fd, $f0, $01, $1a, $0f
@@ -351,6 +636,10 @@ FloorAttrMap_3E_34::
 	db $22, $22, $22, $22, $33, $33, $22, $22, $22, $01, $09, $07, $33, $33, $01, $06
 	db $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $72, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4A packed).
 FloorAttrMap_3E_35::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $04, $33, $33, $33, $33
 	db $01, $fc, $f1, $01, $1a, $0f, $08, $01, $23, $00, $01, $39, $0f, $04, $33, $00
@@ -358,12 +647,20 @@ FloorAttrMap_3E_35::
 	db $22, $01, $5a, $04, $01, $09, $04, $01, $a1, $0f, $00, $01, $23, $00, $33, $01
 	db $b9, $0f, $05, $01, $41, $02, $33, $01, $d8, $0f, $05
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $73, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $30 packed).
 FloorAttrMap_3E_36::
 	db $00, $01, $01, $11, $01
 	db $00, $05, $01, $fa, $ff, $04, $33, $01, $21, $03, $01, $19, $0f, $24, $01, $21
 	db $04, $01, $58, $0f, $25, $22, $01, $21, $0f, $2c, $11, $22, $22, $22, $33, $33
 	db $22, $22, $22, $01, $09, $07, $33, $33, $01, $06, $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $74, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4A packed).
 FloorAttrMap_3E_37::
 	db $00, $01, $01, $11, $01
 	db $00, $05, $01, $fa, $ff, $03, $33, $01, $1f, $00, $01, $24, $00, $01, $19, $0f
@@ -372,12 +669,20 @@ FloorAttrMap_3E_37::
 	db $99, $0f, $09, $01, $41, $00, $01, $b9, $0f, $04, $22, $01, $c0, $02, $01, $27
 	db $05, $11, $01, $e1, $0b
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $80, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $38 packed).
 FloorAttrMap_3E_38::
 	db $00, $01, $01, $11, $33, $01, $01, $04, $01, $fa, $ff
 	db $44, $00, $00, $00, $01, $54, $0f, $0a, $33, $00, $33, $01, $62, $02, $01, $7a
 	db $0f, $07, $01, $83, $02, $01, $9a, $0f, $08, $01, $83, $01, $01, $ba, $0f, $04
 	db $22, $01, $e1, $04, $01, $fa, $f3, $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $81, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4A packed).
 FloorAttrMap_3E_39::
 	db $00, $01, $01
 	db $11, $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $04, $33, $01, $21
@@ -386,6 +691,10 @@ FloorAttrMap_3E_39::
 	db $0c, $01, $a6, $0d, $33, $00, $01, $b9, $0f, $05, $22, $01, $e1, $04, $01, $fa
 	db $f6, $01, $f0, $02, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $82, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $4F packed).
 FloorAttrMap_3E_3A::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11
 	db $01, $fa, $ff, $04, $00, $01, $12, $0f, $0c, $33, $01, $21, $03, $01, $39, $0f
@@ -394,12 +703,20 @@ FloorAttrMap_3E_3A::
 	db $19, $05, $01, $65, $01, $01, $b7, $0f, $07, $22, $01, $e1, $03, $01, $09, $04
 	db $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $83, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2F packed).
 FloorAttrMap_3E_3B::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01
 	db $00, $00, $01, $fa, $ff, $04, $33, $01, $21, $03, $01, $19, $0f, $2d, $33, $01
 	db $5a, $0f, $2c, $22, $01, $1a, $0f, $24, $22, $01, $e1, $03, $01, $09, $07, $01
 	db $f0, $02, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $84, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $41 packed).
 FloorAttrMap_3E_3C::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa
 	db $ff, $0b, $00, $33, $01, $1a, $0f, $0b, $33, $01, $39, $0f, $0a, $00, $01, $27
@@ -407,6 +724,10 @@ FloorAttrMap_3E_3C::
 	db $01, $01, $98, $0f, $09, $01, $44, $0f, $0a, $22, $01, $e1, $04, $01, $fa, $f3
 	db $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $90, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3C packed).
 FloorAttrMap_3E_3D::
 	db $00, $01, $01, $33, $01, $00, $04, $11, $01, $fa
 	db $ff, $0b, $00, $01, $19, $0f, $2a, $00, $00, $01, $58, $0f, $0a, $00, $33, $00
@@ -414,12 +735,20 @@ FloorAttrMap_3E_3D::
 	db $01, $b9, $0f, $04, $22, $01, $e0, $04, $01, $09, $03, $11, $01, $f0, $05, $01
 	db $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $91, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $39 packed).
 FloorAttrMap_3E_3E::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa
 	db $ff, $03, $33, $00, $33, $01, $22, $00, $00, $00, $01, $19, $0f, $05, $01, $40
 	db $03, $01, $38, $0f, $0d, $33, $01, $59, $0f, $4c, $01, $38, $0f, $05, $22, $01
 	db $e0, $04, $01, $09, $07, $01, $f0, $02, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $92, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $41 packed).
 FloorAttrMap_3E_3F::
 	db $00, $01, $01, $11, $33
 	db $01, $01, $03, $11, $01, $fa, $ff, $43, $33, $33, $33, $01, $5f, $00, $01, $57
@@ -427,12 +756,20 @@ FloorAttrMap_3E_3F::
 	db $01, $5e, $00, $01, $09, $06, $01, $a3, $0c, $01, $83, $09, $01, $c0, $0d, $22
 	db $01, $e1, $03, $01, $09, $04, $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $93, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $32 packed).
 FloorAttrMap_3E_40::
 	db $00, $01, $01, $11
 	db $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $04, $33, $01, $21, $03
 	db $01, $19, $0f, $24, $01, $21, $04, $01, $58, $0f, $25, $22, $01, $21, $0f, $2c
 	db $11, $22, $01, $e1, $03, $01, $09, $07, $01, $f0, $02, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $94, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3D packed).
 FloorAttrMap_3E_41::
 	db $00, $01
 	db $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff, $03, $33, $00, $00, $33, $33
@@ -440,29 +777,49 @@ FloorAttrMap_3E_41::
 	db $01, $40, $04, $01, $59, $0f, $06, $01, $12, $0b, $01, $81, $0f, $3c, $22, $01
 	db $e0, $04, $01, $09, $04, $01, $f0, $05, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $A0, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $34 packed).
 FloorAttrMap_3E_42::
 	db $00, $01, $01, $11, $33
 	db $01, $01, $03, $11, $01, $fa, $ff, $05, $00, $01, $13, $0f, $0c, $01, $21, $01
 	db $00, $01, $38, $0f, $07, $01, $43, $02, $01, $58, $0f, $27, $01, $63, $02, $00
 	db $01, $99, $0f, $09, $01, $45, $0a, $01, $c3, $0f, $01, $01, $07, $0f, $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $A1, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $20 packed).
 FloorAttrMap_3E_43::
 	db $00
 	db $01, $01, $11, $11, $11, $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $04, $33
 	db $01, $21, $03, $01, $19, $0f, $4d, $01, $79, $0f, $4d, $01, $99, $0f, $04
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $A2, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2B packed).
 FloorAttrMap_3E_44::
 	db $00
 	db $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff, $4d, $01, $5a, $0f, $4d
 	db $01, $7a, $0f, $04, $22, $22, $22, $33, $33, $22, $22, $22, $01, $79, $04, $11
 	db $11, $11, $33, $33, $01, $f0, $00, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $A3, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $28 packed).
 FloorAttrMap_3E_45::
 	db $00, $01, $01, $11, $11, $11
 	db $11, $33, $33, $01, $00, $00, $01, $fa, $ff, $04, $33, $01, $21, $03, $01, $19
 	db $0f, $4d, $01, $79, $0f, $45, $22, $22, $22, $33, $33, $22, $22, $22, $01, $09
 	db $0f, $04
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $B0, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $41 packed).
 FloorAttrMap_3E_46::
 	db $00, $01, $01, $11, $33, $01, $01, $03, $11, $01, $fa, $ff, $24, $00
 	db $01, $32, $0f, $0c, $33, $00, $01, $41, $02, $01, $59, $0f, $05, $01, $fc, $f0
@@ -470,33 +827,57 @@ FloorAttrMap_3E_46::
 	db $7c, $05, $01, $be, $0f, $00, $22, $01, $e1, $03, $01, $09, $04, $01, $f0, $05
 	db $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $B1, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $29 packed).
 FloorAttrMap_3E_47::
 	db $00, $01, $01, $11, $11, $11, $11, $33, $33, $01, $00, $00, $01
 	db $fa, $ff, $04, $33, $01, $21, $03, $01, $19, $0f, $4d, $01, $79, $0f, $45, $22
 	db $01, $e1, $03, $01, $09, $07, $01, $f0, $02, $01, $a0, $f2
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $C0, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $2B packed).
 FloorAttrMap_3E_48::
 	db $00, $01, $01, $11
 	db $01, $00, $05, $01, $fa, $ff, $04, $33, $01, $21, $02, $00, $01, $19, $0f, $0b
 	db $00, $33, $01, $39, $0f, $2a, $00, $33, $01, $78, $0f, $0b, $01, $46, $0f, $0e
 	db $01, $97, $0c, $01, $c7, $0f, $16
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $C1, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $27 packed).
 FloorAttrMap_3E_49::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa
 	db $ff, $04, $33, $01, $21, $03, $01, $19, $0f, $4d, $01, $79, $0f, $45, $22, $22
 	db $22, $33, $33, $22, $22, $22, $01, $09, $07, $33, $33, $01, $06, $06
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $D0, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $42 packed).
 FloorAttrMap_3E_4A::
 	db $00, $01
 	db $01, $11, $01, $00, $05, $01, $fa, $ff, $03, $33, $33, $00, $33, $01, $20, $00
 	db $00, $01, $19, $0f, $06, $01, $21, $03, $01, $39, $0f, $08, $01, $22, $00, $01
 	db $58, $0f, $09, $01, $65, $00, $01, $78, $0f, $08, $01, $62, $02, $01, $99, $0f
 	db $08, $01, $62, $01, $01, $b9, $0f, $04, $22, $01, $e0, $04, $01, $09, $0f, $04
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $D1, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $28 packed).
 FloorAttrMap_3E_4B::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $04, $33, $01, $21, $03, $01
 	db $19, $0f, $24, $01, $21, $04, $01, $58, $0f, $25, $22, $01, $21, $0f, $2c, $11
 	db $22, $01, $e1, $03, $01, $09, $0f, $04
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $E0, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $3B packed).
 FloorAttrMap_3E_4C::
 	db $00, $01, $01, $11, $01, $00, $05, $01
 	db $fa, $ff, $04, $00, $00, $33, $01, $23, $02, $01, $1a, $0f, $05, $01, $23, $03
@@ -504,11 +885,18 @@ FloorAttrMap_3E_4C::
 	db $01, $21, $04, $01, $9a, $0f, $05, $01, $42, $0f, $0c, $22, $01, $e1, $04, $01
 	db $fa, $ff, $03
 
+;@ path: gfx/palettes/floorattrmaps
+;@ CGB attribute map of a gate floor room (GateAttrMaps2 $E1, by the room's layout byte), unpacked to wScreenMap
+;@ by LoadMapAttrBuffer: two 4-bit values per byte. Compressed in the DecompressCore format ($100 bytes unpacked,
+;@ $25 packed).
 FloorAttrMap_3E_4D::
 	db $00, $01, $01, $11, $01, $00, $05, $01, $fa, $ff, $04, $33, $01
 	db $21, $03, $01, $19, $0f, $2d, $33, $01, $5a, $0f, $2c, $22, $01, $1a, $0f, $24
 	db $22, $01, $e1, $03, $01, $09, $0f, $04
 
+;@ path: unused/leftovers
+;@ Bytes after the last block that nothing reads: leftovers from building the ROM (pieces of other data), then
+;@ filler.
 Leftover_3E::
 	db $ff, $7f, $ff, $16, $00, $28, $ff, $7f
 	db $fa, $7f, $1f, $18, $00, $20, $ff, $7f, $1f, $00, $3e, $00, $00, $7c, $cb, $52
