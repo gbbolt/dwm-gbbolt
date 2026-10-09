@@ -1,15 +1,15 @@
 """The map scripts of banks $0C-$0F, decoded command by command: what each map's events say and do."""
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _dwm import Rom, SPECIES, decode, species_cell  # noqa: E402
+from _dwm import MessageFinder, Rom, SPECIES, decode, ram_names, species_cell  # noqa: E402
+from story import anchors, text_banks  # noqa: E402
 
 GROUP = 'scripts'
 BANKS = {0x0C: (0x00, 0x06), 0x0D: (0x06, 0x20), 0x0E: (0x20, 0x40), 0x0F: (0x40, 0x100)}
 ITEMS = 44
-TEXT_CUT = 80                 # characters of a text shown beside its number
+TEXT_CUT = 50                 # characters of a text shown beside its number
 
 # command: (words it reads, what it is called, its routine, how it ends the script)
 #   argument kinds: flag, target, msg, mon (monster number), species, item, addr, val, who, dx, dir, n,
@@ -122,64 +122,6 @@ CMDS = {
 DIRS = ['down', 'left', 'up', 'right']
 
 
-def ram_names():
-    """{address: (name, size)} of src/ram.inc."""
-    out = {}
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'ram.inc')
-    try:
-        for line in open(path, encoding='utf-8'):
-            m = re.match(r'DEF (\w+) EQU \$([0-9A-Fa-f]+)\s*;@\s*(\S+)', line)
-            if m:
-                t = m.group(3)
-                k = re.match(r'u8\[(\d+)\]', t)
-                size = int(k.group(1)) if k else 2 if t == 'u16' else 1
-                out[int(m.group(2), 16)] = (m.group(1), size)
-    except OSError:
-        pass
-    return out
-
-
-class MessageFinder:
-    """Where message n's text is: PrintMessage is run on a bare CPU until the text printer has looked the
-    text up (LookUpTextPointer), which also follows the text banks that hand some numbers on to others."""
-
-    def __init__(self, ctx, rom):
-        from _game import Machine
-        self.m = Machine(ctx.rom)
-        self.start = rom.lin('PrintMessage')
-        self.lookup = rom.lin('LookUpTextPointer')
-        self.cache = {}
-
-    def __contains__(self, n):
-        return self.get(n) is not None
-
-    def get(self, n):
-        if n in self.cache:
-            return self.cache[n]
-        m, c = self.m, self.m.cpu
-        got = None
-        if n < 0xA00:
-            m.mem[0xC000:0xE000] = bytes(0x2000)
-            c.pc, c.sp, c.ime = self.start, 0xDFF0, False
-            c.h, c.l = n >> 8, n & 0xFF
-            c.push(0xFFFF)
-            ret = None
-            for _ in range(20000):
-                if c.pc == self.lookup and ret is None:
-                    ret = m.mem[c.sp] | m.mem[c.sp + 1] << 8
-                elif ret is not None and c.pc == ret:
-                    bank = m.mbc.rom_bank
-                    a = c.d << 8 | c.e
-                    if 0x4000 <= a < 0x8000:
-                        got = (bank, bank * 0x4000 + a - 0x4000)
-                    break
-                elif c.pc == 0xFFFF:
-                    break
-                c.step()
-        self.cache[n] = got
-        return got
-
-
 def signed(v):
     return v - 0x10000 if v & 0x8000 else v
 
@@ -193,7 +135,8 @@ class Decoder:
         self.ram = ram_names()
         self.ram_sorted = sorted(self.ram)
         self.n_mons = rom.templates_count()
-        self.msgs = MessageFinder(ctx, rom)
+        banks, self.msgs = text_banks(rom, MessageFinder(ctx, rom))
+        self.anchors = anchors(banks)
         self.problems = []
 
     # ---- argument cells
@@ -201,8 +144,8 @@ class Decoder:
         got = self.msgs.get(v)
         if not got:
             return 'text ${:03X}'.format(v)
-        b, p = got
-        link = {'asset': 'texts-{:02x}'.format(b), 'text': 'text ${:03X}'.format(v)}
+        p = got[3]
+        link = {'asset': self.anchors[v], 'text': 'text ${:03X}'.format(v)}
         if not with_text:
             return link
         t = decode(self.r, p)

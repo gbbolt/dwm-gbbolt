@@ -299,6 +299,81 @@ class Rom:
         return {'mons': mons, 'sizes': list(d[2:5]), 'music': d[0x19], 'style': d[0]}
 
 
+def ram_names():
+    """{address: (name, size)} of src/ram.inc."""
+    import re
+    out = {}
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'ram.inc')
+    try:
+        for line in open(path, encoding='utf-8'):
+            m = re.match(r'DEF (\w+) EQU \$([0-9A-Fa-f]+)\s*;@\s*(\S+)', line)
+            if m:
+                t = m.group(3)
+                k = re.match(r'u8\[(\d+)\]', t)
+                size = int(k.group(1)) if k else 2 if t == 'u16' else 1
+                out[int(m.group(2), 16)] = (m.group(1), size)
+    except OSError:
+        pass
+    return out
+
+
+class MessageFinder:
+    """Where message n (PrintMessage, $000-$9FF) lives: PrintMessage is run on a bare CPU until the text
+    printer looks the text up (LookUpTextPointer). That follows the handlers of MessageGroupTable and the text
+    banks that hand some groups on to another bank. where(n) = (bank, group, index, group table address)."""
+
+    def __init__(self, ctx, rom):
+        from _game import Machine
+        self.rom = rom
+        self.m = Machine(ctx.rom)
+        self.start = rom.lin('PrintMessage')
+        self.lookup = rom.lin('LookUpTextPointer')
+        names = {n: a for a, (n, _) in ram_names().items()}
+        self.w_group, self.w_index = names['wTextGroup'], names['wTextIndex']
+        self.cache = {}
+
+    def where(self, n):
+        if n in self.cache:
+            return self.cache[n]
+        m, c = self.m, self.m.cpu
+        got = None
+        if 0 <= n < 0xA00:
+            m.mem[0xC000:0xE000] = bytes(0x2000)
+            c.pc, c.sp, c.ime = self.start, 0xDFF0, False
+            c.h, c.l = n >> 8, n & 0xFF
+            c.push(0xFFFF)
+            for _ in range(20000):
+                if c.pc == self.lookup:
+                    bank = m.mbc.rom_bank
+                    o = bank * 0x4000 - 0x4000
+                    de = c.d << 8 | c.e
+                    g, i = m.mem[self.w_group], m.mem[self.w_index]
+                    t = self.rom.word(o + de + 2 * g)
+                    if 0x4000 <= de < 0x8000 and 0x4000 <= t < 0x8000:
+                        got = (bank, g, i, o + t)
+                    break
+                if c.pc == 0xFFFF:
+                    break
+                c.step()
+        self.cache[n] = got
+        return got
+
+
+def group_length(rom, table, bound):
+    """Number of text pointers in a group table: up to `bound` (the next table) or the first text."""
+    bank = table - (table & 0x3FFF)
+    o = bank - 0x4000
+    lowest, n = bound, 0
+    while table + 2 * n < lowest and n < 256:
+        v = rom.word(table + 2 * n)
+        if not 0x4000 <= v < 0x8000:
+            break
+        if table < o + v:
+            lowest = min(lowest, o + v)
+        n += 1
+    return n
+
+
 def species_cell(names, s, text=None):
     """A link to species s's card."""
     if 0 <= s < SPECIES:

@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _dwm import Rom, SPECIES, packed_image  # noqa: E402
+from _dwm import ram_names  # noqa: E402
 from _game import Machine  # noqa: E402
-from scripts import ram_names  # noqa: E402
 
 GROUP = 'screens'
 BOOT_FRAMES = 60                    # the game's set-up is done and its main loop runs
