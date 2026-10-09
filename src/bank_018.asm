@@ -28,17 +28,17 @@ FarTable_18::
 ;@ box, reloads the monsters from the save and the party's pictures, and turns the screen on.
 ;@ test: skip calls routines in other banks
 VSResultInit::
-;> fill(wMenuChoice, 0, 8)
+;> fill(addr(wMenuChoice), 0, 8)
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
-;> fill(wTextTiles, 0, 0x12)
+;> fill(addr(wTextTiles), 0, 0x12)
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
-;> fill(wTitleStep, 0, 8)
+;> fill(addr(wTitleStep), 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -49,7 +49,7 @@ VSResultInit::
 	ld [wTitleBgMap], a
 	ld a, h
 	ld [wTitleBgMap + 1], a
-;> wSGBPalSet = 0; mem[wSGBPalSet + 1] = 0
+;> wSGBPalSet = 0; mem[addr(wSGBPalSet) + 1] = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
@@ -114,7 +114,7 @@ VSResultInit::
 ;>     gfx = 0x313F                      # the egg sprite
 	ld de, $313f
 	push de
-;>@egg     if mem[MonsterField(VSPrizeRecordSlot(), wMonEgg)] == 0:
+;>@egg     if mem[MonsterField(VSPrizeRecordSlot(), addr(wMonEgg))] == 0:
 	call VSPrizeRecordSlot
 	ld hl, wMonEgg
 	call MonsterField
@@ -124,7 +124,7 @@ VSResultInit::
 	or a
 	jr nz, .load
 
-;>         species = mem[MonsterField(VSPrizeRecordSlot(), wMonRecSpecies)]
+;>         species = mem[MonsterField(VSPrizeRecordSlot(), addr(wMonRecSpecies))]
 	call VSPrizeRecordSlot
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -325,8 +325,8 @@ VSResultStart::
 	call ClearTilemapBuffer_18
 ;> DrawPartyPictures_18()
 	call DrawPartyPictures_18
-;> DrawWindowLayout_18(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_18(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_18
 ;> CopyTilemapBufferToVram_18()
 	call CopyTilemapBufferToVram_18
@@ -974,7 +974,7 @@ VSResultKeepPrize::
 CopyFromSRAM_18::
 ;> mem[0x0100] = 0x0A                   # battery RAM on
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 
 .loop
 ;>@copy copy(dest, src, count)
@@ -989,7 +989,7 @@ CopyFromSRAM_18::
 
 ;> mem[0x0100] = 0x00                   # battery RAM off
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -1000,7 +1000,7 @@ CopyFromSRAM_18::
 CopyToSRAM_18::
 ;> mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 
 .loop
 ;>@copy copy(dest, src, count)
@@ -1015,7 +1015,7 @@ CopyToSRAM_18::
 
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -1050,8 +1050,8 @@ VSResultShowReplaceYesNo::
 VSResultDrawReplaceYesNo::
 ;> DrawBannerToBuffer()
 	call DrawBannerToBuffer
-;> DrawWindowLayout_18(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_18(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_18
 ;> DrawWindowLayout_18(VSReplaceYesNoWindow)
 	ld de, VSReplaceYesNoWindow
@@ -1237,7 +1237,7 @@ CountReplaceCandidates::
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ld l, a
-;>@k         if (egg | egg >> 1) & 1 == kind:
+;>@k         if ((egg | egg >> 1) & 1) == kind:
 	ld a, [de]
 	ld h, a
 	srl a
@@ -1325,7 +1325,7 @@ ListReplaceCandidates::
 	ld a, [wLinkPartnerChoice]
 	and $01
 	ld l, a
-;>@k         if (egg | egg >> 1) & 1 == kind:
+;>@k         if ((egg | egg >> 1) & 1) == kind:
 	ld a, [de]
 	ld h, a
 	srl a
@@ -1632,7 +1632,7 @@ VSResultDrawEggName::
 	cp $ff
 	jr z, .blank
 
-;>     wTextIndex = mem[MonsterField(mem[entry], wMonRecSpecies)]
+;>     wTextIndex = mem[MonsterField(mem[entry], addr(wMonRecSpecies))]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
@@ -1726,7 +1726,7 @@ VSResultDrawEggGender::
 	cp $ff
 	jr z, .blank
 
-;>     egg = MonsterField(mem[entry], wMonEgg)
+;>     egg = MonsterField(mem[entry], addr(wMonEgg))
 	ld hl, wMonEgg
 	call MonsterField
 ;>     mark = 0x98                      # sex unknown
@@ -1880,7 +1880,7 @@ VSResultDrawCursorMonName::
 	ld d, h
 	ld hl, $9100
 	call DrawNameTiles_18
-;>@sex wTextArg0[0] = 0xA7 + (mem[MonsterField(slot, wMonGender)] & 1)
+;>@sex wTextArg0[0] = 0xA7 + (mem[MonsterField(slot, addr(wMonGender))] & 1)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -1971,7 +1971,7 @@ VSResultDrawCursorMonLevel::
 	ld h, a
 	ld a, [hl]
 	push af
-;> level = mem[MonsterField(slot, wMonLevel)]
+;> level = mem[MonsterField(slot, addr(wMonLevel))]
 	ld hl, wMonLevel
 	call MonsterField
 	ld c, [hl]
@@ -2543,7 +2543,7 @@ VSResultEnd::
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-;> mem[wGameMode + 2] = 0; mem[wGameMode + 3] = 0
+;> mem[addr(wGameMode) + 2] = 0; mem[addr(wGameMode) + 3] = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -2890,7 +2890,7 @@ DrawPrizeMonsterSprite::
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-;>@egg if mem[MonsterField(VSPrizeRecordSlot(), wMonEgg)] == 0:
+;>@egg if mem[MonsterField(VSPrizeRecordSlot(), addr(wMonEgg))] == 0:
 	push bc
 	push de
 	push hl
@@ -2905,7 +2905,7 @@ DrawPrizeMonsterSprite::
 	or a
 	jr nz, .egg
 
-;>@sp     hSpriteSet = mem[MonsterField(VSPrizeRecordSlot(), wMonRecSpecies)] + 0x10
+;>@sp     hSpriteSet = mem[MonsterField(VSPrizeRecordSlot(), addr(wMonRecSpecies))] + 0x10
 	push bc
 	push de
 	push hl
@@ -3166,7 +3166,7 @@ LoseBannerLetters::
 ;@ def NextBgColumn_18(addr: hl) -> hl
 ;@ path: gfx/tilemap
 ;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
-;@ test: hl = rand(0x9800, 0x9BFF)
+;@ test: addr = rand(0x9800, 0x9BFF)
 NextBgColumn_18::
 ;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
@@ -3190,7 +3190,7 @@ NextBgColumn_18::
 ;@ path: gfx/tilemap
 ;@ BG map address of a screen offset: wTitleBgMap + `offset`, wrapped around within the 1 KiB
 ;@ BG map.
-;@ test: hl = rand(0, 0x3FF)
+;@ test: offset = rand(0, 0x3FF)
 ;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
 TitleBgAddr_18::
 ;> addr = wTitleBgMap + offset
@@ -3213,7 +3213,7 @@ TitleBgAddr_18::
 ;@ def TilemapBufferAddr_18(offset: hl) -> hl
 ;@ path: gfx/tilemap
 ;@ Address of a screen offset in wTilemapBuffer.
-;@ test: hl = rand(0, 0x23F)
+;@ test: offset = rand(0, 0x23F)
 TilemapBufferAddr_18::
 ;>@g return wTilemapBuffer + offset
 	ld a, l
@@ -3230,7 +3230,7 @@ TilemapBufferAddr_18::
 ;@ path: gfx/tilemap
 ;@ BG map address of a screen offset (row * 32 + column), wrapping the column around within
 ;@ the BG map row as the screen is scrolled.
-;@ test: hl = rand(0, 0x23F)
+;@ test: offset = rand(0, 0x23F)
 ;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
 TitleBgAddrWrapped_18::
 ;> addr = TitleBgAddr_18(offset & 0xFFE0)   # start of the row
@@ -3834,7 +3834,7 @@ MenuDrawCursorMarks_18::
 	pop bc
 	pop de
 ;>     tile = 0xE0
-;>     if i == cursor & 0x7F:
+;>     if i == (cursor & 0x7F):
 	ld a, c
 	and $7f
 	cp b
@@ -4073,7 +4073,7 @@ LoadPartyPictures_18::
 	or a
 	ret z
 
-;>@p0 LoadMonsterPicture_18(GetPartyMonsterByte(0, wMonRecSpecies), 0x9000)
+;>@p0 LoadMonsterPicture_18(GetPartyMonsterByte(0, addr(wMonRecSpecies)), 0x9000)
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
@@ -4085,7 +4085,7 @@ LoadPartyPictures_18::
 	cp $01
 	ret z
 
-;>@p1 LoadMonsterPicture_18(GetPartyMonsterByte(1, wMonRecSpecies), 0x9240)
+;>@p1 LoadMonsterPicture_18(GetPartyMonsterByte(1, addr(wMonRecSpecies)), 0x9240)
 	ld a, $01
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
@@ -4097,7 +4097,7 @@ LoadPartyPictures_18::
 	cp $02
 	ret z
 
-;> LoadMonsterPicture_18(GetPartyMonsterByte(2, wMonRecSpecies), 0x9480)   # runs on into it
+;> LoadMonsterPicture_18(GetPartyMonsterByte(2, addr(wMonRecSpecies)), 0x9480)   # runs on into it
 	ld a, $02
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
@@ -4105,8 +4105,7 @@ LoadPartyPictures_18::
 
 ;@ def LoadMonsterPicture_18(species: a, dest: hl)
 ;@ path: link/result
-;@ Unpacks the big picture of `species` (graphics number from the table at $2B9F in the home
-;@ bank) to VRAM `dest`; nothing for $FF.
+;@ Unpacks the big picture of `species` (graphics number from MonsterPicRefs) to VRAM `dest`; nothing for $FF.
 ;@ test: skip decompresses into VRAM
 LoadMonsterPicture_18::
 ;> if species == 0xFF:
@@ -4114,17 +4113,17 @@ LoadMonsterPicture_18::
 	cp $ff
 	ret z
 
-;>@g gfx = mem16[0x2B9F + 2 * species]
+;>@g gfx = mem16[MonsterPicRefs + 2 * species]
 	push hl
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $9f
+	add LOW(MonsterPicRefs)
 ;=@g
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
@@ -4259,7 +4258,7 @@ SetPartyPicturePalette_18::
 	ld [wMonPicPos], a
 	ld a, h
 	ld [wMonPicPos + 1], a
-;> wPaletteSet = mem[PartyMonsterField(n, wMonRecSpecies)]
+;> wPaletteSet = mem[PartyMonsterField(n, addr(wMonRecSpecies))]
 	pop af
 	push af
 	ld hl, wMonRecSpecies
@@ -4311,8 +4310,8 @@ PrintTwoDigits_18::
 ;@ def DivideBCByDE_18(n: bc, d: de) -> (a, bc)
 ;@ path: system/math
 ;@ Divides `n` by `d` by repeated subtraction: returns the quotient (8-bit) and the remainder.
-;@ test: bc = rand(0, 0x3FF)
-;@ test: de = rand(1, 0x30)
+;@ test: n = rand(0, 0x3FF)
+;@ test: d = rand(1, 0x30)
 DivideBCByDE_18::
 ;> q = -1
 	push hl
@@ -4361,7 +4360,7 @@ WriteDigitTile_18::
 ;@ def NextBgColumn2_18(addr: hl) -> hl
 ;@ path: gfx/tilemap
 ;@ A copy of NextBgColumn_18: one column right, wrapping around within the 32-tile row.
-;@ test: hl = rand(0x9800, 0x9BFF)
+;@ test: addr = rand(0x9800, 0x9BFF)
 NextBgColumn2_18::
 ;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af

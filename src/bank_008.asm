@@ -182,7 +182,7 @@ SGBSetFieldPalettes::
 	ld de, SGBPaletteSets
 	add hl, de
 ;>@cp for i in range(8):
-	ld de, $c778
+	ld de, wSGBPacket + 1
 	ld bc, wSGBPalIds
 	ld a, $08
 	ld [wNumberBackup], a
@@ -232,29 +232,29 @@ SGBLoadPalettes::
 ;>@q     CopySGBPalette(mem16[wSGBPalIds + 2 * i], wSGBPalettes + 8 * i)
 	ld a, [wSGBPalIds]
 	ld l, a
-	ld a, [$c85c]
+	ld a, [wSGBPalIds + 1]
 	ld h, a
 	ld de, wSGBPalettes
 	call CopySGBPalette
 ;=@q
-	ld de, $c7df
-	ld a, [$c85d]
+	ld de, wSGBPalettes + 8
+	ld a, [wSGBPalIds + 2]
 	ld l, a
-	ld a, [$c85e]
+	ld a, [wSGBPalIds + 3]
 	ld h, a
 	call CopySGBPalette
 ;=@q
-	ld de, $c7e7
-	ld a, [$c85f]
+	ld de, wSGBPalettes + 16
+	ld a, [wSGBPalIds + 4]
 	ld l, a
-	ld a, [$c860]
+	ld a, [wSGBPalIds + 5]
 	ld h, a
 	call CopySGBPalette
 ;=@q
-	ld de, $c7ef
-	ld a, [$c861]
+	ld de, wSGBPalettes + 24
+	ld a, [wSGBPalIds + 6]
 	ld l, a
-	ld a, [$c862]
+	ld a, [wSGBPalIds + 7]
 	ld h, a
 	call CopySGBPalette
 ;> return

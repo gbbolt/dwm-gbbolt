@@ -183,7 +183,7 @@ GateMapShow::
 	ld b, a
 	ld a, l
 	sub b
-;>         if (y + 4) & 0xFF < 0x20:            # the goal is near the top of the screen
+;>         if ((y + 4) & 0xFF) < 0x20:            # the goal is near the top of the screen
 	add $04
 	cp $20
 	jr nc, .drawArrow
@@ -353,8 +353,8 @@ GateMapShow::
 	rst $10
 
 .ones
-;> tile = 2 * (mem[0xC0A1] & 0x0F)
-	ld a, [$c0a1]
+;> tile = 2 * (wNumberBackup[1] & 0x0F)
+	ld a, [wNumberBackup + 1]
 	and $0f
 	add a
 	push af
@@ -424,8 +424,8 @@ GateMapShow::
 	rst $10
 
 .totalOnes
-;> tile = 2 * (mem[0xC0A1] & 0x0F)
-	ld a, [$c0a1]
+;> tile = 2 * (wNumberBackup[1] & 0x0F)
+	ld a, [wNumberBackup + 1]
 	and $0f
 	add a
 	push af
@@ -863,23 +863,23 @@ GateMapInit::
 	ld [wWindowBgMap], a
 	ld a, h
 	ld [wWindowBgMap + 1], a
-;> DecompressVRAM(0x281C, 0x8800)
+;> DecompressVRAM(0x28, 0x1C, 0x8800)
 	ld de, $281c
 	ld hl, $8800
 	call DecompressVRAM
-;> DecompressVRAM(0x281F, 0x8900)
+;> DecompressVRAM(0x28, 0x1F, 0x8900)
 	ld de, $281f
 	ld hl, $8900
 	call DecompressVRAM
-;> DecompressVRAM(0x281D, 0x8A90)
+;> DecompressVRAM(0x28, 0x1D, 0x8A90)
 	ld de, $281d
 	ld hl, $8a90
 	call DecompressVRAM
-;> DecompressVRAM(0x281E, 0x8AC0)
+;> DecompressVRAM(0x28, 0x1E, 0x8AC0)
 	ld de, $281e
 	ld hl, $8ac0
 	call DecompressVRAM
-;> DecompressVRAM(0x2E23, 0x8B00)
+;> DecompressVRAM(0x2E, 0x23, 0x8B00)
 	ld de, $2e23
 	ld hl, $8b00
 	call DecompressVRAM

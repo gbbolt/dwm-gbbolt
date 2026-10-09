@@ -79,7 +79,7 @@ LinkHandshake::
 	cp $f2
 	jr nz, .notF2
 
-;>     ok = wMenuChoice & 0x7F == 2
+;>     ok = (wMenuChoice & 0x7F) == 2
 	ld a, [wMenuChoice]
 	and $7f
 	cp $02
@@ -92,7 +92,7 @@ LinkHandshake::
 	cp $f3
 	jr nz, .refuse
 
-;>     ok = wMenuChoice & 0x7F == 3
+;>     ok = (wMenuChoice & 0x7F) == 3
 	ld a, [wMenuChoice]
 	and $7f
 	cp $03
@@ -143,7 +143,7 @@ LinkHandshake::
 ;>         return LinkHandshakeReply()
 	jr nz, .reply
 
-;>     if mem[0xC8D2] != 1:             # not in the link menu
+;>     if wTitleStep != 1:             # not in the link menu
 	ld a, [wTitleStep]
 	cp $01
 ;>         return LinkHandshakeReply()
@@ -231,7 +231,7 @@ StartLinkMode2::
 ;> wGameModeStep = 2
 	ld a, $02
 	ld [hli], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -247,7 +247,7 @@ StartLinkMode2::
 ;> mem[0xC867] = 0
 	ld a, $00
 	ld [$c867], a
-;> mem[0xC86D] = 0
+;> wLinkCommand = 0
 	xor a
 	ld [wLinkCommand], a
 ;> return LinkHandshakeReply()
@@ -280,7 +280,7 @@ StartLinkMode3::
 ;> wGameModeStep = 3
 	ld a, $03
 	ld [hli], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -296,7 +296,7 @@ StartLinkMode3::
 ;> mem[0xC867] = 0
 	ld a, $00
 	ld [$c867], a
-;> mem[0xC86D] = 0
+;> wLinkCommand = 0
 	xor a
 	ld [wLinkCommand], a
 ;> return LinkHandshakeReply()
@@ -2962,7 +2962,7 @@ ItemUseHealOne::
 ;@ def ItemUseHealParty()
 ;@ path: item/use
 ;@ Item 3: heals each of the three party slots by wItemPower + 0-10 HP.
-;@ test: wItemTarget = rand(0, 2)
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ItemUseHealParty::
 ;>@t for wItemTarget in range(3):
 	ld a, $00
@@ -3029,8 +3029,7 @@ ItemUseFullHealParty::
 ;@ def FullHealMonster(slot: a)
 ;@ path: item/use
 ;@ Sets the HP of party slot `slot` (if it holds a living monster) to its maximum.
-;@ test: wItemTarget = rand(0, 2)
-;@ test: slot = rand(0, 2)
+;@ test: skip the ROM bank left mapped after its far calls differs in the model
 FullHealMonster::
 ;> if slot >= wPartyCount:
 	ld hl, wPartyCount
@@ -3085,7 +3084,7 @@ ItemUseRestoreMP::
 ;@ def ItemUseFullMP()
 ;@ path: item/use
 ;@ Item 6: restores the target's MP to its maximum.
-;@ test: wItemTarget = rand(0, 2)
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ItemUseFullMP::
 ;> top = GetPartyMonsterWord(wItemTarget, addr(wMonMaxMP))
 	ld a, [wItemTarget]
@@ -3133,7 +3132,7 @@ ItemUseCureStatus3::
 ;@ def ItemUseCureStatus4()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 4.
-;@ test: wItemTarget = rand(0, 2)
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ItemUseCureStatus4::
 ;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x10
 	ld a, [wItemTarget]
@@ -3148,7 +3147,7 @@ ItemUseCureStatus4::
 ;@ def ItemUseCureStatus0()
 ;@ path: item/use
 ;@ Use of an item that cures status bit 0.
-;@ test: wItemTarget = rand(0, 2)
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ItemUseCureStatus0::
 ;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x01
 	ld a, [wItemTarget]

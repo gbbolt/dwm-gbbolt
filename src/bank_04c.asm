@@ -164,7 +164,7 @@ PrintText_4C::
 ;@ this bank. The byte is cleared afterwards.
 ;@ test: skip runs the text code with this bank switched in
 PrintBattleMessage::
-;> wTextIndex = mem[0xDD6D] + 0xD7
+;> wTextIndex = wReflectAnim + 0xD7
 	ld a, [wReflectAnim]
 	add $d7
 	ld [wTextIndex], a
@@ -173,7 +173,7 @@ PrintBattleMessage::
 	ld [wTextGroup], a
 ;> StartText_4C()
 	call StartText_4C
-;> mem[0xDD6D] = 0
+;> wReflectAnim = 0
 	xor a
 	ld [wReflectAnim], a
 	ret

@@ -136,7 +136,7 @@ DrawCharacterSpriteOnScreen::
 ;@ hSpriteAttr.
 ;@ test: skip reads HRAM sprite state
 AddCharacterPalette::
-;>@p hSpriteAttr |= CharacterPalettes[hSpriteSet]
+;>@p hSpriteAttr |= mem[CharacterPalettes + hSpriteSet]
 	ldh a, [hSpriteSet]
 	ld hl, CharacterPalettes
 	add l

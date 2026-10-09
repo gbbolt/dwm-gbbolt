@@ -27,7 +27,7 @@ DEF hLZOffset EQU $FFB0 ;@ u8 Decompression: low byte of the current back-refere
 DEF hLZEnd EQU $FFB1 ;@ u16 Decompression: end of the output (start + length)
 DEF hLZStart EQU $FFB3 ;@ u16 Decompression: start of the output
 DEF wShadowOAM EQU $C000 ;@ u8[160] Shadow OAM, 40 sprites of Y, X, tile, attribute; copied to OAM by DMA each VBlank
-DEF wNumberBackup EQU $C0A0 ;@ u8[3] Copy of hNumber while a digit is tested
+DEF wNumberBackup EQU $C0A0 ;@ u8[3] Copy of hNumber while a digit is tested; the floor generator also uses $C0A0-$C0A4 as scratch
 DEF wTilemapBuffer EQU $C500 ;@ u8[576] Copy of the visible background, 18 rows of 32 tiles (restored after a yes/no window)
 DEF wMapUpdateDest EQU $C740 ;@ u16 BG map address for the row/column the VBlank handler writes (0 = nothing to do)
 DEF wMapUpdateDir EQU $C742 ;@ u8 Direction of the map update: 0 a row (left to right), else a column (top to bottom); $FF disabled
@@ -141,7 +141,7 @@ DEF wOnGateFloor EQU $C969 ;@ u8 Non-zero while on a randomly generated floor be
 DEF wPrevMapId EQU $C96A ;@ u8 Map before the last map load
 DEF wPrevOnGateFloor EQU $C96B ;@ u8 wOnGateFloor before the last map load
 DEF wWarpPending EQU $C96C ;@ u8 Non-zero: the next map load uses wWarpMap / wWarpX / wWarpY
-DEF wWarpMap EQU $C96D ;@ u16 Destination map of a pending warp
+DEF wWarpMap EQU $C96D ;@ u8 Destination map of a pending warp (its gate-floor flag follows in wWarpOnGateFloor)
 DEF wWarpX EQU $C96F ;@ u16 Destination X of a pending warp
 DEF wWarpY EQU $C971 ;@ u16 Destination Y of a pending warp
 DEF wPlayerTrail EQU $C973 ;@ u8[196] Ring buffer of the last 49 player positions (4 bytes each), the party follows it
@@ -177,7 +177,7 @@ DEF wGateFloor EQU $C939 ;@ u8 Floor number in the gate world (0 = first)
 DEF wGateFloors EQU $C93A ;@ u8 Number of floors of the gate world
 DEF wGateWorldMap EQU $C93B ;@ u8 Map whose song the gate world plays
 DEF wFloorLoot EQU $C93C ;@ u8 Kind of gold found in chests (1 small, 2 medium, else by floor)
-DEF wFloorMusic EQU $C93D ;@ u8 Floor music / look from the floor table
+DEF wFloorMusic EQU $C93D ;@ u8 Floor music / look from the floor table; the floor generator reads it as the number of screens of the floor minus 1
 DEF wFloorTable EQU $CA38 ;@ u8 Index of the floor's encounter table (FloorTables)
 DEF wFloorStyle EQU $C8A9 ;@ u8 First byte of the floor table entry
 DEF wStepTimer EQU $CA3B ;@ u16 Steps until party monsters grow tamer (counts 100 down)
@@ -213,8 +213,8 @@ DEF wLinkReceived EQU $C86A ;@ u8 Last byte received over the link
 DEF wLinkReceivedLast EQU $C86E ;@ u8 Copy of the last single byte received
 DEF wLinkRecvPtr EQU $C86F ;@ u16 Write pointer into the link receive buffer
 DEF wMenuChoice EQU $C8DA ;@ u8 Cursor position / choice of the current menu, shared by most menus. On the title menu: 0 continue, 1 new game, 2 VS mode, 3 breeding (without a save only new game); bit 7 set once chosen
-DEF wLinkRefused EQU $C8DF ;@ u8 Set to $FF when the partner's handshake byte did not match
-DEF wLinkPartnerChoice EQU $C8E0 ;@ u8 Link mode the partner asked for (2 or 3) when ours differs
+DEF wLinkRefused EQU $C8DF ;@ u8 Set to $FF when the partner's handshake byte did not match; in the bank-$0A menus a yes/no cursor; in the shop and vault (bank 9) the low byte of a 24-bit gold amount ($C8DF-$C8E1)
+DEF wLinkPartnerChoice EQU $C8E0 ;@ u8 Link mode the partner asked for (2 or 3) when ours differs; in the shop and vault the middle byte of the 24-bit gold amount at wLinkRefused
 DEF wLinkNoEnd EQU $C8C7 ;@ u8 Nonzero: the partner's end byte $F3 is not looked for
 DEF wMonSpecies EQU $DA31 ;@ u8 Monster number GetMonsterStats looks up
 DEF wMonStats EQU $DA33 ;@ u8[43] Copy of a monster's record from MonsterStats; the battle steps also use its first byte as a frame counter for short pauses
@@ -259,7 +259,7 @@ DEF wMenuChoice2 EQU $C8DB ;@ u8 Second menu cursor (party list, monsters/eggs c
 DEF wConfirmChoice EQU $C8DC ;@ u8 Cursor of a two-choice window (0 first choice, 1 second); bit 7 set once chosen
 DEF wConfirmChoice2 EQU $C8DD ;@ u8 Cursor of a second two-choice window; bit 7 set once chosen
 DEF wMenuChoice3 EQU $C8DE ;@ u8 Third menu cursor (party slot to exchange, release choice); bit 7 set once chosen
-DEF wListLastRows EQU $C8E1 ;@ u8 Scratch of the list cursor: item count, then the rows on the last page - 1
+DEF wListLastRows EQU $C8E1 ;@ u8 Scratch of the list cursor: item count, then the rows on the last page - 1; in the shop and vault the high byte of the 24-bit gold amount at wLinkRefused
 DEF wListCursor EQU $C8E2 ;@ u8 Row of the cursor in a paged list; bit 7 set once chosen
 DEF wListPage EQU $C8E3 ;@ u8 Page shown in a paged list
 DEF wListKnown EQU $C8E8 ;@ u8 Entries of the list that are filled in (library: species already met)
@@ -269,7 +269,7 @@ DEF wChosenMonPic EQU $C8F4 ;@ u8 Species + $10 of the chosen monster (picture n
 DEF wChosenMonSpecies EQU $C8F5 ;@ u8 Species of the chosen monster
 DEF wChosenMonGender EQU $C8F6 ;@ u8 Sex of the chosen monster (bit 0)
 DEF wCollectedItems EQU $C903 ;@ u16 Items handed to the item collector so far (stops at 999)
-DEF wItemsHandedIn EQU $C907 ;@ u8 Items the collector took from the bag this time
+DEF wItemsHandedIn EQU $C907 ;@ u8 Items the collector took from the bag this time; in the bank-$0A menus also the chosen list entry
 DEF wWindowBgMap EQU $C909 ;@ u16 BG map address of the screen's top left corner (where the menu windows are drawn)
 DEF wCursorBlink EQU $C90C ;@ u8 Menu cursor blink counter (the cursor is redrawn every 16 frames, bit 4 hides it)
 DEF wFieldMenuState EQU $C90D ;@ u8[2] State of the field menu: 0 open, 1 draw, 2 input, 3 option chosen, 4 close
@@ -318,19 +318,19 @@ DEF wReturnActor EQU $C902 ;@ u8 Actor that turns to Terry when the script comes
 DEF wScriptMenuArg EQU $C8F7 ;@ u16 Argument of script command $42 for the field menu code
 DEF wArenaClass EQU $D9CE ;@ u8 Starry Night tournament class being fought
 DEF wArenaRound EQU $D9CD ;@ u8 Round within the Starry Night tournament class (3 = class won); in the battle room (map $52) the number of teams beaten
-DEF wArenaWins EQU $D9CF ;@ u8 Tournament progress counter (bit 7 = stop counting)
+DEF wArenaWins EQU $D9CF ;@ u8 Tournament progress counter (bit 7 = stop counting); on the special floors the 8 bytes from here hold the floor's item ids (RollFloorItems, RollSpecialItem)
 DEF wArenaPrize EQU $D9D0 ;@ u8 Item won as the tournament prize
 DEF wScriptChoiceRow EQU $D9DF ;@ u8 Row (1-5) used by script command $2E
 DEF wScriptChoice EQU $D9E0 ;@ u8 Value script command $2E picked from its table
 DEF wEncGfx EQU $D7CA ;@ u8[8] Encounter group sprites: graphics number and 1 for each of 3 monsters, plus 2 more bytes
 DEF wLeaderSlot EQU $CA40 ;@ u8 Monster slot of the party leader
-DEF wScriptBossIndex EQU $CAB4 ;@ u8 Index into the script's fixed-battle table (command $37)
+DEF wScriptBossIndex EQU $CAB4 ;@ u8 Index into the script's fixed-battle table (command $36) and of the gate boss (event $0217); the tournament menus read it as the number of classes won
 DEF wSavedParty EQU $CAB9 ;@ u8[7] Copy of party count, slots and graphics restored by script command $45
 DEF wScrollStep EQU $C91E ;@ u8 Step of the screen-to-screen scroll
 DEF wHatchSlot EQU $C908 ;@ u8 Monster slot of the egg being hatched
 DEF wListCursor2 EQU $C8E4 ;@ u8 Second monster list (the mates): cursor row; the egg gender change keeps its 24-bit price in $C8E4-$C8E6
 DEF wListPage2 EQU $C8E5 ;@ u8 Second monster list (the mates): page shown
-DEF wBreedParent1 EQU $D665 ;@ u8[149] Copy of the pedigree parent's record made when two monsters breed
+DEF wBreedParent1 EQU $D665 ;@ u8[149] Copy of the pedigree parent's record made when two monsters breed; the item menus of bank 9 also use it as a buffer of per-item counts
 DEF wBreedParent2 EQU $D6FA ;@ u8[149] Copy of the mate's record made when two monsters breed
 DEF wBreedSpecies2 EQU $DA70 ;@ u8 Breeding: species of the mate
 DEF wBreedSlot1 EQU $DA75 ;@ u8 Breeding: monster slot of the pedigree parent
@@ -358,7 +358,7 @@ DEF wScreenMap EQU $C200 ;@ u8[256] Decompressed map data of the current map scr
 DEF wStatusBarMode EQU $CA3F ;@ u8 What the party status bar shows: 0 HP and MP, else level and status icons
 DEF wEventFlags EQU $D99B ;@ u8[64] Story / event flags, one bit each (bit 7 of the first byte = flag 0)
 DEF wLCDEffect EQU $C892 ;@ u8 Raster effect the LCD interrupt runs: 0 none, 1 hide sprites below the line, 2 per-line X scroll, 3 per-line Y scroll
-DEF wLineScroll EQU $C100 ;@ u8[144] Scroll value per screen line for the wave raster effects
+DEF wLineScroll EQU $C100 ;@ u8[144] Scroll value per screen line for the wave raster effects; the floor generator uses its first bytes as scratch
 DEF wMonWildness EQU $CB21 ;@ u16 Party monster record field: wildness (drops as the party walks; a wild monster may not obey)
 DEF wMonStat64 EQU $CB25 ;@ u8 Party monster record field +$64 (a byte stat, at most 255)
 DEF wMonStat65 EQU $CB26 ;@ u8 Party monster record field +$65 (a byte stat, at most 255)
@@ -431,7 +431,7 @@ DEF wMenuBgMap EQU $C911 ;@ u16 BG map address of the screen's top left corner w
 DEF wLineUpPlaced EQU $C913 ;@ u8 Line-up menu: monsters already put into the new order
 DEF wMenuBlink EQU $C914 ;@ u8 Field menu cursor blink counter (redrawn every 16 frames, bit 4 hides it)
 DEF wMenuInfoPage EQU $C92F ;@ u8 Field menu: 1 while Start has switched the party panel to the player info page
-DEF wLineUpOrder EQU $C0A3 ;@ u8[3] Line-up menu: the new party order picked so far ($FF = not yet)
+DEF wLineUpOrder EQU $C0A3 ;@ u8[3] Line-up menu: the new party order picked so far ($FF = not yet); it is also wNumberBackup + 3, and floor-generator scratch
 DEF wMonFamily EQU $CACB ;@ u8 Party monster record field: family (0-9, text group 4)
 DEF wMonParent1 EQU $CAD6 ;@ u8 Party monster record field: species of the first parent ($FF = none)
 DEF wMonParent2 EQU $CAD7 ;@ u8 Party monster record field: species of the second parent ($FF = none)
@@ -504,7 +504,7 @@ DEF wBattlerReload EQU $DB55 ;@ u8 Set while a battler is refreshed from its mon
 DEF wBattlerSpecies EQU $DC3C ;@ u8[8] Species of each battle position
 DEF wBattlerSex EQU $DB93 ;@ u8[8] Sex of each battle position (0 or 1)
 DEF wBattlerTactic EQU $DD03 ;@ u8[8] Tactic of each battle position (bits 0-1; from bits 4-5 of the record's sex byte)
-DEF wBattlerSexBits67 EQU $C876 ;@ u8[8] Bits 6-7 of each battler's record sex byte, kept through the battle and written back (outside battles a scratch copy of the menu state)
+DEF wBattlerSexBits67 EQU $C876 ;@ u8[8] Bits 6-7 of each battler's record sex byte, kept through the battle and written back; outside battles the 8 bytes hold a copy of the menu state (SwapMenuState)
 DEF wSavedTeamTactic EQU $D929 ;@ u8 Tactic for the whole party chosen in the last battle (the next battle starts with it)
 DEF wTacticMenuRow EQU $D9FC ;@ u8 Tactic menu: 0 the whole party, 1-3 one monster
 DEF wTeamTactic EQU $D9FD ;@ u8 Tactic menu: setting for the whole party
@@ -586,7 +586,7 @@ DEF wSkillResult EQU $DD6F ;@ u8 Kind of result of the skill just worked out (me
 DEF wSkillResultValue EQU $DD70 ;@ u16 Battle message (bank $4C) shown when the skill works (low byte; the high byte is wSkillMsgMiss, the message when it fails)
 DEF wStatCapPos EQU $DD74 ;@ u8 Battle position whose stat limit StatLimitTimes is working out
 DEF wSkillMsgMiss EQU $DD71 ;@ u8 Battle message (bank $4C) shown when the skill fails
-DEF wSkillMsgMode EQU $DD6B ;@ u8 Kind of the battle message being set up (0, 1 or 2)
+DEF wSkillMsgMode EQU $DD6B ;@ u8 Kind of the battle message being set up (0, 1 or 2); the battle AI keeps record byte 7 of the skill it judges here (flags: bit 6 a spell, 5 a dance, 4 a breath)
 DEF wJoinPoints EQU $DB83 ;@ u16 Points toward the enemy monster asking to join (meat raises them, healing an enemy adds, hurting it takes away; capped at 1600)
 DEF wSkillTempPtr EQU $DB5C ;@ u16 Scratch pointer of the skill effects (a battler's HP)
 DEF wStatPtr EQU $DB63 ;@ u16 Scratch pointer of the skill effects (the user's attack)
@@ -622,7 +622,7 @@ DEF wSkillAnimPhase EQU $DD68 ;@ u8 Skill animation sprite phase: 0 flies in fro
 DEF wOpeningScene EQU $C88C ;@ u8 Opening scene: 0 logos, 1-3 shooting stars, 4 picture, 5 two stars, 6 title screen (the title menu returns here)
 DEF wOpeningLogo EQU $C88D ;@ u8 Logo screen of the opening (0-2)
 DEF wTargetScores EQU $DB58 ;@ u16 Battle AI scratch: u16 scores of the candidate targets, 2 bytes apart (some pickers start the list at wSkillAmount, two bytes earlier)
-DEF wAttackWeight EQU $DD26 ;@ u8 Weight of the plain Attack for the battle AI (AIAttackWeight): 20, +10 per step the user's attack has over the weakest enemy defense, +30 when its attack is doubled or charged, 1 when no enemy can be hit
+DEF wAttackWeight EQU $DD26 ;@ u8 Battle AI: bonus the rules give the skill being judged (at most 255; the penalty in wAIPenalty is taken off it). For the plain Attack AIAttackWeight sets it: 20, +10 per step the user's attack has over the weakest enemy defense, +30 when its attack is doubled or charged, 1 when no enemy can be hit
 DEF wPersonalityNudge EQU $DB42 ;@ u8[8] Per battle position: flags noted when the chosen skill fits one of the monster's personality bytes (bits 0/1 personality 1 high/low, 2/3 byte +$67, 4/5 personality 2, 6/7 personality 3)
 DEF wTurnOrder EQU $DB79 ;@ u8[9] Battle positions in the order they act this turn, fastest first ($10 = Terry using an item, $FF end)
 DEF wTurnOrderPos EQU $DB82 ;@ u8 Position in wTurnOrder (0 while the order is built)
@@ -654,3 +654,21 @@ DEF wMsgViewBlinkPhase EQU $DF09 ;@ u8 Message viewer: 1 while the number is bla
 DEF wMsgViewBank EQU $DF0A ;@ u8 Message viewer: which text bank routine prints the chosen row
 DEF wMsgViewRightDelay EQU $DF0B ;@ u8 Message viewer: frame counter for holding Right (steps every 8 frames)
 DEF wMsgViewLeftDelay EQU $DF0C ;@ u8 Message viewer: frame counter for holding Left
+DEF wAISkillScores EQU $DCE4 ;@ u8[8] Battle AI: score of each of the user's 8 skill slots (the skill's AI weight plus a random 0-15, then the rule bonus minus the penalty; 0 = not chosen)
+DEF wAIPenalty EQU $DD27 ;@ u8 Battle AI: penalty the rules give the skill being judged, taken off the bonus in wAttackWeight ($FF = the skill is ruled out)
+DEF wAIKind EQU $DD6A ;@ u8 Battle AI: kind of skill chosen this turn (1 attack, 2 status, 3 heal or support); picks the rule list the skills are judged by
+DEF wAIKindOrder2 EQU $DD00 ;@ u8 Battle AI: second entry of the order of the three skill kinds (the first is in wSkillFlags3, the third in wAIKindOrder3)
+DEF wAIKindOrder3 EQU $DD01 ;@ u8 Battle AI: third entry of the order of the three skill kinds
+DEF wAIKindTry EQU $DD02 ;@ u8 Battle AI: entry of the kind order tried now, as an offset from wSkillTargeting (3 = the first kind, 4 the second, 5 the third)
+DEF wAIRulePtr EQU $C1FA ;@ u16 Battle AI: next entry of the rule list being run for the skill being judged
+DEF wAISkillSlot EQU $C1FC ;@ u8 Battle AI: skill slot (0-7) being judged
+DEF wAISlotsLeft EQU $C1FD ;@ u8 Battle AI: skill slots still to judge
+DEF wAISkillPtr EQU $C1FE ;@ u16 Battle AI: entry of the user's wBattlerSkills being judged
+DEF wAIUserHPQuarter EQU $DB65 ;@ u8 Battle AI healing: 1 when the user has at most a quarter of its HP (the flags before it: wSkillStatusPtr bytes 0-1 at most 3/4 for the user / count of allies, wStatPtr bytes 0-1 at most half)
+DEF wAIAlliesHPQuarter EQU $DB66 ;@ u8 Battle AI healing: number of the user's allies with at most a quarter of their HP
+DEF wAIUserHPTenth EQU $DB67 ;@ u8 Battle AI healing: 1 when the user has at most a tenth of its HP
+DEF wAIAlliesHPTenth EQU $DB68 ;@ u8 Battle AI healing: number of the user's allies with at most a tenth of their HP
+DEF wAIUserHPOne EQU $DB69 ;@ u8 Battle AI healing: 1 when the user is down to 1 HP
+DEF wAIAlliesHPOne EQU $DB6A ;@ u8 Battle AI healing: number of the user's allies down to 1 HP
+DEF wAIBlindCount EQU $DB6C ;@ u8 Battle AI: number of enemies wrapped in an illusion or blinded (AIBonusVsBlinded)
+DEF hLoopPosHi EQU $FFFE ;@ u8 High byte of the loop point of the sound channel being read (one byte shared by all channels)

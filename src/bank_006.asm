@@ -100,7 +100,7 @@ UpdateActor::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;> if mem[actor] & 0x40: return             # hidden
 	ld a, [hl]
 	bit 6, a
@@ -141,7 +141,7 @@ ActorStand::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if not mem[flags] & 0x40:                # not talking to Terry
@@ -173,7 +173,7 @@ ActorSpin::
 	and $07
 	jp nz, AnimateActor
 
-;> if wFieldTimer & 0x0F == 0:
+;> if (wFieldTimer & 0x0F) == 0:
 	ld a, [wFieldTimer]
 	and $0f
 	jr nz, jr_006_40ae
@@ -182,7 +182,7 @@ ActorSpin::
 	ldh a, [hNumber]
 	add $06
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[dirp] = (mem[dirp] + 1) & 3
@@ -212,7 +212,7 @@ ActorPace2::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -257,7 +257,7 @@ ActorPace2::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] + 1) & 1
@@ -283,7 +283,7 @@ ActorPace2Step::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorPace2Steps[mem[phase]]()
@@ -333,7 +333,7 @@ ActorWalkSquare::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -374,7 +374,7 @@ ActorWalkSquare::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] - 1) & 3
@@ -400,7 +400,7 @@ ActorSquareStep::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorSquareSteps[mem[phase]]()
@@ -475,7 +475,7 @@ ActorWalkFigure::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -524,7 +524,7 @@ ActorWalkFigure::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] + 1) & 7
@@ -550,7 +550,7 @@ ActorFigureStep::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorFigureSteps[mem[phase]]()
@@ -676,7 +676,7 @@ ActorPace3::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -721,7 +721,7 @@ ActorPace3::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] + 1) & 1
@@ -747,7 +747,7 @@ ActorPace3Step::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorPace3Steps[mem[phase]]()
@@ -792,7 +792,7 @@ ActorStandStill::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if not mem[flags] & 0x40:                # not talking to Terry
@@ -819,7 +819,7 @@ jr_006_42f4:
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[flags] &= ~0x40                  # talk over
@@ -839,7 +839,7 @@ ActorStandFixed::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if not mem[flags] & 0x40:                # not talking to Terry
@@ -859,7 +859,7 @@ ActorStandFixed::
 ;>     p = actor
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 ;>     facing = (mem[p] >> 4) & 3
 	ld a, [hl]
@@ -897,7 +897,7 @@ ActorPace1::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -942,7 +942,7 @@ ActorPace1::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] + 1) & 1
@@ -968,7 +968,7 @@ ActorPace1Step::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorPace1Steps[mem[phase]]()
@@ -1018,7 +1018,7 @@ ActorPace2L::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -1062,7 +1062,7 @@ ActorPace2L::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] + 1) & 1
@@ -1088,7 +1088,7 @@ ActorPace2LStep::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorPace2LSteps[mem[phase]]()
@@ -1138,7 +1138,7 @@ ActorSway::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -1150,7 +1150,7 @@ ActorSway::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     if not mem[flags] & 0x40 and not wScriptRunning:
@@ -1181,7 +1181,7 @@ ActorSway::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[phase] = (mem[phase] + 1) & 1
@@ -1206,7 +1206,7 @@ ActorSwayStep::
 	ldh a, [hNumber]
 	add $08
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorSwaySteps[mem[phase]]()
@@ -1257,7 +1257,7 @@ MoveActorXFree::
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@x x = mem16[xp] + step; mem16[xp] = x
@@ -1274,7 +1274,7 @@ MoveActorXFree::
 	ldh a, [hNumber]
 	add $02
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@h homex = mem[home] * 16 + 8
@@ -1328,7 +1328,7 @@ ActorWander::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -1340,7 +1340,7 @@ ActorWander::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     if not mem[flags] & 0x40 and not wScriptRunning:
@@ -1369,7 +1369,7 @@ ActorWander::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>             mem[timer] = 4
@@ -1384,7 +1384,7 @@ jr_006_4524:
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[timer] = 4
@@ -1393,7 +1393,7 @@ jr_006_4524:
 	ldh a, [hNumber]
 	add $06
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[dirp] = wRandomHigh & 3        # new random direction
@@ -1417,7 +1417,7 @@ ActorWanderStep::
 	ldh a, [hNumber]
 	add $06
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorWanderSteps[mem[dirp] & 3]()
@@ -1487,14 +1487,14 @@ CheckActorTouchesPlayer::
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;> d = 0x10; px = mem16[hPlayerX]
+;> d = 0x10; px = hPlayerX
 	ld bc, $0010
 	ldh a, [hPlayerX]
 	ld e, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld d, a
 ;> if SameTileAs(xp, d, px):                # Terry one tile right?
 	call SameTileAs
@@ -1504,14 +1504,14 @@ CheckActorTouchesPlayer::
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;>     d = 0; py = mem16[hPlayerY]
+;>     d = 0; py = hPlayerY
 	ld bc, $0000
 	ldh a, [hPlayerY]
 	ld e, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld d, a
 ;>     if SameTileAs(yp, d, py): return StartActorScript()
 	call SameTileAs
@@ -1522,14 +1522,14 @@ jr_006_45ae:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;> d = -0x10; px = mem16[hPlayerX]
+;> d = -0x10; px = hPlayerX
 	ld bc, $fff0
 	ldh a, [hPlayerX]
 	ld e, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld d, a
 ;> if SameTileAs(xp, d, px):                # Terry one tile left?
 	call SameTileAs
@@ -1539,14 +1539,14 @@ jr_006_45ae:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;>     d = 0; py = mem16[hPlayerY]
+;>     d = 0; py = hPlayerY
 	ld bc, $0000
 	ldh a, [hPlayerY]
 	ld e, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld d, a
 ;>     if SameTileAs(yp, d, py): return StartActorScript()
 	call SameTileAs
@@ -1557,14 +1557,14 @@ jr_006_45de:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;> d = 0; px = mem16[hPlayerX]
+;> d = 0; px = hPlayerX
 	ld bc, $0000
 	ldh a, [hPlayerX]
 	ld e, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld d, a
 ;> if SameTileAs(xp, d, px):                # Terry in the same column?
 	call SameTileAs
@@ -1574,14 +1574,14 @@ jr_006_45de:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;>     d = 0x10; py = mem16[hPlayerY]
+;>     d = 0x10; py = hPlayerY
 	ld bc, $0010
 	ldh a, [hPlayerY]
 	ld e, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld d, a
 ;>     if SameTileAs(yp, d, py): return StartActorScript()   # one tile below
 	call SameTileAs
@@ -1592,14 +1592,14 @@ jr_006_460e:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;> d = 0; px = mem16[hPlayerX]
+;> d = 0; px = hPlayerX
 	ld bc, $0000
 	ldh a, [hPlayerX]
 	ld e, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld d, a
 ;> if SameTileAs(xp, d, px):
 	call SameTileAs
@@ -1609,14 +1609,14 @@ jr_006_460e:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;>     d = -0x10; py = mem16[hPlayerY]
+;>     d = -0x10; py = hPlayerY
 	ld bc, $fff0
 	ldh a, [hPlayerY]
 	ld e, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld d, a
 ;>     if SameTileAs(yp, d, py): return StartActorScript()   # one tile above
 	call SameTileAs
@@ -1639,7 +1639,7 @@ jr_006_463f:
 	ldh a, [hNumber]
 	add $04
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> wScriptId = mem[p]; wScriptMap = 0x70
@@ -1668,14 +1668,14 @@ jr_006_463f:
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;> wFieldFlags |= 0x01                      # field event running
 	ld hl, wFieldFlags
 	set 0, [hl]
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;> return
 	ret
 
@@ -1696,7 +1696,7 @@ SameTileAs::
 	and $f0
 	or $08
 	ld l, a
-;> if (coord & 0xF0) | 8 != v & 0xFF: return False
+;> if ((coord & 0xF0) | 8) != (v & 0xFF): return False
 	ld a, e
 	and $f0
 	or $08
@@ -1739,7 +1739,7 @@ ActorWanderQuiet::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] == 0:
@@ -1751,7 +1751,7 @@ ActorWanderQuiet::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     if not mem[flags] & 0x40 and not wScriptRunning:
@@ -1783,7 +1783,7 @@ jr_006_46e1:
 	ldh a, [hNumber]
 	add $06
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[dirp] = wRandomHigh & 3        # new random direction
@@ -1807,7 +1807,7 @@ ActorWanderQuietStep::
 	ldh a, [hNumber]
 	add $06
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> return ActorWanderQuietSteps[mem[dirp] & 3]()
@@ -1885,10 +1885,10 @@ WanderMoveX::
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;> if mem[xp] & 0x0F == 8:                  # on a tile centre
+;> if (mem[xp] & 0x0F) == 8:                  # on a tile centre
 	ld a, [hl]
 	and $0f
 	cp $08
@@ -1899,42 +1899,42 @@ WanderMoveX::
 	ld h, [hl]
 	ld l, a
 	add hl, de
-;>     mem16[hTestX] = t
+;>     hTestX = t
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>     yp = actor + 0x1A
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     t = mem16[yp]
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-;>     mem16[hTestY] = t
+;>     hTestY = t
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>     GetCollisionAt(); kind = hTestTile
 	push bc
 	call GetCollisionAt
 	ldh a, [hTestTile]
 	push af
-;>     mem16[hTestX] = mem16[hPlayerX]
+;>     hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
-;>     mem16[hTestY] = mem16[hPlayerY]
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
+;>     hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;>     GetCollisionAt()                     # Terry's tile again (leaves hTest* as before)
 	call GetCollisionAt
 	pop af
@@ -1956,7 +1956,7 @@ WanderMoveX::
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[p] = (mem[p] & 0xF0) | 8
@@ -1968,7 +1968,7 @@ WanderMoveX::
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[p] = (mem[p] & 0xF0) | 8
@@ -1980,7 +1980,7 @@ WanderMoveX::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[timer] = 8
@@ -1995,7 +1995,7 @@ jr_006_47bd:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> nx = mem16[p]
@@ -2013,7 +2013,7 @@ jr_006_47bd:
 	ldh a, [hNumber]
 	add $02
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@h homex = mem[home] * 16 + 8
@@ -2048,7 +2048,7 @@ jr_006_47f6:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[p] = (mem[p] & 0xF0) | 8
@@ -2060,7 +2060,7 @@ jr_006_47f6:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[p] = (mem[p] & 0xF0) | 8
@@ -2072,7 +2072,7 @@ jr_006_47f6:
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[timer] = 8
@@ -2088,7 +2088,7 @@ jr_006_4825:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 ;=@p
 	ld h, a
@@ -2120,7 +2120,7 @@ jr_006_4825:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> mem[p] = (mem[p] & 0xF0) | 8
@@ -2132,7 +2132,7 @@ jr_006_4825:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> mem[p] = (mem[p] & 0xF0) | 8
@@ -2144,7 +2144,7 @@ jr_006_4825:
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> mem[timer] = 0x10
@@ -2170,10 +2170,10 @@ WanderMoveY::
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
-;> if mem[yp] & 0x0F == 8:                  # on a tile centre
+;> if (mem[yp] & 0x0F) == 8:                  # on a tile centre
 	ld a, [hl]
 	and $0f
 	cp $08
@@ -2184,42 +2184,42 @@ WanderMoveY::
 	ld h, [hl]
 	ld l, a
 	add hl, de
-;>     mem16[hTestY] = t
+;>     hTestY = t
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>     xp = actor + 0x18
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     t = mem16[xp]
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-;>     mem16[hTestX] = t
+;>     hTestX = t
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>     GetCollisionAt(); kind = hTestTile
 	push bc
 	call GetCollisionAt
 	ldh a, [hTestTile]
 	push af
-;>     mem16[hTestX] = mem16[hPlayerX]
+;>     hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
-;>     mem16[hTestY] = mem16[hPlayerY]
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
+;>     hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;>     GetCollisionAt()                     # Terry's tile again
 	call GetCollisionAt
 	pop af
@@ -2241,7 +2241,7 @@ WanderMoveY::
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[p] = (mem[p] & 0xF0) | 8
@@ -2253,7 +2253,7 @@ WanderMoveY::
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[p] = (mem[p] & 0xF0) | 8
@@ -2265,7 +2265,7 @@ WanderMoveY::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>         mem[timer] = 8
@@ -2280,7 +2280,7 @@ jr_006_4903:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> ny = mem16[p]
@@ -2298,7 +2298,7 @@ jr_006_4903:
 	ldh a, [hNumber]
 	add $03
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@h homey = mem[home] * 16 + 8
@@ -2333,7 +2333,7 @@ jr_006_493c:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[p] = (mem[p] & 0xF0) | 8
@@ -2345,7 +2345,7 @@ jr_006_493c:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[p] = (mem[p] & 0xF0) | 8
@@ -2357,7 +2357,7 @@ jr_006_493c:
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[timer] = 8
@@ -2373,7 +2373,7 @@ jr_006_496b:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 ;=@p
 	ld h, a
@@ -2405,7 +2405,7 @@ jr_006_496b:
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> mem[p] = (mem[p] & 0xF0) | 8
@@ -2417,7 +2417,7 @@ jr_006_496b:
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> mem[p] = (mem[p] & 0xF0) | 8
@@ -2429,7 +2429,7 @@ jr_006_496b:
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> mem[timer] = 0x10
@@ -2455,7 +2455,7 @@ MoveActorX::
 	ldh a, [hNumber]
 	add $18
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@x x = mem16[xp] + step; mem16[xp] = x
@@ -2472,7 +2472,7 @@ MoveActorX::
 	ldh a, [hNumber]
 	add $02
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@h homex = mem[home] * 16 + 8
@@ -2493,7 +2493,7 @@ MoveActorX::
 	ld a, b
 	sbc h
 	ld b, a
-;> if off & 0x0F == 0:                      # on a tile
+;> if (off & 0x0F) == 0:                      # on a tile
 	ld a, c
 	and $0f
 	jr nz, jr_006_4a00
@@ -2502,7 +2502,7 @@ MoveActorX::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[timer] = 0x10
@@ -2527,7 +2527,7 @@ MoveActorY::
 	ldh a, [hNumber]
 	add $1a
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@y y = mem16[yp] + step; mem16[yp] = y
@@ -2544,7 +2544,7 @@ MoveActorY::
 	ldh a, [hNumber]
 	add $03
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@h homey = mem[home] * 16 + 8
@@ -2565,7 +2565,7 @@ MoveActorY::
 	ld a, b
 	sbc h
 	ld b, a
-;> if off & 0x0F == 0:                      # on a tile
+;> if (off & 0x0F) == 0:                      # on a tile
 	ld a, c
 	and $0f
 	jr nz, jr_006_4a47
@@ -2574,7 +2574,7 @@ MoveActorY::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[timer] = 0x10
@@ -2596,7 +2596,7 @@ FinishActorUpdate::
 	ldh a, [hNumber]
 	add $07
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[timer] != 0:
@@ -2620,7 +2620,7 @@ jr_006_4a5b:
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>     mem[flags] &= ~0x40                  # talk over
@@ -2631,7 +2631,7 @@ jr_006_4a6d:
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[flags] & 0x40:                    # talking: face Terry
@@ -2656,7 +2656,7 @@ jr_006_4a83:
 	ldh a, [hNumber]
 	add $06
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;>@t attr = ActorDirAttrs + mem[dirp]
@@ -2691,7 +2691,7 @@ AnimateActor::
 	ldh a, [hNumber]
 	add $05
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	adc $00
 	ld h, a
 ;> if mem[flags] & 0x80: return             # no animation
@@ -2739,7 +2739,7 @@ jr_006_4abc:
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
 ;> if mem[actor + 0x12] == anim:
 	inc hl
 	inc hl
@@ -2767,7 +2767,7 @@ jr_006_4ae8:
 ;>     mem[wPlayerAnimPtr] = 0
 	ld a, [wPlayerAnimPtr]
 	ld l, a
-	ld a, [$d7b5]
+	ld a, [wPlayerAnimPtr + 1]
 	ld h, a
 	ld [hl], $00
 
@@ -2775,7 +2775,7 @@ jr_006_4ae8:
 jr_006_4af7:
 	ld a, [wPlayerAnimPtr]
 	ld l, a
-	ld a, [$d7b5]
+	ld a, [wPlayerAnimPtr + 1]
 	ld h, a
 ;> if mem[actor + 0x0F] == 0:
 	dec hl
@@ -2863,15 +2863,15 @@ jr_006_4b40:
 
 ;> p = hDivisorHigh
 	ld hl, hDivisorHigh
-;> mem16[p] = mem16[hPlayerX]
+;> mem16[p] = hPlayerX
 	ldh a, [hPlayerX]
 	ld [hli], a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld [hli], a
-;> mem16[hFindY] = mem16[hPlayerY]
+;> hFindY = hPlayerY
 	ldh a, [hPlayerY]
 	ld [hli], a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld [hli], a
 ;> FindActorsAround()
 	call FindActorsAround
@@ -2885,10 +2885,10 @@ jr_006_4b40:
 ;@ hFindY $FFDD/$FFDE). When the point lies between two tiles both are checked (+8 and -8).
 ;@ test: skip works on the actor record at hNumber
 FindActorsAround::
-;> if mem[hDivisorHigh] & 0x0F != 8:              # between two columns
-;>@a     mem16[hDivisorHigh] += 8
+;> if (hDivisorHigh & 0x0F) != 8:              # between two columns
+;>@a     mem16[addr(hDivisorHigh)] += 8
 ;>@b     FindActorOnTile()
-;>@c     mem16[hDivisorHigh] -= 0x10
+;>@c     mem16[addr(hDivisorHigh)] -= 0x10
 ;>@d     FindActorOnTile()
 ;>@e     return
 	ldh a, [hDivisorHigh]
@@ -2896,10 +2896,10 @@ FindActorsAround::
 	cp $08
 	jr nz, jr_006_4b6c
 
-;> if mem[hFindY] & 0x0F != 8:              # between two rows
-;>@f     mem16[hFindY] += 8
+;> if (mem[addr(hFindY)] & 0x0F) != 8:              # between two rows
+;>@f     hFindY += 8
 ;>@g     FindActorOnTile()
-;>@h     mem16[hFindY] -= 0x10
+;>@h     hFindY -= 0x10
 ;>@i     FindActorOnTile()
 ;>@j     return
 	ldh a, [hFindY]
@@ -2973,7 +2973,7 @@ jr_006_4b89:
 ;@ CheckActorOnTile for every visible actor except those with sprite byte +1 = $4D.
 ;@ test: skip works on the actor record at hNumber
 FindActorOnTile::
-;> x = mem16[hDivisorHigh]
+;> x = mem16[addr(hDivisorHigh)]
 	ldh a, [hDivisorHigh]
 	ld l, a
 	ldh a, [$ffdc]
@@ -2989,10 +2989,10 @@ FindActorOnTile::
 	and $0f
 	or h
 	ldh [hNumber], a
-;> y = mem16[hFindY]
+;> y = hFindY
 	ldh a, [hFindY]
 	ld l, a
-	ldh a, [$ffde]
+	ldh a, [hFindY + 1]
 	ld h, a
 ;>@m mem[hNumber + 1] = (y >> 4) & 0xFF
 	swap h
@@ -3004,7 +3004,7 @@ FindActorOnTile::
 ;=@m
 	and $0f
 	or h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;> index = 0; actor = wActors
 	ld d, $00
 	ld hl, wActors
@@ -3071,13 +3071,13 @@ CheckActorOnTile::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-;> if x & 0x0F == 8:
+;> if (x & 0x0F) == 8:
 	ld a, e
 	and $0f
 	cp $08
 	jr nz, jr_006_4c17
 
-;>     if y & 0x0F == 8:
+;>     if (y & 0x0F) == 8:
 	ld a, l
 	and $0f
 	cp $08
@@ -3214,7 +3214,7 @@ TileMatchesFind::
 	or h
 	ld c, a
 ;> return ty == mem[hNumber + 1]
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	cp c
 	ret
 
@@ -3416,8 +3416,8 @@ jr_006_4d58:
 ;@ Far entry 4: decompresses the sprite graphics of the (up to 6) entries of wActorGfxSlots into
 ;@ VRAM, one $100-byte slot each, from $8000 + $500 (towns), $8200 (map $45) or $8700 (gate
 ;@ floors). An entry is (graphics number, source): source 0 takes the graphics id from the
-;@ bank-0 list at $2ADF, anything else from ActorGfxIds. Numbers $15 and $55 from the bank-0
-;@ list take two slots. On map $08 the slot address becomes $0800 + slot * $100 (the map id is
+;@ people list ActorGfx, anything else from ActorGfxIds. Numbers $15 and $55 from ActorGfx
+;@ take two slots. On map $08 the slot address becomes $0800 + slot * $100 (the map id is
 ;@ used as the address byte), which looks like a bug.
 ;@ test: skip works on the actor record at hNumber
 LoadFieldActorGfx::
@@ -3444,8 +3444,8 @@ jr_006_4d61:
 	or a
 	jr nz, jr_006_4d7a
 
-;>@k         ptr = 0x2ADF + 2 * num         # bank-0 list
-	ld hl, $2adf
+;>@k         ptr = ActorGfx + 2 * num
+	ld hl, ActorGfx
 	ld a, b
 	add a
 	add l
@@ -3513,7 +3513,7 @@ jr_006_4daa:
 	add $05
 	ld h, a
 
-;>     DecompressVRAM(gfx, dest << 8)
+;>     DecompressVRAM(hi(gfx), lo(gfx), dest << 8)
 jr_006_4dae:
 	ld h, a
 	ld l, $00
@@ -3597,7 +3597,7 @@ ActorGfxIds::
 ;@ both $FF when there is none.
 ;@ test: skip reads the party monster records
 FindLearnableSkill::
-;> lvl = MonsterField(wCurPartyMember, wMonLevel)   # address of its level field
+;> lvl = MonsterField(wCurPartyMember, addr(wMonLevel))   # address of its level field
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -4261,7 +4261,7 @@ jr_006_606b:
 	bit 2, a
 	jp nz, ScrollToNextScreen
 
-;> if mem[0xD9E8]: return
+;> if wFieldInputBlock: return
 	ld a, [wFieldInputBlock]
 	or a
 	jp nz, Jump_006_6284
@@ -4363,20 +4363,20 @@ jr_006_60e7:
 	xor a
 	ld [wItemsHandedIn], a
 	ld [wHatchSlot], a
-;>@s             mem16[0xFFBF] = mem16[hScrollX]   # keep the scroll
+;>@s             mem16[0xFFBF] = hScrollX   # keep the scroll
 	ldh a, [hScrollX]
 	ld l, a
-	ldh a, [$ffb8]
+	ldh a, [hScrollX + 1]
 	ld h, a
 	ld a, l
 	ldh [$ffbf], a
 ;=@s
 	ld a, h
 	ldh [$ffc0], a
-;>@t             mem16[0xFFC1] = mem16[hScrollY]
+;>@t             mem16[0xFFC1] = hScrollY
 	ldh a, [hScrollY]
 	ld l, a
-	ldh a, [$ffbc]
+	ldh a, [hScrollY + 1]
 	ld h, a
 	ld a, l
 	ldh [$ffc1], a
@@ -4408,28 +4408,28 @@ jr_006_611d:
 	and $01
 	jp z, Jump_006_6247
 
-;>@x     mem16[hDivisorHigh] = mem16[hPlayerX]      # hDivisorHigh = hDivisorHigh
+;>@x     mem16[addr(hDivisorHigh)] = hPlayerX      # hDivisorHigh = hDivisorHigh
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	ldh [hDivisorHigh], a
 ;=@x
 	ld a, h
 	ldh [$ffdc], a
-;>@y     mem16[hFindY] = mem16[hPlayerY]
+;>@y     hFindY = hPlayerY
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	ldh [hFindY], a
 ;=@y
 	ld a, h
-	ldh [$ffde], a
+	ldh [hFindY + 1], a
 ;>     FindObjectAtPosition()                        # FindObjectAtPosition -> hNumber, hNumber + 1
-	ld hl, $0b04
+	ld hl, far_FindObjectAtPosition
 	rst $10
 ;>     if hNumber == 0xFF:                  # nobody on Terry's tile: look in front
 	ldh a, [hNumber]
@@ -4456,30 +4456,30 @@ jr_006_611d:
 	inc hl
 ;=@k
 	ld d, [hl]
-;>         t = mem16[hPlayerX] + dx
+;>         t = hPlayerX + dx
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	add hl, bc
-;>         mem16[hDivisorHigh] = t
+;>         mem16[addr(hDivisorHigh)] = t
 	ld a, l
 	ldh [hDivisorHigh], a
 	ld a, h
 	ldh [$ffdc], a
-;>         t = mem16[hPlayerY] + dy
+;>         t = hPlayerY + dy
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	add hl, de
-;>         mem16[hFindY] = t
+;>         hFindY = t
 	ld a, l
 	ldh [hFindY], a
 	ld a, h
-	ldh [$ffde], a
+	ldh [hFindY + 1], a
 ;>         FindObjectAtPosition()
-	ld hl, $0b04
+	ld hl, far_FindObjectAtPosition
 	rst $10
 ;>     if hNumber != 0xFF:                  # somebody to talk to
 	ldh a, [hNumber]
@@ -4501,7 +4501,7 @@ jr_006_618e:
 
 ;>         if mem[hNumber + 1] != 0xFF:     # an actor
 jr_006_61a2:
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	cp $ff
 	jr z, jr_006_61b7
 
@@ -4541,14 +4541,14 @@ jr_006_61b7:
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;>             wFieldFlags |= 0x01
 	ld hl, wFieldFlags
 	set 0, [hl]
 ;>             wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 
 ;>     if wOnGateFloor:                     # touch the floor object in front
 Jump_006_61e9:
@@ -4576,29 +4576,29 @@ Jump_006_61e9:
 	inc hl
 ;=@m
 	ld d, [hl]
-;>         t = mem16[hPlayerX] + dx
+;>         t = hPlayerX + dx
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	add hl, bc
-;>         mem16[hDivisorHigh] = t
+;>         mem16[addr(hDivisorHigh)] = t
 	ld a, l
 	ldh [hDivisorHigh], a
 	ld a, h
 	ldh [$ffdc], a
-;>         t = mem16[hPlayerY] + dy
+;>         t = hPlayerY + dy
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	add hl, de
-;>         mem16[hFindY] = t
+;>         hFindY = t
 	ld a, l
 	ldh [hFindY], a
 	ld a, h
-	ldh [$ffde], a
-;>@u         mem[hDivisorHigh] = (mem16[hDivisorHigh] >> 4) & 0xFF    # pixel -> tile
+	ldh [hFindY + 1], a
+;>@u         hDivisorHigh = (mem16[addr(hDivisorHigh)] >> 4) & 0xFF    # pixel -> tile
 	ldh a, [hDivisorHigh]
 	swap a
 	and $0f
@@ -4609,12 +4609,12 @@ Jump_006_61e9:
 	and $f0
 	or b
 	ldh [hDivisorHigh], a
-;>@v         mem[hFindY] = (mem16[hFindY] >> 4) & 0xFF
+;>@v         mem[addr(hFindY)] = (hFindY >> 4) & 0xFF
 	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
-	ldh a, [$ffde]
+	ldh a, [hFindY + 1]
 	swap a
 ;=@v
 	and $f0
@@ -4700,10 +4700,10 @@ RunNameEntry::
 
 ;@ def SwapMenuState()
 ;@ path: field/input
-;@ Swaps the 8 menu state bytes from wMenuStep with the 8 bytes at $C876.
+;@ Swaps the 8 menu state bytes from wMenuStep with the 8 bytes at wBattlerSexBits67.
 ;@ test: skip dispatches to the field handlers
 SwapMenuState::
-;> p = wMenuStep; q = 0xC876
+;> p = addr(wMenuStep); q = addr(wBattlerSexBits67)
 	ld hl, wMenuStep
 	ld de, wBattlerSexBits67
 ;>@i for i in range(8):
@@ -4731,7 +4731,7 @@ jr_006_62a8:
 ;@ test: skip dispatches to the field handlers
 RunScriptMenu::
 ;> far_call(0x09, 0x00)                            # ScriptMenuTable9[wScriptMenu]
-	ld hl, $0900
+	ld hl, far_RunScriptMenu9
 	rst $10
 	ret
 
@@ -4756,7 +4756,7 @@ jr_006_62c3:
 	ld b, $14
 	push hl
 
-;>         WriteVRAM(dest, mem[src])
+;>         WriteVRAM(mem[src], dest)
 jr_006_62c6:
 	ld a, [de]
 	call WriteVRAM
@@ -4857,7 +4857,7 @@ ScrollLeftStart::
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
 ;> RedrawScreenBuffer()                            # RedrawScreenBuffer
-	ld hl, $0b03
+	ld hl, far_RedrawScreenBuffer
 	rst $10
 ;> wScrollColumn = 0x13
 	ld a, $13
@@ -4907,7 +4907,7 @@ ScrollLeftColumn::
 	ld a, l
 	ld [wMapUpdateDest], a
 	ld a, h
-	ld [$c741], a
+	ld [wMapUpdateDest + 1], a
 ;>@d src = wTilemapBuffer + wScrollColumn
 	ld a, [wScrollColumn]
 	ld de, wTilemapBuffer
@@ -5004,10 +5004,10 @@ jr_006_63a0:
 jr_006_63af:
 	ld a, $01
 	ld [wMapUpdateOn], a
-;>@x t = mem16[hScrollX] - 8
+;>@x t = hScrollX - 8
 	ldh a, [hScrollX]
 	ld l, a
-	ldh a, [$ffb8]
+	ldh a, [hScrollX + 1]
 	ld h, a
 	ld a, l
 	add $f8
@@ -5016,11 +5016,11 @@ jr_006_63af:
 	ld a, h
 	adc $ff
 	ld h, a
-;> mem16[hScrollX] = t
+;> hScrollX = t
 	ld a, l
 	ldh [hScrollX], a
 	ld a, h
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;> wScrollColumn -= 1
 	ld a, [wScrollColumn]
 	dec a
@@ -5087,11 +5087,11 @@ jr_006_63f2:
 	ld [hli], a
 	ldh a, [hPlayerY]
 	ld [hli], a
-;>     mem[e + 2] = (mem[hPlayerX + 1] << 4) | mem[hPlayerY + 1]
-	ldh a, [$ff93]
+;>     mem[e + 2] = (mem[addr(hPlayerX) + 1] << 4) | mem[addr(hPlayerY) + 1]
+	ldh a, [hPlayerX + 1]
 	swap a
 	ld c, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	or c
 	ld [hli], a
 ;>     mem[e + 3] = hPlayerFrame | hPlayerAttr
@@ -5116,21 +5116,21 @@ jr_006_6427:
 	dec b
 	jr nz, jr_006_63f2
 
-;> mem16[hTestX] = mem16[hPlayerX]
+;> hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
-;> mem16[hTestY] = mem16[hPlayerY]
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
+;> hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;> GetCollisionAt(); HandleConveyor()
 	call GetCollisionAt
 	ld hl, far_HandleConveyor
 	rst $10
-;> mem[0xD9E8] = 0
+;> wFieldInputBlock = 0
 	xor a
 	ld [wFieldInputBlock], a
 	ret
@@ -5168,7 +5168,7 @@ ScrollRightStart::
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
 ;> RedrawScreenBuffer()                            # RedrawScreenBuffer
-	ld hl, $0b03
+	ld hl, far_RedrawScreenBuffer
 	rst $10
 ;> wScrollColumn = 0
 	xor a
@@ -5217,7 +5217,7 @@ ScrollRightColumn::
 	ld a, l
 	ld [wMapUpdateDest], a
 	ld a, h
-	ld [$c741], a
+	ld [wMapUpdateDest + 1], a
 ;>@d src = wTilemapBuffer + wScrollColumn
 	ld a, [wScrollColumn]
 	ld de, wTilemapBuffer
@@ -5314,10 +5314,10 @@ jr_006_64e4:
 jr_006_64f3:
 	ld a, $01
 	ld [wMapUpdateOn], a
-;>@x t = mem16[hScrollX] + 8
+;>@x t = hScrollX + 8
 	ldh a, [hScrollX]
 	ld l, a
-	ldh a, [$ffb8]
+	ldh a, [hScrollX + 1]
 	ld h, a
 	ld a, l
 	add $08
@@ -5326,11 +5326,11 @@ jr_006_64f3:
 	ld a, h
 	adc $00
 	ld h, a
-;> mem16[hScrollX] = t
+;> hScrollX = t
 	ld a, l
 	ldh [hScrollX], a
 	ld a, h
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;> wScrollColumn += 1
 	ld a, [wScrollColumn]
 	inc a
@@ -5377,7 +5377,7 @@ ScrollUpStart::
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
 ;> RedrawScreenBuffer()                            # RedrawScreenBuffer
-	ld hl, $0b03
+	ld hl, far_RedrawScreenBuffer
 	rst $10
 ;> wScrollColumn = 0x0F
 	ld a, $0f
@@ -5434,7 +5434,7 @@ ScrollUpRow::
 	ld a, l
 	ld [wMapUpdateDest], a
 	ld a, h
-	ld [$c741], a
+	ld [wMapUpdateDest + 1], a
 ;> t = wScrollColumn
 	ld a, [wScrollColumn]
 	ld l, a
@@ -5518,10 +5518,10 @@ jr_006_65b4:
 ;> wMapUpdateOn = 1
 	ld a, $01
 	ld [wMapUpdateOn], a
-;>@x t = mem16[hScrollY] - 8
+;>@x t = hScrollY - 8
 	ldh a, [hScrollY]
 	ld l, a
-	ldh a, [$ffbc]
+	ldh a, [hScrollY + 1]
 	ld h, a
 	ld a, l
 	add $f8
@@ -5530,11 +5530,11 @@ jr_006_65b4:
 	ld a, h
 	adc $ff
 	ld h, a
-;> mem16[hScrollY] = t
+;> hScrollY = t
 	ld a, l
 	ldh [hScrollY], a
 	ld a, h
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 ;> wScrollColumn -= 1
 	ld a, [wScrollColumn]
 	dec a
@@ -5581,7 +5581,7 @@ ScrollDownStart::
 ;> ShowPartyBarWindow()
 	call ShowPartyBarWindow
 ;> RedrawScreenBuffer()                            # RedrawScreenBuffer
-	ld hl, $0b03
+	ld hl, far_RedrawScreenBuffer
 	rst $10
 ;> wScrollColumn = 0
 	xor a
@@ -5638,7 +5638,7 @@ ScrollDownRow::
 	ld a, l
 	ld [wMapUpdateDest], a
 	ld a, h
-	ld [$c741], a
+	ld [wMapUpdateDest + 1], a
 ;> t = wScrollColumn
 	ld a, [wScrollColumn]
 	ld l, a
@@ -5722,10 +5722,10 @@ jr_006_6682:
 ;> wMapUpdateOn = 1
 	ld a, $01
 	ld [wMapUpdateOn], a
-;>@x t = mem16[hScrollY] + 8
+;>@x t = hScrollY + 8
 	ldh a, [hScrollY]
 	ld l, a
-	ldh a, [$ffbc]
+	ldh a, [hScrollY + 1]
 	ld h, a
 	ld a, l
 	add $08
@@ -5734,11 +5734,11 @@ jr_006_6682:
 	ld a, h
 	adc $00
 	ld h, a
-;> mem16[hScrollY] = t
+;> hScrollY = t
 	ld a, l
 	ldh [hScrollY], a
 	ld a, h
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 ;> wScrollColumn += 1
 	ld a, [wScrollColumn]
 	inc a
@@ -5894,7 +5894,7 @@ jr_006_6734:
 	ld b, $14
 	push hl
 
-;>         WriteVRAM(dest, 7)
+;>         WriteVRAM(7, dest)
 jr_006_6737:
 	ld a, $07
 	call WriteVRAM
@@ -5966,7 +5966,7 @@ jr_006_6776:
 	ld b, $14
 	push hl
 
-;>         WriteVRAM(dest, mem[src])
+;>         WriteVRAM(mem[src], dest)
 jr_006_6779:
 	ld a, [de]
 	call WriteVRAM
@@ -6119,7 +6119,7 @@ EventShowText::
 ;>@p if wEventRoutine != 0xFFFF:
 	ld a, [wEventRoutine]
 	ld l, a
-	ld a, [$c918]
+	ld a, [wEventRoutine + 1]
 	ld h, a
 	ld a, h
 	and l
@@ -6163,13 +6163,13 @@ EventBoxMapAddress::
 	ld a, [wEventBoxMap]
 	add l
 	ld l, a
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	adc h
 	and $03
 ;=@a
 	ld h, a
 ;> return (wEventBoxMap & 0xFC00) | (a & 0x3FF)
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	and $fc
 	or h
 	ld h, a
@@ -6215,17 +6215,17 @@ EventOpenBox::
 	jr nz, jr_006_6893
 
 ;> if side == 0:
-;>@y     y = mem16[hPlayerY] - mem16[hScrollY]  # Terry's height on screen
+;>@y     y = hPlayerY - hScrollY  # Terry's height on screen
 jr_006_686e:
 	ldh a, [hScrollY]
 	ld c, a
 	ldh a, [hPlayerY]
 	sub c
 	ld c, a
-	ldh a, [$ffbc]
+	ldh a, [hScrollY + 1]
 ;=@y
 	ld b, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	sbc b
 ;>     side = 1 if y < 0x50 else 2
 	jr nz, jr_006_6882
@@ -6299,7 +6299,7 @@ jr_006_68a7:
 	ld a, l
 	ld [wEventBoxMap], a
 	ld a, h
-	ld [$c91a], a
+	ld [wEventBoxMap + 1], a
 
 ;@ def EventSaveBG()
 ;@ path: event/textbox
@@ -6313,7 +6313,7 @@ EventSaveBG::
 ;> dest = wEventBoxMap
 	ld a, [wEventBoxMap]
 	ld l, a
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	ld h, a
 ;> SaveBGRow(0x00, wLineScroll)
 	ld bc, $0000
@@ -6321,19 +6321,19 @@ EventSaveBG::
 	call SaveBGRow
 ;> SaveBGRow(0x20, 0xC114)
 	ld bc, $0020
-	ld de, $c114
+	ld de, wLineScroll + 20
 	call SaveBGRow
 ;> SaveBGRow(0x40, 0xC128)
 	ld bc, $0040
-	ld de, $c128
+	ld de, wLineScroll + 40
 	call SaveBGRow
 ;> SaveBGRow(0x60, 0xC13C)
 	ld bc, $0060
-	ld de, $c13c
+	ld de, wLineScroll + 60
 	call SaveBGRow
 ;> return SaveBGRow(0x80, 0xC150)
 	ld bc, $0080
-	ld de, $c150
+	ld de, wLineScroll + 80
 
 ;@ def SaveBGRow(offset: bc, buf: de)
 ;@ path: event/textbox
@@ -6343,7 +6343,7 @@ SaveBGRow::
 ;>@a src = wEventBoxMap + offset
 	ld a, [wEventBoxMap]
 	ld l, a
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	ld h, a
 	add hl, bc
 	ld a, h
@@ -6351,7 +6351,7 @@ SaveBGRow::
 	and $03
 	ld h, a
 ;> src = (wEventBoxMap & 0xFC00) | (src & 0x3FF)
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	and $fc
 	or h
 	ld h, a
@@ -6393,7 +6393,7 @@ EventDrawBoxMiddle::
 ;@ Draws one inner row of the box: border tile $FE, 18 blank tiles $E0, border tile $FF.
 ;@ test: skip writes VRAM
 DrawBoxSideRow::
-;> WriteVRAM(dest, 0xFE); dest = NextBoxMapColumn(dest)
+;> WriteVRAM(0xFE, dest); dest = NextBoxMapColumn(dest)
 	ld a, $fe
 	call WriteVRAM
 	call NextBoxMapColumn
@@ -6401,7 +6401,7 @@ DrawBoxSideRow::
 	ld b, $12
 	ld a, $e0
 	call FillMapTiles
-;> return WriteVRAM(dest, 0xFF)
+;> return WriteVRAM(0xFF, dest)
 	ld a, $ff
 	jp WriteVRAM
 
@@ -6412,7 +6412,7 @@ DrawBoxSideRow::
 ;@ test: skip writes VRAM
 FillMapTiles::
 ;>@i for i in range(count):
-;>     WriteVRAM(dest, tile); dest = NextBoxMapColumn(dest)
+;>     WriteVRAM(tile, dest); dest = NextBoxMapColumn(dest)
 	call WriteVRAM
 	call NextBoxMapColumn
 ;=@i
@@ -6472,9 +6472,9 @@ EventDrawBoxFrame::
 ;> dest = wEventBoxMap
 	ld a, [wEventBoxMap]
 	ld l, a
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	ld h, a
-;> WriteVRAM(dest, 0xFA); dest = NextBoxMapColumn(dest)
+;> WriteVRAM(0xFA, dest); dest = NextBoxMapColumn(dest)
 	ld a, $fa
 	call WriteVRAM
 	call NextBoxMapColumn
@@ -6482,13 +6482,13 @@ EventDrawBoxFrame::
 	ld b, $12
 	ld a, $ef
 	call FillMapTiles
-;> WriteVRAM(dest, 0xFB)
+;> WriteVRAM(0xFB, dest)
 	ld a, $fb
 	call WriteVRAM
 ;> dest = EventBoxMapAddress(0x80)
 	ld hl, $0080
 	call EventBoxMapAddress
-;> WriteVRAM(dest, 0xFC); dest = NextBoxMapColumn(dest)
+;> WriteVRAM(0xFC, dest); dest = NextBoxMapColumn(dest)
 	ld a, $fc
 	call WriteVRAM
 	call NextBoxMapColumn
@@ -6496,7 +6496,7 @@ EventDrawBoxFrame::
 	ld b, $12
 	ld a, $ee
 	call FillMapTiles
-;> WriteVRAM(dest, 0xFD)
+;> WriteVRAM(0xFD, dest)
 	ld a, $fd
 	call WriteVRAM
 ;> SGBAttrBlkBegin()
@@ -6509,7 +6509,7 @@ EventDrawBoxFrame::
 
 	ld hl, $000d
 
-;> SGBAttrBlkAdd(0, pos, size=0x1304, palette=1)
+;> SGBAttrBlkAdd(0, 1, pos >> 8, pos & 0xFF, 0x13, 0x04)   # palette 0, inside coloured, 19 x 4
 jr_006_69c2:
 	ld a, $00
 	ld bc, $1304
@@ -6548,7 +6548,7 @@ EventRun::
 ;>@e if wEventRoutine == 0xFFFF and wScriptRunning & 0x02:
 	ld a, [wEventRoutine]
 	ld l, a
-	ld a, [$c918]
+	ld a, [wEventRoutine + 1]
 	ld h, a
 	ld a, h
 	and l
@@ -6570,18 +6570,18 @@ EventRun::
 	ret nz
 
 ;>     return PrintScriptMessage()                 # PrintScriptMessage: the script goes on
-	ld hl, $0406
+	ld hl, far_PrintScriptMessage
 	rst $10
 	ret
 
 
 ;> if wEventRoutine >> 8 == 0x02:
 jr_006_6a02:
-	ld a, [$c918]
+	ld a, [wEventRoutine + 1]
 	cp $02
 	jr nz, jr_006_6a25
 
-;>     if wEventRoutine & 0xFF == 0x11:
+;>     if (wEventRoutine & 0xFF) == 0x11:
 	ld a, [wEventRoutine]
 	cp $11
 	jr nz, jr_006_6a1a
@@ -6592,7 +6592,7 @@ jr_006_6a02:
 	cp $17
 	jr nz, jr_006_6a1a
 
-;>     if wEventRoutine & 0xFF == 0x17:
+;>     if (wEventRoutine & 0xFF) == 0x17:
 jr_006_6a1a:
 	ld a, [wEventRoutine]
 	cp $17
@@ -6603,7 +6603,7 @@ jr_006_6a1a:
 	ret
 
 
-;> if wEventRoutine & 0xFF != 0x1A:
+;> if (wEventRoutine & 0xFF) != 0x1A:
 ;>@n     wEventStep += 1
 ;>@o     SGBSetFieldPalettes()
 ;>@q     return
@@ -6618,8 +6618,8 @@ jr_006_6a25:
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
-;> mem[0xD92B] = 8
+	ld [wEventStep + 1], a
+;> wHomeWarpCause = 8
 	ld a, $08
 	ld [wHomeWarpCause], a
 ;> wWarpMap = 0; wWarpOnGateFloor = 0       # back home
@@ -6633,13 +6633,13 @@ jr_006_6a25:
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;> wWarpY = 0x58
 	ld hl, $0058
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 ;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
@@ -6649,20 +6649,20 @@ jr_006_6a25:
 ;> gold = wGold                             # 24-bit
 	ld a, [wGold]
 	ld l, a
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 	ld h, a
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	ld e, a
-;> gold = Divide24(gold, 2)
+;> q_high, q, _ = Divide24(gold >> 16, gold & 0xFFFF, 2); gold = q_high << 16 | q
 	ld a, $02
 	call Divide24
 ;> wGold = gold
 	ld a, l
 	ld [wGold], a
 	ld a, h
-	ld [$ca4c], a
+	ld [wGold + 1], a
 	ld a, e
-	ld [$ca4d], a
+	ld [wGold + 2], a
 ;> item = wBagItems
 	ld hl, wBagItems
 ;>@b for i in range(20):
@@ -6683,7 +6683,7 @@ jr_006_6a8b:
 	push bc
 	ld hl, far_GetItemData
 	rst $10
-;>         if not mem[0xDA6D] & 0x04:       # not kept
+;>         if not wItemFlags & 0x04:       # not kept
 	pop bc
 	pop hl
 	ld a, [wItemFlags]
@@ -6763,7 +6763,7 @@ StartEventBossBattle::
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;>@p p = EventBossBattles + 2 * wScriptBossIndex
 	ld a, [wScriptBossIndex]
 	add a
@@ -6774,11 +6774,11 @@ StartEventBossBattle::
 ;=@p
 	adc h
 	ld h, a
-;> wEncSpecies = mem[p]; mem[0xDA04] = mem[p + 1]
+;> wEncSpecies = mem[p]; wEncSpecies[1] = mem[p + 1]
 	ld a, [hli]
 	ld [wEncSpecies], a
 	ld a, [hl]
-	ld [$da04], a
+	ld [wEncSpecies + 1], a
 ;> wEncCount = 0
 	ld a, $00
 	ld [wEncCount], a
@@ -6809,7 +6809,7 @@ EventRestoreBG1::
 ;> dest = wEventBoxMap
 	ld a, [wEventBoxMap]
 	ld l, a
-	ld a, [$c91a]
+	ld a, [wEventBoxMap + 1]
 	ld h, a
 ;> RestoreBGRow(dest, wLineScroll, 20)
 	ld de, wLineScroll
@@ -6819,7 +6819,7 @@ EventRestoreBG1::
 	ld hl, $0080
 	call EventBoxMapAddress
 ;> return RestoreBGRow(dest, 0xC150, 20)
-	ld de, $c150
+	ld de, wLineScroll + 80
 	ld b, $14
 
 ;@ def RestoreBGRow(dest: hl, buf: de, count: b)
@@ -6828,7 +6828,7 @@ EventRestoreBG1::
 ;@ test: skip writes VRAM
 RestoreBGRow::
 ;>@i for i in range(count):
-;>     WriteVRAM(dest, mem[buf]); buf += 1
+;>     WriteVRAM(mem[buf], dest); buf += 1
 	ld a, [de]
 	call WriteVRAM
 	inc de
@@ -6856,13 +6856,13 @@ EventRestoreBG2::
 ;> RestoreBGRow(EventBoxMapAddress(0x20), 0xC114, 20)
 	ld hl, $0020
 	call EventBoxMapAddress
-	ld de, $c114
+	ld de, wLineScroll + 20
 	ld b, $14
 	call RestoreBGRow
 ;> return RestoreBGRow(EventBoxMapAddress(0x60), 0xC13C, 20)
 	ld hl, $0060
 	call EventBoxMapAddress
-	ld de, $c13c
+	ld de, wLineScroll + 60
 	ld b, $14
 	jr RestoreBGRow
 
@@ -6877,7 +6877,7 @@ EventRestoreBG3::
 ;> return RestoreBGRow(EventBoxMapAddress(0x40), 0xC128, 20)
 	ld hl, $0040
 	call EventBoxMapAddress
-	ld de, $c128
+	ld de, wLineScroll + 40
 	ld b, $14
 	jr RestoreBGRow
 
@@ -7124,7 +7124,7 @@ TransitionWave::
 ;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
-;> if wFieldTimer & 7 == 0:
+;> if (wFieldTimer & 7) == 0:
 	ld a, [wFieldTimer]
 	and $07
 	jr nz, UpdateWaveScroll
@@ -7176,7 +7176,7 @@ UpdateWaveScroll::
 ;>     line = wLineScroll; mem[hNumber + 1] = 0x20   # (low byte of the end)
 	ld bc, wLineScroll
 	ld a, $20
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	jp Jump_006_6ce8
 
 
@@ -7186,9 +7186,9 @@ jr_006_6cc5:
 	jr nz, jr_006_6cd3
 
 ;>     line = 0xC120; mem[hNumber + 1] = 0x40
-	ld bc, $c120
+	ld bc, wLineScroll + 32
 	ld a, $40
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	jp Jump_006_6ce8
 
 
@@ -7198,18 +7198,18 @@ jr_006_6cd3:
 	jr nz, jr_006_6ce1
 
 ;>     line = 0xC140; mem[hNumber + 1] = 0x60
-	ld bc, $c140
+	ld bc, wLineScroll + 64
 	ld a, $60
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	jp Jump_006_6ce8
 
 
 ;> else:
 ;>     line = 0xC160; mem[hNumber + 1] = 0x80
 jr_006_6ce1:
-	ld bc, $c160
+	ld bc, wLineScroll + 96
 	ld a, $80
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 
 ;>@w while True:
 ;>     e = (e + 1) & 0x0F
@@ -7248,8 +7248,8 @@ jr_006_6d05:
 	inc c
 	ld [bc], a
 	inc c
-;>     if line & 0xFF == mem[hNumber + 1]: return
-	ldh a, [$ffd6]
+;>     if (line & 0xFF) == mem[hNumber + 1]: return
+	ldh a, [hNumber + 1]
 	cp c
 ;=@w
 	jr nz, jr_006_6ce8
@@ -7267,7 +7267,7 @@ WaveOffsets::
 ;@ step every 16 frames; after the 4th the line effect is turned off and the next step follows.
 ;@ test: skip drives the LCD effects and writes VRAM
 TransitionWaveFade::
-;> if wFieldTimer & 0x0F == 0:
+;> if (wFieldTimer & 0x0F) == 0:
 	ld a, [wFieldTimer]
 	and $0f
 	jr nz, jr_006_6d3a
@@ -7344,7 +7344,7 @@ TransitionLoad::
 	or a
 	ret nz
 
-;>@d if mem[0xD92B] in (1, 2, 3, 4, 5): return
+;>@d if wHomeWarpCause in (1, 2, 3, 4, 5): return
 	ld a, [wHomeWarpCause]
 	cp $01
 	ret z
@@ -7523,7 +7523,7 @@ TransitionMapAddress::
 ;@ Writes the blank tile $E0 at view position `pos` (row * 32 + column).
 ;@ test: skip drives the LCD effects and writes VRAM
 ClearMapTile::
-;> WriteVRAM(TransitionTileAddress(pos), 0xE0)
+;> WriteVRAM(0xE0, TransitionTileAddress(pos))
 	call TransitionTileAddress
 	ld a, $e0
 	call WriteVRAM
@@ -7722,18 +7722,18 @@ TransitionSqueeze::
 	ldh a, [hScrollY]
 	add $20
 	ld [wTextArg0], a
-;> mem[0xC181] = y; mem[0xC182] = y
-	ld [$c181], a
-	ld [$c182], a
-;> mem[0xC183] = y
-	ld [$c183], a
+;> wTextArg0[1] = y; wTextArg0[2] = y
+	ld [wTextArg0 + 1], a
+	ld [wTextArg0 + 2], a
+;> wTextArg0[3] = y
+	ld [wTextArg0 + 3], a
 ;> wMenuOverlay = 1
 	ld a, $01
 	ld [wMenuOverlay], a
 ;> acc = 0; down = 0xC140; up = 0xC140     # from the middle line
 	ld hl, $0000
-	ld de, $c140
-	ld bc, $c140
+	ld de, wLineScroll + 64
+	ld bc, wLineScroll + 64
 
 ;>@w while True:
 ;>     if (acc >> 8) + (down & 0xFF) >= 0x7C:
@@ -7777,14 +7777,14 @@ jr_006_6f73:
 	sub h
 	ld [bc], a
 
-;>     if up & 0xFF == 0: break
+;>     if (up & 0xFF) == 0: break
 jr_006_6f87:
 	ld a, c
 	or a
 ;=@w
 	jr nz, jr_006_6f5d
 
-;> speed = mem16[wItemsHandedIn]
+;> speed = mem16[addr(wItemsHandedIn)]
 	ld a, [wItemsHandedIn]
 	ld l, a
 	ld a, [wHatchSlot]
@@ -7814,7 +7814,7 @@ jr_006_6f87:
 	ld a, [wHatchSlot]
 	ld b, a
 	add hl, bc
-;>     mem16[wItemsHandedIn] = t; return
+;>     mem16[addr(wItemsHandedIn)] = t; return
 	ld a, l
 	ld [wItemsHandedIn], a
 	ld a, h
@@ -7851,7 +7851,7 @@ TransitionWipe::
 ;>@i for i in range(16):
 	ld b, $10
 
-;>     WriteVRAM(dest, 0xE0)
+;>     WriteVRAM(0xE0, dest)
 jr_006_6fd8:
 	ld a, $e0
 	call WriteVRAM
@@ -7881,7 +7881,7 @@ jr_006_6fd8:
 ;>@j for i in range(16):
 	ld b, $10
 
-;>     WriteVRAM(dest, 0xE0)
+;>     WriteVRAM(0xE0, dest)
 jr_006_6ffb:
 	ld a, $e0
 	call WriteVRAM
@@ -7958,7 +7958,7 @@ jr_006_704d:
 	ld b, $14
 	push hl
 
-;>         WriteVRAM(dest, 7)
+;>         WriteVRAM(7, dest)
 jr_006_7050:
 	ld a, $07
 	call WriteVRAM
@@ -8029,7 +8029,7 @@ jr_006_708f:
 	ld b, $14
 	push hl
 
-;>         WriteVRAM(dest, mem[src])
+;>         WriteVRAM(mem[src], dest)
 jr_006_7092:
 	ld a, [de]
 	call WriteVRAM

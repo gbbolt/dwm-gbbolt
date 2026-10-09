@@ -57,7 +57,7 @@ CreateMonsterUnlisted::
 	ld bc, $0095
 	xor a
 	call FillMemory
-;> p = MonsterField(wNewMonSlot, wMonParent1)
+;> p = MonsterField(wNewMonSlot, addr(wMonParent1))
 ;> mem[p] = mem[p + 1] = 0xFF
 	ld hl, wMonParent1
 	ld a, [wNewMonSlot]
@@ -110,7 +110,7 @@ CreateMonsterUnlisted::
 	ld b, $08
 	call CopyToNewMon
 ;> mem[MonsterField(wNewMonSlot, 0xCAD5)] = mem[0xCA4A]
-	ld hl, $cad5
+	ld hl, wMonMaster + 8
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, [$ca4a]
@@ -145,7 +145,7 @@ CreateMonster::
 	ld bc, $0095
 	xor a
 	call FillMemory
-;> p = MonsterField(wNewMonSlot, wMonParent1)
+;> p = MonsterField(wNewMonSlot, addr(wMonParent1))
 ;> mem[p] = mem[p + 1] = 0xFF                  # no parents
 	ld hl, wMonParent1
 	ld a, [wNewMonSlot]
@@ -198,7 +198,7 @@ CreateMonster::
 	ld b, $08
 	call CopyToNewMon
 ;> mem[MonsterField(wNewMonSlot, 0xCAD5)] = mem[0xCA4A]
-	ld hl, $cad5
+	ld hl, wMonMaster + 8
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld a, [$ca4a]
@@ -207,7 +207,7 @@ CreateMonster::
 	ld de, wNewMonNameText
 	call LoadMonTemplateTo
 ;> if wNewMonSlot != 0x15:
-;>     SetFlag(wLibraryFlags, wNewMonNameText[0])      # the library knows the species now
+;>     SetFlag(wLibraryFlags, wNewMonNameText)      # the library knows the species now
 	ld a, [wNewMonSlot]
 	cp $15
 	jr z, CreateMonsterFromTemplate
@@ -236,14 +236,14 @@ CreateMonsterFromTemplate:
 ;> RandomizeNewMonWord(wMonMaxHP)
 	ld hl, wMonMaxHP
 	call RandomizeNewMonWord
-;> hp = mem16[MonsterField(wNewMonSlot, wMonMaxHP)]
+;> hp = mem16[MonsterField(wNewMonSlot, addr(wMonMaxHP))]
 	ld hl, wMonMaxHP
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
-;>@a1 mem16[MonsterField(wNewMonSlot, wMonHP)] = hp
+;>@a1 mem16[MonsterField(wNewMonSlot, addr(wMonHP))] = hp
 	push bc
 	ld hl, wMonHP
 	ld a, [wNewMonSlot]
@@ -260,14 +260,14 @@ CreateMonsterFromTemplate:
 ;> RandomizeNewMonWord(wMonMaxMP)
 	ld hl, wMonMaxMP
 	call RandomizeNewMonWord
-;> mp = mem16[MonsterField(wNewMonSlot, wMonMaxMP)]
+;> mp = mem16[MonsterField(wNewMonSlot, addr(wMonMaxMP))]
 	ld hl, wMonMaxMP
 	ld a, [wNewMonSlot]
 	call MonsterField
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
-;>@a2 mem16[MonsterField(wNewMonSlot, wMonMP)] = mp
+;>@a2 mem16[MonsterField(wNewMonSlot, addr(wMonMP))] = mp
 	push bc
 	ld hl, wMonMP
 	ld a, [wNewMonSlot]
@@ -330,7 +330,7 @@ CreateMonsterFromTemplate:
 ;> RandomizeNewMonByte(wMonStat67)
 	ld hl, wMonStat67
 	call RandomizeNewMonByte
-;> level5 = 5 * mem[MonsterField(wNewMonSlot, wMonLevel)]
+;> level5 = 5 * mem[MonsterField(wNewMonSlot, addr(wMonLevel))]
 	ld hl, wMonLevel
 	ld a, [wNewMonSlot]
 	call MonsterField
@@ -366,14 +366,14 @@ CreateMonsterFromTemplate:
 	ld bc, $00ff
 
 .setWild
-;> mem[MonsterField(wNewMonSlot, wMonWildness)] = wild
+;> mem[MonsterField(wNewMonSlot, addr(wMonWildness))] = wild
 	push bc
 	ld hl, wMonWildness
 	ld a, [wNewMonSlot]
 	call MonsterField
 	pop bc
 	ld [hl], c
-;> wMonSpecies = wNewMonNameText[0]
+;> wMonSpecies = wNewMonNameText
 	ld a, [wNewMonNameText]
 	ld [wMonSpecies], a
 ;> GetMonsterStats()                                    # the species record into wMonStats
@@ -395,7 +395,7 @@ CreateMonsterFromTemplate:
 ;=@a4
 	ld a, [wMonStats + 1]
 	add b
-;> mem[MonsterField(wNewMonSlot, wMonMaxLevel)] = limit
+;> mem[MonsterField(wNewMonSlot, addr(wMonMaxLevel))] = limit
 	push af
 	ld hl, wMonMaxLevel
 	ld a, [wNewMonSlot]
@@ -403,7 +403,7 @@ CreateMonsterFromTemplate:
 	pop af
 	ld [hl], a
 ;> CopyToNewMon(0xCB29, wMonResistances, 27)            # the species' resistances
-	ld hl, $cb29
+	ld hl, wMonResist
 	ld de, wMonResistances
 	ld b, $1b
 	call CopyToNewMon
@@ -414,7 +414,7 @@ CreateMonsterFromTemplate:
 	call CopyToNewMon
 ;> DropSupersededSkills()
 	call DropSupersededSkills
-;> sex = MonsterField(wNewMonSlot, wMonGender)
+;> sex = MonsterField(wNewMonSlot, addr(wMonGender))
 	ld hl, wMonGender
 	ld a, [wNewMonSlot]
 	call MonsterField
@@ -455,7 +455,7 @@ CreateMonsterFromTemplate:
 
 	jr nc, .sexDone
 
-;>         mem[MonsterField(wNewMonSlot, wMonGender)] = 1
+;>         mem[MonsterField(wNewMonSlot, addr(wMonGender))] = 1
 	ld hl, wMonGender
 	ld a, [wNewMonSlot]
 	call MonsterField
@@ -700,7 +700,7 @@ CreateMonsterFromTemplate:
 	cp $3c
 	jp z, .master3C
 
-;>@egg     elif wNewMonId == 0x15E: mem[MonsterField(wNewMonSlot, wMonEgg)] = 1; return   # an egg
+;>@egg     elif wNewMonId == 0x15E: mem[MonsterField(wNewMonSlot, addr(wMonEgg))] = 1; return   # an egg
 	cp $5e
 	jp z, .egg
 
@@ -1001,6 +1001,7 @@ CopyToNewMonWord::
 	jp CopyToNewMon
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $06, $03, $c3, $82, $47
 
 ;@ def CopyToNewMon4(field: hl, src: de)
@@ -2134,7 +2135,7 @@ CheckFieldItemUse::
 	ret z
 
 ;> if wItemId in (0x2B, 0x2C, 0x2D):
-;>@h1     if not CheckItemTargetAlive() and GetPartyMonsterWord(wItemTarget, wMonHP) == GetPartyMonsterWord(wItemTarget, wMonMaxHP): wItemId = 0xFF
+;>@h1     if not CheckItemTargetAlive() and GetPartyMonsterWord(wItemTarget, addr(wMonHP)) == GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP)): wItemId = 0xFF
 	cp $2b
 	jp z, .healOne
 
@@ -2145,7 +2146,7 @@ CheckFieldItemUse::
 	jp z, .healOne
 
 ;> elif wItemId in (0x2E, 0x2F):
-;>@ha     if not any(not CheckMonAlive(s) and GetPartyMonsterWord(s, wMonHP) != GetPartyMonsterWord(s, wMonMaxHP) for s in range(wPartyCount)): wItemId = 0xFF
+;>@ha     if not any(not CheckMonAlive(s) and GetPartyMonsterWord(s, addr(wMonHP)) != GetPartyMonsterWord(s, addr(wMonMaxHP)) for s in range(wPartyCount)): wItemId = 0xFF
 	cp $2e
 	jp z, .healAll
 
@@ -2153,7 +2154,7 @@ CheckFieldItemUse::
 	jp z, .healAll
 
 ;> elif wItemId in (0x30, 0x31):
-;>@rv     if not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x80: wItemId = 0xFF   # must be dead
+;>@rv     if not GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x80: wItemId = 0xFF   # must be dead
 	cp $30
 	jp z, .revive
 
@@ -2161,12 +2162,12 @@ CheckFieldItemUse::
 	jp z, .revive
 
 ;> elif wItemId == 0x33:
-;>@po     if not CheckItemTargetAlive() and not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x04: wItemId = 0xFF
+;>@po     if not CheckItemTargetAlive() and not GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x04: wItemId = 0xFF
 	cp $33
 	jp z, .poison
 
 ;> elif wItemId == 0x36:
-;>@pa     if not CheckItemTargetAlive() and not GetPartyMonsterByte(wItemTarget, wMonStatus) & 0x01: wItemId = 0xFF
+;>@pa     if not CheckItemTargetAlive() and not GetPartyMonsterByte(wItemTarget, addr(wMonStatus)) & 0x01: wItemId = 0xFF
 	cp $36
 	jp z, .paralysis
 
@@ -2419,7 +2420,7 @@ CheckItemTargetAlive::
 ;@ else Z.
 ;@ test: skip reads the party records through helpers
 CheckMonAlive::
-;> if not GetPartyMonsterByte(slot, wMonStatus) & 0x80:
+;> if not GetPartyMonsterByte(slot, addr(wMonStatus)) & 0x80:
 ;>     return False
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2459,7 +2460,7 @@ UseFieldItem::
 	jp z, .heal75
 
 ;> elif wItemId == 0x2D:
-;>@i3     SetPartyMonsterWord(wItemTarget, wMonHP, GetPartyMonsterWord(wItemTarget, wMonMaxHP))
+;>@i3     SetPartyMonsterWord(wItemTarget, addr(wMonHP), GetPartyMonsterWord(wItemTarget, wMonMaxHP)axHP)))
 	cp $2d
 	jp z, .healFull
 
@@ -2575,7 +2576,7 @@ UseFieldItem::
 ;@ Heals party member `slot` (also in wItemTarget) by 90-120 HP, unless it is dead.
 ;@ test: skip changes the party through helpers
 HealMonSomewhat::
-;> if GetPartyMonsterByte(slot, wMonStatus) & 0x80:
+;> if GetPartyMonsterByte(slot, addr(wMonStatus)) & 0x80:
 ;>     return
 	ld hl, wMonStatus
 	call GetPartyMonsterByte
@@ -2609,7 +2610,7 @@ UseItemFullHealParty::
 	call CheckMonAlive
 	jr nz, .member1
 
-;>         SetPartyMonsterWord(slot, wMonHP, GetPartyMonsterWord(slot, wMonMaxHP))
+;>         SetPartyMonsterWord(slot, addr(wMonHP), GetPartyMonsterWord(slot, wMonMaxHP)axHP)))
 	ld a, $00
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
@@ -2661,18 +2662,18 @@ UseItemReviveHalf::
 	bit 0, a
 	jr nz, .failed
 
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] = 0
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	ld [hl], $00
-;> hp = GetPartyMonsterWord(wItemTarget, wMonMaxHP) >> 1
+;> hp = GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP)) >> 1
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
 	srl b
 	rr c
-;> SetPartyMonsterWord(wItemTarget, wMonHP, hp)
+;> SetPartyMonsterWord(wItemTarget, addr(wMonHP), hp)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
@@ -2690,16 +2691,16 @@ UseItemReviveHalf::
 ;@ Item $31: the target comes back to life with all its HP.
 ;@ test: skip changes the party through helpers
 UseItemReviveFull::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] = 0
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] = 0
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
 	ld [hl], $00
-;> max_hp = GetPartyMonsterWord(wItemTarget, wMonMaxHP)
+;> max_hp = GetPartyMonsterWord(wItemTarget, addr(wMonMaxHP))
 	ld a, [wItemTarget]
 	ld hl, wMonMaxHP
 	call GetPartyMonsterWord
-;> SetPartyMonsterWord(wItemTarget, wMonHP, max_hp)
+;> SetPartyMonsterWord(wItemTarget, addr(wMonHP), max_hp)
 	ld a, [wItemTarget]
 	ld hl, wMonHP
 	call SetPartyMonsterWord
@@ -2711,7 +2712,7 @@ UseItemReviveFull::
 ;@ Item $33: clears the target's poison (status bit 2).
 ;@ test: skip changes the party through helpers
 UseItemCurePoison::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x04
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x04
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -2724,7 +2725,7 @@ UseItemCurePoison::
 ;@ Item $36: clears the target's paralysis (status bit 0).
 ;@ test: skip changes the party through helpers
 UseItemCureParalysis::
-;> mem[PartyMonsterField(wItemTarget, wMonStatus)] &= ~0x01
+;> mem[PartyMonsterField(wItemTarget, addr(wMonStatus))] &= ~0x01
 	ld a, [wItemTarget]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -2776,6 +2777,7 @@ UseItemStartBattle::
 	inc [hl]
 	ret
 
+	; unused space (zeros)
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

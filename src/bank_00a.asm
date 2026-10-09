@@ -143,7 +143,7 @@ OffsetToTilemapBuffer::
 ;@ Turns a tile position on the screen (row * 32 + column) into its BG map
 ;@ address: the row is found from wWindowBgMap, then the column is stepped
 ;@ one tile at a time so it wraps around inside the 32-tile map row.
-;@ test: mem[0xC90A] = rng.choice([0x98, 0x99, 0x9A, 0x9B]); hl = rand(0, 0x23F)
+;@ test: mem[0xC90A] = rng.choice([0x98, 0x99, 0x9A, 0x9B]); pos = rand(0, 0x23F)
 PosToScreenMap::
 ;> addr = OffsetToScreenMap(pos & 0xFFE0)
 	push bc
@@ -190,7 +190,7 @@ DrawWindowLayoutVRAM::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 .loop
 ;> while True:
 ;>     t = mem[layout]
@@ -209,7 +209,7 @@ DrawWindowLayoutVRAM::
 ;>@nl         row = 0x9800 | ((row + 32) & 0x03FF)
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
@@ -226,7 +226,7 @@ DrawWindowLayoutVRAM::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;>         addr = row
 	jr .loop
 
@@ -258,7 +258,7 @@ DrawWindowLayout0A::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 .loop
 ;> while True:
 ;>     t = mem[layout]
@@ -277,7 +277,7 @@ DrawWindowLayout0A::
 ;>@nl         row += 32
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 	add $20
@@ -290,7 +290,7 @@ DrawWindowLayout0A::
 	ldh [hNumber], a
 ;=@nl
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;>         p = row
 	jr .loop
 
@@ -372,7 +372,7 @@ RenderTextTiles::
 ;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
@@ -385,7 +385,7 @@ RenderTextTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = lines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -401,7 +401,7 @@ RenderTextTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -426,7 +426,7 @@ RenderNameTiles::
 ;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
@@ -439,7 +439,7 @@ RenderNameTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 1
 	ld de, $0401
 	ld a, e
@@ -462,7 +462,7 @@ RenderNameTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -486,7 +486,7 @@ RenderCharTile::
 ;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
@@ -499,7 +499,7 @@ RenderCharTile::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
@@ -522,7 +522,7 @@ RenderCharTile::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -931,14 +931,14 @@ DrawMenuCursor0A::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
 ;=@a
 	call PosToScreenMap
 	pop bc
 	pop de
-;>     if sel & 0x7F != row:
+;>     if (sel & 0x7F) != row:
 	ld a, c
 	and $7f
 	cp b
@@ -970,7 +970,7 @@ DrawMenuCursor0A::
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 ;=@buf
@@ -1025,7 +1025,7 @@ DrawPageNumber0A::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
 ;=@w
@@ -1041,7 +1041,7 @@ DrawPageNumber0A::
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 ;=@buf
@@ -1133,7 +1133,7 @@ DrawCursorAt0A::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
 ;=@ps
@@ -1162,7 +1162,7 @@ DrawCursorAt0A::
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 ;=@d
@@ -1306,8 +1306,8 @@ DrawPartnerBreedMenu::
 ;> DrawWindowLayout0A(LayoutYesNo)
 	ld de, LayoutYesNo
 	call DrawWindowLayout0A
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
@@ -1410,8 +1410,8 @@ PartnerBreedChoices::
 PartnerBreedClose::
 ;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -1692,7 +1692,7 @@ PBDrawListEntry::
 	cp $ff
 	jr z, .empty
 
-;>@egg egg = not empty and mem[MonsterField(m, wMonEgg)] != 0
+;>@egg egg = not empty and mem[MonsterField(m, addr(wMonEgg))] != 0
 	push de
 	ld hl, wMonEgg
 	call MonsterField
@@ -1777,7 +1777,7 @@ PBDrawListEntry::
 	ld a, h
 	adc $00
 	ld h, a
-;>@icon     icon = FamilyIconGfx0A[mem[MonsterField(m, wMonFamily)]]
+;>@icon     icon = FamilyIconGfx0A[mem[MonsterField(m, addr(wMonFamily))]]
 	pop de
 	push de
 	push hl
@@ -1855,7 +1855,7 @@ PBDrawCursorMonster::
 	ld hl, $9780
 ;=@n
 	call RenderNameTiles
-;>@g wTextArg0[0] = 0xA7 + (mem[MonsterField(m, wMonGender)] & 1)   # gender mark
+;>@g wTextArg0[0] = 0xA7 + (mem[MonsterField(m, addr(wMonGender))] & 1)   # gender mark
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -1871,7 +1871,7 @@ PBDrawCursorMonster::
 ;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
@@ -1884,7 +1884,7 @@ PBDrawCursorMonster::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
@@ -1907,7 +1907,7 @@ PBDrawCursorMonster::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -1941,7 +1941,7 @@ PBDrawLevel::
 ;=@m
 	ld h, a
 	ld a, [hl]
-;> level = mem[MonsterField(m, wMonLevel)]
+;> level = mem[MonsterField(m, addr(wMonLevel))]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
@@ -2246,7 +2246,7 @@ PBConfirmInput::
 	jr .done
 
 .take
-;> elif mem[MonsterField(wCurPartyMember, wMonLevel)] < 10:
+;> elif mem[MonsterField(wCurPartyMember, addr(wMonLevel))] < 10:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -2425,8 +2425,8 @@ PBShowSaveInfo::
 ;> DrawWindowLayout0A(LayoutSaveFile)
 	ld de, LayoutSaveFile
 	call DrawWindowLayout0A
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> PBDrawSaveInfo()
 	call PBDrawSaveInfo
@@ -2543,8 +2543,8 @@ PBSaveConfirmCursorPos::
 ;@ state cleared so the save resumes on the field.
 ;@ test: skip calls other banks and saves the game
 PBBreedAndSave::
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -2554,7 +2554,7 @@ PBBreedAndSave::
 ;> wMenuSubStep += 1
 	ld hl, wMenuSubStep
 	inc [hl]
-;> wEncGfx[0] = mem[MonsterField(wCurPartyMember, wMonRecSpecies)] + 0x10   # its picture
+;> wEncGfx[0] = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))] + 0x10   # its picture
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -2595,7 +2595,7 @@ PBBreedAndSave::
 	ld a, [wBreedParent1 + $0b]
 	xor $01
 	ld [wBreedParent2 + $0b], a
-;> wEncGfx[2] = mem[MonsterField(0x15, wMonRecSpecies)] + 0x10
+;> wEncGfx[2] = mem[MonsterField(0x15, addr(wMonRecSpecies))] + 0x10
 	ld a, $15
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -2933,8 +2933,8 @@ BreedingInit::
 	ld [wWindowBgMap + 1], a
 ;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -3004,8 +3004,8 @@ DrawBreedingMenu::
 ;> DrawWindowLayout0A(LayoutBreedingMenu)
 	ld de, LayoutBreedingMenu
 	call DrawWindowLayout0A
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
@@ -3117,8 +3117,8 @@ BreedingCloseAfterText::
 BreedingClose::
 ;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -3512,7 +3512,7 @@ BRDrawCursorMonster::
 	push af
 	ld hl, $9710
 	call DrawNameEntry
-;>@k1 DrawGenderTile(mem[MonsterField(m, wMonGender)], 0x9750)
+;>@k1 DrawGenderTile(mem[MonsterField(m, addr(wMonGender))], 0x9750)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -3539,7 +3539,7 @@ DrawGenderTile::
 ;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
@@ -3552,7 +3552,7 @@ DrawGenderTile::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
@@ -3575,7 +3575,7 @@ DrawGenderTile::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -3609,7 +3609,7 @@ BRDrawLevel::
 ;=@m
 	ld d, a
 	ld a, [de]
-;> level = mem[MonsterField(m, wMonLevel)]
+;> level = mem[MonsterField(m, addr(wMonLevel))]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
@@ -3669,7 +3669,7 @@ BRPedigreeInput::
 	push af
 ;> UpdateListCursor(wListCursor, BRListCursorPos, 4, wListLength)
 	call UpdateListCursor
-;>@r if wListCursor & 0x7F != old_row & 0x7F:
+;>@r if (wListCursor & 0x7F) != (old_row & 0x7F):
 	pop af
 	ld hl, wListCursor
 	and $7f
@@ -3908,7 +3908,7 @@ BRPedigreeConfirmInput::
 	jr .done
 
 .take
-;> elif mem[MonsterField(wCurPartyMember, wMonLevel)] < 10:
+;> elif mem[MonsterField(wCurPartyMember, addr(wMonLevel))] < 10:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -4207,7 +4207,7 @@ BRDrawPair::
 	push af
 	ld hl, $9710
 	call DrawNameEntry
-;> DrawGenderTile(mem[MonsterField(wListKnown, wMonGender)], 0x9750)
+;> DrawGenderTile(mem[MonsterField(wListKnown, addr(wMonGender))], 0x9750)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -4243,7 +4243,7 @@ BRDrawMateCursor::
 	push af
 	ld hl, $9760
 	call DrawNameEntry
-;>@k2 DrawGenderTile(mem[MonsterField(m, wMonGender)], 0x97A0)
+;>@k2 DrawGenderTile(mem[MonsterField(m, addr(wMonGender))], 0x97A0)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -4265,7 +4265,7 @@ BRDrawPairLevels::
 ;> m = wListKnown
 	ld de, wListKnown
 	ld a, [de]
-;> level = mem[MonsterField(m, wMonLevel)]
+;> level = mem[MonsterField(m, addr(wMonLevel))]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
@@ -4311,7 +4311,7 @@ BRDrawPairLevels::
 ;=@m
 	ld d, a
 	ld a, [de]
-;> level = mem[MonsterField(m, wMonLevel)]
+;> level = mem[MonsterField(m, addr(wMonLevel))]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
@@ -4371,7 +4371,7 @@ BRMateInput::
 	push af
 ;> UpdateListCursor(wListCursor2, BRMateCursorPos, 4, wListLength)
 	call UpdateListCursor
-;>@r if wListCursor2 & 0x7F != old_row & 0x7F:
+;>@r if (wListCursor2 & 0x7F) != (old_row & 0x7F):
 	pop af
 	ld hl, wListCursor2
 	and $7f
@@ -4625,7 +4625,7 @@ BRMateConfirmInput::
 
 
 .take
-;> elif mem[MonsterField(wCurPartyMember, wMonLevel)] < 10:
+;> elif mem[MonsterField(wCurPartyMember, addr(wMonLevel))] < 10:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -4694,7 +4694,7 @@ BRMateConfirmInput::
 	jr .done
 
 .partyOk
-;>@g elif mem[MonsterField(wListKnown, wMonGender)] & 1 == mem[MonsterField(wCurPartyMember, wMonGender)] & 1:
+;>@g elif (mem[MonsterField(wListKnown, addr(wMonGender))] & 1) == (mem[MonsterField(wCurPartyMember, addr(wMonGender))] & 1):
 	ld a, [wListKnown]
 	ld hl, wMonGender
 	call MonsterField
@@ -4766,13 +4766,13 @@ BRPredictOffspring::
 	ld hl, wTextArg1
 ;=@n2
 	call CopyName
-;> wBreedQuery = mem[MonsterField(wListKnown, wMonRecSpecies)]
+;> wBreedQuery = mem[MonsterField(wListKnown, addr(wMonRecSpecies))]
 	ld a, [wListKnown]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wBreedQuery], a
-;> wBreedSpecies2 = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
+;> wBreedSpecies2 = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -4920,8 +4920,8 @@ BRShowSaveInfo::
 ;> DrawWindowLayout0A(LayoutSaveFile)
 	ld de, LayoutSaveFile
 	call DrawWindowLayout0A
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> DrawSaveFileInfo()
 	call DrawSaveFileInfo
@@ -5036,8 +5036,8 @@ BRSaveConfirmCursorPos::
 ;@ the save resumes on the field.
 ;@ test: skip calls other banks and saves the game
 BRBreedAndSave::
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -5065,7 +5065,7 @@ BRBreedAndSave::
 	ld hl, wTextArg1
 ;=@n2
 	call CopyName
-;> wEncGfx[0] = mem[MonsterField(wListKnown, wMonRecSpecies)] + 0x10   # pictures
+;> wEncGfx[0] = mem[MonsterField(wListKnown, addr(wMonRecSpecies))] + 0x10   # pictures
 	ld a, [wListKnown]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5086,7 +5086,7 @@ BRBreedAndSave::
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
-;> wEncGfx[2] = mem[MonsterField(wCurPartyMember, wMonRecSpecies)] + 0x10
+;> wEncGfx[2] = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5216,7 +5216,7 @@ BRWarpToBreeding::
 ;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
-;>@cs CopySystemText(0x0500 | mem[MonsterField(wCurPartyMember, wMonRecSpecies)], wTextArg2)
+;>@cs CopySystemText(0x0500 | mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))], wTextArg2)
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5225,7 +5225,7 @@ BRWarpToBreeding::
 	ld de, wTextArg2
 ;=@cs
 	call CopySystemText
-;>@nb Number16ToDecimal((mem[MonsterField(wCurPartyMember, wMonPlus)] + 1) * 10, wTextArgs)
+;>@nb Number16ToDecimal((mem[MonsterField(wCurPartyMember, addr(wMonPlus))] + 1) * 10, wTextArgs)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
@@ -5790,7 +5790,7 @@ DrawSpeciesEntry::
 	cp $ff
 	jr z, .empty
 
-;>     wTextIndex = mem[MonsterField(m, wMonRecSpecies)]
+;>     wTextIndex = mem[MonsterField(m, addr(wMonRecSpecies))]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
@@ -5885,7 +5885,7 @@ DrawEggGenderEntry::
 	cp $ff
 	jr z, .empty
 
-;>     if mem[MonsterField(m, wMonEgg)] == 2:          # gender known
+;>     if mem[MonsterField(m, addr(wMonEgg))] == 2:          # gender known
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
@@ -5893,7 +5893,7 @@ DrawEggGenderEntry::
 	ld a, $98
 	jr nz, .mark
 
-;>@g         c = 0xA7 + (mem[MonsterField(m, wMonGender)] & 1)
+;>@g         c = 0xA7 + (mem[MonsterField(m, addr(wMonGender))] & 1)
 	ld a, l
 	add $a8
 	ld l, a
@@ -5917,7 +5917,7 @@ DrawEggGenderEntry::
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 ;=@save
 	push bc
@@ -5930,7 +5930,7 @@ DrawEggGenderEntry::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;>     wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
@@ -5953,7 +5953,7 @@ DrawEggGenderEntry::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;>     wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -6097,7 +6097,7 @@ HTQuotePrice::
 ;=@m
 	ld h, a
 	ld a, [hl]
-;>@p Number16ToDecimal((mem[MonsterField(m, wMonPlus)] + 1) * 10, wTextArgs)
+;>@p Number16ToDecimal((mem[MonsterField(m, addr(wMonPlus))] + 1) * 10, wTextArgs)
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
@@ -6229,7 +6229,7 @@ HTConfirmInput::
 ;=@m
 	ld h, a
 	ld a, [hl]
-;> price = (mem[MonsterField(m, wMonPlus)] + 1) * 10
+;> price = (mem[MonsterField(m, addr(wMonPlus))] + 1) * 10
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
@@ -6257,7 +6257,7 @@ HTConfirmInput::
 
 .pay
 ;> else:
-;>     SpendGold(price)
+;>     SpendGold(0, price)
 	ld e, $00
 	call SpendGold
 ;>     wLinkRefused = 0
@@ -6320,8 +6320,8 @@ HTStep8::
 ;@ the egg under the cursor (wCurPartyMember = wHatchSlot = wLeaderSlot).
 ;@ test: skip calls another bank
 HTHatch::
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -6386,28 +6386,28 @@ HTWarpToHatching::
 ;> wCurPartyMember = m
 	ld a, [wHatchSlot]
 	ld [wCurPartyMember], a
-;> CopySystemText(0x0500 | mem[MonsterField(m, wMonRecSpecies)], wTextArg1)
+;> CopySystemText(0x0500 | mem[MonsterField(m, addr(wMonRecSpecies))], wTextArg1)
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld l, [hl]
 	ld h, $05
 	ld de, wTextArg1
 	call CopySystemText
-;> AppendPlusValue(mem[MonsterField(m, wMonPlus)], wTextArg1)
+;> AppendPlusValue(mem[MonsterField(m, addr(wMonPlus))], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg1
 	call AppendPlusValue
-;> AppendGenderMark(mem[MonsterField(m, wMonGender)], wTextArg1)
+;> AppendGenderMark(mem[MonsterField(m, addr(wMonGender))], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg1
 	call AppendGenderMark
-;> pic = mem[MonsterField(m, wMonRecSpecies)] + 0x10
+;> pic = mem[MonsterField(m, addr(wMonRecSpecies))] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -6429,13 +6429,13 @@ HTWarpToHatching::
 	ld a, h
 ;=@nm
 	ld [wChosenMonName + 1], a
-;>@nm wChosenMonGender = mem[MonsterField(m, wMonGender)]
+;>@nm wChosenMonGender = mem[MonsterField(m, addr(wMonGender))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld [wChosenMonGender], a
-;> wChosenMonSpecies = mem[MonsterField(m, wMonRecSpecies)]
+;> wChosenMonSpecies = mem[MonsterField(m, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -6590,7 +6590,7 @@ HTReturnFromStatus::
 ;=@m
 	ld h, a
 	ld a, [hl]
-;>@p Number16ToDecimal((mem[MonsterField(m, wMonPlus)] + 1) * 10, wTextArgs)
+;>@p Number16ToDecimal((mem[MonsterField(m, addr(wMonPlus))] + 1) * 10, wTextArgs)
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
@@ -6700,7 +6700,7 @@ DrawSaveFileInfo::
 ;>     mem[0x0100] = 0x0A                   # enable cartridge RAM
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;>     RenderNameTiles(0x8A00, sPlayerName)
 	ld de, sPlayerName
 	ld hl, $8a00
@@ -6732,10 +6732,10 @@ DrawSaveFileInfo::
 	or a
 	jr z, .clear0
 
-;>@lv         mem[0x0100] = 0x0A; level = mem[MonsterField(sParty[i], sSavedMonLevel)]
+;>@lv         mem[0x0100] = 0x0A; level = mem[MonsterField(sParty[i], addr(sSavedMonLevel))]
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty]
 	call MonsterField
@@ -6756,7 +6756,7 @@ DrawSaveFileInfo::
 ;=@lv
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty + 1]
 	call MonsterField
@@ -6777,7 +6777,7 @@ DrawSaveFileInfo::
 ;=@lv
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty + 2]
 	call MonsterField
@@ -6794,7 +6794,7 @@ DrawSaveFileInfo::
 ;>     if count >= 3:
 ;>@end         mem[0x0100] = 0x00               # disable cartridge RAM
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;>         return
 	ret
 
@@ -6816,7 +6816,7 @@ DrawSaveFileInfo::
 	call ClearSaveInfoSlot
 ;>     mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -6866,7 +6866,7 @@ DrawSaveFileParty::
 ;>     mem[0x0100] = 0x0A                   # enable cartridge RAM
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;>     name = MonsterField(sParty[i], sSavedMonName)
 	ld hl, sSavedMonName
 	ld a, [sParty]
@@ -6881,7 +6881,7 @@ DrawSaveFileParty::
 ;=@p
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonName
 	ld a, [sParty + 1]
 	call MonsterField
@@ -6895,7 +6895,7 @@ DrawSaveFileParty::
 ;=@p
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonName
 	ld a, [sParty + 2]
 	call MonsterField
@@ -6922,7 +6922,7 @@ DrawSaveFileMember::
 	ld b, a
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> if sPartyCount < n:
 	ld a, [sPartyCount]
 	cp b
@@ -6968,8 +6968,8 @@ jr_00a_5fd9:
 	push bc
 	di
 	ld a, $0a
-	ld [$0100], a
-;>@f family = mem[MonsterField(sParty[n - 1], sSavedMonFamily)]
+	ld [rRAMG + $100], a
+;>@f family = mem[MonsterField(sParty[n - 1], addr(sSavedMonFamily))]
 	ld hl, sParty
 	ld a, b
 	add l
@@ -7049,7 +7049,7 @@ DrawTwoDigits0A::
 ;@ path: menu/numbers
 ;@ Divides `value` by `divisor` by repeated subtraction: returns the quotient
 ;@ in a and the remainder in bc.
-;@ test: bc = rand(0, 999); de = rand(1, 100)
+;@ test: value = rand(0, 999); divisor = rand(1, 100)
 CountDivisions::
 ;> q = -1
 	push hl
@@ -7291,8 +7291,8 @@ DrawEAMenu::
 ;> DrawWindowLayout0A(LayoutGold)
 	ld de, LayoutGold
 	call DrawWindowLayout0A
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;>@g hNumber = wGold                      # 24 bits
 	ld a, [wGold]
@@ -7403,8 +7403,8 @@ EAChoices::
 EAClose::
 ;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -7687,7 +7687,7 @@ DrawSpeciesEntry2::
 	cp $ff
 	jr z, .empty
 
-;>     wTextIndex = mem[MonsterField(m, wMonRecSpecies)]
+;>     wTextIndex = mem[MonsterField(m, addr(wMonRecSpecies))]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
@@ -7782,7 +7782,7 @@ DrawEggGenderEntry2::
 	cp $ff
 	jr z, .empty
 
-;>     if mem[MonsterField(m, wMonEgg)] == 2:          # gender known
+;>     if mem[MonsterField(m, addr(wMonEgg))] == 2:          # gender known
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
@@ -7790,7 +7790,7 @@ DrawEggGenderEntry2::
 	ld a, $98
 	jr nz, .mark
 
-;>@g         c = 0xA7 + (mem[MonsterField(m, wMonGender)] & 1)
+;>@g         c = 0xA7 + (mem[MonsterField(m, addr(wMonGender))] & 1)
 	ld a, l
 	add $a8
 	ld l, a
@@ -7814,7 +7814,7 @@ DrawEggGenderEntry2::
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 ;=@save
 	push bc
@@ -7827,7 +7827,7 @@ DrawEggGenderEntry2::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;>     wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
@@ -7850,7 +7850,7 @@ DrawEggGenderEntry2::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;>     wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -7994,7 +7994,7 @@ APPay::
 ;> if not poor:
 	jr c, .poor
 
-;>     SpendGold(20)
+;>     SpendGold(0, 20)
 	ld hl, $0014
 	ld e, $00
 	call SpendGold
@@ -8017,14 +8017,14 @@ APPay::
 	ld a, [hl]
 ;>     wCurPartyMember = m
 	ld [wCurPartyMember], a
-;>     CopySystemText(0x0500 | mem[MonsterField(m, wMonRecSpecies)], wTextArg0)
+;>     CopySystemText(0x0500 | mem[MonsterField(m, addr(wMonRecSpecies))], wTextArg0)
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld l, [hl]
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
-;>     AppendPlusValue(mem[MonsterField(m, wMonPlus)], wTextArg0)
+;>     AppendPlusValue(mem[MonsterField(m, addr(wMonPlus))], wTextArg0)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
@@ -8065,7 +8065,7 @@ APJudgeStats::
 	ret nz
 
 ;> m = wCurPartyMember
-;> total = mem16[MonsterField(m, wMonHP)]
+;> total = mem16[MonsterField(m, addr(wMonHP))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonHP
 	call MonsterField
@@ -8306,7 +8306,7 @@ APJudgeGrowth::
 ;>     return
 	ret nz
 
-;> top = mem[MonsterField(wCurPartyMember, wMonMaxLevel)]
+;> top = mem[MonsterField(wCurPartyMember, addr(wMonMaxLevel))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxLevel
 	call MonsterField
@@ -8359,7 +8359,7 @@ APTellGender::
 ;>     return
 	ret nz
 
-;> gender = mem[MonsterField(wCurPartyMember, wMonGender)] & 1
+;> gender = mem[MonsterField(wCurPartyMember, addr(wMonGender))] & 1
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
@@ -8394,7 +8394,7 @@ APMarkAppraised::
 ;> PrintServiceMessage(0x0015)
 	ld hl, $0015
 	call PrintServiceMessage
-;> mem[MonsterField(wCurPartyMember, wMonEgg)] = 2
+;> mem[MonsterField(wCurPartyMember, addr(wMonEgg))] = 2
 	ld a, [wCurPartyMember]
 	ld hl, wMonEgg
 	call MonsterField
@@ -8638,7 +8638,7 @@ APJudgeResistances::
 ;>     return
 	ret nz
 
-;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -8655,7 +8655,7 @@ APJudgeResistances::
 ;> own = SumResistances(MonsterField(wCurPartyMember, wMonsters + 0x68), 0)   # the egg's own resistances
 	push af
 	ld a, [wCurPartyMember]
-	ld hl, $cb29
+	ld hl, wMonResist
 	call MonsterField
 	xor a
 	call SumResistances
@@ -8683,7 +8683,7 @@ APJudgeResistances::
 ;@ def SumResistances(p: hl, sum: a) -> a
 ;@ path: breed/appraiser
 ;@ Adds the 27 resistance bytes at `p` to `sum` (8 bits, wrapping).
-;@ test: hl = 0xC100
+;@ test: p = 0xC100
 SumResistances::
 ;> for i in range(27):
 ;>     sum = (sum + mem[p + i]) & 0xFF
@@ -8908,7 +8908,7 @@ GCQuotePrice::
 	ld a, [hl]
 ;> wCurPartyMember = m
 	ld [wCurPartyMember], a
-;>@pr price = Multiply(mem[MonsterField(m, wMonPlus)], 50) + 100
+;>@pr price = Multiply(mem[MonsterField(m, addr(wMonPlus))], 50) + 100
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
@@ -8946,12 +8946,12 @@ GCQuotePrice::
 ;> mem[hNumber + 2] = price >> 16
 	ld a, e
 	ldh [hNumber + 2], a
-;> mem16[wListCursor2] = price & 0xFFFF   # $C8E4-$C8E6
+;> mem16[addr(wListCursor2)] = price & 0xFFFF   # $C8E4-$C8E6
 	ld a, l
 	ld [wListCursor2], a
 	ld a, h
 	ld [wListPage2], a
-;> mem[wListCursor2 + 2] = price >> 16
+;> mem[addr(wListCursor2) + 2] = price >> 16
 	ld a, e
 	ld [wListCursor2 + 2], a
 ;> Number24ToDecimal(wTextArg0)
@@ -9094,7 +9094,7 @@ GCConfirmCursorPos::
 ;@ (message $1A, then step 7); else message $1C and back to the menu (step 8).
 ;@ test: skip prints messages through other banks
 GCPay::
-;>@g if mem16[wGold] | mem[wGold + 2] << 16 < mem16[wListCursor2] | mem[wListCursor2 + 2] << 16:
+;>@g if (mem16[wGold] | mem[wGold + 2] << 16) < (mem16[addr(wListCursor2)] | mem[addr(wListCursor2) + 2] << 16):
 	ld hl, wListCursor2
 	ld a, [wGold]
 	sub [hl]
@@ -9120,7 +9120,7 @@ GCPay::
 
 .pay
 ;> else:
-;>@sp     SpendGold(mem16[wListCursor2] | mem[wListCursor2 + 2] << 16)
+;>@sp     SpendGold(mem[addr(wListCursor2) + 2], mem16[addr(wListCursor2)])
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
@@ -9129,7 +9129,7 @@ GCPay::
 	ld e, a
 ;=@sp
 	call SpendGold
-;>     mem[MonsterField(wCurPartyMember, wMonGender)] ^= 1
+;>     mem[MonsterField(wCurPartyMember, addr(wMonGender))] ^= 1
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
@@ -9222,12 +9222,12 @@ GCReturnFromStatus::
 	call EADrawPage
 ;> EADrawGenders()
 	call EADrawGenders
-;> mem16[hNumber] = mem16[wListCursor2]   # the 24-bit price
+;> mem16[hNumber] = mem16[addr(wListCursor2)]   # the 24-bit price
 	ld a, [wListCursor2]
 	ldh [hNumber], a
 	ld a, [wListPage2]
 	ldh [hNumber + 1], a
-;> mem[hNumber + 2] = mem[wListCursor2 + 2]
+;> mem[hNumber + 2] = mem[addr(wListCursor2) + 2]
 	ld a, [wListCursor2 + 2]
 	ldh [hNumber + 2], a
 ;> Number24ToDecimal(wTextArg0)
@@ -9319,8 +9319,8 @@ JPInit::
 	ld [wWindowBgMap + 1], a
 ;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -9368,8 +9368,8 @@ DrawJPMenu::
 ;> DrawWindowLayout0A(LayoutYesNo)
 	ld de, LayoutYesNo
 	call DrawWindowLayout0A
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ResetCursorBlink0A()
 	call ResetCursorBlink0A
@@ -9482,8 +9482,8 @@ JPDecline::
 JPClose::
 ;> RestoreFieldTilemap()
 	call RestoreFieldTilemap
-;> DrawWindowLayout0A(0x2E07)            # message box frame (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout0A(MessageWindowLayout)            # message box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout0A
 ;> ShowTilemapBuffer()
 	call ShowTilemapBuffer
@@ -9788,7 +9788,7 @@ JFDrawLevel::
 	adc d
 	ld d, a
 	ld a, [de]
-;>@m level = mem[MonsterField(m, wMonLevel)]
+;>@m level = mem[MonsterField(m, addr(wMonLevel))]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
@@ -9840,7 +9840,7 @@ JFDrawCursorMonster::
 	push af
 	ld hl, $9710
 	call DrawNameEntry3
-;>@k6 DrawGenderTile2(mem[MonsterField(m, wMonGender)], 0x9750)
+;>@k6 DrawGenderTile2(mem[MonsterField(m, addr(wMonGender))], 0x9750)
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -9867,7 +9867,7 @@ DrawGenderTile2::
 ;>@save saved = (wTextTiles, wTextBoxLines, wTextBoxLineLength)
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 	ld a, [wTextBoxLines]
@@ -9880,7 +9880,7 @@ DrawGenderTile2::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 1
 	ld de, $0101
 	ld a, e
@@ -9903,7 +9903,7 @@ DrawGenderTile2::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved[1]
 	ld a, e
 	ld [wTextBoxLines], a
@@ -10002,7 +10002,7 @@ JFListInput::
 	push af
 ;> UpdateMenuCursor0A(wMenuChoice2, JFListCursorPos, wListLength)
 	call UpdateMenuCursor0A
-;>@r if wMenuChoice2 & 0x7F != old & 0x7F:
+;>@r if (wMenuChoice2 & 0x7F) != (old & 0x7F):
 	pop af
 	ld hl, wMenuChoice2
 	and $7f
@@ -10352,7 +10352,7 @@ JFRebuildParty::
 ;@ path: breed/join
 ;@ Writes monster slot `m` at `p` and steps on when that monster is a party
 ;@ monster (state 2).
-;@ test: a = rand(0, 19); de = 0xC100; mem[0xCAC1 + a * 0x95] = rand(0, 2)
+;@ test: m = rand(0, 19); p = 0xC100; mem[0xCAC1 + m * 0x95] = rand(0, 2)
 AddIfInParty::
 ;> if mem[MonsterField(m, wMonsters)] == 2:
 	ld b, a

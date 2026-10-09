@@ -34,7 +34,7 @@ DrawSkillAnimSprite_5C::
 ;> DrawSkillAnimFrame_5C(SkillAnimSpriteSets_5C)
 	ld de, SkillAnimSpriteSets_5C
 	call DrawSkillAnimFrame_5C
-;>@c1 if mem[0xDD68] == 0 or mem[0xDAA4] in (3, 4):
+;>@c1 if wSkillAnimPhase == 0 or wSkillAnimSet in (3, 4):
 	ld a, [wSkillAnimPhase]
 	or a
 	jr z, .move
@@ -63,9 +63,9 @@ DrawSkillAnimSprite_5C::
 ;> hSpriteFrame = mem[0xDD66]
 	ld a, [$dd66]
 	ldh [hSpriteFrame], a
-;> if mem[0xDD62] == 0:                     # the animation is over
+;> if wBattleAnimRunning == 0:                     # the animation is over
 ;>     wSkillAnimSprites = 0
-	ld a, [$dd62]
+	ld a, [wBattleAnimRunning]
 	or a
 	jr nz, .phase
 
@@ -73,13 +73,13 @@ DrawSkillAnimSprite_5C::
 	ld [wSkillAnimSprites], a
 
 .phase
-;> if mem[0xDD68]:
+;> if wSkillAnimPhase:
 ;>     return
 	ld a, [wSkillAnimPhase]
 	or a
 	ret nz
 
-;> if mem[0xDAA4] in (3, 4):
+;> if wSkillAnimSet in (3, 4):
 	ld a, [wSkillAnimSet]
 	cp $03
 	jr z, .longFlight
@@ -96,7 +96,7 @@ DrawSkillAnimSprite_5C::
 ;>     mem[0xDD65] = 4                      # go on with animation command 4
 	ld a, $04
 	ld [$dd65], a
-;>     mem[0xDD68] = 1
+;>     wSkillAnimPhase = 1
 	ld a, $01
 	ld [wSkillAnimPhase], a
 	ret
@@ -111,7 +111,7 @@ DrawSkillAnimSprite_5C::
 ;>     wSkillAnimSprites = 0                # gone off the screen
 	ld a, $00
 	ld [wSkillAnimSprites], a
-;>     mem[0xDD68] = 1
+;>     wSkillAnimPhase = 1
 	ld a, $01
 	ld [wSkillAnimPhase], a
 	ret
@@ -132,22 +132,22 @@ SkillAnimSpriteSets_5C::
 ;@ (GetAnimationFirstPose with wPlayerAnimPtr pointed at it) and wSkillAnimSprites is set.
 ;@ test: skip calls a routine in another bank
 StartSkillAnimSprite_5C::
-;> mem[0xDD62] = 1
+;> wBattleAnimRunning = 1
 	ld a, $01
-	ld [$dd62], a
+	ld [wBattleAnimRunning], a
 ;> x = 0
-;> if mem[0xDD68]:
+;> if wSkillAnimPhase:
 	ld a, [wSkillAnimPhase]
 	or a
 	jr z, .start
 
-;>     if mem[0xDB54] >= 7:
-;>@stop         wSkillAnimSprites = 0; mem[0xDD62] = 0; return
+;>     if wItemMsgGroup >= 7:
+;>@stop         wSkillAnimSprites = 0; wBattleAnimRunning = 0; return
 	ld a, [wItemMsgGroup]
 	cp $07
 	jr nc, .stop
 
-;>@sx     x = SkillAnimStartX_5C[2 * mem[0xDB54]]
+;>@sx     x = SkillAnimStartX_5C[2 * wItemMsgGroup]
 	add a
 	ld hl, SkillAnimStartX_5C
 	add l
@@ -170,7 +170,7 @@ StartSkillAnimSprite_5C::
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-;> hSpriteSet = mem[0xDAA4]; hSpriteFrame = 0
+;> hSpriteSet = wSkillAnimSet; hSpriteFrame = 0
 	ld a, [wSkillAnimSet]
 	ld [hli], a
 	ld a, $00
@@ -193,7 +193,7 @@ StartSkillAnimSprite_5C::
 	ld hl, far_GetAnimationFirstPose
 	rst $10
 ;> wPlayerAnimPtr = 0xDD62
-	ld hl, $dd62
+	ld hl, wBattleAnimRunning
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
@@ -205,7 +205,7 @@ StartSkillAnimSprite_5C::
 	xor a
 	ld [wSkillAnimSprites], a
 	xor a
-	ld [$dd62], a
+	ld [wBattleAnimRunning], a
 	ret
 
 

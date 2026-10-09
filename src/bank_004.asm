@@ -393,7 +393,7 @@ UpdateFieldScriptDone:
 ;@ script goes on.
 ;@ test: skip part of UpdateFieldScript
 ScriptWait8::
-;> if wFrameCounter & 7 == 0:
+;> if (wFrameCounter & 7) == 0:
 	ld a, [wFrameCounter]
 	and $07
 	jr nz, .done
@@ -431,7 +431,7 @@ ScriptWalk::
 ;> hPlayerFlags |= 0x01                   # Terry is moving
 	ld hl, hPlayerFlags
 	set 0, [hl]
-;> if wFrameCounter & 3 == 1:             # rest one frame of four
+;> if (wFrameCounter & 3) == 1:             # rest one frame of four
 ;>     return
 	ld a, [wFrameCounter]
 	and $03
@@ -620,7 +620,7 @@ ScriptWalkActor::
 ;> mem[flags] = (mem[flags] | 0x01) & ~0x40   # walking, not talking
 	set 0, [hl]
 	res 6, [hl]
-;> if wFrameCounter & 3 == 1:
+;> if (wFrameCounter & 3) == 1:
 ;>     return
 	ld a, [wFrameCounter]
 	and $03
@@ -983,7 +983,7 @@ UpdatePlayerMover::
 ;> hPlayerFlags |= 0x01
 	ld hl, hPlayerFlags
 	set 0, [hl]
-;> if wFrameCounter & 3 == 1:
+;> if (wFrameCounter & 3) == 1:
 ;>     return
 	ld a, [wFrameCounter]
 	and $03
@@ -1350,7 +1350,7 @@ UpdateActorMover::
 ;> mem[flags] = (mem[flags] | 0x01) & ~0x40      # walking, not talking
 	set 0, [hl]
 	res 6, [hl]
-;> if wFrameCounter & 3 == 1:
+;> if (wFrameCounter & 3) == 1:
 ;>     return
 	ld a, [wFrameCounter]
 	and $03
@@ -1716,7 +1716,7 @@ MoverLeapSpin::
 	or a
 	ret nz
 
-;> if wFieldTimer & 3 == 0:
+;> if (wFieldTimer & 3) == 0:
 ;>     return
 	ld a, [wFieldTimer]
 	and $03
@@ -1970,7 +1970,7 @@ MoverBlinkIn::
 	ld b, $01
 
 .set
-;> mem[actor] = 0x00 if frame & mask == 0 else 0x40
+;> mem[actor] = 0x00 if (frame & mask) == 0 else 0x40
 	and b
 	or a
 	ld [hl], $00
@@ -2172,7 +2172,7 @@ MoverBlinkOut::
 	ld b, $01
 
 .set
-;> mem[actor] = 0x40 if frame & mask == 0 else 0x00
+;> mem[actor] = 0x40 if (frame & mask) == 0 else 0x00
 	and b
 	or a
 	ld [hl], $40
@@ -2423,7 +2423,7 @@ BlinkActorSlow::
 	ld b, $01
 
 .set
-;> mem[actor] = 0x00 if frame & mask == 0 else 0x40
+;> mem[actor] = 0x00 if (frame & mask) == 0 else 0x40
 	and b
 	or a
 	ld [hl], $00
@@ -3816,7 +3816,7 @@ ScriptCmdWarp::
 	ld a, [wScriptPos + 1]
 	adc $00
 	ld [wScriptPos + 1], a
-;> mem16[wWarpMap] = ReadScriptWord()
+;> dest = ReadScriptWord(); wWarpMap = lo(dest); wWarpOnGateFloor = hi(dest)
 	call ReadScriptWord
 	ld a, c
 	ld [wWarpMap], a
@@ -5237,7 +5237,7 @@ ScriptCmdMonsterReaction::
 	cp $ff
 	ret z
 
-;> wMonSpecies = mem[MonsterField(mon, wMonRecSpecies)]
+;> wMonSpecies = mem[MonsterField(mon, addr(wMonRecSpecies))]
 	push af
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5406,7 +5406,7 @@ ScriptCmdJumpIfAttack100::
 
 	jp c, NextScriptCommand
 
-;> attack = PartyMonsterField(slot, wMonAttack)
+;> attack = PartyMonsterField(slot, addr(wMonAttack))
 	ld a, c
 	ld hl, wMonAttack
 	push bc
@@ -5514,7 +5514,7 @@ ScriptCmdJumpIfSpeciesAF::
 
 	jp c, NextScriptCommand
 
-;>@s if mem[PartyMonsterField(slot, wMonRecSpecies)] != 0xAF:
+;>@s if mem[PartyMonsterField(slot, addr(wMonRecSpecies))] != 0xAF:
 	ld a, c
 	ld hl, wMonRecSpecies
 	push bc
@@ -5553,7 +5553,7 @@ ScriptCmdGiveGold::
 	ld a, [wScriptPos + 1]
 	adc $00
 	ld [wScriptPos + 1], a
-;> AddGold(ReadScriptWord())             # (high byte 0)
+;> AddGold(0, ReadScriptWord())             # (high byte 0)
 	call ReadScriptWord
 	ld l, c
 	ld h, b
@@ -5721,7 +5721,7 @@ ScriptCmdGivePrizeItem::
 	ld a, [wScriptPos + 1]
 	adc $00
 	ld [wScriptPos + 1], a
-;>@k item = mem[wArenaWins + (ReadScriptWord() & 0xFF)]
+;>@k item = mem[addr(wArenaWins) + (ReadScriptWord() & 0xFF)]
 	call ReadScriptWord
 	ld a, c
 	ld hl, wArenaWins
@@ -5894,7 +5894,7 @@ ScriptCmdLeaderLeaves::
 ;> wMenuStep = 0
 	xor a
 	ld [wMenuStep], a
-;>@s CopySystemText(0x0500 + mem[MonsterField(wCurPartyMember, wMonRecSpecies)], wTextArg1)
+;>@s CopySystemText(0x0500 + mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5903,21 +5903,21 @@ ScriptCmdLeaderLeaves::
 	ld de, wTextArg1
 ;=@s
 	call CopySystemText
-;> AppendNumberText(mem[MonsterField(wCurPartyMember, wMonPlus)], wTextArg1)
+;> AppendNumberText(mem[MonsterField(wCurPartyMember, addr(wMonPlus))], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonPlus
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg1
 	call AppendNumberText
-;> AppendSexSign(mem[MonsterField(wCurPartyMember, wMonGender)], wTextArg1)
+;> AppendSexSign(mem[MonsterField(wCurPartyMember, addr(wMonGender))], wTextArg1)
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld de, wTextArg1
 	call AppendSexSign
-;> wChosenMonPic = mem[MonsterField(wCurPartyMember, wMonRecSpecies)] + 0x10
+;> wChosenMonPic = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5938,19 +5938,19 @@ ScriptCmdLeaderLeaves::
 	ld a, h
 ;=@n
 	ld [wChosenMonName + 1], a
-;> wChosenMonGender = mem[MonsterField(wCurPartyMember, wMonGender)]
+;> wChosenMonGender = mem[MonsterField(wCurPartyMember, addr(wMonGender))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
 	ld a, [hl]
 	ld [wChosenMonGender], a
-;> wChosenMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
+;> wChosenMonSpecies = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
 	ld [wChosenMonSpecies], a
-;> mem16[wWarpMap] = 0x0008
+;> wWarpMap = 0x08; wWarpOnGateFloor = 0
 	ld a, $08
 	ld [wWarpMap], a
 	ld a, $00
@@ -6059,7 +6059,7 @@ ScriptCmdWarpNoFade::
 	ld a, [wScriptPos + 1]
 	adc $00
 	ld [wScriptPos + 1], a
-;> mem16[wWarpMap] = ReadScriptWord()
+;> dest = ReadScriptWord(); wWarpMap = lo(dest); wWarpOnGateFloor = hi(dest)
 	call ReadScriptWord
 	ld a, c
 	ld [wWarpMap], a
@@ -6155,7 +6155,7 @@ ScriptCmdEndGameMode::
 ;@ Command $3F: puts the species name of the first party monster into wTextArg0.
 ;@ test: skip copies text through the text banks
 ScriptCmdCopyLeaderSpecies::
-;>@c CopySystemText(0x0500 + mem[PartyMonsterField(0, wMonRecSpecies)], wTextArg0)
+;>@c CopySystemText(0x0500 + mem[PartyMonsterField(0, addr(wMonRecSpecies))], wTextArg0)
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call PartyMonsterField
@@ -6285,7 +6285,7 @@ ScriptCmdSaveReturnMenu::
 	ld [wScriptMenuArg], a
 	ld a, b
 	ld [wScriptMenuArg + 1], a
-;>@m mem16[wReturnMap] = wMapId | wOnGateFloor << 8
+;>@m wReturnMap = wMapId | wOnGateFloor << 8
 	ld a, [wMapId]
 	ld c, a
 	ld a, [wOnGateFloor]
@@ -6339,7 +6339,7 @@ ScriptCmdSaveReturnMenu::
 ;@ script ends.
 ;@ test: skip starts a fade
 ScriptCmdReturnWarp::
-;>@m mem16[wWarpMap] = mem16[wReturnMap]
+;>@m wWarpMap = lo(wReturnMap); wWarpOnGateFloor = hi(wReturnMap)
 	ld a, [wReturnMap]
 	ld c, a
 	ld a, [wReturnMap + 1]
@@ -6451,7 +6451,7 @@ ScriptCmdReturnMenuText::
 ;@ monsters and redraws the party.
 ;@ test: skip far calls
 ScriptCmdRestoreParty::
-;>@c copy(wPartyCount, wSavedParty, 7)
+;>@c copy(addr(wPartyCount), wSavedParty, 7)
 	ld hl, wSavedParty
 	ld a, [hli]
 	ld [wPartyCount], a
@@ -6494,7 +6494,7 @@ ScriptCmdRestoreParty::
 ;@ def PutMonsterInParty(slot: a)
 ;@ path: monster/party
 ;@ Marks monster `slot` as a party member (record byte 0 = 2); does nothing for $FF.
-;@ test: a = rand(0, 19)
+;@ test: slot = rand(0, 19)
 PutMonsterInParty::
 ;> if slot == 0xFF:
 ;>     return
@@ -6514,14 +6514,14 @@ PutMonsterInParty::
 ;@ $DDCE, $DDE8, $DE02 are $FF), by running this command again next frame.
 ;@ test: skip part of the script engine
 ScriptCmdWaitSoundEnd::
-;>@w if mem[0xDDB4] & mem[0xDDCE] & mem[0xDDE8] & mem[0xDE02] == 0xFF:
+;>@w if (wSoundChannels[52] & wSoundChannels[78] & wSoundChannels[104] & wSoundChannels[130]) == 0xFF:
 ;>     return NextScriptCommand()
-	ld a, [$ddb4]
-	ld hl, $ddce
+	ld a, [wSoundChannels + 52]
+	ld hl, wSoundChannels + 78
 	and [hl]
-	ld hl, $dde8
+	ld hl, wSoundChannels + 104
 	and [hl]
-	ld hl, $de02
+	ld hl, wSoundChannels + 130
 ;=@w
 	and [hl]
 	cp $ff
@@ -6700,7 +6700,7 @@ ScriptCmdWaitFrames::
 ;@ Command $4E: saves Terry's map, position and direction as the return point (for $4F/$50).
 ;@ test: skip runs script commands from banks $0C-$0F
 ScriptCmdSaveReturnPoint::
-;>@m mem16[wReturnMap] = wMapId | wOnGateFloor << 8
+;>@m wReturnMap = wMapId | wOnGateFloor << 8
 	ld a, [wMapId]
 	ld c, a
 	ld a, [wOnGateFloor]
@@ -6743,7 +6743,7 @@ ScriptCmdSaveReturnPoint::
 ;@ as command $43).
 ;@ test: skip starts a fade
 ScriptCmdReturnWarp2::
-;>@m mem16[wWarpMap] = mem16[wReturnMap]
+;>@m wWarpMap = lo(wReturnMap); wWarpOnGateFloor = hi(wReturnMap)
 	ld a, [wReturnMap]
 	ld c, a
 	ld a, [wReturnMap + 1]
@@ -6885,13 +6885,13 @@ LibraryRankThresholds::
 ScriptCmdRandomBattle::
 ;> levels = 0
 	ld bc, $0000
-;> levels += AddPartyMonLevel(wParty[0])
+;> levels = AddPartyMonLevel(wParty[0], levels)
 	ld a, [wParty]
 	call AddPartyMonLevel
-;> levels += AddPartyMonLevel(wParty[1])
+;> levels = AddPartyMonLevel(wParty[1], levels)
 	ld a, [wParty + 1]
 	call AddPartyMonLevel
-;> levels += AddPartyMonLevel(wParty[2])
+;> levels = AddPartyMonLevel(wParty[2], levels)
 	ld a, [wParty + 2]
 	call AddPartyMonLevel
 ;>@t tier = min(Divide16(levels + 1, 20), 7)
@@ -7010,7 +7010,7 @@ AddPartyMonLevel::
 	cp $ff
 	ret z
 
-;> level = mem[MonsterField(slot, wMonLevel)]
+;> level = mem[MonsterField(slot, addr(wMonLevel))]
 	push bc
 	ld hl, wMonLevel
 	call MonsterField
@@ -7254,7 +7254,7 @@ ScriptCmdLoseRandomItem::
 ;@ is nonzero when there was something to lose.
 ;@ test: skip writes text and changes gold through helpers
 ScriptCmdLoseTenthOfGold::
-;>@a amount = Divide24(wGold, 10)
+;>@a q_high, q, _ = Divide24(wGold[2], wGold[0] | wGold[1] << 8, 10); amount = q_high << 16 | q
 	ld a, [wGold]
 	ld l, a
 	ld a, [wGold + 1]
@@ -7284,7 +7284,7 @@ ScriptCmdLoseTenthOfGold::
 ;> Number24ToDecimal(wTextArg0)
 	ld hl, wTextArg0
 	call Number24ToDecimal
-;>@g SpendGold(hNumber)
+;>@g SpendGold(hNumber[2], hNumber[0] | hNumber[1] << 8)
 	ldh a, [hNumber]
 	ld l, a
 	ldh a, [hNumber + 1]
@@ -7379,7 +7379,7 @@ ScriptCmdSkipFloors::
 ;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
-;> mem16[wWarpMap] = 0x8000               # the next gate floor
+;> wWarpMap = 0; wWarpOnGateFloor = 0x80   # the next gate floor
 	ld a, $00
 	ld [wWarpMap], a
 	ld a, $80
@@ -8054,7 +8054,7 @@ MaxLevelInto::
 	cp $ff
 	ret z
 
-;> level = mem[MonsterField(slot, wMonLevel)]
+;> level = mem[MonsterField(slot, addr(wMonLevel))]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
@@ -8216,7 +8216,7 @@ ScriptCmdJumpIfLevelBelowCap::
 
 	jp c, NextScriptCommand
 
-;> cap = PartyMonsterField(slot, wMonMaxLevel)
+;> cap = PartyMonsterField(slot, addr(wMonMaxLevel))
 	ld a, c
 	ld hl, wMonMaxLevel
 	push bc
@@ -8266,7 +8266,7 @@ ScriptCmdPayPerLevel::
 	ld a, [wScriptPos + 1]
 	adc $00
 	ld [wScriptPos + 1], a
-;>@c cost = Multiply(mem[MonsterField(wLeaderSlot, wMonPlus)] + 1, 10)
+;>@c cost = Multiply(mem[MonsterField(wLeaderSlot, addr(wMonPlus))] + 1, 10)
 	ld a, [wLeaderSlot]
 	ld hl, wMonPlus
 	call MonsterField
@@ -8291,7 +8291,7 @@ ScriptCmdPayPerLevel::
 
 
 .pay
-;> SpendGold(cost)
+;> SpendGold(0, cost)
 	ld e, $00
 	call SpendGold
 ;> return NextScriptCommand()
@@ -8424,7 +8424,7 @@ ScriptCmdRedrawScreen::
 	push hl
 
 .tile
-;>         WriteVRAM(dest, mem[src]); src += 1
+;>         WriteVRAM(mem[src], dest); src += 1
 	ld a, [de]
 	call WriteVRAM
 ;>@w         dest = (dest & ~0x1F) | ((dest + 1) & 0x1F)
@@ -8490,7 +8490,7 @@ ScriptCmdJumpIfPartyFit::
 	or a
 	jp z, .fit
 
-;>@s     if GetPartyMonsterByte(i, wMonStatus):
+;>@s     if GetPartyMonsterByte(i, addr(wMonStatus)):
 ;>         return NextScriptCommand()
 	ld a, $00
 	ld hl, wMonStatus
@@ -8498,7 +8498,7 @@ ScriptCmdJumpIfPartyFit::
 	or a
 	jp nz, .notFit
 
-;>@h     if GetPartyMonsterWord(i, wMonMaxHP) != GetPartyMonsterWord(i, wMonHP):
+;>@h     if GetPartyMonsterWord(i, addr(wMonMaxHP)) != GetPartyMonsterWord(i, addr(wMonHP)):
 ;>         return NextScriptCommand()
 	ld a, $00
 	ld hl, wMonMaxHP
@@ -8520,7 +8520,7 @@ ScriptCmdJumpIfPartyFit::
 	or l
 	jp nz, .notFit
 
-;>@m     if GetPartyMonsterWord(i, wMonMaxMP) != GetPartyMonsterWord(i, wMonMP):
+;>@m     if GetPartyMonsterWord(i, addr(wMonMaxMP)) != GetPartyMonsterWord(i, addr(wMonMP)):
 ;>         return NextScriptCommand()
 	ld a, $00
 	ld hl, wMonMaxMP
@@ -8667,10 +8667,10 @@ ScriptCmdJumpIfPartyFit::
 ;@ $FF), by running this command again next frame.
 ;@ test: skip part of the script engine
 ScriptCmdWaitChannelsEnd::
-;> if mem[0xDD80] & mem[0xDD9A] == 0xFF:
+;> if (wSoundChannels[0] & wSoundChannels[26]) == 0xFF:
 ;>     return NextScriptCommand()
-	ld a, [$dd80]
-	ld hl, $dd9a
+	ld a, [wSoundChannels]
+	ld hl, wSoundChannels + 26
 	and [hl]
 	cp $ff
 	jp z, NextScriptCommand

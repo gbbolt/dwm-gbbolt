@@ -16,7 +16,7 @@ FarTable_02::
 	dw InitCutscene
 	dw RunCutscene
 	dw RunShootingStarEvent
-	dw SceneSpriteSets + 12              ; the code after the table: UpdateSceneObject via wSceneStep/wSceneTimer
+	dw UpdateSceneObjectFar
 	dw GetAnimationFirstPose
 
 ;@ def StepAnimation()
@@ -24,6 +24,7 @@ FarTable_02::
 ;@ Advances the animation object that wPlayerAnimPtr points to by one frame. The object is 6 bytes:
 ;@ [0] running (0 = start the script over), [1] animation set, [2] animation in the set, [3] script
 ;@ step, [4] pose shown now, [5] frames left for it. The scripts are in AnimationSets.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 StepAnimation::
 ;> obj = wPlayerAnimPtr
 	ld a, [wPlayerAnimPtr]
@@ -60,6 +61,7 @@ StepAnimation::
 ;@ Counts down the frames of the current pose; when none are left it moves on to the next script
 ;@ entry. A pose given $FF frames is held forever. While counting, it returns with the Z flag set
 ;@ if the pose is $FF (nothing shown).
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 AdvanceAnimation::
 ;> left = wPlayerAnimPtr + 5
 	ld a, [wPlayerAnimPtr]
@@ -92,6 +94,7 @@ AdvanceAnimation::
 ;@ def AnimationNextFrame()
 ;@ path: gfx/animation
 ;@ Moves the animation object to its next script entry and loads it.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 AnimationNextFrame::
 ;> step = wPlayerAnimPtr + 3
 	ld a, [wPlayerAnimPtr]
@@ -110,6 +113,7 @@ AnimationNextFrame::
 ;@ Reads the script entry at the object's step and acts on it. Entries are 2 bytes: a pose and its
 ;@ number of frames. $FF $FF starts the script over on the next frame, $FD n plays sound effect n
 ;@ and goes on with the next entry, $FE n is command n (0 stop, 1-3 skip, 4 restart).
+;@ test: skip the ROM bank left mapped after its far calls differs in the model
 LoadAnimationFrame::
 ;> entry = GetAnimationEntry()          # low byte pose, high byte frames
 	call GetAnimationEntry
@@ -135,12 +139,12 @@ LoadAnimationFrame::
 	jr nz, .notFF
 
 .notFF
-;> if entry & 0xFF >= 0xF8:
+;> if (entry & 0xFF) >= 0xF8:
 	ld a, c
 	cp $f8
 	jr c, AnimationSetFrame
 
-;>     if entry & 0xFF != 0xFE:
+;>     if (entry & 0xFF) != 0xFE:
 	cp $fe
 ;>         return AnimationCheckSound(entry & 0xFF, entry)
 	jr nz, AnimationCheckSound
@@ -164,6 +168,7 @@ AnimationCommandTable::
 ;@ path: gfx/animation
 ;@ Part of LoadAnimationFrame for poses $F8-$FD and $FF: $FD n plays sound effect n and goes on
 ;@ with the next entry; the others are shown like a pose.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 AnimationCheckSound::
 ;> if pose != 0xFD:
 	cp $fd
@@ -179,6 +184,7 @@ AnimationCheckSound::
 ;@ def AnimationSetFrame(entry: bc)
 ;@ path: gfx/animation
 ;@ Shows pose c for b frames: stores them in the animation object.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 AnimationSetFrame::
 ;> p = wPlayerAnimPtr + 4
 	ld a, [wPlayerAnimPtr]
@@ -200,6 +206,7 @@ AnimationReturn:
 ;@ def AnimationCmdStop()
 ;@ path: gfx/animation
 ;@ Script command $FE $00: shows no pose ($FF) and holds that forever.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 AnimationCmdStop::
 ;> AnimationSetFrame(0xFFFF)
 	ld bc, $ffff
@@ -218,6 +225,7 @@ AnimationCmdSkip::
 ;@ path: gfx/animation
 ;@ Script command $FE $04: sets the step back to 1 and adds a frame to wait; the entry after
 ;@ step 1 is the next one loaded.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 AnimationCmdRestart::
 ;> p = wPlayerAnimPtr + 3
 	ld a, [wPlayerAnimPtr]
@@ -547,7 +555,7 @@ InitCutscene::
 ;> wSGBPalSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
-;> mem[wSGBPalSet + 1] = 0
+;> mem[addr(wSGBPalSet) + 1] = 0
 	inc hl
 	ld [hl], $00
 ;> SGBSetFieldPalettes()
@@ -578,35 +586,35 @@ InitCutscene0::
 ;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
-;> Decompress(0x5B17, 0x9000)          # background tiles
+;> Decompress(0x5B, 0x17, 0x9000)          # background tiles
 	ld de, $5b17
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x5B18, 0x8600)          # sprite tiles
+;> Decompress(0x5B, 0x18, 0x8600)          # sprite tiles
 	ld de, $5b18
 	ld hl, $8600
 	call Decompress
-;> Decompress(0x5B19, 0x8640)
+;> Decompress(0x5B, 0x19, 0x8640)
 	ld de, $5b19
 	ld hl, $8640
 	call Decompress
-;> Decompress(0x5B1A, 0x8670)
+;> Decompress(0x5B, 0x1A, 0x8670)
 	ld de, $5b1a
 	ld hl, $8670
 	call Decompress
-;> Decompress(0x2F00, 0x8800)
+;> Decompress(0x2F, 0x00, 0x8800)
 	ld de, $2f00
 	ld hl, $8800
 	call Decompress
-;> Decompress(0x310D, 0x8A00)
+;> Decompress(0x31, 0x0D, 0x8A00)
 	ld de, $310d
 	ld hl, $8a00
 	call Decompress
-;> Decompress(0x310E, 0x8B00)
+;> Decompress(0x31, 0x0E, 0x8B00)
 	ld de, $310e
 	ld hl, $8b00
 	call Decompress
-;> Decompress(0x3110, 0x8C00)
+;> Decompress(0x31, 0x10, 0x8C00)
 	ld de, $3110
 	ld hl, $8c00
 	call Decompress
@@ -636,14 +644,14 @@ InitCutscene0::
 	ld a, $01
 	ldh [rVBK], a
 ;> if wOnCGB:
-;>     Decompress(0x3F04, 0x9800)      # attribute maps
+;>     Decompress(0x3F, 0x04, 0x9800)      # attribute maps
 	ld de, $3f04
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
 	call nz, Decompress
 ;> if wOnCGB:
-;>     Decompress(0x3F04, 0x9C00)
+;>     Decompress(0x3F, 0x04, 0x9C00)
 	ld de, $3f04
 	ld hl, $9c00
 	ld a, [wOnCGB]
@@ -668,7 +676,7 @@ InitCutscene0::
 	xor a
 	ld [wFrameCounter], a
 	ld [wFrameCounter + 1], a
-;> mem[0xC892] = 0
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
 ;> wLCDC = 0x03                        # background and sprites
@@ -694,11 +702,11 @@ InitCutscene1::
 ;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
-;> Decompress(0x5B1B, 0x9000)
+;> Decompress(0x5B, 0x1B, 0x9000)
 	ld de, $5b1b
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x5B1C, 0x8800)
+;> Decompress(0x5B, 0x1C, 0x8800)
 	ld de, $5b1c
 	ld hl, $8800
 	call Decompress
@@ -732,7 +740,7 @@ InitCutscene1::
 	ld a, $01
 	ldh [rVBK], a
 ;> if wOnCGB:
-;>     Decompress(0x3F06, 0x9800)
+;>     Decompress(0x3F, 0x06, 0x9800)
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
@@ -765,7 +773,7 @@ InitCutscene1::
 	call ClearShadowOAM
 ;> hOAMDMA()
 	call hOAMDMA
-;> mem[0xC892] = 0
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
 ;> return EnableLCDAndInterrupts(1)
@@ -781,11 +789,11 @@ InitCutscene2::
 ;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
-;> Decompress(0x5B1B, 0x9000)
+;> Decompress(0x5B, 0x1B, 0x9000)
 	ld de, $5b1b
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x5B1C, 0x8800)
+;> Decompress(0x5B, 0x1C, 0x8800)
 	ld de, $5b1c
 	ld hl, $8800
 	call Decompress
@@ -819,7 +827,7 @@ InitCutscene2::
 	ld a, $01
 	ldh [rVBK], a
 ;> if wOnCGB:
-;>     Decompress(0x3F06, 0x9800)
+;>     Decompress(0x3F, 0x06, 0x9800)
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
@@ -852,7 +860,7 @@ InitCutscene2::
 	call ClearShadowOAM
 ;> hOAMDMA()
 	call hOAMDMA
-;> mem[0xC892] = 0
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
 ;> return EnableLCDAndInterrupts(1)
@@ -868,11 +876,11 @@ InitCutscene3::
 ;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
-;> Decompress(0x5B1D, 0x9000)
+;> Decompress(0x5B, 0x1D, 0x9000)
 	ld de, $5b1d
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x5B1E, 0x8800)
+;> Decompress(0x5B, 0x1E, 0x8800)
 	ld de, $5b1e
 	ld hl, $8800
 	call Decompress
@@ -906,7 +914,7 @@ InitCutscene3::
 	ld a, $01
 	ldh [rVBK], a
 ;> if wOnCGB:
-;>     Decompress(0x3F07, 0x9800)
+;>     Decompress(0x3F, 0x07, 0x9800)
 	ld hl, $9800
 	ld a, [wOnCGB]
 	or a
@@ -939,7 +947,7 @@ InitCutscene3::
 	call ClearShadowOAM
 ;> hOAMDMA()
 	call hOAMDMA
-;> mem[0xC892] = 0
+;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
 ;> return EnableLCDAndInterrupts(1)
@@ -1194,35 +1202,35 @@ Cutscene0PanUp::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $80
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]      # pose, script step, frames left
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x50]      # (unused), sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $50
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x30, 0x00, 0x00]     # Y, pose, script step
 	ld a, $30
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]          # frames left, (unused)
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1254,14 +1262,14 @@ Cutscene0Star1::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1274,16 +1282,16 @@ Cutscene0Star1::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x40:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $40
 	jr nz, .checkDone
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -1296,7 +1304,7 @@ Cutscene0Star1::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -1308,35 +1316,35 @@ Cutscene0Star1::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $40
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x20]      # sparkle hidden at X $20
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $20
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x20, 0x00, 0x00]
 	ld a, $20
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1366,14 +1374,14 @@ Cutscene0Star2::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1386,16 +1394,16 @@ Cutscene0Star2::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x10:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -1408,7 +1416,7 @@ Cutscene0Star2::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -1420,35 +1428,35 @@ Cutscene0Star2::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $a0
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $30
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x80]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $80
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x50, 0x00, 0x00]
 	ld a, $50
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1478,14 +1486,14 @@ Cutscene0Star3::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0x28:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $28
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1498,16 +1506,16 @@ Cutscene0Star3::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x70:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $70
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -1520,7 +1528,7 @@ Cutscene0Star3::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -1532,35 +1540,35 @@ Cutscene0Star3::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $80
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x70]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $70
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x10, 0x00, 0x00]
 	ld a, $10
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1590,14 +1598,14 @@ Cutscene0Star4::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1610,16 +1618,16 @@ Cutscene0Star4::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x60:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $60
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -1632,7 +1640,7 @@ Cutscene0Star4::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -1644,35 +1652,35 @@ Cutscene0Star4::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $40
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x20]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $20
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x20, 0x00, 0x00]
 	ld a, $20
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1702,14 +1710,14 @@ Cutscene0Star5::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1722,23 +1730,23 @@ Cutscene0Star5::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x10:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
 
 ;> if wSceneObjects[1] == 0:
 .noSparkle
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	jr nz, .checkDone
 
@@ -1754,7 +1762,7 @@ Cutscene0Star5::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -1766,35 +1774,35 @@ Cutscene0Star5::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $a0
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $30
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x80]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $80
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x50, 0x00, 0x00]
 	ld a, $50
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1824,14 +1832,14 @@ Cutscene0Star6::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0x28:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $28
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1844,23 +1852,23 @@ Cutscene0Star6::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x70:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $70
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
 
 ;> if wSceneObjects[1] == 0x38:
 .noSparkle
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $38
 	jr nz, .checkDone
 
@@ -1876,7 +1884,7 @@ Cutscene0Star6::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -1888,35 +1896,35 @@ Cutscene0Star6::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $40
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x20]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $20
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x20, 0x00, 0x00]
 	ld a, $20
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -1946,14 +1954,14 @@ Cutscene0Star7::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -1966,16 +1974,16 @@ Cutscene0Star7::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x10:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -1988,7 +1996,7 @@ Cutscene0Star7::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -2000,35 +2008,35 @@ Cutscene0Star7::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $80
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x30]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $30
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x50, 0x00, 0x00]
 	ld a, $50
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2059,14 +2067,14 @@ Cutscene0Star8::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -2079,16 +2087,16 @@ Cutscene0Star8::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x20:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $20
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -2101,7 +2109,7 @@ Cutscene0Star8::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -2113,56 +2121,56 @@ Cutscene0Star8::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $a0
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $30
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x80]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $80
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x50, 0x00, 0x00]
 	ld a, $50
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:15] = [0x04, 0x00, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 	ld a, $00
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;> wSceneObjects[15:18] = [0x40, 0x00, 0x00]
 	ld a, $40
-	ld [$c0e7], a
+	ld [wSceneObjects + 15], a
 	ld a, $00
-	ld [$c0e8], a
+	ld [wSceneObjects + 16], a
 	ld a, $00
-	ld [$c0e9], a
+	ld [wSceneObjects + 17], a
 ;> wSceneObjects[18:21] = [0x00, 0x02, 0x00]
 	ld a, $00
-	ld [$c0ea], a
+	ld [wSceneObjects + 18], a
 	ld a, $02
-	ld [$c0eb], a
+	ld [wSceneObjects + 19], a
 	ld a, $00
 	ld [wVSTeam], a
 ;> wSceneObjects[21:24] = [0x01, 0x20, 0x20]
 	ld a, $01
-	ld [$c0ed], a
+	ld [wVSTeam + 1], a
 	ld a, $20
-	ld [$c0ee], a
+	ld [wVSTeam + 2], a
 	ld a, $20
 	ld [$c0ef], a
 ;> wSceneObjects[24:27] = [0x00, 0x00, 0x04]
@@ -2200,26 +2208,26 @@ Cutscene0TwoStars::
 	ld a, $60
 	ldh [hSpriteTileBase], a
 ;> if wSceneObjects[15] == 0xE0:
-	ld a, [$c0e7]
+	ld a, [wSceneObjects + 15]
 	cp $e0
 	jr nz, .drawSecond
 
 ;>     wSceneObjects[14] = 1            # hide it
 	ld a, $01
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     hSpriteAttr = 2
 	ld a, $02
 	ldh [hSpriteAttr], a
 
 ;> UpdateSceneObject(wSceneObjects + 14)
 .drawSecond
-	ld hl, $c0e6
+	ld hl, wSceneObjects + 14
 	call UpdateSceneObject
 ;> wSceneObjects[15] -= 1
-	ld hl, $c0e7
+	ld hl, wSceneObjects + 15
 	dec [hl]
 ;> wSceneObjects[16] += 1
-	ld hl, $c0e8
+	ld hl, wSceneObjects + 16
 	inc [hl]
 ;> hSpriteSet = 1                       # its sparkle
 	ld a, $01
@@ -2231,16 +2239,16 @@ Cutscene0TwoStars::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 21)
-	ld hl, $c0ed
+	ld hl, wVSTeam + 1
 	call UpdateSceneObject
 ;> if wSceneObjects[15] == 0x10:
-	ld a, [$c0e7]
+	ld a, [wSceneObjects + 15]
 	cp $10
 	jr nz, .firstStar
 
 ;>     wSceneObjects[21] = 0            # show the sparkle
 	ld a, $00
-	ld [$c0ed], a
+	ld [wVSTeam + 1], a
 
 ;> hSpriteSet = 0                       # first star
 .firstStar
@@ -2256,14 +2264,14 @@ Cutscene0TwoStars::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0x28:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $28
 	call z, HideSceneObject0
 ;> hSpriteSet = 1
@@ -2276,16 +2284,16 @@ Cutscene0TwoStars::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x70:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $70
 	jr nz, .checkDone
 
 ;>     wSceneObjects[7] = 0
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -2298,13 +2306,13 @@ Cutscene0TwoStars::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return
 	ret z
 
 ;> if wSceneObjects[14] == 0:
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	or a
 ;>     return
 	ret z
@@ -2316,35 +2324,35 @@ Cutscene0TwoStars::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $80
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x50]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $50
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x30, 0x00, 0x00]
 	ld a, $30
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2374,14 +2382,14 @@ Cutscene0Star9::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -2394,16 +2402,16 @@ Cutscene0Star9::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x40:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $40
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -2416,7 +2424,7 @@ Cutscene0Star9::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -2428,35 +2436,35 @@ Cutscene0Star9::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $40
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $00
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x20]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $20
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x20, 0x00, 0x00]
 	ld a, $20
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2486,14 +2494,14 @@ Cutscene0Star10::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0xE0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $e0
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -2506,16 +2514,16 @@ Cutscene0Star10::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x10:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -2528,7 +2536,7 @@ Cutscene0Star10::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -2540,35 +2548,35 @@ Cutscene0Star10::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $a0
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $30
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:9] = [0x00, 0x01, 0x80]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ld a, $01
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 	ld a, $80
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;> wSceneObjects[9:12] = [0x50, 0x00, 0x00]
 	ld a, $50
-	ld [$c0e1], a
+	ld [wSceneObjects + 9], a
 	ld a, $00
-	ld [$c0e2], a
+	ld [wSceneObjects + 10], a
 	ld a, $00
-	ld [$c0e3], a
+	ld [wSceneObjects + 11], a
 ;> wSceneObjects[12:14] = [0x04, 0x00]
 	ld a, $04
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ld a, $00
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2599,14 +2607,14 @@ Cutscene0Star11::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 1                # X
-	ld hl, $c0d9
+	ld hl, wSceneObjects + 1
 	dec [hl]
 ;> wSceneObjects[2] += 1                # Y
-	ld hl, $c0da
+	ld hl, wSceneObjects + 2
 	inc [hl]
 ;> if wSceneObjects[1] == 0x28:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $28
 	call z, HideSceneObject0
 ;> hSpriteSet = 1                       # sparkle
@@ -2619,16 +2627,16 @@ Cutscene0Star11::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 7)
-	ld hl, $c0df
+	ld hl, wSceneObjects + 7
 	call UpdateSceneObject
 ;> if wSceneObjects[1] == 0x70:
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $70
 	jr nz, .noSparkle
 
 ;>     wSceneObjects[7] = 0             # show the sparkle
 	ld a, $00
-	ld [$c0df], a
+	ld [wSceneObjects + 7], a
 ;>     QueueSound(0x5D)
 	ld a, $5d
 	call QueueSound
@@ -2641,7 +2649,7 @@ Cutscene0Star11::
 	ret z
 
 ;> if wSceneObjects[7] == 0:
-	ld a, [$c0df]
+	ld a, [wSceneObjects + 7]
 	or a
 ;>     return                           # the sparkle is still showing
 	ret z
@@ -2656,19 +2664,19 @@ Cutscene0Star11::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $50
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $90
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;> wSceneObjects[6:7] = [0x00]      # sparkle: hidden, X
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 ;> wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2709,19 +2717,19 @@ Cutscene0Pose1::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $50
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $90
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;>     wSceneObjects[6] = 0
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 ;>     wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2764,19 +2772,19 @@ Cutscene0Pose2::
 	ld a, $00
 	ld [wSceneObjects], a
 	ld a, $50
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 	ld a, $88
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     wSceneObjects[3:6] = [0x00, 0x00, 0x02]
 	ld a, $00
-	ld [$c0db], a
+	ld [wSceneObjects + 3], a
 	ld a, $00
-	ld [$c0dc], a
+	ld [wSceneObjects + 4], a
 	ld a, $02
-	ld [$c0dd], a
+	ld [wSceneObjects + 5], a
 ;>     wSceneObjects[6] = 0
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 ;>     wSceneTimer = 0
 	ld a, $00
 	ld [wSceneTimer], a
@@ -2889,10 +2897,10 @@ Cutscene0End::
 ;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
-;> mem[0xC88C] = 0
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
-;> mem[0xC88D] = 0
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
 ;> wGameStarted |= 0x80
@@ -3054,6 +3062,7 @@ CutsceneCountFrame::
 ;@ path: gfx/tilemap
 ;@ Draws a tilemap into a BG map. Format: a 2-byte offset added to dest, then tile numbers;
 ;@ $D8 goes to the start of the next row (32 tiles on), $D9 ends the map.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 DrawTilemap::
 ;> offset = mem16[src]; src += 2
 	ld a, [de]
@@ -3355,10 +3364,10 @@ Cutscene1End::
 ;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
-;> mem[0xC88C] = 0
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
-;> mem[0xC88D] = 0
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
 ;> wWarpMap = 4
@@ -3676,7 +3685,7 @@ CutsceneQuake::
 ;> wSceneTimer += 1
 	ld hl, wSceneTimer
 	inc [hl]
-;> if wSceneTimer & 3 != 3:
+;> if (wSceneTimer & 3) != 3:
 	ld a, [wSceneTimer]
 	and $03
 	cp $03
@@ -3775,10 +3784,10 @@ Cutscene2End::
 ;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
-;> mem[0xC88C] = 0
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
-;> mem[0xC88D] = 0
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
 ;> wGameStarted |= 0x80
@@ -3842,10 +3851,10 @@ Cutscene3End::
 ;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
-;> mem[0xC88C] = 0
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
-;> mem[0xC88D] = 0
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
 ;> wGameStarted |= 0x80
@@ -3863,11 +3872,11 @@ Cutscene3End::
 ;@ and hides them all.
 ;@ test: skip decompresses graphics into VRAM
 InitShootingStars::
-;> DecompressVRAM(0x5B18, 0x8700)       # star tiles
+;> DecompressVRAM(0x5B, 0x18, 0x8700)       # star tiles
 	ld de, $5b18
 	ld hl, $8700
 	call DecompressVRAM
-;> DecompressVRAM(0x5B19, 0x8740)       # sparkle tiles
+;> DecompressVRAM(0x5B, 0x19, 0x8740)       # sparkle tiles
 	ld de, $5b19
 	ld hl, $8740
 	call DecompressVRAM
@@ -3995,7 +4004,7 @@ ShootingStarSetup::
 	ld hl, wSceneObjects
 	call InitStarHighRight
 ;> InitSparkleLow(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call InitSparkleLow
 	ret
 
@@ -4018,21 +4027,21 @@ ShootingStarPass1::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	sub $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;> wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> if wSceneObjects[1] == 0x60:
 ;>     ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $60
 	call z, ShowSceneObject1
 ;> if wSceneObjects[1] == 0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	call z, HideSceneObject0
 ;> hSpriteSet = 0x01
@@ -4045,7 +4054,7 @@ ShootingStarPass1::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> wSceneTimer += 1
 	ld hl, wSceneTimer
@@ -4085,21 +4094,21 @@ ShootingStarPass2::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	sub $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;> wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> if wSceneObjects[1] == 0x10:
 ;>     ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	call z, ShowSceneObject1
 ;> if wSceneObjects[1] == 0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	call z, HideSceneObject0
 ;> hSpriteSet = 0x01
@@ -4112,7 +4121,7 @@ ShootingStarPass2::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> wSceneTimer += 1
 	ld hl, wSceneTimer
@@ -4153,21 +4162,21 @@ ShootingStarPass3::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	sub $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;> wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> if wSceneObjects[1] == 0x70:
 ;>     ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $70
 	call z, ShowSceneObject1
 ;> if wSceneObjects[1] == 0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	call z, HideSceneObject0
 ;> hSpriteSet = 0x01
@@ -4180,7 +4189,7 @@ ShootingStarPass3::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> wSceneTimer += 1
 	ld hl, wSceneTimer
@@ -4201,7 +4210,7 @@ ShootingStarPass3::
 	ld hl, wSceneObjects
 	call InitStarLeft
 ;> InitStarFarRight(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call InitStarFarRight
 ;> HideSceneObject2()
 	call HideSceneObject2
@@ -4227,21 +4236,21 @@ ShootingStarPass4::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;> wSceneObjects[1] -= 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	sub $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;> wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;> if wSceneObjects[1] == 0x10:
 ;>     ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	call z, ShowSceneObject1
 ;> if wSceneObjects[1] == 0:
 ;>     HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	call z, HideSceneObject0
 ;> hSpriteSet = 0x01
@@ -4254,7 +4263,7 @@ ShootingStarPass4::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;> UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> if wSceneTimer >= 0x10:
 	ld a, [wSceneTimer]
@@ -4278,24 +4287,24 @@ jr_002_61b9:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call UpdateSceneObject
 ;>     wSceneObjects[13] -= 2
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	sub $02
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;>     wSceneObjects[14] += 2
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	add $02
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     if wSceneObjects[13] == 0x70:
 ;>         ShowSceneObject3()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $70
 	call z, ShowSceneObject3
 ;>     if wSceneObjects[13] == 0:
 ;>         HideSceneObject2()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	or a
 	call z, HideSceneObject2
 ;>     hSpriteSet = 0x01
@@ -4308,7 +4317,7 @@ jr_002_61b9:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call UpdateSceneObject
 
 jr_002_61fc:
@@ -4331,10 +4340,10 @@ jr_002_61fc:
 	ld hl, wSceneObjects
 	call InitStarLeft
 ;> InitStarHighRight(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call InitStarHighRight
 ;> InitSparkleLow(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call InitSparkleLow
 ;> InitStarFarRight(wSceneObjects + 24)
 	ld hl, $c0f0
@@ -4373,7 +4382,7 @@ ShootingStarShower::
 ;>     InitStarFarRight(wSceneObjects + 12)
 	ld a, [wSceneTimer]
 	cp $60
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call z, InitStarFarRight
 ;> if wSceneTimer == 0x70:
 ;>     InitStarHighRight(wSceneObjects + 24)
@@ -4457,21 +4466,21 @@ ShootingStarShower::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;>     wSceneObjects[1] -= 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	sub $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;>     wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     if wSceneObjects[1] == 0x10:
 ;>         ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	call z, ShowSceneObject1
 ;>     if wSceneObjects[1] == 0:
 ;>         HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	call z, HideSceneObject0
 ;>     hSpriteSet = 0x01
@@ -4484,7 +4493,7 @@ ShootingStarShower::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> if 0x10 <= t < 0x60:                 # pair B: star 12, sparkle 18
 	ld a, [wSceneTimer]
@@ -4502,24 +4511,24 @@ Jump_002_6309:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call UpdateSceneObject
 ;>     wSceneObjects[13] -= 2
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	sub $02
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;>     wSceneObjects[14] += 2
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	add $02
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     if wSceneObjects[13] == 0x60:
 ;>         ShowSceneObject3()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $60
 	call z, ShowSceneObject3
 ;>     if wSceneObjects[13] == 0:
 ;>         HideSceneObject2()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	or a
 	call z, HideSceneObject2
 ;>     hSpriteSet = 0x01
@@ -4532,7 +4541,7 @@ Jump_002_6309:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call UpdateSceneObject
 ;> if 0x20 <= t < 0x70:                 # pair C: star 24, sparkle 30
 	ld a, [wSceneTimer]
@@ -4601,21 +4610,21 @@ Jump_002_63a0:
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;>     wSceneObjects[1] -= 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	sub $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;>     wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     if wSceneObjects[1] == 0x10:
 ;>         ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $10
 	call z, ShowSceneObject1
 ;>     if wSceneObjects[1] == 0:
 ;>         HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	or a
 	call z, HideSceneObject0
 ;>     hSpriteSet = 0x01
@@ -4628,7 +4637,7 @@ Jump_002_63a0:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> if t >= 0x50:                        # pair B again
 	ld a, [wSceneTimer]
@@ -4646,24 +4655,24 @@ Jump_002_63eb:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call UpdateSceneObject
 ;>     wSceneObjects[13] -= 2
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	sub $02
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;>     wSceneObjects[14] += 2
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	add $02
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     if wSceneObjects[13] == 0x70:
 ;>         ShowSceneObject3()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $70
 	call z, ShowSceneObject3
 ;>     if wSceneObjects[13] == 0x30:
 ;>         HideSceneObject2()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $30
 	call z, HideSceneObject2
 ;>     hSpriteSet = 0x01
@@ -4676,7 +4685,7 @@ Jump_002_63eb:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call UpdateSceneObject
 ;> if t >= 0x60:                        # pair C again
 	ld a, [wSceneTimer]
@@ -4705,7 +4714,7 @@ Jump_002_63eb:
 	ld [$c0f2], a
 ;>     if wSceneObjects[13] == 0x20:
 ;>         ShowSceneObject5()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $20
 	call z, ShowSceneObject5
 ;>     if wSceneObjects[25] == 0:
@@ -4855,7 +4864,7 @@ ShootingStarWaitPhase15::
 	ld hl, wSceneObjects
 	call InitStarMiddle
 ;> InitStarLeft(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call InitStarLeft
 ;> HideSceneObject2()
 	call HideSceneObject2
@@ -4881,7 +4890,7 @@ ShootingStarCross::
 ;>     InitStarHighRight(wSceneObjects + 12)
 	ld a, [wSceneTimer]
 	cp $40
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call z, InitStarHighRight
 ;> if wSceneTimer == 0x30:
 ;>     HideSceneObject0()
@@ -4897,13 +4906,13 @@ ShootingStarCross::
 ;>     InitSparkleRight(wSceneObjects + 6)
 	ld a, [wSceneTimer]
 	cp $30
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call z, InitSparkleRight
 ;> if wSceneTimer == 0x40:
 ;>     InitSparkleLeft(wSceneObjects + 18)
 	ld a, [wSceneTimer]
 	cp $40
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call z, InitSparkleLeft
 ;> if wSceneTimer == 0x10:
 ;>     ShowSceneObject2()
@@ -4944,21 +4953,21 @@ ShootingStarCross::
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;>     wSceneObjects[1] += 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	add $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;>     wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     if wSceneObjects[1] == 0x90:
 ;>         ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $90
 	call z, ShowSceneObject1
 ;>     if wSceneObjects[1] == 0xB0:
 ;>         HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $b0
 	call z, HideSceneObject0
 ;>     hSpriteSet = 0x01
@@ -4971,7 +4980,7 @@ ShootingStarCross::
 	ld a, $22
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> if 0x10 <= t < 0x40:                 # pair B: star 12, sparkle 18
 	ld a, [wSceneTimer]
@@ -4989,24 +4998,24 @@ jr_002_65b9:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call UpdateSceneObject
 ;>     wSceneObjects[13] -= 2
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	sub $02
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;>     wSceneObjects[14] += 2
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	add $02
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     if wSceneObjects[13] == 0x10:
 ;>         ShowSceneObject3()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $10
 	call z, ShowSceneObject3
 ;>     if wSceneObjects[13] == 0:
 ;>         HideSceneObject2()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	or a
 	call z, HideSceneObject2
 ;>     hSpriteSet = 0x01
@@ -5019,7 +5028,7 @@ jr_002_65b9:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call UpdateSceneObject
 ;> if t >= 0x30:                        # pair A again
 	ld a, [wSceneTimer]
@@ -5040,21 +5049,21 @@ Jump_002_6604:
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;>     wSceneObjects[1] += 2
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	add $02
-	ld [$c0d9], a
+	ld [wSceneObjects + 1], a
 ;>     wSceneObjects[2] += 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	add $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     if wSceneObjects[1] == 0x80:
 ;>         ShowSceneObject1()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $80
 	call z, ShowSceneObject1
 ;>     if wSceneObjects[1] == 0xB0:
 ;>         HideSceneObject0()
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	cp $b0
 	call z, HideSceneObject0
 ;>     hSpriteSet = 0x01
@@ -5067,7 +5076,7 @@ Jump_002_6604:
 	ld a, $22
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;> if t >= 0x40:                        # pair B again
 	ld a, [wSceneTimer]
@@ -5084,24 +5093,24 @@ Jump_002_6604:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call UpdateSceneObject
 ;>     wSceneObjects[13] -= 2
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	sub $02
-	ld [$c0e5], a
+	ld [wSceneObjects + 13], a
 ;>     wSceneObjects[14] += 2
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	add $02
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     if wSceneObjects[13] == 0x20:
 ;>         ShowSceneObject3()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	cp $20
 	call z, ShowSceneObject3
 ;>     if wSceneObjects[13] == 0:
 ;>         HideSceneObject2()
-	ld a, [$c0e5]
+	ld a, [wSceneObjects + 13]
 	or a
 	call z, HideSceneObject2
 ;>     hSpriteSet = 0x01
@@ -5114,7 +5123,7 @@ Jump_002_6604:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call UpdateSceneObject
 
 Jump_002_6692:
@@ -5147,7 +5156,7 @@ jr_002_6692:
 ;@ $14, $28, $3C, $50 and $64. Ends after 180 frames.
 ShootingStarRise::
 ;> if wSceneObjects[6] == 0:
-	ld a, [$c0de]
+	ld a, [wSceneObjects + 6]
 	or a
 	jr nz, jr_002_66df
 
@@ -5161,12 +5170,12 @@ ShootingStarRise::
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 6)
-	ld hl, $c0de
+	ld hl, wSceneObjects + 6
 	call UpdateSceneObject
 ;>     wSceneObjects[8] -= 2
-	ld a, [$c0e0]
+	ld a, [wSceneObjects + 8]
 	sub $02
-	ld [$c0e0], a
+	ld [wSceneObjects + 8], a
 ;>     if wSceneTimer == 0x14:
 	ld a, [wSceneTimer]
 	cp $14
@@ -5177,7 +5186,7 @@ ShootingStarRise::
 
 jr_002_66d5:
 ;>     if wSceneObjects[8] >= 0xF0:
-	ld a, [$c0e0]
+	ld a, [wSceneObjects + 8]
 	cp $f0
 	jr c, jr_002_66df
 
@@ -5225,7 +5234,7 @@ jr_002_6709:
 
 jr_002_6713:
 ;> if wSceneObjects[18] == 0:
-	ld a, [$c0ea]
+	ld a, [wSceneObjects + 18]
 	or a
 	jr nz, jr_002_6747
 
@@ -5239,7 +5248,7 @@ jr_002_6713:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 18)
-	ld hl, $c0ea
+	ld hl, wSceneObjects + 18
 	call UpdateSceneObject
 ;>     wSceneObjects[20] -= 2
 	ld a, [wVSTeam]
@@ -5264,7 +5273,7 @@ jr_002_673d:
 
 jr_002_6747:
 ;> if wSceneObjects[12] == 0:
-	ld a, [$c0e4]
+	ld a, [wSceneObjects + 12]
 	or a
 	jr nz, jr_002_677b
 
@@ -5278,12 +5287,12 @@ jr_002_6747:
 	ld a, $02
 	ldh [hSpriteAttr], a
 ;>     UpdateSceneObject(wSceneObjects + 12)
-	ld hl, $c0e4
+	ld hl, wSceneObjects + 12
 	call UpdateSceneObject
 ;>     wSceneObjects[14] -= 2
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	sub $02
-	ld [$c0e6], a
+	ld [wSceneObjects + 14], a
 ;>     if wSceneTimer == 0x50:
 	ld a, [wSceneTimer]
 	cp $50
@@ -5294,7 +5303,7 @@ jr_002_6747:
 
 jr_002_6771:
 ;>     if wSceneObjects[14] >= 0xF0:
-	ld a, [$c0e6]
+	ld a, [wSceneObjects + 14]
 	cp $f0
 	jr c, jr_002_677b
 
@@ -5359,11 +5368,11 @@ jr_002_67af:
 	ld hl, wSceneObjects
 	call UpdateSceneObject
 ;>     wSceneObjects[2] -= 2
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	sub $02
-	ld [$c0da], a
+	ld [wSceneObjects + 2], a
 ;>     if wSceneObjects[2] >= 0xF0:
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	cp $f0
 	jr c, jr_002_67d9
 
@@ -5548,6 +5557,7 @@ ShootingStarEnd::
 ;@ path: event/shooting-star
 ;@ Sets up a star at X $80, Y 0 (shown) and its sparkle after it, hidden at X $50, Y $30.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 InitStarHighRight::
 ;> mem[obj + 0:obj + 3] = [0x00, 0x80, 0x00]
 	ld a, $00
@@ -5585,6 +5595,7 @@ InitStarHighRight::
 ;@ path: event/shooting-star
 ;@ Sets up a star at X $20, Y 0 (shown) and its sparkle after it, hidden at X $50, Y $30.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 InitStarHighLeft::
 ;> mem[obj + 0:obj + 3] = [0x00, 0x20, 0x00]
 	ld a, $00
@@ -5622,6 +5633,7 @@ InitStarHighLeft::
 ;@ path: event/shooting-star
 ;@ Sets up a hidden sparkle at X $70, Y $10.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip the ROM bank left mapped after its far calls differs in the model
 InitSparkleLow::
 ;> mem[obj + 0:obj + 3] = [0x01, 0x70, 0x10]
 	ld a, $01
@@ -5645,6 +5657,7 @@ InitSparkleLow::
 ;@ path: event/shooting-star
 ;@ Sets up a hidden sparkle at X $30, Y $10. Nothing calls it.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 UnusedInitSparkle::
 ;> mem[obj + 0:obj + 3] = [0x01, 0x30, 0x10]
 	ld a, $01
@@ -5667,6 +5680,7 @@ UnusedInitSparkle::
 ;@ path: event/shooting-star
 ;@ Sets up a hidden sparkle at X $30, Y $50.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 InitSparkleLeft::
 ;> mem[obj + 0:obj + 3] = [0x01, 0x30, 0x50]
 	ld a, $01
@@ -5713,6 +5727,7 @@ InitSparkleRight::
 ;@ path: event/shooting-star
 ;@ Sets up a star at X $40, Y 0 (shown) and its sparkle after it, hidden at X $20, Y $20.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 InitStarLeft::
 ;> mem[obj + 0:obj + 3] = [0x00, 0x40, 0x00]
 	ld a, $00
@@ -5787,6 +5802,7 @@ InitStarMiddle::
 ;@ path: event/shooting-star
 ;@ Sets up a star at X $A0, Y $30 (shown) and its sparkle after it, hidden at X $80, Y $50.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 InitStarFarRight::
 ;> mem[obj + 0:obj + 3] = [0x00, 0xA0, 0x30]
 	ld a, $00
@@ -5825,6 +5841,7 @@ InitStarFarRight::
 ;@ Sets up six stars along the bottom (Y $90) at X 8, $18, $28, $78, $88, $98, pose 1; only the
 ;@ second is shown at first.
 ;@ Objects are 6 bytes: hidden, X, Y, pose, script step, frames left.
+;@ test: skip needs a valid cutscene object; random states send the original code astray
 InitRisingStars::
 ;> mem[obj + 0:obj + 3] = [0x01, 0x08, 0x90]
 	ld a, $01
@@ -5930,7 +5947,7 @@ ShowSceneObject0::
 ShowSceneObject1::
 ;> wSceneObjects[6] = 0
 	ld a, $00
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ret
 
 
@@ -5940,7 +5957,7 @@ ShowSceneObject1::
 ShowSceneObject2::
 ;> wSceneObjects[12] = 0
 	ld a, $00
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ret
 
 
@@ -5950,7 +5967,7 @@ ShowSceneObject2::
 ShowSceneObject3::
 ;> wSceneObjects[18] = 0
 	ld a, $00
-	ld [$c0ea], a
+	ld [wSceneObjects + 18], a
 	ret
 
 
@@ -5990,7 +6007,7 @@ HideSceneObject0::
 HideSceneObject1::
 ;> wSceneObjects[6] = 1
 	ld a, $01
-	ld [$c0de], a
+	ld [wSceneObjects + 6], a
 	ret
 
 
@@ -6000,7 +6017,7 @@ HideSceneObject1::
 HideSceneObject2::
 ;> wSceneObjects[12] = 1
 	ld a, $01
-	ld [$c0e4], a
+	ld [wSceneObjects + 12], a
 	ret
 
 
@@ -6010,7 +6027,7 @@ HideSceneObject2::
 HideSceneObject3::
 ;> wSceneObjects[18] = 1
 	ld a, $01
-	ld [$c0ea], a
+	ld [wSceneObjects + 18], a
 	ret
 
 
@@ -6066,17 +6083,19 @@ DrawSceneSprite::
 	ret
 
 
-;@ def SceneSpriteSets()
 ;@ path: event/cutscene
 ;@ Six pointers to the metasprite frame lists of the cutscene sprite sets (0 star, 1 sparkle,
-;@ 2-4 the figure's poses, 5 rising star; see SceneSprites). The code after the table is far
-;@ entry 4 of this bank (FarTable_02 points here + 12): it updates and draws the object whose
-;@ address is in wSceneStep/wSceneTimer, for callers in other banks.
-;@ test: skip the label is the table; only the code after it runs
+;@ 2-4 the figure's poses, 5 rising star; see SceneSprites).
 SceneSpriteSets::
 	dw SceneSprites + $13, SceneSprites + $170, SceneSprites + $2a9
 	dw SceneSprites + $2a9, SceneSprites + $2a9, SceneSprites + $13
 
+;@ def UpdateSceneObjectFar()
+;@ path: event/cutscene
+;@ Far entry 4 of this bank, for callers in other banks: updates and draws the cutscene object
+;@ whose address they left in wSceneStep (low byte) and wSceneTimer (high byte).
+;@ test: skip draws sprites through the metasprite engine
+UpdateSceneObjectFar::
 ;> obj = wSceneStep | wSceneTimer << 8
 	ld a, [wSceneStep]
 	ld l, a
@@ -6090,6 +6109,7 @@ SceneSpriteSets::
 ;@ Draws a cutscene object (unless it is hidden) and runs its animation script: when the pose's
 ;@ frames are used up the next script entry (SceneObjectScripts[hSpriteSet]) is loaded; $FF hides
 ;@ the object, $FE starts the script over.
+;@ test: skip follows animation or tilemap data through pointers that random states leave invalid
 UpdateSceneObject::
 ;> wSceneObjectPtr = obj
 	ld a, l

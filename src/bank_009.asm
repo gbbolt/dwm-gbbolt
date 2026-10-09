@@ -63,7 +63,7 @@ ScriptMenuBank0A::
 ;@ test: skip far call
 ScriptMenuBank12::
 ;> far_call(0x12, 0)                   # bank $12's own ScriptMenuTable
-	ld hl, $1200
+	ld hl, far_RunScriptMenu12
 	rst $10
 	ret
 
@@ -1747,7 +1747,7 @@ ShopOpenMenu::
 ;@ def DrawShopMainMenu()
 ;@ path: item/shop
 ;@ Draws the Buy / Sell / Quit window, the gold window with the purse, and the message window
-;@ (layout $2E07 in bank 0) into wTilemapBuffer, with the cursor at wMenuChoice.
+;@ (MessageWindowLayout) into wTilemapBuffer, with the cursor at wMenuChoice.
 ;@ test: skip uses the home number routines
 DrawShopMainMenu::
 ;> DrawWindowLayout9(ShopMainMenuLayout)
@@ -1756,8 +1756,8 @@ DrawShopMainMenu::
 ;> DrawWindowLayout9(GoldWindowLayout)
 	ld de, GoldWindowLayout
 	call DrawWindowLayout9
-;> DrawWindowLayout9(0x2E07)            # message window at the bottom (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)            # message window at the bottom
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
@@ -1865,8 +1865,8 @@ ShopOptionTable::
 ShopClose::
 ;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
-;> DrawWindowLayout9(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
@@ -2649,7 +2649,7 @@ ShopBuyDoIt::
 	ld hl, far_CompactBag
 	rst $10
 ;>@g price = wListCursor2 | wListPage2 << 8 | mem[0xC8E6] << 16
-;> if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < price:
+;> if (wGold[0] | wGold[1] << 8 | wGold[2] << 16) < price:
 	ld hl, wListCursor2
 	ld a, [wGold]
 	sub [hl]
@@ -2675,7 +2675,7 @@ ShopBuyDoIt::
 	jr nc, .print
 
 ;> else:
-;>@sg     SpendGold(price)
+;>@sg     SpendGold(price >> 16, price & 0xFFFF)
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
@@ -3556,7 +3556,7 @@ ShopSellDoIt::
 	jr nc, .print
 
 ;> else:
-;>@ag     AddGold(wListCursor2 | wListPage2 << 8 | mem[0xC8E6] << 16)
+;>@ag     AddGold(mem[0xC8E6], wListCursor2 | wListPage2 << 8)
 	ld a, [wListCursor2]
 	ld l, a
 	ld a, [wListPage2]
@@ -3773,8 +3773,8 @@ DrawVaultMainMenu::
 ;> DrawWindowLayout9(GoldWindowLayout)
 	ld de, GoldWindowLayout
 	call DrawWindowLayout9
-;> DrawWindowLayout9(0x2E07)            # message window (bank 0)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)            # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
@@ -3927,8 +3927,8 @@ DrawVaultWhatMenu::
 ;> DrawWindowLayout9(GoldWindowLayout)
 	ld de, GoldWindowLayout
 	call DrawWindowLayout9
-;> DrawWindowLayout9(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> copy(hNumber, wGold, 3)
 	ld a, [wGold]
@@ -4079,8 +4079,8 @@ VaultWithdrawTable::
 VaultClose::
 ;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
-;> DrawWindowLayout9(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
@@ -4870,7 +4870,7 @@ DepositGoldDigitCursor::
 ;@ test: skip uses the home gold routines
 VaultDepositGoldDoIt::
 ;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
-;>@g if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < amount:
+;>@g if (wGold[0] | wGold[1] << 8 | wGold[2] << 16) < amount:
 	ld hl, wLinkRefused
 	ld a, [wGold]
 	sub [hl]
@@ -4911,7 +4911,7 @@ VaultDepositGoldDoIt::
 	jr nc, .print
 
 ;> else:
-;>@sp     SpendGold(amount)
+;>@sp     SpendGold(amount >> 16, amount & 0xFFFF)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
@@ -4920,7 +4920,7 @@ VaultDepositGoldDoIt::
 	ld e, a
 ;=@sp
 	call SpendGold
-;>@ab     AddBankGold(amount)
+;>@ab     AddBankGold(amount >> 16, amount & 0xFFFF)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
@@ -5541,7 +5541,7 @@ VaultWithdrawGoldSteps::
 ;@ cursor on the hundreds.
 ;@ test: skip prints text
 VaultWithdrawGoldStart::
-;> if wBankedGold[0] | wBankedGold[1] | wBankedGold[2] == 0:
+;> if (wBankedGold[0] | wBankedGold[1] | wBankedGold[2]) == 0:
 	ld hl, wBankedGold
 	ld a, [hli]
 	or [hl]
@@ -5724,7 +5724,7 @@ WithdrawGoldDigitCursor::
 ;@ test: skip uses the home gold routines
 VaultWithdrawGoldDoIt::
 ;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
-;>@v if wBankedGold[0] | wBankedGold[1] << 8 | wBankedGold[2] << 16 < amount:
+;>@v if (wBankedGold[0] | wBankedGold[1] << 8 | wBankedGold[2] << 16) < amount:
 	ld hl, wLinkRefused
 	ld a, [wBankedGold]
 	sub [hl]
@@ -5765,7 +5765,7 @@ VaultWithdrawGoldDoIt::
 	jr nc, .print
 
 ;> else:
-;>@tb     TakeBankGold(amount)
+;>@tb     TakeBankGold(amount >> 16, amount & 0xFFFF)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
@@ -5774,7 +5774,7 @@ VaultWithdrawGoldDoIt::
 	ld e, a
 ;=@tb
 	call TakeBankGold
-;>@ag     AddGold(amount)
+;>@ag     AddGold(amount >> 16, amount & 0xFFFF)
 	ld a, [wLinkRefused]
 	ld l, a
 	ld a, [wLinkPartnerChoice]
@@ -5928,7 +5928,7 @@ UpdateGoldEntry::
 ;@ test: skip uses the home number routines
 GoldEntryDigitDown::
 ;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
-;>@pn PrintNumber5Zeros(amount, wNumberBackup)    # its five digits
+;>@pn PrintNumber5Zeros(wNumberBackup)    # `amount`, copied to hNumber: its five digits
 	push de
 	ld a, [hl]
 	push hl
@@ -6060,7 +6060,7 @@ GoldEntryDigitsToValue::
 ;@ test: skip uses the home number routines
 GoldEntryDigitUp::
 ;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
-;>@pn PrintNumber5Zeros(amount, wNumberBackup)
+;>@pn PrintNumber5Zeros(wNumberBackup)# `amount`, copied to hNumber: its five digits
 	push de
 	ld a, [hl]
 	push hl
@@ -6109,7 +6109,7 @@ GoldEntryDigitUp::
 ;@ test: skip writes VRAM
 DrawGoldEntry::
 ;> amount = wLinkRefused | mem[addr(wLinkRefused) + 1] << 8 | mem[addr(wLinkRefused) + 2] << 16   # the 24-bit amount at $C8DF
-;>@pn PrintNumber5Zeros(amount, wNumberBackup)
+;>@pn PrintNumber5Zeros(wNumberBackup)# `amount`, copied to hNumber: its five digits
 	ld c, a
 	push de
 	push bc
@@ -6499,8 +6499,8 @@ ArenaEntryRunOption::
 ArenaEntryClose::
 ;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
-;> DrawWindowLayout9(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
@@ -6607,8 +6607,8 @@ ArenaClassShowList::
 DrawArenaClassWindow::
 ;> RestoreTilemapBuffer9()
 	call RestoreTilemapBuffer9
-;> DrawWindowLayout9(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> DrawWindowLayout9(ArenaClassLayout)
 	ld de, ArenaClassLayout
@@ -6903,7 +6903,7 @@ ArenaCheckFee::
 ;=@i
 	adc h
 	ld h, a
-;>@g if wGold[0] | wGold[1] << 8 | wGold[2] << 16 < fee:
+;>@g if (wGold[0] | wGold[1] << 8 | wGold[2] << 16) < fee:
 	ld a, [wGold]
 	sub [hl]
 	inc hl
@@ -7050,7 +7050,7 @@ ArenaYesNoInput::
 	add l
 	ld l, a
 	ld a, $00
-;>@sp         SpendGold(mem16[ArenaEntryFees + 2 * cls])
+;>@sp         SpendGold(0, mem16[ArenaEntryFees + 2 * cls])
 	adc h
 	ld h, a
 	ld a, [hli]
@@ -7347,7 +7347,7 @@ LoadGalleryPicture::
 	ret
 
 .picture
-;>@g DecompressVRAM(GalleryPictures[mem[entry]], tiles)
+;>@g DecompressVRAM(hi(GalleryPictures[mem[entry]]), lo(GalleryPictures[mem[entry]]), tiles)
 	push hl
 	ld hl, GalleryPictures
 	add a
@@ -8724,8 +8724,8 @@ NameEntryCheckName::
 ;>     PrintSystemText(0x020A)
 	ld hl, $020a
 	call PrintSystemText
-;>     DrawWindowLayout9(0x2E07)       # message window (bank 0)
-	ld de, $2e07
+;>     DrawWindowLayout9(MessageWindowLayout)       # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;>     CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
@@ -8839,8 +8839,8 @@ NameEntryAskConfirm::
 .print
 ;> PrintSystemText(msg)
 	call PrintSystemText
-;> DrawWindowLayout9(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout9(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout9
 ;> CopyTilemapBufferToVram9()
 	call CopyTilemapBufferToVram9
@@ -8956,7 +8956,7 @@ NameYesNoCursor::
 ;@ Then the field runs again (with wFieldFlags bit 7 set only that bit is cleared).
 ;@ test: skip decompresses graphics
 NameEntryFinish::
-;>@f fill(wChosenMonName, 0xF0, 8)
+;>@f fill(addr(wChosenMonName), 0xF0, 8)
 	ld a, [wChosenMonName]
 	ld l, a
 	ld a, [wChosenMonName + 1]
@@ -9257,7 +9257,7 @@ CheckNameTaken::
 	ld c, $00
 
 .record
-;>     p = MonsterField(wMonsters, c)
+;>     p = MonsterField(c, wMonsters)
 	ld a, c
 	push bc
 	ld hl, wMonsters
@@ -9437,7 +9437,7 @@ DrawKeyboardCursor::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
 ;=@o
@@ -9465,8 +9465,8 @@ DrawKeyboardCursor::
 	ld a, $a0
 
 .tile
-;>     mem[0xFFD7] = tile
-	ldh [$ffd7], a
+;>     hNumber[2] = tile
+	ldh [hNumber + 2], a
 ;>@w     if b not in (0x41, 0x42, 0x43, 0x52, 0x53, 0x54):
 	ld a, b
 	cp $41
@@ -9529,7 +9529,7 @@ KeyboardCursorNextTile::
 ;>@a WindowBgAddrWrapped9(mem16[hNumber])
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	push de
 	push bc
@@ -9545,14 +9545,14 @@ KeyboardCursorNextTile::
 ;@ Writes the tile in $FFD7 to VRAM at hl and to the tilemap buffer at the offset in hNumber.
 ;@ test: skip writes VRAM
 PutKeyboardCursorTile::
-;> WriteVRAM(hl, mem[0xFFD7])
-	ldh a, [$ffd7]
+;> WriteVRAM(hNumber[2], hl)
+	ldh a, [hNumber + 2]
 	call WriteVRAM
-;>@b wTilemapBuffer[mem16[hNumber]] = mem[0xFFD7]
+;>@b wTilemapBuffer[mem16[hNumber]] = hNumber[2]
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 ;=@b
@@ -9634,7 +9634,7 @@ DrawNameCursor::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 	push de
 	push bc
 ;=@o
@@ -9650,13 +9650,13 @@ DrawNameCursor::
 	ld a, $a0
 
 .put
-;>     WriteVRAM(hl, tile)
+;>     WriteVRAM(tile, hl)
 	call WriteVRAM
 ;>@w     wTilemapBuffer[pos] = tile
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 ;=@w

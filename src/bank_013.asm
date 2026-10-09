@@ -24,7 +24,7 @@ FarTable_13::
 ;@ species record byte 2 picks one of the 32 tables).
 ;@ test: skip calls GetMonsterStats in another bank
 GetExpForNextLevel::
-;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -44,7 +44,7 @@ GetExpForNextLevel::
 	ld a, h
 	adc HIGH(ExpTables)
 	ld h, a
-;> level = mem[MonsterField(wCurPartyMember, wMonLevel)]
+;> level = mem[MonsterField(wCurPartyMember, addr(wMonLevel))]
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
@@ -64,17 +64,17 @@ GetExpForNextLevel::
 	add l
 	ld l, a
 	ld a, $00
-;> mem[0xFFD5] = mem[entry]                         # hNumber, low byte first
+;> hNumber[0] = mem[entry]                         # hNumber, low byte first
 	adc h
 	ld h, a
 	ld a, [hli]
 	ldh [hNumber], a
-;> mem[0xFFD6] = mem[entry + 1]
+;> hNumber[1] = mem[entry + 1]
 	ld a, [hli]
-	ldh [$ffd6], a
-;> mem[0xFFD7] = mem[entry + 2]
+	ldh [hNumber + 1], a
+;> hNumber[2] = mem[entry + 2]
 	ld a, [hli]
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
 	ret
 
 
@@ -84,7 +84,7 @@ GetExpForNextLevel::
 ;@ current level: entry level - 1 of its species' table in ExpTables. Nothing for level 0.
 ;@ test: skip calls GetMonsterStats in another bank
 SetExpForLevel::
-;> if mem[MonsterField(wCurPartyMember, wMonLevel)] == 0:
+;> if mem[MonsterField(wCurPartyMember, addr(wMonLevel))] == 0:
 ;>     return
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
@@ -93,7 +93,7 @@ SetExpForLevel::
 	or a
 	ret z
 
-;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -113,7 +113,7 @@ SetExpForLevel::
 	ld a, h
 	adc HIGH(ExpTables)
 	ld h, a
-;> step = mem[MonsterField(wCurPartyMember, wMonLevel)] - 1
+;> step = mem[MonsterField(wCurPartyMember, addr(wMonLevel))] - 1
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
@@ -164,7 +164,7 @@ SetExpForLevel::
 ;@ plus bonuses (AddPlusBonuses). Past the level limit (wMonMaxLevel - 1) the gains change.
 ;@ test: skip calls GetMonsterStats in another bank
 RollLevelUpGains::
-;> wMonSpecies = mem[MonsterField(wCurPartyMember, wMonRecSpecies)]
+;> wMonSpecies = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -176,11 +176,11 @@ RollLevelUpGains::
 ;> wOverLevelLimit = 0
 	xor a
 	ld [wOverLevelLimit], a
-;> level = MonsterField(wCurPartyMember, wMonLevel)
+;> level = MonsterField(wCurPartyMember, addr(wMonLevel))
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
-;> limit = mem[MonsterField(wCurPartyMember, wMonMaxLevel)] - 1
+;> limit = mem[MonsterField(wCurPartyMember, addr(wMonMaxLevel))] - 1
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxLevel
@@ -243,7 +243,7 @@ GetStatGain::
 	ld a, h
 	adc HIGH(StatGrowthTables)
 	ld h, a
-;> level = mem[MonsterField(wCurPartyMember, wMonLevel)]
+;> level = mem[MonsterField(wCurPartyMember, addr(wMonLevel))]
 	push hl
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
@@ -269,7 +269,7 @@ GetStatGain::
 	ret
 
 .overLimit
-;> level = mem[MonsterField(wCurPartyMember, wMonLevel)]
+;> level = mem[MonsterField(wCurPartyMember, addr(wMonLevel))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -302,7 +302,7 @@ AddPlusBonuses::
 	or a
 	jr nz, .done
 
-;>     if mem[MonsterField(wCurPartyMember, wMonLevel)] >= 14:
+;>     if mem[MonsterField(wCurPartyMember, addr(wMonLevel))] >= 14:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -361,7 +361,7 @@ RollPlusBonus::
 	pop bc
 	add b
 	ld b, a
-;> if mem[MonsterField(wCurPartyMember, wMonPlus)] < threshold:
+;> if mem[MonsterField(wCurPartyMember, addr(wMonPlus))] < threshold:
 ;>@r2     return
 	pop de
 	push de
@@ -1360,10 +1360,10 @@ BattleWipeEnd::
 ;> wGameModeStep = 0
 	ld a, $00
 	ld [wGameModeStep], a
-;> mem[0xC88C] = 0
+;> wOpeningScene = 0
 	ld a, $00
 	ld [wOpeningScene], a
-;> mem[0xC88D] = 0
+;> wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningLogo], a
 ;> wGameModeChange += 1
@@ -1532,11 +1532,11 @@ WipeSpiralToCenter::
 	cp $23
 	jp c, WipeStepLeft
 
-;> if counter < 0x33: return WipeStepDown(counter)
+;> if counter < 0x33: return WipeStepDown()
 	cp $33
 	jp c, WipeStepDown
 
-;> if counter < 0x43: return WipeStepRight(counter)
+;> if counter < 0x43: return WipeStepRight()
 	cp $43
 	jp c, WipeStepRight
 
@@ -1548,11 +1548,11 @@ WipeSpiralToCenter::
 	cp $5f
 	jp c, WipeStepLeft
 
-;> if counter < 0x6B: return WipeStepDown(counter)
+;> if counter < 0x6B: return WipeStepDown()
 	cp $6b
 	jp c, WipeStepDown
 
-;> if counter < 0x77: return WipeStepRight(counter)
+;> if counter < 0x77: return WipeStepRight()
 	cp $77
 	jp c, WipeStepRight
 
@@ -1564,11 +1564,11 @@ WipeSpiralToCenter::
 	cp $8b
 	jp c, WipeStepLeft
 
-;> if counter < 0x93: return WipeStepDown(counter)
+;> if counter < 0x93: return WipeStepDown()
 	cp $93
 	jp c, WipeStepDown
 
-;> if counter < 0x9B: return WipeStepRight(counter)
+;> if counter < 0x9B: return WipeStepRight()
 	cp $9b
 	jp c, WipeStepRight
 
@@ -1580,11 +1580,11 @@ WipeSpiralToCenter::
 	cp $a7
 	jp c, WipeStepLeft
 
-;> if counter < 0xAB: return WipeStepDown(counter)
+;> if counter < 0xAB: return WipeStepDown()
 	cp $ab
 	jp c, WipeStepDown
 
-;> if counter < 0xAF: return WipeStepRight(counter)
+;> if counter < 0xAF: return WipeStepRight()
 	cp $af
 	jp c, WipeStepRight
 
@@ -1612,11 +1612,11 @@ WipeSpiralFromCenter::
 	cp $04
 	jr c, WipeStepUp
 
-;> if counter < 0x08: return WipeStepRight(counter)
+;> if counter < 0x08: return WipeStepRight()
 	cp $08
 	jp c, WipeStepRight
 
-;> if counter < 0x0C: return WipeStepDown(counter)
+;> if counter < 0x0C: return WipeStepDown()
 	cp $0c
 	jp c, WipeStepDown
 
@@ -1628,11 +1628,11 @@ WipeSpiralFromCenter::
 	cp $18
 	jr c, WipeStepUp
 
-;> if counter < 0x20: return WipeStepRight(counter)
+;> if counter < 0x20: return WipeStepRight()
 	cp $20
 	jp c, WipeStepRight
 
-;> if counter < 0x28: return WipeStepDown(counter)
+;> if counter < 0x28: return WipeStepDown()
 	cp $28
 	jr c, WipeStepDown
 
@@ -1644,11 +1644,11 @@ WipeSpiralFromCenter::
 	cp $3c
 	jr c, WipeStepUp
 
-;> if counter < 0x48: return WipeStepRight(counter)
+;> if counter < 0x48: return WipeStepRight()
 	cp $48
 	jr c, WipeStepRight
 
-;> if counter < 0x54: return WipeStepDown(counter)
+;> if counter < 0x54: return WipeStepDown()
 	cp $54
 	jr c, WipeStepDown
 
@@ -1660,11 +1660,11 @@ WipeSpiralFromCenter::
 	cp $70
 	jr c, WipeStepUp
 
-;> if counter < 0x80: return WipeStepRight(counter)
+;> if counter < 0x80: return WipeStepRight()
 	cp $80
 	jr c, WipeStepRight
 
-;> if counter < 0x90: return WipeStepDown(counter)
+;> if counter < 0x90: return WipeStepDown()
 	cp $90
 	jr c, WipeStepDown
 
@@ -2337,14 +2337,14 @@ WipeCellAddress::
 ;@ starts song 2 (the battle music) and returns with the Z flag set (True); otherwise NZ.
 ;@ test: skip reads the sound engine's channels
 CheckJingleDone::
-;> idle = mem[0xDDB4] & mem[0xDDCE] & mem[0xDDE8]
-	ld a, [$ddb4]
-	ld hl, $ddce
+;> idle = wSoundChannels[52] & wSoundChannels[78] & wSoundChannels[104]
+	ld a, [wSoundChannels + 52]
+	ld hl, wSoundChannels + 78
 	and [hl]
-	ld hl, $dde8
+	ld hl, wSoundChannels + 104
 	and [hl]
-;> idle &= mem[0xDE02]
-	ld hl, $de02
+;> idle &= wSoundChannels[130]
+	ld hl, wSoundChannels + 130
 	and [hl]
 ;> if idle != 0xFF:
 	cp $ff
@@ -2364,6 +2364,7 @@ CheckJingleDone::
 	or a
 	ret
 
+	; unused space (zeros)
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

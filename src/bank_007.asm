@@ -66,10 +66,10 @@ FieldMenuDraw::
 ;@ test: skip draws into VRAM
 DrawMainMenuWindows::
 ;> DrawWindow(MainMenuWindow)
-	ld de, $704d
+	ld de, MainMenuWindow
 	call DrawWindow
 ;> DrawWindow(GoldWindow)
-	ld de, $7090
+	ld de, GoldWindow
 	call DrawWindow
 ;> hNumber[0:3] = wGold[0:3]
 	ld a, [wGold]
@@ -85,7 +85,7 @@ DrawMainMenuWindows::
 ;> MenuResetBlink()
 	call MenuResetBlink
 ;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
-	ld de, $44b4
+	ld de, MainMenuCursorPos
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 	ret
@@ -103,13 +103,13 @@ DrawPartyPanel::
 	or a
 	jr z, .names
 ;>@pic     for i in range(wPartyCount):      # pictures at $95C0/$8800/$8A40, sprites at $8500/$8600/$8700
-;>         LoadMonsterPicture(GetPartyMonsterByte(i, wMonRecSpecies), (0x95C0, 0x8800, 0x8A40)[i])
+;>         LoadMonsterPicture(GetPartyMonsterByte(i, addr(wMonRecSpecies)), (0x95C0, 0x8800, 0x8A40)[i])
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
 	ld hl, $95c0
 	call LoadMonsterPicture
-;>         LoadMonsterSprite(GetPartyMonsterByte(i, wMonRecSpecies), 0x8500 + 0x100 * i)
+;>         LoadMonsterSprite(GetPartyMonsterByte(i, addr(wMonRecSpecies)), 0x8500 + 0x100 * i)
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
@@ -307,20 +307,20 @@ DrawNameTileRow::
 ;@ species' CGB palette, palette number 4 + `slot`. Not on the info page.
 ;@ test: skip calls routines in another bank
 SetPartyPicPalette::
-;> mem16[0xC820] = pos            # where the palette applies
+;> wMonPicPos = pos            # where the palette applies
 	push af
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
-;> wPaletteSet = PartyMonsterField(slot, wMonRecSpecies)[0]
+	ld [wMonPicPos + 1], a
+;> wPaletteSet = PartyMonsterField(slot, addr(wMonRecSpecies))[0]
 	pop af
 	push af
 	ld hl, wMonRecSpecies
 	call PartyMonsterField
 	ld a, [hl]
 	ld [wPaletteSet], a
-;> mem[0xC81F] = 4 + slot         # palette number
+;> wMonPicPalette = 4 + slot         # palette number
 	pop af
 	add $04
 	ld [wMonPicPalette], a
@@ -344,7 +344,7 @@ SetPartyPicPalette::
 ;@ Draws the sex mark of party monster `slot` into the tile at `dest`.
 ;@ test: skip draws text tiles in another bank
 LoadPartySexMark::
-;>@c1 DrawSexMark(PartyMonsterField(slot, wMonGender)[0], dest)
+;>@c1 DrawSexMark(PartyMonsterField(slot, addr(wMonGender))[0], dest)
 	push hl
 	ld hl, wMonGender
 	call PartyMonsterField
@@ -381,7 +381,7 @@ DrawPartyMemberStats::
 	inc hl
 	ld [hld], a
 	dec hl
-;>@c1 DrawNumber2(GetPartyMonsterByte(slot, wMonLevel), p + 3)
+;>@c1 DrawNumber2(GetPartyMonsterByte(slot, addr(wMonLevel)), p + 3)
 	push hl
 	ld hl, wMonLevel
 	ldh a, [hNumber]
@@ -410,7 +410,7 @@ DrawPartyMemberStats::
 	ld [hli], a
 	ld a, $e4
 	ld [hli], a
-;> DrawNumber3(GetPartyMonsterWord(slot, wMonHP), p + 3)
+;> DrawNumber3(GetPartyMonsterWord(slot, addr(wMonHP)), p + 3)
 	push hl
 	ld hl, wMonHP
 	ldh a, [hNumber]
@@ -436,7 +436,7 @@ DrawPartyMemberStats::
 	ld [hli], a
 	ld a, $e4
 	ld [hli], a
-;>@c2 DrawNumber3(GetPartyMonsterWord(slot, wMonMP), p + 3)
+;>@c2 DrawNumber3(GetPartyMonsterWord(slot, addr(wMonMP)), p + 3)
 	push hl
 	ld hl, wMonMP
 	ldh a, [hNumber]
@@ -476,7 +476,7 @@ DrawInfoPage::
 	ld hl, $93c0
 	call MenuDrawNameTiles
 ;> DrawWindow(InfoPageWindow)
-	ld de, $7cee
+	ld de, InfoPageWindow
 	call DrawWindow
 ;> known = 0
 ;>@L for species in range(0xF0):
@@ -830,8 +830,7 @@ CountFarm2Eggs::
 
 ;@ def LoadMonsterPicture(species: a, dest: hl)
 ;@ path: menu/field
-;@ Unpacks the big picture of monster `species` (graphics number from the table at
-;@ $2B9F in the home bank) to VRAM `dest`; nothing for $FF or on the info page.
+;@ Unpacks the big picture of monster `species` (graphics number from MonsterPicRefs) to VRAM `dest`; nothing for $FF or on the info page.
 ;@ test: skip decompresses into VRAM
 LoadMonsterPicture::
 ;> if species == 0xFF:
@@ -839,18 +838,18 @@ LoadMonsterPicture::
 	cp $ff
 	ret z
 
-;>@c8 gfx = mem16[0x2B9F + 2 * species]
+;>@c8 gfx = mem16[MonsterPicRefs + 2 * species]
 	push hl
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $9f
+	add LOW(MonsterPicRefs)
 ;=@c8
 	ld l, a
 ;=@c8
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
@@ -919,8 +918,8 @@ FieldMenuInput::
 	ld a, [wMenuInfoPage]
 	xor $01
 	ld [wMenuInfoPage], a
-;>     fill(wTilemapBuffer + 0xA0, 0x100, 0xE0)    # clear rows 5-12
-	ld hl, $c5a0
+;>     fill(wTilemapBuffer + 0xA0, 0xE0, 0x100)    # clear rows 5-12
+	ld hl, wTilemapBuffer + 160
 	ld bc, $0100
 	ld a, $e0
 	call FillMemory
@@ -969,7 +968,7 @@ FieldMenuInput::
 ;>     wMenuChoice |= 0x80
 	ld hl, wMenuChoice
 	set 7, [hl]
-;>     fill(wMenuChoice2, 7, 0)       # the option's own cursors
+;>     fill(addr(wMenuChoice2), 0, 7)       # the option's own cursors
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
@@ -979,7 +978,7 @@ FieldMenuInput::
 
 .cursor
 ;> BlinkMenuCursor(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
-	ld de, $44b4
+	ld de, MainMenuCursorPos
 	ld a, [wMenuChoice]
 	call BlinkMenuCursor
 ;> DrawPartySprites()
@@ -1063,14 +1062,18 @@ FieldMenuRunOption::
 	rst $00
 
 ;@ path: menu/field
-;@ The four main menu options - monster status, items, skills, options - followed
-;@ by the main menu's cursor positions (MainMenuCursorPos at $44B4: buffer offsets
-;@ row * 32 + column of the four options, $FFFF ends the list).
+;@ The four main menu options - monster status, items, skills, options - by
+;@ cursor position (wMenuChoice).
 FieldMenuOptions::
 	dw StatusMenu
 	dw ItemMenu
 	dw SkillMenu
 	dw OptionMenu
+
+;@ path: menu/field
+;@ The main menu's cursor positions: buffer offsets row * 32 + column of the four
+;@ options in the 2 x 2 grid, $FFFF ends the list.
+MainMenuCursorPos::
 	dw $0021
 	dw $0026
 	dw $0061
@@ -1424,11 +1427,11 @@ StatusShowPicture::
 
 ;@ def LoadStatusPicture()
 ;@ path: menu/status
-;@ Unpacks the viewed monster's big picture (graphics number from the table at $2B9F
-;@ in the home bank) to $8B00.
+;@ Unpacks the viewed monster's big picture (graphics number from
+;@ MonsterPicRefs) to $8B00.
 ;@ test: skip decompresses into VRAM
 LoadStatusPicture::
-;>@c2 gfx = mem16[0x2B9F + 2 * GetViewedMonsterByte(wMonRecSpecies)]
+;>@c2 gfx = mem16[MonsterPicRefs + 2 * GetViewedMonsterByte(wMonRecSpecies)]
 	ld hl, wMonRecSpecies
 	call GetViewedMonsterByte
 	ld l, a
@@ -1436,10 +1439,10 @@ LoadStatusPicture::
 	add hl, hl
 	ld a, l
 ;=@c2
-	add $9f
+	add LOW(MonsterPicRefs)
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 ;=@c2
@@ -1457,17 +1460,17 @@ LoadStatusPicture::
 ;@ as palette 4.
 ;@ test: skip calls routines in another bank
 SetStatusPicPalette::
-;> mem16[0xC820] = 0x0141
+;> wMonPicPos = 0x0141
 	ld hl, $0141
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
 ;> wPaletteSet = GetViewedMonsterByte(wMonRecSpecies)
 	ld hl, wMonRecSpecies
 	call GetViewedMonsterByte
 	ld [wPaletteSet], a
-;> mem[0xC81F] = 4
+;> wMonPicPalette = 4
 	ld a, $04
 	ld [wMonPicPalette], a
 ;> LoadMonPicPalette()
@@ -1659,11 +1662,11 @@ DrawStatusPage2::
 	push af
 	call GetViewedMonster
 	ld [wCurPartyMember], a
-;> level = MonsterField(wCurPartyMember, wMonLevel)[0]
+;> level = MonsterField(wCurPartyMember, addr(wMonLevel))[0]
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
-;>@c9 if level != 99 and level != MonsterField(wCurPartyMember, wMonMaxLevel)[0]:
+;>@c9 if level != 99 and level != MonsterField(wCurPartyMember, addr(wMonMaxLevel))[0]:
 	cp $63
 	jr z, .restore
 
@@ -1781,7 +1784,7 @@ StatusShowSkills::
 	call DrawWindow
 ;> MenuShowBuffer()
 	call MenuShowBuffer
-;>@c1 gfx = mem16[0x2B9F + 2 * GetViewedMonsterByte(wMonRecSpecies)]
+;>@c1 gfx = mem16[MonsterPicRefs + 2 * GetViewedMonsterByte(wMonRecSpecies)]
 	ld hl, wMonRecSpecies
 	call GetViewedMonsterByte
 	ld l, a
@@ -1789,10 +1792,10 @@ StatusShowSkills::
 	add hl, hl
 	ld a, l
 ;=@c1
-	add $9f
+	add LOW(MonsterPicRefs)
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 ;=@c1
@@ -2002,7 +2005,7 @@ DrawPedigree::
 ;> wTextGroup = 5
 	ld a, $05
 	ld [wTextGroup], a
-;> DrawTextOrBlank(0x94C0, width=1, height=9)
+;> DrawTextOrBlank(0x94C0, 0x0901)   # 1 line of 9 tiles
 	ld hl, $94c0
 	ld de, $0901
 	call DrawTextOrBlank
@@ -2052,7 +2055,7 @@ DrawPedigree::
 ;> wTextGroup = 5
 	ld a, $05
 	ld [wTextGroup], a
-;> DrawTextOrBlank(0x9550, width=1, height=9)
+;> DrawTextOrBlank(0x9550, 0x0901)   # 1 line of 9 tiles
 	ld hl, $9550
 	ld de, $0901
 	call DrawTextOrBlank
@@ -2086,11 +2089,11 @@ DrawPedigree::
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $9f
+	add LOW(MonsterPicRefs)
 	ld l, a
 ;=@c5
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
@@ -2111,10 +2114,10 @@ DrawPedigree::
 	add hl, hl
 	ld a, l
 ;=@c6
-	add $9f
+	add LOW(MonsterPicRefs)
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 ;=@c6
@@ -2349,7 +2352,7 @@ ItemMenuDraw::
 ;> MenuResetBlink()
 	call MenuResetBlink
 ;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
-	ld de, $44b4
+	ld de, MainMenuCursorPos
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 ;> DrawListMarks(wMenuChoice2, ItemListCursorPos, 5, wMenuCount)
@@ -2698,7 +2701,7 @@ ItemShowUseDiscard::
 	ld de, MainMenuWindow
 	call DrawWindow
 ;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
-	ld de, $44b4
+	ld de, MainMenuCursorPos
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 ;> DrawWindow(GoldWindow)
@@ -3014,14 +3017,14 @@ DrawItemTargetStats::
 ;>     DrawWindow(TargetHPWindow)
 	ld de, TargetHPWindow
 	call DrawWindow
-;>     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonHP), BufferAddress(0x0201))
+;>     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, addr(wMonHP)), BufferAddress(0x0201))
 	ld hl, wMonHP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
 	ld hl, $0201
 	call BufferAddress
 	call PrintNumber3
-;>@c12     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonMaxHP), BufferAddress(0x0205))
+;>@c12     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, addr(wMonMaxHP)), BufferAddress(0x0205))
 	ld hl, wMonMaxHP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
@@ -3036,14 +3039,14 @@ DrawItemTargetStats::
 ;>     DrawWindow(TargetMPWindow)
 	ld de, TargetMPWindow
 	call DrawWindow
-;>     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonMP), BufferAddress(0x0201))
+;>     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, addr(wMonMP)), BufferAddress(0x0201))
 	ld hl, wMonMP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
 	ld hl, $0201
 	call BufferAddress
 	call PrintNumber3
-;>     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonMaxMP), BufferAddress(0x0205))
+;>     PrintNumber3(GetPartyMonsterWord(wMenuChoice3, addr(wMonMaxMP)), BufferAddress(0x0205))
 	ld hl, wMonMaxMP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
@@ -3052,7 +3055,7 @@ DrawItemTargetStats::
 	call PrintNumber3
 
 .marks
-;> status = GetPartyMonsterByte(wMenuChoice3, wMonStatus)
+;> status = GetPartyMonsterByte(wMenuChoice3, addr(wMonStatus))
 	ld hl, wMonStatus
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterByte
@@ -3245,8 +3248,8 @@ ItemStartUse::
 	rst $10
 
 .shown
-;> DrawWindow(0x2E07)                 # the message window
-	ld de, $2e07
+;> DrawWindow(MessageWindowLayout)                 # the message window
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;> MenuShowBuffer()
 	call MenuShowBuffer
@@ -3332,7 +3335,7 @@ ItemApply::
 ;>@h2     wItemTarget = wMenuChoice3
 ;>@h3     UseItem()
 ;>@h3     BuildStatusBar()
-;>@h4     mem[0xD92B] = 6
+;>@h4     wHomeWarpCause = 6
 ;>@h4     wWarpMap = 0
 ;>@h5     wWarpOnGateFloor = 0
 ;>@h5     wWarpX = 0x00E8
@@ -3355,10 +3358,10 @@ ItemApply::
 ;>@s3     BuildStatusBar()
 ;>@s4     scroll_x = hScrollX
 ;>@s4     scroll_y = hScrollY
-;>@s5     mem[0xC925] = mem[0xC960]       # the floor's layout
+;>@s5     wMapScreen = wStairsScreen       # the floor's layout
 ;>@s5     layout = GetScreenTilemapRef()  # where the floor's tilemap is packed
 ;>@s6     Decompress(layout >> 8, layout & 0xFF, wSavedTilemap)
-;>@s6     p = wSavedTilemap + mem16[0xC962]
+;>@s6     p = wSavedTilemap + wStairsOffset
 ;>@s7     mem[p:p + 2] = [0x3C, 0x3D]       # the exit, a 2x2 block of tiles
 ;>@s7     mem[p + 0x20:p + 0x22] = [0x3E, 0x3F]
 ;>@s8     LoadMapAttrBuffer()
@@ -3366,7 +3369,7 @@ ItemApply::
 ;>@s9     hScrollY = 0
 ;>@sa     while True:
 ;>@sa         PickRandomFloorSpot()
-;>@sb         origin = 0x2DA7 + 4 * mem[0xC925]
+;>@sb         origin = ScreenOrigins + 4 * wMapScreen
 ;>@sb         hPlayerX = mem16[origin] + hTestX
 ;>@sc         hPlayerY = mem16[origin + 2] + hTestY
 ;>@sd         if not CheckPlayerOnFloorObject():
@@ -3555,17 +3558,17 @@ ItemApply::
 	ld h, a
 	push hl
 ;=@s5
-	ld a, [$c960]
-	ld [$c925], a
+	ld a, [wStairsScreen]
+	ld [wMapScreen], a
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 ;=@s6
 	ld hl, wSavedTilemap
 	call Decompress
 	ld de, wSavedTilemap
-	ld a, [$c962]
+	ld a, [wStairsOffset]
 	ld l, a
-	ld a, [$c963]
+	ld a, [wStairsOffset + 1]
 ;=@s6
 	ld h, a
 	add hl, de
@@ -3601,10 +3604,10 @@ ItemApply::
 ;=@sa
 	call PickRandomFloorSpot
 ;=@sb
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	add a
 	add a
-	ld hl, $2da7
+	ld hl, ScreenOrigins
 	add l
 	ld l, a
 ;=@sb
@@ -3938,7 +3941,7 @@ ItemMenuEmpty::
 	ld de, ItemListWindow
 	call DrawWindow
 ;> MenuDrawCursorAt(wMenuChoice, FieldMenuOptions + 8)     # cursor positions, after the 4 jumps
-	ld de, $44b4
+	ld de, MainMenuCursorPos
 	ld a, [wMenuChoice]
 	call MenuDrawCursorAt
 ;> MenuShowBuffer()
@@ -4007,8 +4010,8 @@ ItemAskDiscard::
 ;> QueueSound(0x5C)
 	ld a, $5c
 	call QueueSound
-;> DrawWindow(0x2E07)                 # the message window
-	ld de, $2e07
+;> DrawWindow(MessageWindowLayout)                 # the message window
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;> DrawWindow(DiscardYesNoWindow)
 	ld de, DiscardYesNoWindow
@@ -4309,7 +4312,7 @@ SkillMonInput::
 	bit 0, a
 	jr z, .done
 
-;>     if PartyMonsterField(wMenuChoice2, wMonStatus)[0] & 0x80:     # fainted
+;>     if PartyMonsterField(wMenuChoice2, addr(wMonStatus))[0] & 0x80:     # fainted
 	ld hl, wMonStatus
 	ld a, [wMenuChoice2]
 	call PartyMonsterField
@@ -4461,7 +4464,7 @@ SkillListShow::
 	call DrawWindow
 ;> DrawSkillMPCost()
 	call DrawSkillMPCost
-;> PrintNumber3(GetPartyMonsterWord(wMenuChoice2, wMonMP), BufferAddress(0x0125))
+;> PrintNumber3(GetPartyMonsterWord(wMenuChoice2, addr(wMonMP)), BufferAddress(0x0125))
 	ld hl, wMonMP
 	ld a, [wMenuChoice2]
 	call GetPartyMonsterWord
@@ -4663,7 +4666,7 @@ DrawSkillMPCost::
 
 .allMP
 ;> else:
-;>@c19     PrintNumber3(GetPartyMonsterWord(wMenuChoice2, wMonMP), BufferAddress(0x0121))
+;>@c19     PrintNumber3(GetPartyMonsterWord(wMenuChoice2, addr(wMonMP)), BufferAddress(0x0121))
 	ld hl, wMonMP
 	ld a, [wMenuChoice2]
 	call GetPartyMonsterWord
@@ -5045,21 +5048,21 @@ SkillShowTargets::
 ;@ Never called: DrawSkillTargetHP for the monster in wConfirmChoice2.
 ;@ test: skip writes the tilemap buffer through BufferAddress
 UnusedDrawTargetHP::
-;> PrintNumber3(GetPartyMonsterWord(wConfirmChoice2, wMonHP), BufferAddress(0x0201))
+;> PrintNumber3(GetPartyMonsterWord(wConfirmChoice2, addr(wMonHP)), BufferAddress(0x0201))
 	ld hl, wMonHP
 	ld a, [wConfirmChoice2]
 	call GetPartyMonsterWord
 	ld hl, $0201
 	call BufferAddress
 	call PrintNumber3
-;> PrintNumber3(GetPartyMonsterWord(wConfirmChoice2, wMonMaxHP), BufferAddress(0x0205))
+;> PrintNumber3(GetPartyMonsterWord(wConfirmChoice2, addr(wMonMaxHP)), BufferAddress(0x0205))
 	ld hl, wMonMaxHP
 	ld a, [wConfirmChoice2]
 	call GetPartyMonsterWord
 	ld hl, $0205
 	call BufferAddress
 	call PrintNumber3
-;> status = GetPartyMonsterByte(wConfirmChoice2, wMonStatus)
+;> status = GetPartyMonsterByte(wConfirmChoice2, addr(wMonStatus))
 	ld hl, wMonStatus
 	ld a, [wConfirmChoice2]
 	call GetPartyMonsterByte
@@ -5181,21 +5184,21 @@ SkillTargetInput::
 ;@ (wMenuChoice3).
 ;@ test: skip writes the tilemap buffer through BufferAddress
 DrawSkillTargetHP::
-;> PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonHP), BufferAddress(0x0201))
+;> PrintNumber3(GetPartyMonsterWord(wMenuChoice3, addr(wMonHP)), BufferAddress(0x0201))
 	ld hl, wMonHP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
 	ld hl, $0201
 	call BufferAddress
 	call PrintNumber3
-;> PrintNumber3(GetPartyMonsterWord(wMenuChoice3, wMonMaxHP), BufferAddress(0x0205))
+;> PrintNumber3(GetPartyMonsterWord(wMenuChoice3, addr(wMonMaxHP)), BufferAddress(0x0205))
 	ld hl, wMonMaxHP
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterWord
 	ld hl, $0205
 	call BufferAddress
 	call PrintNumber3
-;> status = GetPartyMonsterByte(wMenuChoice3, wMonStatus)
+;> status = GetPartyMonsterByte(wMenuChoice3, addr(wMonStatus))
 	ld hl, wMonStatus
 	ld a, [wMenuChoice3]
 	call GetPartyMonsterByte
@@ -5269,8 +5272,8 @@ SkillStartUse::
 .print
 ;=@c11
 	call PrintSystemText
-;> DrawWindow(0x2E07)                 # the message window
-	ld de, $2e07
+;> DrawWindow(MessageWindowLayout)                 # the message window
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;> MenuShowBuffer()
 	call MenuShowBuffer
@@ -5337,7 +5340,7 @@ SkillApply::
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
-;>@c15 if GetPartyMonsterWord(wMenuChoice2, wMonMP) < cost:
+;>@c15 if GetPartyMonsterWord(wMenuChoice2, addr(wMonMP)) < cost:
 	push bc
 	ld hl, wMonMP
 	ld a, [wMenuChoice2]
@@ -5497,7 +5500,7 @@ PaySkillMP::
 	ld c, [hl]
 	inc hl
 	ld b, [hl]
-;>@c20 mem16[PartyMonsterField(wMenuChoice2, wMonMP)] -= cost
+;>@c20 mem16[PartyMonsterField(wMenuChoice2, addr(wMonMP))] -= cost
 	push bc
 	ld hl, wMonMP
 	ld a, [wMenuChoice2]
@@ -5538,8 +5541,8 @@ SkillCloseAfterText::
 ;@ fainted user) and goes on.
 ;@ test: skip draws into VRAM
 SkillShowTextWindow::
-;> DrawWindow(0x2E07)
-	ld de, $2e07
+;> DrawWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;> MenuShowBuffer()
 	call MenuShowBuffer
@@ -5580,7 +5583,7 @@ SkillHealAllReport0::
 	or a
 	ret nz
 
-;>@c21 if not PartyMonsterField(0, wMonStatus)[0] & 0x80 and GetPartyMonsterWord(0, wMonMaxHP) != GetPartyMonsterWord(0, wMonHP):
+;>@c21 if not PartyMonsterField(0, addr(wMonStatus))[0] & 0x80 and GetPartyMonsterWord(0, addr(wMonMaxHP)) != GetPartyMonsterWord(0, addr(wMonHP)):
 	ld hl, wMonStatus
 	ld a, $00
 	call PartyMonsterField
@@ -5620,8 +5623,8 @@ SkillHealAllReport0::
 ;>     PrintSystemText(0x0E03)
 	ld hl, $0e03
 	call PrintSystemText
-;>     DrawWindow(0x2E07)
-	ld de, $2e07
+;>     DrawWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;>     MenuShowBuffer()
 	call MenuShowBuffer
@@ -5644,7 +5647,7 @@ SkillHealAllReport1::
 	or a
 	ret nz
 
-;>@c23 if wParty[1] != 0xFF and not PartyMonsterField(1, wMonStatus)[0] & 0x80 and GetPartyMonsterWord(1, wMonMaxHP) != GetPartyMonsterWord(1, wMonHP):
+;>@c23 if wParty[1] != 0xFF and not PartyMonsterField(1, addr(wMonStatus))[0] & 0x80 and GetPartyMonsterWord(1, addr(wMonMaxHP)) != GetPartyMonsterWord(1, addr(wMonHP)):
 	ld a, [wParty + 1]
 	cp $ff
 	jr z, .next
@@ -5708,7 +5711,7 @@ SkillHealAllReport2::
 	or a
 	ret nz
 
-;>@c25 if wParty[2] != 0xFF and not PartyMonsterField(2, wMonStatus)[0] & 0x80 and GetPartyMonsterWord(2, wMonMaxHP) != GetPartyMonsterWord(2, wMonHP):
+;>@c25 if wParty[2] != 0xFF and not PartyMonsterField(2, addr(wMonStatus))[0] & 0x80 and GetPartyMonsterWord(2, addr(wMonMaxHP)) != GetPartyMonsterWord(2, addr(wMonHP)):
 	ld a, [wParty + 2]
 	cp $ff
 	jr z, .next
@@ -5940,9 +5943,9 @@ MessageSpeedShow::
 	call DrawWindow
 ;> MenuResetBlink()
 	call MenuResetBlink
-;> wConfirmChoice = mem[0xC8EE]       # the message speed
+;> wConfirmChoice = wMessageSpeed       # the message speed
 	ld de, MessageSpeedCursorPos
-	ld a, [$c8ee]
+	ld a, [wMessageSpeed]
 	ld [wConfirmChoice], a
 ;> MenuDrawCursorAt(wConfirmChoice, MessageSpeedCursorPos)
 	ld a, [wConfirmChoice]
@@ -5987,10 +5990,10 @@ MessageSpeedInput::
 	bit 0, a
 	jp z, .done
 
-;>     mem[0xC8EE] = wConfirmChoice & 0x7F
+;>     wMessageSpeed = wConfirmChoice & 0x7F
 	ld a, [wConfirmChoice]
 	and $7f
-	ld [$c8ee], a
+	ld [wMessageSpeed], a
 ;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
@@ -6023,7 +6026,7 @@ LineUpShow::
 ;>@L n = 0
 ;>@L for i in range(wPartyCount):
 	ld b, $00
-;>@i     if not GetPartyMonsterByte(i, wMonStatus) & 0x80:
+;>@i     if not GetPartyMonsterByte(i, addr(wMonStatus)) & 0x80:
 	ld a, $00
 	push bc
 	ld hl, wMonStatus
@@ -6173,21 +6176,21 @@ DrawLineUp::
 .draw
 ;> for i in range(3):                  # left: still to place, numbered by party place
 ;>@c4     DrawLineUpEntry(wNumberBackup[i], 0xF1 + wNumberBackup[i], wTilemapBuffer + 0x185 + 0x40 * i)
-	ld hl, $c685
+	ld hl, wTilemapBuffer + 389
 	ld a, [wNumberBackup]
 	add $f1
 	ld b, a
 	ld a, [wNumberBackup]
 	call DrawLineUpEntry
 ;=@c4
-	ld hl, $c6c5
+	ld hl, wTilemapBuffer + 453
 	ld a, [wNumberBackup + 1]
 	add $f1
 	ld b, a
 	ld a, [wNumberBackup + 1]
 	call DrawLineUpEntry
 ;=@c4
-	ld hl, $c705
+	ld hl, wTilemapBuffer + 517
 	ld a, [wNumberBackup + 2]
 	add $f1
 	ld b, a
@@ -6195,17 +6198,17 @@ DrawLineUp::
 	call DrawLineUpEntry
 ;> for i in range(3):                  # right: the new order, numbered 1-3
 ;>@c5     DrawLineUpEntry(wLineUpOrder[i], 0xF1 + i, wTilemapBuffer + 0x18D + 0x40 * i)
-	ld hl, $c68d
+	ld hl, wTilemapBuffer + 397
 	ld b, $f1
 	ld a, [wLineUpOrder]
 	call DrawLineUpEntry
 ;=@c5
-	ld hl, $c6cd
+	ld hl, wTilemapBuffer + 461
 	ld b, $f2
 	ld a, [wLineUpOrder + 1]
 	call DrawLineUpEntry
 ;=@c5
-	ld hl, $c70d
+	ld hl, wTilemapBuffer + 525
 	ld b, $f3
 	ld a, [wLineUpOrder + 2]
 	call DrawLineUpEntry
@@ -6501,7 +6504,7 @@ LineUpConfirm::
 ;> RefreshPartyGfx()
 	ld hl, far_RefreshPartyGfx
 	rst $10
-;>@c14 if not wOnGateFloor and wMapId == 6 and mem[0xC925] == 0:     # in the town the followers walk on screen
+;>@c14 if not wOnGateFloor and wMapId == 6 and wMapScreen == 0:     # in the town the followers walk on screen
 	ld a, [wOnGateFloor]
 	or a
 	jr nz, .bar
@@ -6511,7 +6514,7 @@ LineUpConfirm::
 	jr nz, .bar
 
 ;=@c14
-	ld a, [$c925]
+	ld a, [wMapScreen]
 	or a
 	jr nz, .bar
 
@@ -6635,8 +6638,8 @@ SaveShow::
 ;>     PrintSystemText(0x0243)          # can't save here
 	ld hl, $0243
 	call PrintSystemText
-;>     DrawWindow(0x2E07)
-	ld de, $2e07
+;>     DrawWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;>     MenuShowBuffer()
 	call MenuShowBuffer
@@ -6652,13 +6655,13 @@ SaveShow::
 	ld a, $5c
 	call QueueSound
 ;> DrawWindow(SaveFileWindow)
-	ld de, $7bca
+	ld de, SaveFileWindow
 	call DrawWindow
 ;> DrawWindow(SaveYesNoWindow)
 	ld de, SaveYesNoWindow
 	call DrawWindow
-;> DrawWindow(0x2E07)
-	ld de, $2e07
+;> DrawWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindow
 ;> if not ReadSRAMByte(sSaveValid):      # nothing saved yet: an empty window
 	ld hl, sSaveValid
@@ -6667,7 +6670,7 @@ SaveShow::
 	jr nz, .saved
 
 ;>     for row in range(1, 5):
-;>@c2         fill(BufferAddress(0x20 * row + 1), 0x11, 0xE0)
+;>@c2         fill(BufferAddress(0x20 * row + 1), 0xE0, 0x11)
 	ld hl, $0021
 	call BufferAddress
 	ld bc, $0011
@@ -6721,7 +6724,7 @@ SaveShow::
 ;>     mem[0x0100] = 0x0A               # cartridge RAM on
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;>     MenuDrawNameTiles(sPlayerName, 0x93C0)
 	ld de, sPlayerName
 	ld hl, $93c0
@@ -6730,7 +6733,7 @@ SaveShow::
 ;>     DrawSaveParty()
 	call DrawSaveParty
 ;>     for i in range(ReadSRAMByte(sPartyCount)):     # levels, the other places blank
-;>@c3         PrintNumber2(MonsterField(sParty[i], sSavedMonLevel)[0], BufferAddress(0x0084 + 6 * i))
+;>@c3         PrintNumber2(MonsterField(sParty[i], addr(sSavedMonLevel))[0], BufferAddress(0x0084 + 6 * i))
 	ld hl, sPartyCount
 	call ReadSRAMByte
 	or a
@@ -6739,7 +6742,7 @@ SaveShow::
 	di
 	ld a, $0a
 ;=@c3
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty]
 	call MonsterField
@@ -6759,7 +6762,7 @@ SaveShow::
 ;=@c3
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty + 1]
 	call MonsterField
@@ -6779,7 +6782,7 @@ SaveShow::
 ;=@c3
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonLevel
 	ld a, [sParty + 2]
 	call MonsterField
@@ -6832,7 +6835,7 @@ SaveShow::
 .ask
 ;> mem[0x0100] = 0x00                   # cartridge RAM off
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> PrintSystemText(0x0207)              # save?
 	ld hl, $0207
 	call PrintSystemText
@@ -6864,7 +6867,7 @@ DrawSaveParty::
 ;>@c7     DrawSaveMember(place, MonsterField(sParty[place - 1], sSavedMonName), 0x9400 + 0x40 * (place - 1))
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonName
 	ld a, [sParty]
 	call MonsterField
@@ -6878,7 +6881,7 @@ DrawSaveParty::
 ;=@c7
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonName
 	ld a, [sParty + 1]
 	call MonsterField
@@ -6892,7 +6895,7 @@ DrawSaveParty::
 ;=@c7
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sSavedMonName
 	ld a, [sParty + 2]
 	call MonsterField
@@ -6919,7 +6922,7 @@ DrawSaveMember::
 	ld b, a
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld a, [sPartyCount]
 	cp b
 ;=@c8
@@ -6958,12 +6961,12 @@ DrawSaveMemberIcon::
 	push bc
 	call MenuDrawNameTiles
 	pop bc
-;>@c9 family = MonsterField(sParty[place - 1], sSavedMonFamily)[0]
+;>@c9 family = MonsterField(sParty[place - 1], addr(sSavedMonFamily))[0]
 	dec b
 	push bc
 	di
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ld hl, sParty
 ;=@c9
 	ld a, b
@@ -7163,7 +7166,7 @@ TacticsStart::
 	ld hl, wMonStatus
 .find
 ;>@w     while wLinkPartnerChoice != wPartyCount:
-;>         if not PartyMonsterField(wLinkPartnerChoice, wMonStatus)[0] & 0x80:
+;>         if not PartyMonsterField(wLinkPartnerChoice, addr(wMonStatus))[0] & 0x80:
 	ld a, [wLinkPartnerChoice]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -7223,7 +7226,7 @@ TacticsShow::
 ;> DrawWindow(TacticsMonWindow)
 	ld de, TacticsMonWindow
 	call DrawWindow
-;>@c15 wLinkRefused = (PartyMonsterField(wLinkPartnerChoice, wMonGender)[0] >> 4) & 3    # tactics cursor
+;>@c15 wLinkRefused = (PartyMonsterField(wLinkPartnerChoice, addr(wMonGender))[0] >> 4) & 3    # tactics cursor
 	ld hl, wMonGender
 	ld a, [wLinkPartnerChoice]
 	call PartyMonsterField
@@ -7273,7 +7276,7 @@ TacticsInput::
 ;>         wLinkPartnerChoice -= 1
 	ld hl, wLinkPartnerChoice
 	dec [hl]
-;>         if not PartyMonsterField(wLinkPartnerChoice, wMonStatus)[0] & 0x80:
+;>         if not PartyMonsterField(wLinkPartnerChoice, addr(wMonStatus))[0] & 0x80:
 	ld a, [wLinkPartnerChoice]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -7303,7 +7306,7 @@ TacticsInput::
 ;>     QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;>     rec = PartyMonsterField(wLinkPartnerChoice, wMonGender)
+;>     rec = PartyMonsterField(wLinkPartnerChoice, addr(wMonGender))
 ;>@c16     mem[rec] = (mem[rec] & 0xCF) | (wLinkRefused & 3) << 4
 	ld a, [wLinkRefused]
 	and $03
@@ -7336,7 +7339,7 @@ TacticsInput::
 ;>@nx             MenuClearBuffer()
 ;>@nx             wFieldMenuStep = 0
 ;>@ny             return
-;>         if not PartyMonsterField(wLinkPartnerChoice, wMonStatus)[0] & 0x80:
+;>         if not PartyMonsterField(wLinkPartnerChoice, addr(wMonStatus))[0] & 0x80:
 	ld a, [wLinkPartnerChoice]
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -7426,7 +7429,7 @@ ViewerStart::
 ;> wViewResult = wViewIndex
 	ld a, [wViewIndex]
 	ld [wViewResult], a
-;>@c1 wCurPartyMember = mem[wViewList + wViewIndex]
+;>@c1 wCurPartyMember = mem[addr(wViewList) + wViewIndex]
 	ld a, [wViewList]
 	ld l, a
 	ld a, [wViewList + 1]
@@ -7457,7 +7460,7 @@ ViewerOpen::
 ;> wFieldMenuStep += 1
 	ld hl, wFieldMenuStep
 	inc [hl]
-;> if MonsterField(wCurPartyMember, wMonEgg)[0]:
+;> if MonsterField(wCurPartyMember, addr(wMonEgg))[0]:
 	ld a, [wCurPartyMember]
 	ld hl, wMonEgg
 	call MonsterField
@@ -7584,7 +7587,7 @@ ViewerChangeMonster::
 .store
 ;> wViewResult = pos
 	ld [wViewResult], a
-;>@c2 wCurPartyMember = mem[wViewList + pos]
+;>@c2 wCurPartyMember = mem[addr(wViewList) + pos]
 	ld b, a
 	ld a, [wViewList]
 	ld l, a
@@ -7681,7 +7684,7 @@ ViewerPage2Input::
 ;@ Viewer step 6: the skills page (an egg closes the viewer instead).
 ;@ test: skip draws into VRAM
 ViewerShowSkills::
-;> if MonsterField(wCurPartyMember, wMonEgg)[0]:
+;> if MonsterField(wCurPartyMember, addr(wMonEgg))[0]:
 ;>     return ViewerClose()
 	ld a, [wCurPartyMember]
 	ld hl, wMonEgg
@@ -8214,7 +8217,7 @@ DrawPartySprites::
 	ret z
 
 ;>@p for i in range(wPartyCount):
-;>     species = GetPartyMonsterByte(i, wMonRecSpecies)
+;>     species = GetPartyMonsterByte(i, addr(wMonRecSpecies))
 	ld a, $00
 	ld hl, wMonRecSpecies
 	call GetPartyMonsterByte
@@ -8234,7 +8237,7 @@ DrawPartySprites::
 	pop af
 	add $10
 	ld [hli], a
-;>@c10     hSpriteFrame = 1 if not GetPartyMonsterByte(i, wMonStatus) & 0x80 and wFrameCounter & 0x10 else 0
+;>@c10     hSpriteFrame = 1 if not GetPartyMonsterByte(i, addr(wMonStatus)) & 0x80 and wFrameCounter & 0x10 else 0
 	ld b, $00
 	push bc
 	push hl
@@ -8715,7 +8718,7 @@ DrawFamilyPlus::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@c3 restore(saved)
+;>@c3 wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop de
 	pop hl
 	ld a, l
@@ -8737,7 +8740,7 @@ DrawFamilyPlus::
 ;@ test: skip draws text tiles in another bank
 DrawTextOrBlank::
 ;> if wTextIndex != 0xFF:
-;>     return MenuDrawTextTiles(tiles, size)
+;>     return MenuDrawTextTiles(tiles, size & 0xFF, size >> 8)
 	ld a, [wTextIndex]
 	cp $ff
 	jr nz, MenuDrawTextTiles
@@ -8749,7 +8752,7 @@ DrawBlankEntryText:
 ;> wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
-;> MenuDrawTextTiles(tiles, size)
+;> MenuDrawTextTiles(tiles, size & 0xFF, size >> 8)
 
 ;@ def MenuDrawTextTiles(tiles: hl, lines: e, line_length: d)
 ;@ path: menu/screen
@@ -8784,7 +8787,7 @@ MenuDrawTextTiles::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@c5 restore(saved)
+;>@c5 wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop de
 	pop hl
 	ld a, l
@@ -8843,7 +8846,7 @@ MenuDrawNameTiles::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@c7 restore(saved)
+;>@c7 wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop de
 	pop hl
 	ld a, l
@@ -8910,7 +8913,7 @@ MenuDrawCharTile::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@c9 restore(saved)
+;>@c9 wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop de
 	pop hl
 	ld a, l
@@ -8929,7 +8932,7 @@ MenuDrawCharTile::
 ;@ path: menu/screen
 ;@ Fills wTilemapBuffer (18 rows of 32) with the blank tile $E0.
 MenuClearBuffer::
-;>@c12 fill(wTilemapBuffer, 0x240, 0xE0)
+;>@c12 fill(wTilemapBuffer, 0xE0, 0x240)
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 .loop
@@ -8972,7 +8975,7 @@ ClearMenuBgMap::
 ;@ after it) and sets up the menu screen.
 ;@ test: skip draws into VRAM
 FieldMenuOpen::
-;> fill(wMenuChoice, 8, 0)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
@@ -9509,7 +9512,7 @@ MenuDrawCursorMarks::
 	call MenuMapAddress
 	pop bc
 	pop de
-;>     if row != cursor & 0x7F:
+;>     if row != (cursor & 0x7F):
 ;>         tile = 0xE0
 	ld a, c
 	and $7f

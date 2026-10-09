@@ -93,7 +93,7 @@ SetUpBattleScreen::
 ;>     wGameStarted &= ~0x80
 	ld hl, wGameStarted
 	res 7, [hl]
-;>     if mem[0xD999] == 2:
+;>     if wArenaFight == 2:
 	ld a, [wArenaFight]
 	cp $02
 	jr nz, .play
@@ -122,12 +122,12 @@ SetUpBattleScreen::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
-;> wLCDEffect = 0; mem[0xDD62] = 0
+	ld [wFrameCounter + 1], a
+;> wLCDEffect = 0; wBattleAnimRunning = 0
 	xor a
 	ld [wLCDEffect], a
 	xor a
-	ld [$dd62], a
+	ld [wBattleAnimRunning], a
 ;> wLinkSendByte = 0; wLinkReceivedLast = 0
 	xor a
 	ld [wLinkSendByte], a
@@ -171,24 +171,24 @@ StorePartyPersonalities::
 	ret z
 
 ;> wPartyPersonality[1] = GetMonsterPersonality(wParty[1])
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld d, a
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
-	ld [$da16], a
+	ld [wPartyPersonality + 1], a
 ;> if wPartyCount == 2: return
 	ld a, [wPartyCount]
 	cp $02
 	ret z
 
 ;> wPartyPersonality[2] = GetMonsterPersonality(wParty[2])
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld d, a
 	ld hl, far_GetMonsterPersonality
 	rst $10
 	ld a, d
-	ld [$da17], a
+	ld [wPartyPersonality + 2], a
 ;> return
 	ret
 
@@ -199,7 +199,7 @@ StorePartyPersonalities::
 ;@ for an empty position far_BlankEnemyPicture runs instead), then clears the screen and draws the enemy
 ;@ pictures and the party panel into the tilemap buffer and the BG map.
 LoadBattleGraphics::
-;> fill(wMenuChoice, 8, 0)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
@@ -209,7 +209,7 @@ LoadBattleGraphics::
 ;> wSkillTarget = 4; species = addr(wBattlerSpecies) + 4   # the far side: the enemies
 	ld a, $04
 	ld [wSkillTarget], a
-	ld de, $dc40
+	ld de, wBattlerSpecies + 4
 ;> if wLinkFlags & 2:                 # link master: the partner's monsters are positions 0-2
 	ld a, [wLinkFlags]
 	bit 1, a
@@ -281,10 +281,10 @@ LoadBattleGraphics::
 	ld hl, far_BlankEnemyPicture
 	rst $10
 
-;> fill(0xD9F4, 8, 0)                 # the screen step variables
+;> fill(0xD9F4, 0, 8)                 # the screen step variables
 .done:
 	xor a
-	ld hl, $d9f4
+	ld hl, wCommandStep
 	ld bc, $0008
 	call FillMemory
 ;> wBattleBGMap = 0x9800
@@ -292,7 +292,7 @@ LoadBattleGraphics::
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
-	ld [$d9f9], a
+	ld [wBattleBGMap + 1], a
 ;> ClearBattleTilemap()
 	call ClearBattleTilemap
 ;> ClearBGMap()
@@ -471,37 +471,37 @@ InitBattlers::
 
 ;>     wBattlerSpecies[4] = 0x6D
 	ld a, $6d
-	ld [$dc40], a
+	ld [wBattlerSpecies + 4], a
 ;>     return
 	ret
 
-;> mem[0xDA88] = 0; mem[0xDA82] = 0xFF
+;> wDebugStatsShown = 0; wBattleAnimDone = 0xFF
 .init:
 	xor a
 	ld [wDebugStatsShown], a
 	ld a, $ff
-	ld [$da82], a
-;> fill(0xDB00, 0x73, 0)
+	ld [wBattleAnimDone], a
+;> fill(0xDB00, 0, 0x73)
 	xor a
 	ld hl, wSideFlags
 	ld bc, $0073
 	call FillMemory
-;> fill(wBattlerState, 8, 0xFF)       # all positions empty
+;> fill(wBattlerState, 0xFF, 8)       # all positions empty
 	ld hl, wBattlerState
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
-;> fill(wBattlerTypeBits, 0xD9, 0)
+;> fill(wBattlerTypeBits, 0, 0xD9)
 	ld hl, wBattlerTypeBits
 	ld bc, $00d9
 	xor a
 	call FillMemory
-;> fill(wBattlerSpecies, 8, 0xFF)
+;> fill(wBattlerSpecies, 0xFF, 8)
 	ld hl, wBattlerSpecies
 	ld bc, $0008
 	ld a, $ff
 	call FillMemory
-;> fill(wBattlerTactic, 8, 0xFF)
+;> fill(wBattlerTactic, 0xFF, 8)
 	ld a, $ff
 	ld hl, wBattlerTactic
 	ld bc, $0008
@@ -524,7 +524,7 @@ InitBattlers::
 	xor a
 	call FillMemory
 
-;> fill(wTacticMenuRow, 6, 0)
+;> fill(addr(wTacticMenuRow), 0, 6)
 .tactics:
 	ld hl, wTacticMenuRow
 	ld bc, $0006
@@ -533,19 +533,19 @@ InitBattlers::
 ;> wTeamTactic = wSavedTeamTactic
 	ld a, [wSavedTeamTactic]
 	ld [wTeamTactic], a
-;> fill(wBattlerIntClass, 16, 0)
+;> fill(wBattlerIntClass, 0, 16)
 	xor a
 	ld hl, wBattlerIntClass
 	ld bc, $0010
 	call FillMemory
-;> fill(wBattlerSkills, 0x80, 0xFF)
+;> fill(wBattlerSkills, 0xFF, 0x80)
 	ld a, $ff
 	ld hl, wBattlerSkills
 	ld bc, $0080
 	call FillMemory
-;> mem[0xC1CA] = mem[0xC1CB] = mem[0xC1CC] = 0xFF
+;> wEnemyMorph[0] = wEnemyMorph[1] = wEnemyMorph[2] = 0xFF
 	ld a, $ff
-	ld hl, $c1ca
+	ld hl, wEnemyMorph
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
@@ -582,12 +582,12 @@ InitBattlers::
 ;> wBattleSubStep = 0
 	xor a
 	ld [wBattleSubStep], a
-;> fill(0xDCE4, 0x18, 0xFF)
+;> fill(0xDCE4, 0xFF, 0x18)
 	ld a, $ff
-	ld hl, $dce4
+	ld hl, wAISkillScores
 	ld bc, $0018
 	call FillMemory
-;> fill(0xDCFC, 7, 0)
+;> fill(0xDCFC, 0, 7)
 	xor a
 	ld hl, wSkillTargeting
 	ld bc, $0007
@@ -598,17 +598,17 @@ InitBattlers::
 	ld [wBattleItemTarget], a
 	ld a, h
 	ld [wBattleItemEffect], a
-;> fill(wBattleArg0, 0x27, 0)
+;> fill(addr(wBattleArg0), 0, 0x27)
 	xor a
 	ld hl, wBattleArg0
 	ld bc, $0027
 	call FillMemory
-;> mem16[0xDB83] = 10
+;> wJoinPoints = 10
 	ld hl, $000a
 	ld a, l
 	ld [wJoinPoints], a
 	ld a, h
-	ld [$db84], a
+	ld [wJoinPoints + 1], a
 ;> wBattleItemTarget = 0xFF; wBattleItemEffect = 0xFF
 	ld a, $ff
 	ld [wBattleItemTarget], a
@@ -689,12 +689,12 @@ InitBattlers::
 	dec b
 	jr nz, .pos
 
-;> fill(wMenuChoice, 8, 0)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	xor a
 	call FillMemory
-;> fill(wPartyBarTiles, 15, 0xFF)
+;> fill(wPartyBarTiles, 0xFF, 15)
 	ld hl, wPartyBarTiles
 	ld bc, $000f
 	ld a, $ff
@@ -702,7 +702,7 @@ InitBattlers::
 ;> wTargetCursorSkill = 0
 	ld a, $00
 	ld [wTargetCursorSkill], a
-;> fill(wBattlerMenuMemory, 8, 0x80)
+;> fill(wBattlerMenuMemory, 0x80, 8)
 	ld hl, wBattlerMenuMemory
 	ld bc, $0008
 	ld a, $80
@@ -790,6 +790,7 @@ PackResistancesFar::
 ;@ Packs 27 resistance values (0-3 each) into 7 bytes, two bits each from the top down. The first byte
 ;@ holds resistance 26 in bits 6-7 and resistances 0-2 below it, the next five bytes resistances 3-22,
 ;@ the last byte resistances 23-25 in bits 7-2.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 PackResistances::
 ;> p = src + 26
 	push hl
@@ -960,6 +961,7 @@ ReloadBattler::
 ;@ path: battle/setup
 ;@ Fills battle position `pos`: the own positions (and all positions in a link battle) from the monster
 ;@ record, the enemy positions from the encounter's monster template.
+;@ test: pos = rand(0, 7)
 LoadBattler::
 ;> if wLinkActive: return LoadBattlerFromRecord(pos)
 	ld a, [wLinkActive]
@@ -994,8 +996,9 @@ LoadBattler::
 ;@ HP and MP, the four stats, wildness, the personality bytes and the packed resistances. While
 ;@ wBattlerReload is set the current HP, MP and ailments stay, and so do the personality bytes when
 ;@ status byte 1 bits 4-5 are set.
+;@ test: pos = rand(0, 7)
 LoadBattlerFromRecord::
-;> rec = PartyMonsterField(pos, wMonRecSpecies)
+;> rec = PartyMonsterField(pos, addr(wMonRecSpecies))
 	ld a, c
 	ld hl, wMonRecSpecies
 	call PartyMonsterField
@@ -1292,6 +1295,7 @@ LoadBattlerFromRecord::
 ;@ Fills enemy position `pos` (4-6) from the monster template of encounter species wEncSpecies[pos - 4]:
 ;@ level, stats, skills and reward (LoadEnemyFromTemplate), the CGB palette species, then the sex
 ;@ (rolled from the MonsterStats sex chance) and the resistances.
+;@ test: pos = rand(0, 7)
 LoadEnemyBattler::
 ;> i = pos - 4
 	push bc
@@ -1316,7 +1320,7 @@ LoadEnemyBattler::
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;> LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
@@ -1404,6 +1408,7 @@ SetEnemyPalSpecies::
 ;@ def StoreBattlerByte(pos: c, dest: de, src: hl) -> hl
 ;@ path: battle/setup
 ;@ Copies the byte at `src` to the per-position table `dest` (entry `pos`); returns src + 1.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 StoreBattlerByte::
 ;> q = dest + pos
 	ld a, c
@@ -1422,6 +1427,7 @@ StoreBattlerByte::
 ;@ def StoreBattlerWord(pos: c, dest: de, src: hl) -> hl
 ;@ path: battle/setup
 ;@ Copies the word at `src` to the per-position table of words `dest` (entry `pos`); returns src + 2.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 StoreBattlerWord::
 ;> q = dest + 2 * pos
 	ld a, c
@@ -1509,7 +1515,7 @@ LoadBattlerSkills::
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;> LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
@@ -1523,6 +1529,7 @@ LoadBattlerSkills::
 ;@ Copies the skill list at `src` ($FF ends it) into the skill numbers of battle position `pos` (up to 8;
 ;@ 4 for an enemy outside link battles), then looks up each skill's kind (high nibble of word 1 of its
 ;@ skill table record, GetSkillWord) and finally applies SubstituteSkills.
+;@ test: pos = rand(0, 7)
 CopyBattlerSkills::
 ;> if not wLinkActive and pos >= 4:
 	ld a, [wLinkActive]
@@ -1544,7 +1551,7 @@ CopyBattlerSkills::
 
 ;> q = addr(wBattlerSkills) + 1 + 16 * pos
 .copy:
-	ld de, $dc65
+	ld de, wBattlerSkills + 1
 	ld a, c
 	swap a
 	add e
@@ -1573,7 +1580,7 @@ CopyBattlerSkills::
 ;> q = addr(wBattlerSkills) + 1 + 16 * pos
 .kinds:
 	ld a, c
-	ld de, $dc65
+	ld de, wBattlerSkills + 1
 	swap a
 	add e
 	ld e, a
@@ -1631,6 +1638,7 @@ CopyBattlerSkills::
 ;@ path: battle/setup
 ;@ Reads the record's status byte at `status`: bit 7 (dead) puts battle position `pos` down. Outside
 ;@ tournament and link battles the ailments carry over: bit 0 sets status flag $20, bit 2 flag $01.
+;@ test: pos = rand(0, 7)
 LoadBattlerAilments::
 ;> q = addr(wBattlerState) + pos
 	push hl
@@ -1806,7 +1814,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateHP]
 	ld [hli], a
-	ld a, [$da1e]
+	ld a, [wTemplateHP + 1]
 	ld [hld], a
 ;> RandomizeEnemyHP(p)
 	ld a, b
@@ -1822,7 +1830,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateHP]
 	ld [hli], a
-	ld a, [$da1e]
+	ld a, [wTemplateHP + 1]
 	ld [hl], a
 ;> p = addr(wBattlerMP) + 2 * pos
 	ld hl, wBattlerMP
@@ -1835,7 +1843,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateMP]
 	ld [hli], a
-	ld a, [$da20]
+	ld a, [wTemplateMP + 1]
 	ld [hl], a
 ;> p = addr(wBattlerMaxMP) + 2 * pos
 	ld hl, wBattlerMaxMP
@@ -1848,7 +1856,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateMP]
 	ld [hli], a
-	ld a, [$da20]
+	ld a, [wTemplateMP + 1]
 	ld [hl], a
 ;> p = addr(wBattlerAttack) + 2 * pos
 	ld hl, wBattlerAttack
@@ -1861,7 +1869,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateAttack]
 	ld [hli], a
-	ld a, [$da22]
+	ld a, [wTemplateAttack + 1]
 	ld [hl], a
 ;> p = addr(wBattlerDefense) + 2 * pos
 	ld hl, wBattlerDefense
@@ -1874,7 +1882,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateDefense]
 	ld [hli], a
-	ld a, [$da24]
+	ld a, [wTemplateDefense + 1]
 	ld [hl], a
 ;> p = addr(wBattlerAgility) + 2 * pos
 	ld hl, wBattlerAgility
@@ -1887,7 +1895,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateAgility]
 	ld [hli], a
-	ld a, [$da26]
+	ld a, [wTemplateAgility + 1]
 	ld [hl], a
 ;> p = addr(wBattlerIntelligence) + 2 * pos
 	ld hl, wBattlerIntelligence
@@ -1900,7 +1908,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateIntelligence]
 	ld [hli], a
-	ld a, [$da28]
+	ld a, [wTemplateIntelligence + 1]
 	ld [hld], a
 ;> intel = wTemplateIntelligence & 0xFF        # only the low byte is compared
 	ld a, [hl]
@@ -1970,7 +1978,7 @@ LoadEnemyFromTemplate::
 	ld h, a
 	ld a, [wTemplateReward]
 	ld [hli], a
-	ld a, [$da1a]
+	ld a, [wTemplateReward + 1]
 	ld [hli], a
 ;> mem[p + 2] = 0
 	ld [hl], $00
@@ -2030,7 +2038,7 @@ LoadEnemyFromTemplate::
 	ld a, [wTemplatePersonality3]
 	ld [hl], a
 ;> q = addr(wBattlerSkills) + 1 + 16 * pos
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	ld a, b
 	add a
 	add a
@@ -2047,15 +2055,15 @@ LoadEnemyFromTemplate::
 	ld [hli], a
 	inc hl
 ;=@sk
-	ld a, [$da2e]
+	ld a, [wTemplateSkills + 1]
 	ld [hli], a
 	inc hl
 ;=@sk
-	ld a, [$da2f]
+	ld a, [wTemplateSkills + 2]
 	ld [hli], a
 	inc hl
 ;=@sk
-	ld a, [$da30]
+	ld a, [wTemplateSkills + 3]
 	ld [hl], a
 ;> return
 	pop bc
@@ -2196,7 +2204,7 @@ SubstituteSkills::
 ;>@en for pos in range(4, 7):
 	ld bc, $0304
 ;>     p = addr(wBattlerSkills) + 1 + 16 * pos
-	ld hl, $dca5
+	ld hl, wBattlerSkills + 65
 
 ;>     if not CheckBattlerPresent(pos):
 .enemyLoop:
@@ -2248,7 +2256,7 @@ SubstituteSkills::
 	inc c
 	ld a, c
 	swap a
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	add l
 	ld l, a
 ;=@en
@@ -2265,10 +2273,11 @@ SubstituteSkills::
 ;@ def SubstituteSexSkill(pos: c)
 ;@ path: battle/setup
 ;@ Replaces the first skill $70 in the skill list of battle position `pos` with $DD.
+;@ test: pos = rand(0, 7)
 SubstituteSexSkill::
 ;> p = addr(wBattlerSkills) + 1 + 16 * pos
 	ld a, c
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
@@ -2308,6 +2317,7 @@ SubstituteSexSkill::
 ;@ def SetSkillDB(p: hl)
 ;@ path: battle/setup
 ;@ Turns the skill at `p` into skill $DB.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SetSkillDB::
 ;> mem[p] = 0xDB
 	ld [hl], $db
@@ -2318,6 +2328,7 @@ SetSkillDB::
 ;@ def SetSkillDA(p: hl)
 ;@ path: battle/setup
 ;@ Turns the skill at `p` into skill $DA.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SetSkillDA::
 ;> mem[p] = 0xDA
 	ld [hl], $da
@@ -2341,7 +2352,7 @@ SetSkillDC::
 ;@ of its skill table record, read with GetSkillWord) in front of the skill number, 0 for an empty slot.
 SetSkillKinds::
 ;> p = addr(wBattlerSkills) + 1
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 ;>@n for n in range(64):
 	ld bc, $0808
 
@@ -2478,7 +2489,7 @@ SaveBattleResults::
 ;>     SaveTacticBits(pos)
 .loop:
 	call SaveTacticBits
-;>     rec = PartyMonsterField(pos, wMonStatus)
+;>     rec = PartyMonsterField(pos, addr(wMonStatus))
 	ld a, c
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -2505,8 +2516,9 @@ SaveBattleResults::
 ;@ path: battle/end
 ;@ Writes the tactic (bits 4-5) and wBattlerSexBits67 (bits 6-7) of battle position `pos` back into
 ;@ the record's sex byte, keeping the sex in bits 0-3.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SaveTacticBits::
-;> rec = PartyMonsterField(pos, wMonGender)
+;> rec = PartyMonsterField(pos, addr(wMonGender))
 	ld a, c
 	ld hl, wMonGender
 	call PartyMonsterField
@@ -2556,6 +2568,7 @@ SaveTacticBits::
 ;@ 0-1, bit 0 from status bit 5, bit 7 when the monster is out of the fight. A monster still standing
 ;@ (outside a reload) gets its third personality byte raised by one (up to $FF). Returns status + 6
 ;@ (the HP field).
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SaveAilments::
 ;> mem[status] = 0
 	ld a, $00
@@ -2638,6 +2651,7 @@ SaveAilments::
 ;@ path: battle/end
 ;@ Writes the HP of battle position `pos` into the record's HP field at `hp` (no higher than the
 ;@ maximum that follows it); returns the address of the MP field.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SaveHP::
 ;> q = addr(wBattlerHP) + 2 * pos
 	push bc
@@ -2671,6 +2685,7 @@ SaveHP::
 ;@ path: battle/end
 ;@ Writes the MP of battle position `pos` into the record's MP field at `mp` (no higher than the
 ;@ maximum that follows it); returns the address of the wildness field.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SaveMP::
 ;> q = addr(wBattlerMP) + 2 * pos
 	push bc
@@ -2708,6 +2723,7 @@ SaveMP::
 ;@ def ClampToMax(max: hl, value: bc)
 ;@ path: battle/end
 ;@ If the maximum word at `max` is below `value`, writes the maximum into the word just before it.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ClampToMax::
 ;> m = mem16[max]
 	push hl
@@ -2738,6 +2754,7 @@ ClampToMax::
 ;@ path: battle/end
 ;@ Writes the wildness of battle position `pos` into the record field at `wild`; returns the address of
 ;@ the personality bytes.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 SaveWildness::
 ;> q = addr(wBattlerWildness) + 2 * pos
 	ld a, c
@@ -2765,6 +2782,7 @@ SaveWildness::
 ;@ path: battle/end
 ;@ For a monster still in the fight (and not marked by status byte 1 bit 4), writes its personality
 ;@ bytes and record byte +$67 back to the record at `p`.
+;@ test: pos = rand(0, 7)
 SavePersonality::
 ;> q = addr(wBattlerState) + pos
 	ld a, c
@@ -2859,7 +2877,7 @@ DefeatBattler::
 ;> wBattleTemp = wBattleArg0
 	ld a, [wBattleArg0]
 	ld [wBattleTemp], a
-;> if wBattleArg0 & 3 != 3:
+;> if (wBattleArg0 & 3) != 3:
 	and $03
 	cp $03
 	jr z, .called
@@ -3008,7 +3026,7 @@ SetBattlerDown::
 	cp $04
 	ret c
 
-;> if wBattleArg0 & 3 == 3: return
+;> if (wBattleArg0 & 3) == 3: return
 	and $03
 	cp $03
 	ret z
@@ -3057,6 +3075,7 @@ RestorePalettesIfChanged::
 ;@ Far entry: when several enemies share the species of position wNameBattler, adds a letter to its
 ;@ name at wNameDest (before the $F0 end): the first of them gets code $0B, the next $0C and so on.
 ;@ An enemy whose species appears only once gets no letter.
+;@ test: skip follows name and record pointers that random states leave invalid
 AppendEnemyLetter::
 ;> n = wEncCount + 1; pos = 4; before = 0
 	ld a, [wEncCount]
@@ -3143,7 +3162,7 @@ AppendEnemyLetter::
 .append:
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 ;> letter = before + 0x0B
 	ld a, d
@@ -4441,7 +4460,7 @@ SetTransformPalette::
 	ldh [rSVBK], a
 ;> q = 0xDB00 + wSkillUser
 	ld a, [wSkillUser]
-	ld hl, $db00
+	ld hl, wSideFlags
 	add l
 	ld l, a
 	ld a, $00
@@ -4555,7 +4574,7 @@ FallStep0::
 	ld [wBattleArg0], a
 	ld a, [wBattleArg0]
 	ld [wBattleTemp], a
-;> if wSkillTarget & 3 != 3:
+;> if (wSkillTarget & 3) != 3:
 	and $03
 	cp $03
 	jr z, .called
@@ -4742,7 +4761,7 @@ GetMessageSide::
 ;@ path: battle/setup
 ;@ Clears wMonStats (the copy of a MonsterStats record).
 ClearMonStatsCopy::
-;> fill(wMonStats, 0x2B, 0)
+;> fill(wMonStats, 0, 0x2B)
 	push bc
 	push hl
 	ld hl, wMonStats
@@ -4772,12 +4791,12 @@ ReloadPartyBattlers::
 	ld a, [wNewMonSlot]
 	ld c, a
 	push bc
-;> fill(wTilemapBuffer, 0xC0, 0xE0)
+;> fill(wTilemapBuffer, 0xE0, 0xC0)
 	ld hl, wTilemapBuffer
 	ld bc, $00c0
 	ld a, $e0
 	call FillMemory
-;> fill(wBattlerStatus, 0x40, 0)
+;> fill(wBattlerStatus, 0, 0x40)
 	ld hl, wBattlerStatus
 	ld bc, $0040
 	xor a
@@ -4803,11 +4822,11 @@ ReloadPartyBattlers::
 	ld hl, $9700
 	call DrawSlotNameTiles
 ;> DrawSlotNameTiles(wParty[1], 0x9740)
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld hl, $9740
 	call DrawSlotNameTiles
 ;> DrawSlotNameTiles(wParty[2], 0x9780)
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld hl, $9780
 	call DrawSlotNameTiles
 ;> wNewMonSlot = saved[1]
@@ -4846,7 +4865,7 @@ DrawSlotNameTiles::
 ;@ path: battle/screen
 ;@ Marks the status icons of all eight positions as not loaded ($FF), so they are drawn again.
 ResetStatusIcons::
-;> fill(wStatusIconShown, 8, 0xFF)
+;> fill(wStatusIconShown, 0xFF, 8)
 	ld a, $ff
 	ld hl, wStatusIconShown
 	ld bc, $0008
@@ -4866,12 +4885,12 @@ ResetStatusIcons::
 ;@ path: battle/screen
 ;@ Far entry for LoadMonsterPic: the species in $C0DE, the destination tiles in $C0DC/$C0DD.
 LoadMonsterPicFar::
-;> LoadMonsterPic(mem[0xC0DE], mem16[0xC0DC])
-	ld a, [$c0dc]
+;> LoadMonsterPic(wSceneObjects[6], mem16[0xC0DC])
+	ld a, [wSceneObjects + 4]
 	ld l, a
-	ld a, [$c0dd]
+	ld a, [wSceneObjects + 5]
 	ld h, a
-	ld a, [$c0de]
+	ld a, [wSceneObjects + 6]
 	call LoadMonsterPic
 ;> return
 	ret
@@ -4914,7 +4933,7 @@ LevelUpSteps::
 ;@ A monster already at level 99 gets nothing (the after-battle sequence moves on). Otherwise draws
 ;@ the two window titles (system texts $0B0A and $0B1B) into their tiles and resets the menu state.
 LevelUpStep00::
-;> if mem[MonsterField(wCurPartyMember, wMonLevel)] >= 99:
+;> if mem[MonsterField(wCurPartyMember, addr(wMonLevel))] >= 99:
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -4950,12 +4969,12 @@ LevelUpStep00::
 	ld hl, $89c0
 	ld de, $0f01
 	call PrintTextToTiles
-;> fill(wMenuChoice, 8, 0)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wCommandStep, 8, 0)
+;> fill(addr(wCommandStep), 0, 8)
 	xor a
 	ld hl, wCommandStep
 	ld bc, $0008
@@ -4965,7 +4984,7 @@ LevelUpStep00::
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
-	ld [$d9f9], a
+	ld [wBattleBGMap + 1], a
 ;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
@@ -4987,7 +5006,7 @@ LevelUpStep01::
 	ld hl, wTextArg0
 ;=@n
 	call CopyName
-;>@d ByteToDecimal(mem[MonsterField(wCurPartyMember, wMonLevel)] + 1, addr(wTextArg1))
+;>@d ByteToDecimal(mem[MonsterField(wCurPartyMember, addr(wMonLevel))] + 1, addr(wTextArg1))
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -5028,7 +5047,7 @@ LevelUpStep02::
 	or a
 	jp nz, .print
 
-;>@s0     if mem16[MonsterField(wCurPartyMember, wMonMaxHP)] == 999: wLevelGains[0] = 0
+;>@s0     if mem16[MonsterField(wCurPartyMember, addr(wMonMaxHP))] == 999: wLevelGains[0] = 0
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxHP
 	call MonsterField
@@ -5050,7 +5069,7 @@ LevelUpStep02::
 	xor a
 	ld [wLevelGains], a
 
-;>@s1     if mem16[MonsterField(wCurPartyMember, wMonMaxMP)] == 999: wLevelGains[1] = 0
+;>@s1     if mem16[MonsterField(wCurPartyMember, addr(wMonMaxMP))] == 999: wLevelGains[1] = 0
 .mp:
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxMP
@@ -5071,9 +5090,9 @@ LevelUpStep02::
 	jr nz, .attack
 
 	xor a
-	ld [$c8cb], a
+	ld [wLevelGains + 1], a
 
-;>@s2     if mem16[MonsterField(wCurPartyMember, wMonAttack)] == 999: wLevelGains[2] = 0
+;>@s2     if mem16[MonsterField(wCurPartyMember, addr(wMonAttack))] == 999: wLevelGains[2] = 0
 .attack:
 	ld a, [wCurPartyMember]
 	ld hl, wMonAttack
@@ -5094,9 +5113,9 @@ LevelUpStep02::
 	jr nz, .defense
 
 	xor a
-	ld [$c8cc], a
+	ld [wLevelGains + 2], a
 
-;>@s3     if mem16[MonsterField(wCurPartyMember, wMonDefense)] == 999: wLevelGains[3] = 0
+;>@s3     if mem16[MonsterField(wCurPartyMember, addr(wMonDefense))] == 999: wLevelGains[3] = 0
 .defense:
 	ld a, [wCurPartyMember]
 	ld hl, wMonDefense
@@ -5117,9 +5136,9 @@ LevelUpStep02::
 	jr nz, .agility
 
 	xor a
-	ld [$c8cd], a
+	ld [wLevelGains + 3], a
 
-;>@s4     if mem16[MonsterField(wCurPartyMember, wMonAgility)] == 511: wLevelGains[4] = 0
+;>@s4     if mem16[MonsterField(wCurPartyMember, addr(wMonAgility))] == 511: wLevelGains[4] = 0
 .agility:
 	ld a, [wCurPartyMember]
 	ld hl, wMonAgility
@@ -5140,9 +5159,9 @@ LevelUpStep02::
 	jr nz, .intelligence
 
 	xor a
-	ld [$c8ce], a
+	ld [wLevelGains + 4], a
 
-;>@s5     if mem16[MonsterField(wCurPartyMember, wMonIntelligence)] == 255: wLevelGains[5] = 0
+;>@s5     if mem16[MonsterField(wCurPartyMember, addr(wMonIntelligence))] == 255: wLevelGains[5] = 0
 .intelligence:
 	ld a, [wCurPartyMember]
 	ld hl, wMonIntelligence
@@ -5163,7 +5182,7 @@ LevelUpStep02::
 	jr nz, .print
 
 	xor a
-	ld [$c8cf], a
+	ld [wLevelGains + 5], a
 
 ;> ByteToDecimal(wLevelGains[0], addr(wTextArg2))
 .print:
@@ -5171,24 +5190,24 @@ LevelUpStep02::
 	ld hl, wTextArg2
 	call ByteToDecimal
 ;> ByteToDecimal(wLevelGains[1], addr(wTextArg2) + 4)
-	ld a, [$c8cb]
-	ld hl, $c1a4
+	ld a, [wLevelGains + 1]
+	ld hl, wTextArg2 + 4
 	call ByteToDecimal
 ;> ByteToDecimal(wLevelGains[2], addr(wTextArg2) + 8)
-	ld a, [$c8cc]
-	ld hl, $c1a8
+	ld a, [wLevelGains + 2]
+	ld hl, wTextArg2 + 8
 	call ByteToDecimal
 ;> ByteToDecimal(wLevelGains[3], addr(wTextArg2) + 12)
-	ld a, [$c8cd]
-	ld hl, $c1ac
+	ld a, [wLevelGains + 3]
+	ld hl, wTextArg2 + 12
 	call ByteToDecimal
 ;> ByteToDecimal(wLevelGains[4], addr(wTextArgs))
-	ld a, [$c8ce]
+	ld a, [wLevelGains + 4]
 	ld hl, wTextArgs
 	call ByteToDecimal
 ;> ByteToDecimal(wLevelGains[5], addr(wTextArgs) + 4)
-	ld a, [$c8cf]
-	ld hl, $c1b4
+	ld a, [wLevelGains + 5]
+	ld hl, wTextArgs + 4
 	call ByteToDecimal
 ;>@txt PrintSystemText(0x0B1F if wOverLevelLimit else 0x0B1E)
 	ld hl, $0b1e
@@ -5218,7 +5237,7 @@ LevelUpStep03::
 	or a
 	ret nz
 
-;> fill(wSceneObjects, 0x28, 0xFF)
+;> fill(wSceneObjects, 0xFF, 0x28)
 	ld hl, wSceneObjects
 	ld bc, $0028
 	ld a, $ff
@@ -5457,7 +5476,7 @@ LevelUpStep10::
 ;@ Closes the gaps ($FF) in the 40-entry skill scratch list in wSceneObjects (through wNumberBackup)
 ;@ and returns the number of skills in it.
 CompactSkillList::
-;> fill(wNumberBackup, 0x28, 0xFF)
+;> fill(wNumberBackup, 0xFF, 0x28)
 	ld hl, wNumberBackup
 	ld bc, $0028
 	ld a, $ff
@@ -5561,7 +5580,7 @@ DrawForgetMenu::
 	call DrawBattleWindow
 ;> DrawForgetMPCost()
 	call DrawForgetMPCost
-;> maxmp = mem16[MonsterField(wCurPartyMember, wMonMaxMP)]
+;> maxmp = mem16[MonsterField(wCurPartyMember, addr(wMonMaxMP))]
 	ld hl, wMonMaxMP
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -5631,7 +5650,7 @@ DrawForgetMPCost::
 ;>     return
 	ret
 
-;> maxmp = mem16[MonsterField(wCurPartyMember, wMonMaxMP)]
+;> maxmp = mem16[MonsterField(wCurPartyMember, addr(wMonMaxMP))]
 .all:
 	ld hl, wMonMaxMP
 	ld a, [wCurPartyMember]
@@ -5735,7 +5754,7 @@ DrawForgetSkillInfo::
 	ld de, $1203
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 ;> savedLines = wTextBoxLines; savedLength = wTextBoxLineLength
 	push bc
@@ -5748,7 +5767,7 @@ DrawForgetSkillInfo::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 3; wTextBoxLineLength = 18
 	ld a, e
 	ld [wTextBoxLines], a
@@ -5763,7 +5782,7 @@ DrawForgetSkillInfo::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = savedLines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -5887,8 +5906,8 @@ LevelUpStep13::
 ;> PrintSystemText(0x0B05)
 	ld hl, $0b05
 	call PrintSystemText
-;> DrawBattleWindow(0x2E07)             # the message box frame
-	ld de, $2e07
+;> DrawBattleWindow(MessageWindowLayout)             # the message box frame
+	ld de, MessageWindowLayout
 	call DrawBattleWindow
 ;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
@@ -5915,8 +5934,8 @@ LevelUpStep14::
 	call ClearBattleTilemap
 ;> DrawForgetMenu()
 	call DrawForgetMenu
-;> DrawBattleWindow(0x2E07)
-	ld de, $2e07
+;> DrawBattleWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawBattleWindow
 ;> DecompressVRAM(0x51, 0x12, 0x89C0)
 	ld hl, $89c0
@@ -6030,12 +6049,12 @@ LevelUpStep16::
 	or a
 	ret nz
 
-;> lvl = MonsterField(wCurPartyMember, wMonLevel)
+;> lvl = MonsterField(wCurPartyMember, addr(wMonLevel))
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
 	push hl
-;> maxlvl = mem[MonsterField(wCurPartyMember, wMonMaxLevel)]
+;> maxlvl = mem[MonsterField(wCurPartyMember, addr(wMonMaxLevel))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxLevel
 	call MonsterField
@@ -6139,7 +6158,7 @@ StoreLearnedSkills::
 ;@ wLevelGains. Past its level limit the gains are taken away instead; HP and MP are then cut to the new
 ;@ maximum and the party battlers and the screen are refreshed.
 ApplyLevelUp::
-;> if mem[MonsterField(wCurPartyMember, wMonLevel)] >= 99: return
+;> if mem[MonsterField(wCurPartyMember, addr(wMonLevel))] >= 99: return
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -6147,7 +6166,7 @@ ApplyLevelUp::
 	cp $63
 	ret nc
 
-;> mem[MonsterField(wCurPartyMember, wMonLevel)] += 1
+;> mem[MonsterField(wCurPartyMember, addr(wMonLevel))] += 1
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
 	call MonsterField
@@ -6166,31 +6185,31 @@ ApplyLevelUp::
 	ld a, [wCurPartyMember]
 	call RaiseMonsterMaxHP
 ;>     RaiseMonsterMaxMP(wCurPartyMember, wLevelGains[1])
-	ld a, [$c8cb]
+	ld a, [wLevelGains + 1]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterMaxMP
 ;>     RaiseMonsterAttack(wCurPartyMember, wLevelGains[2])
-	ld a, [$c8cc]
+	ld a, [wLevelGains + 2]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterAttack
 ;>     RaiseMonsterDefense(wCurPartyMember, wLevelGains[3])
-	ld a, [$c8cd]
+	ld a, [wLevelGains + 3]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterDefense
 ;>     RaiseMonsterAgility(wCurPartyMember, wLevelGains[4])
-	ld a, [$c8ce]
+	ld a, [wLevelGains + 4]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call RaiseMonsterAgility
 ;>     RaiseMonsterIntelligence(wCurPartyMember, wLevelGains[5])
-	ld a, [$c8cf]
+	ld a, [wLevelGains + 5]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
@@ -6206,43 +6225,43 @@ ApplyLevelUp::
 	ld a, [wCurPartyMember]
 	call LowerMonsterMaxHP
 ;> LowerMonsterMaxMP(wCurPartyMember, wLevelGains[1])
-	ld a, [$c8cb]
+	ld a, [wLevelGains + 1]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterMaxMP
 ;> LowerMonsterAttack(wCurPartyMember, wLevelGains[2])
-	ld a, [$c8cc]
+	ld a, [wLevelGains + 2]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterAttack
 ;> LowerMonsterDefense(wCurPartyMember, wLevelGains[3])
-	ld a, [$c8cd]
+	ld a, [wLevelGains + 3]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterDefense
 ;> LowerMonsterAgility(wCurPartyMember, wLevelGains[4])
-	ld a, [$c8ce]
+	ld a, [wLevelGains + 4]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterAgility
 ;> LowerMonsterIntelligence(wCurPartyMember, wLevelGains[5])
-	ld a, [$c8cf]
+	ld a, [wLevelGains + 5]
 	ld l, a
 	ld h, $00
 	ld a, [wCurPartyMember]
 	call LowerMonsterIntelligence
-;> maxhp = mem16[MonsterField(wCurPartyMember, wMonMaxHP)]
+;> maxhp = mem16[MonsterField(wCurPartyMember, addr(wMonMaxHP))]
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxHP
 	call MonsterField
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-;> p = MonsterField(wCurPartyMember, wMonHP)
+;> p = MonsterField(wCurPartyMember, addr(wMonHP))
 	push bc
 	ld a, [wCurPartyMember]
 	ld hl, wMonHP
@@ -6261,7 +6280,7 @@ ApplyLevelUp::
 	dec hl
 	ld [hl], c
 
-;> maxmp = mem16[MonsterField(wCurPartyMember, wMonMaxMP)]
+;> maxmp = mem16[MonsterField(wCurPartyMember, addr(wMonMaxMP))]
 .mp:
 	ld a, [wCurPartyMember]
 	ld hl, wMonMaxMP
@@ -6269,7 +6288,7 @@ ApplyLevelUp::
 	ld a, [hli]
 	ld b, [hl]
 	ld c, a
-;> p = MonsterField(wCurPartyMember, wMonMP)
+;> p = MonsterField(wCurPartyMember, addr(wMonMP))
 	push bc
 	ld a, [wCurPartyMember]
 	ld hl, wMonMP
@@ -6399,12 +6418,12 @@ RecruitStep00::
 	ld hl, $9000
 	ld a, [wNewMonNameText]
 	call LoadMonsterPic
-;> fill(wMenuChoice, 8, 0)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wCommandStep, 8, 0)
+;> fill(addr(wCommandStep), 0, 8)
 	xor a
 	ld hl, wCommandStep
 	ld bc, $0008
@@ -6414,7 +6433,7 @@ RecruitStep00::
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
-	ld [$d9f9], a
+	ld [wBattleBGMap + 1], a
 ;> PlacePicTiles(0, 0x00C7)                   # 6 x 6 tiles from row 6, column 7
 	ld a, $00
 	ld hl, $00c7
@@ -6430,10 +6449,10 @@ RecruitStep00::
 	ld a, [wParty]
 	call CopyMonName8
 ;> p = CopyMonName8(wParty[1], p)
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	call CopyMonName8
 ;> CopyMonName8(wParty[2], p)
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	call CopyMonName8
 ;> wCommandStep += 1
 	ld hl, wCommandStep
@@ -6446,6 +6465,7 @@ RecruitStep00::
 ;@ path: battle/recruit
 ;@ Copies the 8 name bytes of the monster in record slot `slot` to `dest` ($FF: nothing); returns
 ;@ the address after them.
+;@ test: skip follows name and record pointers that random states leave invalid
 CopyMonName8::
 ;> if slot == 0xFF: return dest
 	cp $ff
@@ -6482,7 +6502,7 @@ RecruitStep01::
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
-;> AppendSexSymbol(mem[MonsterField(20, wMonGender)], addr(wTextArg0))
+;> AppendSexSymbol(mem[MonsterField(20, addr(wMonGender))], addr(wTextArg0))
 	ld a, $14
 	ld hl, wMonGender
 	call MonsterField
@@ -6597,7 +6617,7 @@ RecruitStep03::
 ;>         wMenuChoice |= 0x80
 	ld hl, wMenuChoice
 	set 7, [hl]
-;>         fill(wMenuChoice2, 7, 0)
+;>         fill(addr(wMenuChoice2), 0, 7)
 	ld hl, wMenuChoice2
 	ld bc, $0007
 	ld a, $00
@@ -6783,7 +6803,7 @@ RecruitStep06::
 	jr z, .no
 
 ;>     else:
-;>         fill(wListCursor, 8, 0)
+;>         fill(addr(wListCursor), 0, 8)
 	ld hl, wListCursor
 	ld bc, $0008
 	ld a, $00
@@ -6906,7 +6926,7 @@ CountMonstersOrEggs::
 	ld a, d
 	adc $00
 	ld d, a
-;>@e         if (egg >> 1 | egg) & 1 == wListCursor2 & 1: n += 1
+;>@e         if ((egg >> 1 | egg) & 1) == (wListCursor2 & 1): n += 1
 	ld a, [wListCursor2]
 	and $01
 	ld l, a
@@ -6947,7 +6967,7 @@ CountMonstersOrEggs::
 ;@ wSceneObjects (20 entries, $FF after the last).
 ;@ test: for i in range(20): mem[0xCAC1 + i * 0x95] = rand(0, 2); mem[0xCB24 + i * 0x95] = rand(0, 2)
 ListMonstersOrEggs::
-;> fill(wSceneObjects, 20, 0xFF)
+;> fill(wSceneObjects, 0xFF, 20)
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -6974,7 +6994,7 @@ ListMonstersOrEggs::
 	ld a, d
 	adc $00
 	ld d, a
-;>@e         if (egg >> 1 | egg) & 1 == wListCursor2 & 1:
+;>@e         if ((egg >> 1 | egg) & 1) == (wListCursor2 & 1):
 	push hl
 	ld a, [wListCursor2]
 	and $01
@@ -7155,7 +7175,7 @@ DrawListNameTiles::
 .blank:
 	ld b, $20
 
-;>     WriteVRAMInc(0xFF); WriteVRAMInc(0)
+;>     WriteVRAMInc(0xFF, tiles + 2 * i); WriteVRAMInc(0, tiles + 2 * i + 1)
 .clear:
 	ld a, $ff
 	call WriteVRAMInc
@@ -7191,7 +7211,7 @@ DrawListSpeciesTiles::
 	cp $ff
 	jr z, .blank
 
-;>     wTextIndex = mem[MonsterField(mem[p], wMonRecSpecies)]
+;>     wTextIndex = mem[MonsterField(mem[p], addr(wMonRecSpecies))]
 	ld hl, wMonRecSpecies
 	call MonsterField
 	ld a, [hl]
@@ -7221,7 +7241,7 @@ DrawListSpeciesTiles::
 .blank:
 	ld b, $48
 
-;>     WriteVRAMInc(0xFF); WriteVRAMInc(0)
+;>     WriteVRAMInc(0xFF, tiles + 2 * i); WriteVRAMInc(0, tiles + 2 * i + 1)
 .clear:
 	ld a, $ff
 	call WriteVRAMInc
@@ -7280,7 +7300,7 @@ DrawListSexIcon::
 	cp $ff
 	jr z, .blank
 
-;>     egg = MonsterField(mem[p], wMonEgg)
+;>     egg = MonsterField(mem[p], addr(wMonEgg))
 	ld hl, wMonEgg
 	call MonsterField
 ;>     icon = 0x98
@@ -7306,13 +7326,13 @@ DrawListSexIcon::
 .store:
 	ld [wTextArg0], a
 	ld a, $f0
-	ld [$c181], a
+	ld [wTextArg0 + 1], a
 ;>     savedTiles = wTextTiles
 	pop hl
 	push hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 ;>     savedLines = wTextBoxLines; savedLength = wTextBoxLineLength
 	push bc
@@ -7325,7 +7345,7 @@ DrawListSexIcon::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;>     wTextBoxLines = 1; wTextBoxLineLength = 1
 	ld de, $0101
 	ld a, e
@@ -7346,7 +7366,7 @@ DrawListSexIcon::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;>     wTextBoxLines = savedLines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -7370,7 +7390,7 @@ DrawListSexIcon::
 .blank:
 	ld b, $08
 
-;>     WriteVRAMInc(0xFF); WriteVRAMInc(0)
+;>     WriteVRAMInc(0xFF, tiles + 2 * i); WriteVRAMInc(0, tiles + 2 * i + 1)
 .clear:
 	ld a, $ff
 	call WriteVRAMInc
@@ -7603,14 +7623,14 @@ RecruitStep12::
 	jr .done
 
 ;>     else:                           # release it
-;>@lead         if wPartyCount == 1 or mem[MonsterField(wParty[1], wMonStatus)] & 0x80:
+;>@lead         if wPartyCount == 1 or mem[MonsterField(wParty[1], addr(wMonStatus))] & 0x80:
 .release:
 	ld a, [wPartyCount]
 	cp $01
 	jr z, .leader
 
 ;=@lead
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld hl, wMonStatus
 	call MonsterField
 	bit 7, [hl]
@@ -7641,8 +7661,8 @@ RecruitStep12::
 ;>                 PrintSystemText(0x0B24)
 	ld hl, $0b24
 	call PrintSystemText
-;>                 DrawBattleWindow(0x2E07)
-	ld de, $2e07
+;>                 DrawBattleWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawBattleWindow
 ;>                 CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
@@ -7706,7 +7726,7 @@ RecruitStep13::
 ;> slot = mem[q]
 	ld a, [hl]
 	push af
-;> if mem[MonsterField(slot, wMonEgg)]:
+;> if mem[MonsterField(slot, addr(wMonEgg))]:
 	ld hl, wMonEgg
 	call MonsterField
 	ld a, [hl]
@@ -7752,8 +7772,8 @@ RecruitStep13::
 	call RefreshStatusIcons
 ;> DrawBattlePartyPanel()
 	call DrawBattlePartyPanel
-;> DrawBattleWindow(0x2E07)
-	ld de, $2e07
+;> DrawBattleWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawBattleWindow
 ;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
@@ -8114,7 +8134,7 @@ DrawPartySwapNames::
 ;@ Writes the record slots of the party monsters and then the newcomer (wNewMonSlot) into the 4-entry
 ;@ list in wSceneObjects.
 ListPartyAndNewcomer::
-;> fill(wSceneObjects, 4, 0xFF)
+;> fill(wSceneObjects, 0xFF, 4)
 	ld hl, wSceneObjects
 	ld bc, $0004
 	ld a, $ff
@@ -8126,11 +8146,11 @@ ListPartyAndNewcomer::
 	cp $ff
 	call nz, AppendToList
 ;> if wParty[1] != 0xFF: p = AppendToList(wParty[1], p)
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	cp $ff
 	call nz, AppendToList
 ;> if wParty[2] != 0xFF: p = AppendToList(wParty[2], p)
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	cp $ff
 	call nz, AppendToList
 ;> AppendToList(wNewMonSlot, p)
@@ -8143,6 +8163,7 @@ ListPartyAndNewcomer::
 ;@ def AppendToList(v: a, p: hl) -> hl
 ;@ path: battle/recruit
 ;@ Stores `v` at `p` and returns p + 1.
+;@ test: skip follows name and record pointers that random states leave invalid
 AppendToList::
 ;> mem[p] = v
 	ld [hli], a
@@ -8234,7 +8255,7 @@ RecruitStep21::
 	ld h, $05
 	ld de, wTextArg0
 	call CopySystemText
-;> AppendSexSymbol(mem[MonsterField(wNewMonSlot, wMonGender)], addr(wTextArg0))
+;> AppendSexSymbol(mem[MonsterField(wNewMonSlot, addr(wMonGender))], addr(wTextArg0))
 	ld a, [wNewMonSlot]
 	ld hl, wMonGender
 	call MonsterField
@@ -8395,8 +8416,8 @@ RecruitStep24::
 ;> PrintSystemText(0x0B19)
 	ld hl, $0b19
 	call PrintSystemText
-;> DrawBattleWindow(0x2E07)
-	ld de, $2e07
+;> DrawBattleWindow(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawBattleWindow
 ;> CopyTilemapBufferToBG()
 	call CopyTilemapBufferToBG
@@ -8416,13 +8437,13 @@ RecruitStep24::
 	ld a, [wSceneObjects]
 	call AppendIfFilled
 ;> p = AppendIfFilled(mem[addr(wSceneObjects) + 1], p)
-	ld a, [$c0d9]
+	ld a, [wSceneObjects + 1]
 	call AppendIfFilled
 ;> p = AppendIfFilled(mem[addr(wSceneObjects) + 2], p)
-	ld a, [$c0da]
+	ld a, [wSceneObjects + 2]
 	call AppendIfFilled
 ;> AppendIfFilled(mem[addr(wSceneObjects) + 3], p)
-	ld a, [$c0db]
+	ld a, [wSceneObjects + 3]
 	call AppendIfFilled
 ;> CompactMonsters()
 	ld hl, far_CompactMonsters
@@ -8437,6 +8458,7 @@ RecruitStep24::
 ;@ def AppendIfFilled(v: a, p: hl) -> hl
 ;@ path: battle/recruit
 ;@ Stores `v` at `p` and returns p + 1, unless `v` is $FF (then returns p).
+;@ test: skip follows name and record pointers that random states leave invalid
 AppendIfFilled::
 ;> if v == 0xFF: return p
 	cp $ff
@@ -8858,7 +8880,7 @@ RecruitStep35::
 ;> wChosenMonPic = wNewMonNameText + 0x10
 	add $10
 	ld [wChosenMonPic], a
-;> wChosenMonGender = mem[MonsterField(wNewMonSlot, wMonGender)]
+;> wChosenMonGender = mem[MonsterField(wNewMonSlot, addr(wMonGender))]
 	ld a, [wNewMonSlot]
 	ld hl, wMonGender
 	call MonsterField
@@ -8872,7 +8894,7 @@ RecruitStep35::
 	ld [wChosenMonName], a
 ;=@n
 	ld a, h
-	ld [$c8f3], a
+	ld [wChosenMonName + 1], a
 ;> wCommandStep += 1
 	ld hl, wCommandStep
 	inc [hl]
@@ -8992,6 +9014,7 @@ SwapMenuVars::
 ;@ def AppendSexSymbol(sex: a, text: de)
 ;@ path: battle/recruit
 ;@ Adds the sex symbol ($A7 + bit 0 of `sex`) at the end ($F0) of the text at `text`.
+;@ test: skip follows name and record pointers that random states leave invalid
 AppendSexSymbol::
 ;> p = text
 	push af
@@ -9021,6 +9044,7 @@ AppendSexSymbol::
 ;@ path: battle/recruit
 ;@ Copies the newcomer's record (record slot 20, at wBreedParent1) into record slot `slot` and marks its
 ;@ species as seen in the monster library.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 StoreRecruitedMonster::
 ;> dest = MonsterField(slot, wMonsters)
 	ld hl, wMonsters
@@ -9050,6 +9074,7 @@ StoreRecruitedMonster::
 ;@ path: battle/recruit
 ;@ Loads the picture palette of `species` for the picture at buffer offset `pos`, in the palette slot
 ;@ of the enemy that asked to join (wJoinCandidate).
+;@ test: pos = rand(0, 7)
 SetNewMonPicPalette::
 ;> wPaletteSet = species
 	ld [wPaletteSet], a
@@ -9057,7 +9082,7 @@ SetNewMonPicPalette::
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
 ;> wMonPicPalette = wJoinCandidate
 	ld a, [wJoinCandidate]
 	ld [wMonPicPalette], a
@@ -9153,7 +9178,7 @@ SetPicPalette::
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
 ;>@s wPaletteSet = wBattlerSpecies[pos]
 	pop af
 	push af
@@ -9302,7 +9327,7 @@ RefreshIconsAndNames::
 	ret z
 
 ;> DrawMonNameTiles(0xC1D0, 0x9780)
-	ld de, $c1d0
+	ld de, wBattlerMenuMemory + 3
 	ld hl, $9780
 	call DrawMonNameTiles
 ;> return
@@ -9312,9 +9337,9 @@ RefreshIconsAndNames::
 ;@ def LoadMonsterPic(species: a, dest: hl)
 ;@ path: battle/screen/pictures
 ;@ Decompresses the picture of monster `species` to VRAM at `dest`; the compressed entry (bank and
-;@ number) comes from the picture table at $2B9F in bank 0.
+;@ number) comes from the MonsterPicRefs.
 LoadMonsterPic::
-;>@e entry = mem16[0x2B9F + 2*species]
+;>@e entry = mem16[MonsterPicRefs + 2*species]
 	push de
 	push hl
 	ld l, a
@@ -9322,10 +9347,10 @@ LoadMonsterPic::
 	add hl, hl
 	ld a, l
 ;=@e
-	add $9f
+	add LOW(MonsterPicRefs)
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 ;=@e
 	ld e, [hl]
@@ -9673,12 +9698,12 @@ BGMapAddress::
 	ld a, [wBattleBGMap]
 	add l
 	ld l, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	adc h
 ;>@m return (wBattleBGMap & 0xFC00) | (s & 0x03FF)
 	and $03
 	ld h, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	and $fc
 	or h
 	ld h, a
@@ -9758,7 +9783,7 @@ DrawBattleWindow::
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
 
 ;> while True:
 ;>     t = mem[layout]; layout += 1
@@ -9776,7 +9801,7 @@ DrawBattleWindow::
 ;>@n         p = wLayoutRow + 0x20; wLayoutRow = p
 	ld a, [wLayoutRow]
 	ld l, a
-	ld a, [$d9eb]
+	ld a, [wLayoutRow + 1]
 	ld h, a
 	ld a, l
 	add $20
@@ -9789,7 +9814,7 @@ DrawBattleWindow::
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
 ;>         continue
 	jr .loop
 
@@ -9817,7 +9842,7 @@ CopyTilemapBufferToBG::
 ;> p = wBattleBGMap; src = addr(wTilemapBuffer)
 	ld a, [wBattleBGMap]
 	ld l, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	ld h, a
 	ld de, wTilemapBuffer
 ;>@r for row in range(18):
@@ -9885,7 +9910,7 @@ PrintTextToTiles::
 ;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 ;> saved_lines = wTextBoxLines
@@ -9899,7 +9924,7 @@ PrintTextToTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = lines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -9915,7 +9940,7 @@ PrintTextToTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -9939,7 +9964,7 @@ DrawMonNameTiles::
 ;> saved_tiles = wTextTiles
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 ;> saved_lines = wTextBoxLines
@@ -9953,7 +9978,7 @@ DrawMonNameTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = 1
 	ld de, $0401
 	ld a, e
@@ -9975,7 +10000,7 @@ DrawMonNameTiles::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -10316,7 +10341,7 @@ DrawBattleMenuCursor::
 	ld a, [de]
 	ld h, a
 	inc de
-;>     if pos & 0xFF == 0xFF and pos >> 8 == 0xFF: return
+;>     if (pos & 0xFF) == 0xFF and pos >> 8 == 0xFF: return
 	and l
 	cp $ff
 	ret z
@@ -10325,14 +10350,14 @@ DrawBattleMenuCursor::
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
 ;>     bg = OffsetToBGAddress(pos)
 	push de
 	push bc
 	call OffsetToBGAddress
 	pop bc
 	pop de
-;>     if cursor & 0x7F != i: tile = 0xE0
+;>     if (cursor & 0x7F) != i: tile = 0xE0
 	ld a, c
 	and $7f
 	cp b
@@ -10360,7 +10385,7 @@ DrawBattleMenuCursor::
 	push af
 	ld a, [wLayoutRow]
 	ld l, a
-	ld a, [$d9eb]
+	ld a, [wLayoutRow + 1]
 	ld h, a
 	ld a, l
 ;=@b
@@ -10410,7 +10435,7 @@ DrawBattlePageNumber::
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;> bg = OffsetToBGAddress(pos - 1)
 	push de
 	push bc
@@ -10427,7 +10452,7 @@ DrawBattlePageNumber::
 	push af
 	ldh a, [hNumber]
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	ld a, l
 ;=@b
@@ -10448,6 +10473,7 @@ DrawBattlePageNumber::
 ;@ Draws the cursor of a paged list into wTilemapBuffer: at the page-number spot (first word of
 ;@ `spots`) tile $E7 with the page number ($F1 + page) to its left when there is more than one page,
 ;@ else tile $EE; then the row cursor via DrawBattleCursorAt.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 DrawPagedCursor::
 ;> row = mem[cursor]
 	ld a, [hli]
@@ -10513,7 +10539,7 @@ DrawBattleCursorAt::
 	ld a, l
 	ld [wLayoutRow], a
 	ld a, h
-	ld [$d9eb], a
+	ld [wLayoutRow + 1], a
 ;> OffsetToBGAddress(pos)                                  # result not used
 	push de
 	push bc
@@ -10539,7 +10565,7 @@ DrawBattleCursorAt::
 	push af
 	ld a, [wLayoutRow]
 	ld l, a
-	ld a, [$d9eb]
+	ld a, [wLayoutRow + 1]
 	ld h, a
 	ld a, l
 ;=@b
@@ -10624,6 +10650,7 @@ PlaceEnemyPics::
 ;@ path: battle/screen/pictures
 ;@ Puts a 6 x 6 block of consecutive tiles starting at `tile` into wTilemapBuffer at `offset`;
 ;@ returns the tile after the last one.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 PlacePicTiles::
 ;>@r for row in range(6):
 	ld c, $06
@@ -10663,7 +10690,7 @@ PlacePicTiles::
 ;@ wTilemapBuffer: with HP / MP numbers (wPanelMode 0) or with levels and ailment icons.
 DrawBattlePartyPanel::
 ;> DrawBattleWindow(MessageWindowLayout)
-	ld de, $2e07
+	ld de, MessageWindowLayout
 	call DrawBattleWindow
 ;> if wPanelMode: return DrawPanelLevels(wPanelMode)
 	ld a, [wPanelMode]
@@ -10738,7 +10765,7 @@ DrawPanelHPMPNumbers::
 	bit 1, a
 	jr z, .first
 
-	ld hl, $dbab
+	ld hl, wBattlerHP + 8
 
 ;>@h PrintNumber3(BattleBufferAddress(0x62), mem16[addr(wBattlerHP) + 2*side])
 .first:
@@ -10767,12 +10794,12 @@ DrawPanelHPMPNumbers::
 	ret z
 
 ;> side = 4 if wLinkFlags & 2 else 0
-	ld hl, $dba5
+	ld hl, wBattlerHP + 2
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, .second
 
-	ld hl, $dbad
+	ld hl, wBattlerHP + 10
 
 ;>@h2 PrintNumber3(BattleBufferAddress(0x68), mem16[addr(wBattlerHP) + 2*side + 2])
 .second:
@@ -10801,12 +10828,12 @@ DrawPanelHPMPNumbers::
 	ret z
 
 ;> side = 4 if wLinkFlags & 2 else 0
-	ld hl, $dba7
+	ld hl, wBattlerHP + 4
 	ld a, [wLinkFlags]
 	bit 1, a
 	jr z, .third
 
-	ld hl, $dbaf
+	ld hl, wBattlerHP + 12
 
 ;>@h3 PrintNumber3(BattleBufferAddress(0x6E), mem16[addr(wBattlerHP) + 2*side + 4])
 .third:
@@ -10862,7 +10889,7 @@ DrawPanelLevels::
 	ld a, l
 	ld [wBattleBGMap], a
 	ld a, h
-	ld [$d9f9], a
+	ld [wBattleBGMap + 1], a
 ;>@d     side = 4 if wLinkFlags & 2 else 0
 	ld a, [wPanelCount]
 	ld b, a
@@ -11195,6 +11222,7 @@ PanelSlotAddress::
 ;@ def PutAilmentIcon(icon: a, dest: de)
 ;@ path: battle/screen/panel
 ;@ Puts the tile of ailment icon `icon` (AilmentIconTiles) at `dest`.
+;@ test: skip needs valid battle or party records; random states send the original code astray
 PutAilmentIcon::
 ;>@p mem[dest] = mem[AilmentIconTiles + icon]
 	push hl
@@ -11414,6 +11442,7 @@ UpdateStatusIcon::
 ;@ def StoreStatusIcon(icon: a, p: hl)
 ;@ path: battle/screen/panel
 ;@ mem[p] = icon (keeps the flags).
+;@ test: skip needs valid battle or party records; random states send the original code astray
 StoreStatusIcon::
 ;> mem[p] = icon
 	ld [hl], a
@@ -11438,7 +11467,7 @@ ClearBGAttributes::
 ;> p = wBattleBGMap
 	ld a, [wBattleBGMap]
 	ld l, a
-	ld a, [$d9f9]
+	ld a, [wBattleBGMap + 1]
 	ld h, a
 ;>@r for row in range(18):
 	ld c, $12
@@ -11493,6 +11522,7 @@ ClearBGAttributes::
 ;@ path: battle/names
 ;@ Copies the name of the monster at battle position `pos` to `dest`: the party monsters' own names
 ;@ for positions 0-2, GetEnemyName for the others.
+;@ test: pos = rand(0, 7)
 GetBattlerName::
 ;> if pos >= 3: return GetEnemyName(pos, dest)
 	cp $03
@@ -11504,6 +11534,7 @@ GetBattlerName::
 ;@ path: battle/names
 ;@ Copies the name of the party monster at position `pos` to `dest`; returns the address of its $F0
 ;@ end.
+;@ test: skip follows name and record pointers that random states leave invalid
 GetPartyMonName::
 ;>@n CopyName(PartyMonsterField(pos, wMonName), dest)
 	push hl
@@ -11544,8 +11575,9 @@ GetLinkEnemyName::
 ;@ The name of an enemy (or a called monster, positions 3 and 7): the species name with a letter when
 ;@ several enemies share it; an enemy changed by the transform skill is named after the monster it
 ;@ copied (GetMorphEnemyName); in a link battle the monster's own name.
+;@ test: pos = rand(0, 7)
 GetEnemyName::
-;>@n if pos & 3 != 3:
+;>@n if (pos & 3) != 3:
 	push bc
 	ld b, a
 	and $03
@@ -11601,6 +11633,7 @@ GetEnemyName::
 ;@ path: battle/names
 ;@ Copies the species name of the monster at battle position `pos` (system text $0500 + species) to
 ;@ `dest`, and notes position and buffer for AppendEnemyLetter (wNameBattler, wNameDest).
+;@ test: pos = rand(0, 7)
 GetSpeciesName::
 ;> wNameBattler = pos
 	ld [wNameBattler], a
@@ -11621,7 +11654,7 @@ GetSpeciesName::
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> CopySystemText(id, dest)
 	call CopySystemText
 ;> return
@@ -11633,6 +11666,7 @@ GetSpeciesName::
 ;@ The name of an enemy changed by the transform skill: the name of party monster `morph` followed by
 ;@ the suffix tiles $2F $46 $48 $42 and, when other enemies copied the same monster, a letter code
 ;@ 1-3 (also kept in wBattleArg1, else 0).
+;@ test: skip follows name and record pointers that random states leave invalid
 GetMorphEnemyName::
 ;> p = GetPartyMonName(morph, dest)
 	call GetPartyMonName

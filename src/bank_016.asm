@@ -309,7 +309,7 @@ MakeOffspring::
 ;@ Address of a record field (given as its address in record 0) of monster wCurPartyMember.
 ;@ test: skip calls MonsterField
 OffspringField::
-;> return MonsterField(field, wCurPartyMember)
+;> return MonsterField(wCurPartyMember, field)
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
@@ -587,32 +587,32 @@ SetOffspringParents::
 CountForeignMasters::
 ;> n = 0
 	ld c, $00
-;> n += CountIfNotPlayerName(wBreedParent1 + 0x0C)
+;> n = CountIfNotPlayerName(wBreedParent1 + 0x0C, n)
 	ld hl, wBreedParent1 + $0c
 	call CountIfNotPlayerName
 ;> if wBreedParent1[0x15] != 0xFF:     # the pedigree has parents
-;>     n += CountIfNotPlayerName(wBreedParent1 + 0x83)
+;>     n = CountIfNotPlayerName(wBreedParent1 + 0x83, n)
 	ld a, [wBreedParent1 + $15]
 	cp $ff
 	ld hl, wBreedParent1 + $83
 	call nz, CountIfNotPlayerName
 ;> if wBreedParent1[0x16] != 0xFF:
-;>     n += CountIfNotPlayerName(wBreedParent1 + 0x8C)
+;>     n = CountIfNotPlayerName(wBreedParent1 + 0x8C, n)
 	ld a, [wBreedParent1 + $16]
 	cp $ff
 	ld hl, wBreedParent1 + $8c
 	call nz, CountIfNotPlayerName
-;> n += CountIfNotPlayerName(wBreedParent2 + 0x0C)
+;> n = CountIfNotPlayerName(wBreedParent2 + 0x0C, n)
 	ld hl, wBreedParent2 + $0c
 	call CountIfNotPlayerName
 ;> if wBreedParent2[0x15] != 0xFF:
-;>     n += CountIfNotPlayerName(wBreedParent2 + 0x83)
+;>     n = CountIfNotPlayerName(wBreedParent2 + 0x83, n)
 	ld a, [wBreedParent2 + $15]
 	cp $ff
 	ld hl, wBreedParent2 + $83
 	call nz, CountIfNotPlayerName
 ;> if wBreedParent2[0x16] != 0xFF:
-;>     n += CountIfNotPlayerName(wBreedParent2 + 0x8C)
+;>     n = CountIfNotPlayerName(wBreedParent2 + 0x8C, n)
 	ld a, [wBreedParent2 + $16]
 	cp $ff
 	ld hl, wBreedParent2 + $8c
@@ -625,7 +625,7 @@ CountForeignMasters::
 ;@ def CountIfNotPlayerName(name: hl, n: c) -> c
 ;@ path: breed/offspring
 ;@ Compares the 9 bytes at `name` with wPlayerName; returns `n` + 1 if they differ.
-;@ test: c = rand(0, 5)
+;@ test: n = rand(0, 5)
 CountIfNotPlayerName::
 ;> for i in range(9):
 	ld de, wPlayerName
@@ -1268,7 +1268,7 @@ FindPairInTable::
 	cp $ff
 	jr z, .loop
 
-;>@mate     if not (wBreedSpecies2 & 0xF0 == 0xF0 and mate == 0xFA) and mate != wBreedSpecies2:
+;>@mate     if not ((wBreedSpecies2 & 0xF0) == 0xF0 and mate == 0xFA) and mate != wBreedSpecies2:
 	ld a, [wBreedSpecies2]
 	and $f0
 	cp $f0
@@ -1321,7 +1321,7 @@ FindPairInTable::
 ;@ and adds its plus bonus.
 ;@ test: skip calls routines in other banks
 FindSpecialPair::
-;> plus = mem[MonsterField(wMonPlus, wBreedSlot1)]
+;> plus = mem[MonsterField(wBreedSlot1, addr(wMonPlus))]
 	ld a, [wBreedSlot1]
 	ld hl, wMonPlus
 	call MonsterField
@@ -1332,7 +1332,7 @@ FindSpecialPair::
 	or a
 	jr nz, .linked
 
-;>@max     plus = max(plus, mem[MonsterField(wMonPlus, wBreedSlot2)])
+;>@max     plus = max(plus, mem[MonsterField(wBreedSlot2, addr(wMonPlus))])
 	ld a, [wBreedSlot1]
 	ld hl, wMonPlus
 	call MonsterField
@@ -1355,7 +1355,7 @@ FindSpecialPair::
 ;> wOffspringPlus = plus + 1
 	inc a
 	ld [wOffspringPlus], a
-;>@levels levels = mem[MonsterField(wMonLevel, wBreedSlot1)] + mem[MonsterField(wMonLevel, wBreedSlot2)]
+;>@levels levels = mem[MonsterField(wBreedSlot1, addr(wMonLevel))] + mem[MonsterField(wBreedSlot2, addr(wMonLevel))]
 	ld a, [wBreedSlot1]
 	ld hl, wMonLevel
 	call MonsterField
@@ -1628,7 +1628,7 @@ InitJoinedMonster::
 ;@ Address of a record field (given as its address in record 0) of monster wCurPartyMember.
 ;@ test: skip calls MonsterField
 CurMonField::
-;> return MonsterField(field, wCurPartyMember)
+;> return MonsterField(wCurPartyMember, field)
 	ld a, [wCurPartyMember]
 	call MonsterField
 	ret
@@ -1711,6 +1711,7 @@ AddSkillsByChance::
 ;=@roll
 	jr .add
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $13, $05, $20, $db, $c9
 
 .add
@@ -2286,7 +2287,7 @@ NextGateFloor::
 ;=@wx
 	ld a, b
 	and $0f
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>@wy wWarpY = (mem[boss + 2] << 4) + 8
 	ld a, [hli]
 	swap a
@@ -2297,7 +2298,7 @@ NextGateFloor::
 ;=@wy
 	ld a, b
 	and $0f
-	ld [$c972], a
+	ld [wWarpY + 1], a
 ;> return
 	ret
 
@@ -2370,13 +2371,13 @@ WarpToRandomRoom5A::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2393,13 +2394,13 @@ WarpToRandomRoom5A::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2416,13 +2417,13 @@ WarpToRandomRoom5A::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x0048
 	ld hl, $0048
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2432,7 +2433,7 @@ WarpToRandomRoom5A::
 ;@ first four (RollSpecialItem), then one of the rooms $5A-$5C.
 ;@ test: skip calls Random
 SpecialFloorArenaItems::
-;> fill(wArenaWins, 0xFF, 8)
+;> fill(addr(wArenaWins), 0xFF, 8)
 	ld hl, wArenaWins
 	ld bc, $0008
 	ld a, $ff
@@ -2460,13 +2461,13 @@ SpecialFloorRoom53::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;> wWarpY = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2486,13 +2487,13 @@ SpecialFloorRoom51::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;> wWarpY = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2512,13 +2513,13 @@ SpecialFloorRoom50::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;> wWarpY = 0x0068
 	ld hl, $0068
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2539,65 +2540,65 @@ SpecialFloorTeams::
 ;>@t1a wArenaTeam1[0] = wEncSpecies[0]       # three u16 species
 	ld a, [wEncSpecies]
 	ld l, a
-	ld a, [$da04]
+	ld a, [wEncSpecies + 1]
 	ld h, a
 	ld a, l
 	ld [wArenaTeam1], a
 ;=@t1a
 	ld a, h
-	ld [$d9d2], a
+	ld [wArenaTeam1 + 1], a
 ;>@t1b wArenaTeam1[1] = wEncSpecies[1]
-	ld a, [$da05]
+	ld a, [wEncSpecies + 2]
 	ld l, a
-	ld a, [$da06]
+	ld a, [wEncSpecies + 3]
 	ld h, a
 	ld a, l
-	ld [$d9d3], a
+	ld [wArenaTeam1 + 2], a
 ;=@t1b
 	ld a, h
-	ld [$d9d4], a
+	ld [wArenaTeam1 + 3], a
 ;>@t1c wArenaTeam1[2] = wEncSpecies[2]
-	ld a, [$da07]
+	ld a, [wEncSpecies + 4]
 	ld l, a
-	ld a, [$da08]
+	ld a, [wEncSpecies + 5]
 	ld h, a
 	ld a, l
-	ld [$d9d5], a
+	ld [wArenaTeam1 + 4], a
 ;=@t1c
 	ld a, h
-	ld [$d9d6], a
+	ld [wArenaTeam1 + 5], a
 ;> RollLevelEncounter()
 	call RollLevelEncounter
 ;>@t2a wArenaTeam2[0] = wEncSpecies[0]
 	ld a, [wEncSpecies]
 	ld l, a
-	ld a, [$da04]
+	ld a, [wEncSpecies + 1]
 	ld h, a
 	ld a, l
 	ld [wArenaTeam2], a
 ;=@t2a
 	ld a, h
-	ld [$d9da], a
+	ld [wArenaTeam2 + 1], a
 ;>@t2b wArenaTeam2[1] = wEncSpecies[1]
-	ld a, [$da05]
+	ld a, [wEncSpecies + 2]
 	ld l, a
-	ld a, [$da06]
+	ld a, [wEncSpecies + 3]
 	ld h, a
 	ld a, l
-	ld [$d9db], a
+	ld [wArenaTeam2 + 2], a
 ;=@t2b
 	ld a, h
-	ld [$d9dc], a
+	ld [wArenaTeam2 + 3], a
 ;>@t2c wArenaTeam2[2] = wEncSpecies[2]
-	ld a, [$da07]
+	ld a, [wEncSpecies + 4]
 	ld l, a
-	ld a, [$da08]
+	ld a, [wEncSpecies + 5]
 	ld h, a
 	ld a, l
-	ld [$d9dd], a
+	ld [wArenaTeam2 + 4], a
 ;=@t2c
 	ld a, h
-	ld [$d9de], a
+	ld [wArenaTeam2 + 5], a
 ;> RollLevelEncounter()
 	call RollLevelEncounter
 ;> SetGateTeamGfx(wEncGfx)
@@ -2614,12 +2615,12 @@ SpecialFloorTeams::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;> wWarpY = 0x0068
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 ;> wArenaRound = 0
 	xor a
 	ld [wArenaRound], a
@@ -2653,13 +2654,13 @@ SetGateTeamGfx::
 	push hl
 	ld a, [wEncSpecies]
 	ld l, a
-	ld a, [$da04]
+	ld a, [wEncSpecies + 1]
 	ld h, a
 	ld a, l
 ;=@m0
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;> mem[dest] = MonTemplateGfx()
 	call MonTemplateGfx
 	pop hl
@@ -2675,15 +2676,15 @@ SetGateTeamGfx::
 
 ;>@m1 wNewMonId = wEncSpecies[1]
 	push hl
-	ld a, [$da05]
+	ld a, [wEncSpecies + 2]
 	ld l, a
-	ld a, [$da06]
+	ld a, [wEncSpecies + 3]
 	ld h, a
 	ld a, l
 ;=@m1
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;> mem[dest + 2] = MonTemplateGfx()
 	call MonTemplateGfx
 	pop hl
@@ -2699,15 +2700,15 @@ SetGateTeamGfx::
 
 ;>@m2 wNewMonId = wEncSpecies[2]
 	push hl
-	ld a, [$da07]
+	ld a, [wEncSpecies + 4]
 	ld l, a
-	ld a, [$da08]
+	ld a, [wEncSpecies + 5]
 	ld h, a
 	ld a, l
 ;=@m2
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;> mem[dest + 4] = MonTemplateGfx()
 	call MonTemplateGfx
 	pop hl
@@ -2748,10 +2749,10 @@ RollLevelEncounter::
 	ld a, [wParty]
 	call AddMonLevel
 ;> total, count = AddMonLevel(wParty[1], total, count)
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	call AddMonLevel
 ;> total, count = AddMonLevel(wParty[2], total, count)
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	call AddMonLevel
 ;> level = total // count
 	ld a, c
@@ -2820,7 +2821,7 @@ AddMonLevel::
 	cp $ff
 	ret z
 
-;>@lv level = MonsterField(slot, wMonLevel)
+;>@lv level = MonsterField(slot, addr(wMonLevel))
 	push bc
 	push hl
 	ld hl, wMonLevel
@@ -2850,15 +2851,15 @@ jr_016_5ea7:
 	ld [wEncSpecies], a
 ;>     wEncSpecies[1] = RandomInRange(first, size)
 	call RandomInRange
-	ld [$da05], a
+	ld [wEncSpecies + 2], a
 ;>     wEncSpecies[2] = RandomInRange(first, size)
 	call RandomInRange
-	ld [$da07], a
+	ld [wEncSpecies + 4], a
 ;>     clear_high_bytes(wEncSpecies)   # the species ids are below 256
 	xor a
-	ld [$da04], a
-	ld [$da06], a
-	ld [$da08], a
+	ld [wEncSpecies + 1], a
+	ld [wEncSpecies + 3], a
+	ld [wEncSpecies + 5], a
 	ret
 
 
@@ -2910,13 +2911,13 @@ SpecialFloorRooms57::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x00B8
 	ld hl, $00b8
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2933,13 +2934,13 @@ SpecialFloorRooms57::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x0028
 	ld hl, $0028
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2956,13 +2957,13 @@ SpecialFloorRooms57::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x0028
 	ld hl, $0028
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -2995,13 +2996,13 @@ SpecialFloorRooms54::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x00D8
 	ld hl, $00d8
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -3018,13 +3019,13 @@ SpecialFloorRooms54::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x0168
 	ld hl, $0168
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -3041,13 +3042,13 @@ SpecialFloorRooms54::
 	ld a, l
 	ld [wWarpX], a
 	ld a, h
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>     wWarpY = 0x00B8
 	ld hl, $00b8
 	ld a, l
 	ld [wWarpY], a
 	ld a, h
-	ld [$c972], a
+	ld [wWarpY + 1], a
 	ret
 
 
@@ -3234,10 +3235,10 @@ jr_016_605b:
 	add hl, hl
 	ld a, l
 ;=@g8
-	add $36
+	add LOW(PresetLayouts)
 	ld l, a
 	ld a, h
-	adc $77
+	adc HIGH(PresetLayouts)
 	ld h, a
 ;>@g10     wFloorLayout[0:16] = preset[0:16]
 	ld de, wFloorLayout
@@ -3453,13 +3454,13 @@ jr_016_6171:
 	ld [wStairsScreen], a
 ;>@g22     stairs = (hTestX, hTestY)
 	ldh a, [hTestX]
-	ld [$c0a5], a
-	ldh a, [$ffa6]
+	ld [wLineUpOrder + 2], a
+	ldh a, [hTestX + 1]
 	ld [$c0a6], a
 	ldh a, [hTestY]
 	ld [$c0a7], a
 ;=@g22
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	ld [$c0a8], a
 ;>     if CheckStairsSpace():
 ;>         break
@@ -3472,7 +3473,7 @@ jr_016_6171:
 	and $f0
 	ld l, a
 	ld a, [$c0a8]
-	ld [$c967], a
+	ld [wGoalY + 1], a
 ;=@g23
 	sla l
 	rla
@@ -3481,9 +3482,9 @@ jr_016_6171:
 	ld h, a
 	ld a, [$c0a6]
 ;=@g23
-	ld [$c965], a
+	ld [wGoalX + 1], a
 	ld d, a
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld [wGoalX], a
 	srl d
 	rra
@@ -3500,12 +3501,12 @@ jr_016_6171:
 	ld a, l
 	ld [wStairsOffset], a
 	ld a, h
-	ld [$c963], a
+	ld [wStairsOffset + 1], a
 ;>@g27 wGoalX = stairs.x + ScreenOrigins[wStairsScreen].x    # (bank 0, 4 bytes per screen)
 	ld a, [wStairsScreen]
 	add a
 	add a
-	ld hl, $2da7
+	ld hl, ScreenOrigins
 	add l
 	ld l, a
 ;=@g27
@@ -3517,19 +3518,19 @@ jr_016_6171:
 	ld [wGoalX], a
 ;=@g27
 	inc hl
-	ld a, [$c965]
+	ld a, [wGoalX + 1]
 	adc [hl]
-	ld [$c965], a
+	ld [wGoalX + 1], a
 	inc hl
 ;>@g29 wGoalY = stairs.y + ScreenOrigins[wStairsScreen].y
 	ld a, [wGoalY]
 	add [hl]
 	ld [wGoalY], a
 	inc hl
-	ld a, [$c967]
+	ld a, [wGoalY + 1]
 	adc [hl]
 ;=@g29
-	ld [$c967], a
+	ld [wGoalY + 1], a
 	inc hl
 ;> wFloorTries = 64                     # the floor's special character
 	ld a, $40
@@ -3561,7 +3562,7 @@ jr_016_620a:
 ;>@g30 wFloorNpcX = ScreenOrigins[wMapScreen].x + hTestX
 	add a
 	add a
-	ld hl, $2da7
+	ld hl, ScreenOrigins
 	add l
 	ld l, a
 	ld a, $00
@@ -3571,18 +3572,18 @@ jr_016_620a:
 	ld a, [hli]
 	ld [wFloorNpcX], a
 	ld a, [hli]
-	ld [$c928], a
+	ld [wFloorNpcX + 1], a
 ;>@npcx wFloorNpcY = ScreenOrigins[wMapScreen].y + hTestY
 	ld a, [hli]
 	ld [wFloorNpcY], a
 	ld a, [hli]
-	ld [$c92a], a
+	ld [wFloorNpcY + 1], a
 ;=@npcx
 	ld hl, wFloorNpcX
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa6]
+	ldh a, [hTestX + 1]
 	adc [hl]
 ;=@npcx
 	ld [hl], a
@@ -3591,7 +3592,7 @@ jr_016_620a:
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	adc [hl]
 ;=@npcx
 	ld [hl], a
@@ -3741,7 +3742,7 @@ jr_016_62f1:
 ;>@g36 wWarpX = ScreenOrigins[wMapScreen].x + hTestX
 	add a
 	add a
-	ld hl, $2da7
+	ld hl, ScreenOrigins
 	add l
 	ld l, a
 	ld a, $00
@@ -3751,28 +3752,28 @@ jr_016_62f1:
 	ld a, [hli]
 	ld [wWarpX], a
 	ld a, [hli]
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>@arrxy wWarpY = ScreenOrigins[wMapScreen].y + hTestY
 	ld a, [hli]
 	ld [wWarpY], a
 	ld a, [hli]
-	ld [$c972], a
+	ld [wWarpY + 1], a
 ;=@arrxy
 	ldh a, [hTestX]
-	ld [$c0a1], a
-	ldh a, [$ffa6]
-	ld [$c0a2], a
+	ld [wNumberBackup + 1], a
+	ldh a, [hTestX + 1]
+	ld [wNumberBackup + 2], a
 	ldh a, [hTestY]
 	ld [wLineUpOrder], a
 ;=@arrxy
-	ldh a, [$ffa8]
-	ld [$c0a4], a
+	ldh a, [hTestY + 1]
+	ld [wLineUpOrder + 1], a
 ;=@arrxy
 	ld hl, wWarpX
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa6]
+	ldh a, [hTestX + 1]
 	adc [hl]
 ;=@arrxy
 	ld [hl], a
@@ -3781,7 +3782,7 @@ jr_016_62f1:
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	adc [hl]
 ;=@arrxy
 	ld [hl], a
@@ -3909,7 +3910,7 @@ jr_016_63b6:
 	cp $f0
 	jr z, jr_016_63b6
 
-;> Decompress(GetScreenTilemapRef(), wSavedTilemap)
+;> ref = GetScreenTilemapRef(); Decompress(hi(ref), lo(ref), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
@@ -3917,11 +3918,11 @@ jr_016_63b6:
 ;> hScrollX = 0
 	xor a
 	ldh [hScrollX], a
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;> hScrollY = 0
 	xor a
 	ldh [hScrollY], a
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 
 ;> while True:
 ;>@g44     hTestX = (Random() % 8 + 1) * 16 + 8
@@ -3945,7 +3946,7 @@ jr_016_63e1:
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>@g46     hTestY = (Random() % 6 + 1) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
@@ -3966,7 +3967,7 @@ jr_016_63e1:
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>     GetCollisionAt()
 	call GetCollisionAt
 ;>     if hTestTile >> 2 in (0x0C, 0x0D):
@@ -4096,12 +4097,12 @@ jr_016_6495:
 jr_016_64a8:
 	ldh a, [hTestX]
 	ld [$c0aa], a
-	ldh a, [$ffa6]
+	ldh a, [hTestX + 1]
 	ld [$c0ab], a
 	ldh a, [hTestY]
 	ld [$c0ac], a
 ;=@g54
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	ld [$c0ad], a
 ;>     if not CheckObjectSpace():
 ;>         continue
@@ -4112,12 +4113,12 @@ jr_016_64a8:
 	ld a, [$c0aa]
 	ldh [hTestX], a
 	ld a, [$c0ab]
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>     hTestY = spot.y
 	ld a, [$c0ac]
 	ldh [hTestY], a
 	ld a, [$c0ad]
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>     if IsStairsSpot() or IsArrivalSpot() or IsObjectSpot():
 ;>@k1         continue
 	call IsStairsSpot
@@ -4160,7 +4161,7 @@ jr_016_64a8:
 	ld a, [wMapScreen]
 	add a
 	add a
-	ld hl, $2da7
+	ld hl, ScreenOrigins
 	add l
 	ld l, a
 ;=@x
@@ -4176,13 +4177,13 @@ jr_016_64a8:
 	ld a, [hli]
 	ldh [hFindY], a
 	ld a, [hli]
-	ldh [$ffde], a
+	ldh [hFindY + 1], a
 ;=@x
 	ld hl, hDivisorHigh
 	ldh a, [hTestX]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa6]
+	ldh a, [hTestX + 1]
 	adc [hl]
 ;=@y
 	ld [hl], a
@@ -4191,7 +4192,7 @@ jr_016_64a8:
 	ldh a, [hTestY]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa8]
+	ldh a, [hTestY + 1]
 	adc [hl]
 ;=@y
 	ld [hl], a
@@ -4230,10 +4231,10 @@ jr_016_64a8:
 ;=@g59
 	add hl, de
 	ld a, l
-	add $36
+	add LOW(FloorItemTables)
 	ld l, a
 	ld a, h
-	adc $74
+	adc HIGH(FloorItemTables)
 ;=@g59
 	ld h, a
 	call PickByPercent
@@ -4258,7 +4259,7 @@ jr_016_6564:
 	swap a
 	and $0f
 	ld b, a
-	ldh a, [$ffde]
+	ldh a, [hFindY + 1]
 	swap a
 ;=@g63
 	and $f0
@@ -4303,7 +4304,7 @@ jr_016_658c:
 	cp $f0
 	jr z, jr_016_658c
 
-;>     Decompress(GetScreenTilemapRef(), wSavedTilemap)
+;>     ref = GetScreenTilemapRef(); Decompress(hi(ref), lo(ref), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
@@ -4311,11 +4312,11 @@ jr_016_658c:
 ;>     hScrollX = 0
 	xor a
 	ldh [hScrollX], a
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;>     hScrollY = 0
 	xor a
 	ldh [hScrollY], a
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 ;>     for hNumber in range(64, 0, -1):
 	ld a, $40
 	ldh [hNumber], a
@@ -4341,7 +4342,7 @@ jr_016_65bb:
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>@g66         hTestY = (Random() % 6 + 1) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
@@ -4362,7 +4363,7 @@ jr_016_65bb:
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>         GetCollisionAt()
 	call GetCollisionAt
 ;>         if hTestTile >> 2 in (0x0C, 0x0D, 0x0E):
@@ -4426,7 +4427,7 @@ jr_016_6622:
 	cp $f0
 	jr z, jr_016_6622
 
-;>     Decompress(GetScreenTilemapRef(), wSavedTilemap)
+;>     ref = GetScreenTilemapRef(); Decompress(hi(ref), lo(ref), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
@@ -4434,11 +4435,11 @@ jr_016_6622:
 ;>     hScrollX = 0
 	xor a
 	ldh [hScrollX], a
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;>     hScrollY = 0
 	xor a
 	ldh [hScrollY], a
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 ;>     for hNumber in range(64, 0, -1):
 	ld a, $40
 	ldh [hNumber], a
@@ -4464,7 +4465,7 @@ jr_016_6651:
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>@g72         hTestY = (Random() % 6 + 1) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
@@ -4485,7 +4486,7 @@ jr_016_6651:
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>         GetCollisionAt()
 	call GetCollisionAt
 ;>         if hTestTile >> 2 in (0x0C, 0x0D):
@@ -4545,7 +4546,7 @@ jr_016_66b5:
 	cp $f0
 	jr z, jr_016_66b5
 
-;>     Decompress(GetScreenTilemapRef(), wSavedTilemap)
+;>     ref = GetScreenTilemapRef(); Decompress(hi(ref), lo(ref), wSavedTilemap)
 	ld hl, far_GetScreenTilemapRef
 	rst $10
 	ld hl, wSavedTilemap
@@ -4553,11 +4554,11 @@ jr_016_66b5:
 ;>     hScrollX = 0
 	xor a
 	ldh [hScrollX], a
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;>     hScrollY = 0
 	xor a
 	ldh [hScrollY], a
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 ;>     for hNumber in range(64, 0, -1):
 	ld a, $40
 	ldh [hNumber], a
@@ -4583,7 +4584,7 @@ jr_016_66e4:
 	ld a, l
 	ldh [hTestX], a
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>@g77         hTestY = (Random() % 4 + 2) * 16 + 8
 	call Random
 	ld a, [wRandomHigh]
@@ -4604,7 +4605,7 @@ jr_016_66e4:
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>         GetCollisionAt()
 	call GetCollisionAt
 ;>         if hTestTile >> 2 in (0x0C, 0x0D, 0x0E):
@@ -4776,7 +4777,7 @@ jr_016_67cb:
 	or c
 	ld c, a
 
-;>@k7 right = wFloorLayout[screen + 1] if screen & 3 != 3 else None    # the screen to the right
+;>@k7 right = wFloorLayout[screen + 1] if (screen & 3) != 3 else None    # the screen to the right
 jr_016_67cf:
 	ld a, d
 	and $03
@@ -4846,7 +4847,7 @@ jr_016_6806:
 	cp $ff
 	jr z, jr_016_6826
 
-;>@k1     if entry.exits & closed == 0 and entry.exits & opens == opens:
+;>@k1     if (entry.exits & closed) == 0 and (entry.exits & opens) == opens:
 	and c
 	jr nz, jr_016_681c
 
@@ -4891,7 +4892,7 @@ jr_016_6826:
 	call FillMemory
 ;> for shape, cls in fits:
 ;>@g82     in_class[cls] += 1
-	ld hl, $c501
+	ld hl, wTilemapBuffer + 1
 
 jr_016_6837:
 	ld a, [hli]
@@ -4917,32 +4918,32 @@ jr_016_6837:
 jr_016_684b:
 	xor a
 	ld [wNumberBackup], a
-	ld a, [$c0a1]
+	ld a, [wNumberBackup + 1]
 	ld b, $14
 	call Divide8
 	ld a, b
 ;=@g83
-	ld [$c0a1], a
-	ld a, [$c0a2]
+	ld [wNumberBackup + 1], a
+	ld a, [wNumberBackup + 2]
 	ld b, $28
 	call Divide8
 	ld a, b
-	ld [$c0a2], a
+	ld [wNumberBackup + 2], a
 ;=@g83
 	ld a, [wLineUpOrder]
 	ld b, $3c
 	call Divide8
 	ld a, b
 	ld [wLineUpOrder], a
-	ld a, [$c0a4]
+	ld a, [wLineUpOrder + 1]
 ;=@g83
 	ld b, $50
 	call Divide8
 	ld a, b
-	ld [$c0a4], a
+	ld [wLineUpOrder + 1], a
 ;> total = 0
 ;> for fit in fits:                     # the class byte becomes the running total
-	ld hl, $c501
+	ld hl, wTilemapBuffer + 1
 	ld b, $00
 
 ;>@k4     total += weight[fit.cls]; fit.cls = total
@@ -4985,7 +4986,7 @@ jr_016_689a:
 ;>@ff for fit in fits:
 jr_016_68ad:
 	ld b, a
-	ld hl, $c501
+	ld hl, wTilemapBuffer + 1
 
 ;>     if fit.cls == 0xFF:
 ;>         return 0x0F
@@ -5017,22 +5018,22 @@ jr_016_68c5:
 	ret
 
 
-;@ def IsStairsSpot() -> z
+;@ def IsStairsSpot() -> zero
 ;@ path: field/gatefloor/spots
 ;@ Sets z when the test spot (wMapScreen, hTestX, hTestY) is where the stairs were placed.
 ;@ test: skip returns the z flag
 IsStairsSpot::
 ;> if wMapScreen != wStairsScreen:
-;>     return nz
+;>     return False
 	ld hl, wStairsScreen
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
 ;> if hTestX != stairs.x:
-;>@k1     return nz
+;>@k1     return False
 	ld hl, hTestX
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	cp [hl]
 	ret nz
 
@@ -5042,7 +5043,7 @@ IsStairsSpot::
 	cp [hl]
 	ret nz
 
-;>@k2 return z if hTestY == stairs.y else nz
+;>@k2 return hTestY == stairs.y
 	ld hl, hTestY
 	ld a, [$c0a7]
 	cp [hl]
@@ -5055,32 +5056,32 @@ IsStairsSpot::
 	ret
 
 
-;@ def IsArrivalSpot() -> z
+;@ def IsArrivalSpot() -> zero
 ;@ path: field/gatefloor/spots
 ;@ Sets z when the test spot (wMapScreen, hTestX, hTestY) is where Terry arrives.
 ;@ test: skip returns the z flag
 IsArrivalSpot::
 ;> if wMapScreen != arrival.screen:
-;>     return nz
+;>     return False
 	ld hl, wNumberBackup
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
 ;> if hTestX != arrival.x:
-;>@k1     return nz
+;>@k1     return False
 	ld hl, hTestX
-	ld a, [$c0a1]
+	ld a, [wNumberBackup + 1]
 	cp [hl]
 	ret nz
 
 ;=@k1
 	inc hl
-	ld a, [$c0a2]
+	ld a, [wNumberBackup + 2]
 	cp [hl]
 	ret nz
 
-;>@k2 return z if hTestY == arrival.y else nz
+;>@k2 return hTestY == arrival.y
 	ld hl, hTestY
 	ld a, [wLineUpOrder]
 	cp [hl]
@@ -5088,12 +5089,12 @@ IsArrivalSpot::
 
 ;=@k2
 	inc hl
-	ld a, [$c0a4]
+	ld a, [wLineUpOrder + 1]
 	cp [hl]
 	ret
 
 
-;@ def IsObjectSpot() -> z
+;@ def IsObjectSpot() -> zero
 ;@ path: field/gatefloor/spots
 ;@ Sets z when one of the objects placed so far (wFloorObjects, $FF at the end) is at the test
 ;@ spot (see IsObjectAt).
@@ -5103,7 +5104,7 @@ IsObjectSpot::
 	ld hl, wFloorObjects
 
 ;>     if obj[0] == 0xFF:
-;>         return nz
+;>         return False
 jr_016_6911:
 	ld a, [hl]
 	cp $ff
@@ -5163,13 +5164,13 @@ IsObjectAt::
 	or $08
 	ldh [hDivisorHigh], a
 ;> if screen != wMapScreen:
-;>     return nz
+;>     return False
 	ld hl, $ffda
 	ld a, [wMapScreen]
 	cp [hl]
 	ret nz
 
-;> return z if y == hTestY else nz
+;> return y == hTestY
 	ld hl, hTestY
 	ldh a, [hDivisorHigh]
 	cp [hl]
@@ -5184,8 +5185,8 @@ IsObjectAt::
 ;@ always fit.
 ;@ test: skip calls routines in other banks
 CheckObjectSpace::
-;> if wFloorObjKind & 0xF0 == 0:
-;>     return nz
+;> if (wFloorObjKind & 0xF0) == 0:
+;>     return False
 	ld a, [wFloorObjKind]
 	and $f0
 	jp z, Jump_016_6d93
@@ -5207,7 +5208,7 @@ CheckObjectSpace::
 	ldh [hTestX], a
 ;=@g89
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>@ty     hTestY = spot.y + dy
 	ld a, [$c0ac]
 	ld l, a
@@ -5224,7 +5225,7 @@ CheckObjectSpace::
 	ldh [hTestY], a
 ;=@ty
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>@g93     wSpotAround[i] = IsSpotFree()        # 0 free, 1 blocked
 	call IsSpotFree
 	ld a, b
@@ -5238,7 +5239,7 @@ CheckObjectSpace::
 	ldh [hTestX], a
 ;=@g93
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
@@ -5254,11 +5255,11 @@ CheckObjectSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g93
-	ld [$c0b1], a
+	ld [wSpotAround + 1], a
 ;=@sp
 	ld a, [$c0aa]
 	ld l, a
@@ -5275,7 +5276,7 @@ CheckObjectSpace::
 	ldh [hTestX], a
 ;=@g93
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
@@ -5291,94 +5292,11 @@ CheckObjectSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g93
-	ld [$c0b2], a
-;=@sp
-	ld a, [$c0aa]
-	ld l, a
-	ld a, [$c0ab]
-	ld h, a
-	ld a, l
-	add $f0
-;=@g93
-	ld l, a
-	ld a, h
-	adc $ff
-	ld h, a
-	ld a, l
-	ldh [hTestX], a
-;=@g93
-	ld a, h
-	ldh [$ffa6], a
-	ld a, [$c0ac]
-	ld l, a
-	ld a, [$c0ad]
-	ld h, a
-;=@g93
-	ld a, l
-	ldh [hTestY], a
-	ld a, h
-	ldh [$ffa8], a
-	call IsSpotFree
-	ld a, b
-;=@g93
-	ld [$c0b3], a
-;=@sp
-	ld a, [$c0aa]
-	ld l, a
-	ld a, [$c0ab]
-	ld h, a
-	ld a, l
-	ldh [hTestX], a
-;=@g93
-	ld a, h
-	ldh [$ffa6], a
-	ld a, [$c0ac]
-	ld l, a
-	ld a, [$c0ad]
-	ld h, a
-;=@g93
-	ld a, l
-	ldh [hTestY], a
-	ld a, h
-	ldh [$ffa8], a
-	call IsSpotFree
-	ld a, b
-;=@g93
-	ld [$c0b4], a
-;=@sp
-	ld a, [$c0aa]
-	ld l, a
-	ld a, [$c0ab]
-	ld h, a
-	ld a, l
-	add $10
-;=@g93
-	ld l, a
-	ld a, h
-	adc $00
-	ld h, a
-	ld a, l
-	ldh [hTestX], a
-;=@g93
-	ld a, h
-	ldh [$ffa6], a
-	ld a, [$c0ac]
-	ld l, a
-	ld a, [$c0ad]
-	ld h, a
-;=@g93
-	ld a, l
-	ldh [hTestY], a
-	ld a, h
-	ldh [$ffa8], a
-	call IsSpotFree
-	ld a, b
-;=@g93
-	ld [$c0b5], a
+	ld [wSpotAround + 2], a
 ;=@sp
 	ld a, [$c0aa]
 	ld l, a
@@ -5395,27 +5313,20 @@ CheckObjectSpace::
 	ldh [hTestX], a
 ;=@g93
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
 ;=@g93
 	ld a, l
-	add $10
-	ld l, a
-	ld a, h
-	adc $00
-	ld h, a
-;=@g93
-	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g93
-	ld [$c0b6], a
+	ld [wSpotAround + 3], a
 ;=@sp
 	ld a, [$c0aa]
 	ld l, a
@@ -5425,27 +5336,20 @@ CheckObjectSpace::
 	ldh [hTestX], a
 ;=@g93
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
 	ld h, a
 ;=@g93
 	ld a, l
-	add $10
-	ld l, a
-	ld a, h
-	adc $00
-	ld h, a
-;=@g93
-	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g93
-	ld [$c0b7], a
+	ld [wSpotAround + 4], a
 ;=@sp
 	ld a, [$c0aa]
 	ld l, a
@@ -5462,7 +5366,37 @@ CheckObjectSpace::
 	ldh [hTestX], a
 ;=@g93
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
+	ld a, [$c0ac]
+	ld l, a
+	ld a, [$c0ad]
+	ld h, a
+;=@g93
+	ld a, l
+	ldh [hTestY], a
+	ld a, h
+	ldh [hTestY + 1], a
+	call IsSpotFree
+	ld a, b
+;=@g93
+	ld [wSpotAround + 5], a
+;=@sp
+	ld a, [$c0aa]
+	ld l, a
+	ld a, [$c0ab]
+	ld h, a
+	ld a, l
+	add $f0
+;=@g93
+	ld l, a
+	ld a, h
+	adc $ff
+	ld h, a
+	ld a, l
+	ldh [hTestX], a
+;=@g93
+	ld a, h
+	ldh [hTestX + 1], a
 	ld a, [$c0ac]
 	ld l, a
 	ld a, [$c0ad]
@@ -5478,11 +5412,78 @@ CheckObjectSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g93
-	ld [$c0b8], a
+	ld [wSpotAround + 6], a
+;=@sp
+	ld a, [$c0aa]
+	ld l, a
+	ld a, [$c0ab]
+	ld h, a
+	ld a, l
+	ldh [hTestX], a
+;=@g93
+	ld a, h
+	ldh [hTestX + 1], a
+	ld a, [$c0ac]
+	ld l, a
+	ld a, [$c0ad]
+	ld h, a
+;=@g93
+	ld a, l
+	add $10
+	ld l, a
+	ld a, h
+	adc $00
+	ld h, a
+;=@g93
+	ld a, l
+	ldh [hTestY], a
+	ld a, h
+	ldh [hTestY + 1], a
+	call IsSpotFree
+	ld a, b
+;=@g93
+	ld [wSpotAround + 7], a
+;=@sp
+	ld a, [$c0aa]
+	ld l, a
+	ld a, [$c0ab]
+	ld h, a
+	ld a, l
+	add $10
+;=@g93
+	ld l, a
+	ld a, h
+	adc $00
+	ld h, a
+	ld a, l
+	ldh [hTestX], a
+;=@g93
+	ld a, h
+	ldh [hTestX + 1], a
+	ld a, [$c0ac]
+	ld l, a
+	ld a, [$c0ad]
+	ld h, a
+;=@g93
+	ld a, l
+	add $10
+	ld l, a
+	ld a, h
+	adc $00
+	ld h, a
+;=@g93
+	ld a, l
+	ldh [hTestY], a
+	ld a, h
+	ldh [hTestY + 1], a
+	call IsSpotFree
+	ld a, b
+;=@g93
+	ld [wSpotAround + 8], a
 ;> return CheckSpotAround()              # the checks at the end of CheckStairsSpace
 	jp Jump_016_6c96
 
@@ -5497,7 +5498,7 @@ CheckObjectSpace::
 CheckStairsSpace::
 ;>@sp for i, (dx, dy) in enumerate([(-16, -16), (0, -16), (16, -16), (-16, 0), (0, 0), (16, 0), (-16, 16), (0, 16), (16, 16)]):
 ;>@g127     hTestX = stairs.x + dx
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5512,7 +5513,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g127
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>@ty     hTestY = stairs.y + dy
 	ld a, [$c0a7]
 	ld l, a
@@ -5529,13 +5530,13 @@ CheckStairsSpace::
 	ldh [hTestY], a
 ;=@ty
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>@g131     wSpotAround[i] = IsSpotFree()        # 0 free, 1 blocked
 	call IsSpotFree
 	ld a, b
 	ld [wSpotAround], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5543,7 +5544,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5559,13 +5560,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b1], a
+	ld [wSpotAround + 1], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5580,7 +5581,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5596,13 +5597,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b2], a
+	ld [wSpotAround + 2], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5617,7 +5618,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5626,13 +5627,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b3], a
+	ld [wSpotAround + 3], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5640,7 +5641,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5649,13 +5650,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b4], a
+	ld [wSpotAround + 4], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5670,7 +5671,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5679,13 +5680,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b5], a
+	ld [wSpotAround + 5], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5700,7 +5701,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5716,13 +5717,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b6], a
+	ld [wSpotAround + 6], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5730,7 +5731,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5746,13 +5747,13 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b7], a
+	ld [wSpotAround + 7], a
 ;=@sp
-	ld a, [$c0a5]
+	ld a, [wLineUpOrder + 2]
 	ld l, a
 	ld a, [$c0a6]
 	ld h, a
@@ -5767,7 +5768,7 @@ CheckStairsSpace::
 	ldh [hTestX], a
 ;=@g131
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 	ld a, [$c0a7]
 	ld l, a
 	ld a, [$c0a8]
@@ -5783,35 +5784,35 @@ CheckStairsSpace::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 	call IsSpotFree
 	ld a, b
 ;=@g131
-	ld [$c0b8], a
+	ld [wSpotAround + 8], a
 
 ;> def CheckSpotAround():               # also used by CheckObjectSpace
 ;>@fail     if s[3] and (s[2] or s[5] or s[8]): return z    # s = wSpotAround
 Jump_016_6c96:
-	ld a, [$c0b3]
+	ld a, [wSpotAround + 3]
 	or a
 	jr z, jr_016_6cb1
 
-	ld a, [$c0b2]
+	ld a, [wSpotAround + 2]
 	or a
 	jp nz, Jump_016_6d97
 
 ;=@fail
-	ld a, [$c0b5]
+	ld a, [wSpotAround + 5]
 	or a
 	jp nz, Jump_016_6d97
 
-	ld a, [$c0b8]
+	ld a, [wSpotAround + 8]
 	or a
 	jp nz, Jump_016_6d97
 
 ;>@g166     if s[7] and (s[0] or s[1] or s[2]): return z
 jr_016_6cb1:
-	ld a, [$c0b7]
+	ld a, [wSpotAround + 7]
 	or a
 	jr z, jr_016_6ccc
 
@@ -5820,36 +5821,36 @@ jr_016_6cb1:
 	jp nz, Jump_016_6d97
 
 ;=@g166
-	ld a, [$c0b1]
+	ld a, [wSpotAround + 1]
 	or a
 	jp nz, Jump_016_6d97
 
-	ld a, [$c0b2]
+	ld a, [wSpotAround + 2]
 	or a
 	jp nz, Jump_016_6d97
 
 ;>@g167     if s[1] and (s[6] or s[7] or s[8]): return z
 jr_016_6ccc:
-	ld a, [$c0b1]
+	ld a, [wSpotAround + 1]
 	or a
 	jr z, jr_016_6ce7
 
-	ld a, [$c0b6]
+	ld a, [wSpotAround + 6]
 	or a
 	jp nz, Jump_016_6d97
 
 ;=@g167
-	ld a, [$c0b7]
+	ld a, [wSpotAround + 7]
 	or a
 	jp nz, Jump_016_6d97
 
-	ld a, [$c0b8]
+	ld a, [wSpotAround + 8]
 	or a
 	jp nz, Jump_016_6d97
 
 ;>@g168     if s[5] and (s[0] or s[3] or s[6]): return z
 jr_016_6ce7:
-	ld a, [$c0b5]
+	ld a, [wSpotAround + 5]
 	or a
 	jr z, jr_016_6d02
 
@@ -5858,11 +5859,11 @@ jr_016_6ce7:
 	jp nz, Jump_016_6d97
 
 ;=@g168
-	ld a, [$c0b3]
+	ld a, [wSpotAround + 3]
 	or a
 	jp nz, Jump_016_6d97
 
-	ld a, [$c0b6]
+	ld a, [wSpotAround + 6]
 	or a
 	jp nz, Jump_016_6d97
 
@@ -5872,37 +5873,37 @@ jr_016_6d02:
 	or a
 	jr z, jr_016_6d27
 
-	ld a, [$c0b1]
+	ld a, [wSpotAround + 1]
 	or a
 	jr nz, jr_016_6d15
 
 ;=@g169
-	ld a, [$c0b2]
+	ld a, [wSpotAround + 2]
 	or a
 	jp nz, Jump_016_6d97
 
 jr_016_6d15:
-	ld a, [$c0b3]
+	ld a, [wSpotAround + 3]
 	or a
 	jr nz, jr_016_6d21
 
 ;=@g169
-	ld a, [$c0b6]
+	ld a, [wSpotAround + 6]
 	or a
 	jr nz, jr_016_6d97
 
 jr_016_6d21:
-	ld a, [$c0b8]
+	ld a, [wSpotAround + 8]
 	or a
 	jr nz, jr_016_6d97
 
 ;>@g171     if s[2] and ((not s[1] and s[0]) or (not s[5] and s[8]) or s[6]): return z
 jr_016_6d27:
-	ld a, [$c0b2]
+	ld a, [wSpotAround + 2]
 	or a
 	jr z, jr_016_6d4b
 
-	ld a, [$c0b1]
+	ld a, [wSpotAround + 1]
 	or a
 	jr nz, jr_016_6d39
 
@@ -5912,27 +5913,27 @@ jr_016_6d27:
 	jr nz, jr_016_6d97
 
 jr_016_6d39:
-	ld a, [$c0b5]
+	ld a, [wSpotAround + 5]
 	or a
 	jr nz, jr_016_6d45
 
 ;=@g171
-	ld a, [$c0b8]
+	ld a, [wSpotAround + 8]
 	or a
 	jr nz, jr_016_6d97
 
 jr_016_6d45:
-	ld a, [$c0b6]
+	ld a, [wSpotAround + 6]
 	or a
 	jr nz, jr_016_6d97
 
 ;>@g173     if s[6] and ((not s[3] and s[0]) or (not s[7] and s[8]) or s[2]): return z
 jr_016_6d4b:
-	ld a, [$c0b6]
+	ld a, [wSpotAround + 6]
 	or a
 	jr z, jr_016_6d6f
 
-	ld a, [$c0b3]
+	ld a, [wSpotAround + 3]
 	or a
 	jr nz, jr_016_6d5d
 
@@ -5942,42 +5943,42 @@ jr_016_6d4b:
 	jr nz, jr_016_6d97
 
 jr_016_6d5d:
-	ld a, [$c0b7]
+	ld a, [wSpotAround + 7]
 	or a
 	jr nz, jr_016_6d69
 
 ;=@g173
-	ld a, [$c0b8]
+	ld a, [wSpotAround + 8]
 	or a
 	jr nz, jr_016_6d97
 
 jr_016_6d69:
-	ld a, [$c0b2]
+	ld a, [wSpotAround + 2]
 	or a
 	jr nz, jr_016_6d97
 
 ;>@g175     if s[8] and ((not s[5] and s[2]) or (not s[7] and s[6]) or s[0]): return z
 jr_016_6d6f:
-	ld a, [$c0b8]
+	ld a, [wSpotAround + 8]
 	or a
 	jr z, jr_016_6d93
 
-	ld a, [$c0b5]
+	ld a, [wSpotAround + 5]
 	or a
 	jr nz, jr_016_6d81
 
 ;=@g175
-	ld a, [$c0b2]
+	ld a, [wSpotAround + 2]
 	or a
 	jr nz, jr_016_6d97
 
 jr_016_6d81:
-	ld a, [$c0b7]
+	ld a, [wSpotAround + 7]
 	or a
 	jr nz, jr_016_6d8d
 
 ;=@g175
-	ld a, [$c0b6]
+	ld a, [wSpotAround + 6]
 	or a
 	jr nz, jr_016_6d97
 
@@ -6036,7 +6037,7 @@ IsSpotFree::
 ;@ test: skip calls Random
 RollFloorItems::
 ;> for i in range(8):
-;>@g178     wArenaWins[i] = RollFloorItem()
+;>@g178     mem[addr(wArenaWins) + i] = RollFloorItem()
 	ld hl, wArenaWins
 	ld b, $08
 
@@ -6074,10 +6075,10 @@ RollFloorItem::
 	add hl, de
 	ld a, l
 ;=@g179
-	add $36
+	add LOW(FloorItemTables)
 	ld l, a
 	ld a, h
-	adc $74
+	adc HIGH(FloorItemTables)
 	ld h, a
 	call PickByPercent
 ;=@g179
@@ -6101,7 +6102,7 @@ RollSpecialItem::
 	ld a, $00
 	adc h
 	ld h, a
-;>@g183 wArenaWins[slot] = SpecialItemTable[Random() & 15]
+;>@g183 mem[addr(wArenaWins) + slot] = SpecialItemTable[Random() & 15]
 	ld de, SpecialItemTable
 	push de
 	push hl
@@ -6167,7 +6168,7 @@ jr_016_6e32:
 	ld a, [hli]
 	ld [wEncounterCounter], a
 	ld a, [hli]
-	ld [$ca3a], a
+	ld [wEncounterCounter + 1], a
 ;=@g187
 	ret
 
@@ -6310,7 +6311,7 @@ jr_016_6f62:
 	ld d, h
 	ld a, [wEncounterCounter]
 	ld l, a
-	ld a, [$ca3a]
+	ld a, [wEncounterCounter + 1]
 	ld h, a
 ;=@g194
 	ld a, l
@@ -6343,7 +6344,7 @@ jr_016_6fa2:
 	ld a, l
 	ld [wEncounterCounter], a
 	ld a, h
-	ld [$ca3a], a
+	ld [wEncounterCounter + 1], a
 	ret
 
 

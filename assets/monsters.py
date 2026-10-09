@@ -73,8 +73,9 @@ class Rom:
         return (self.lin(nxt) - self.lin(label)) // 2
 
     def picture(self, species):
-        """6 x 6 tiles, row by row: graphics reference from the home-bank table read by LoadMonsterPicture."""
-        g = self.r[0x2B9F + 2 * species] | self.r[0x2BA0 + 2 * species] << 8
+        """6 x 6 tiles, row by row: graphics reference from MonsterPicRefs (read by LoadMonsterPicture)."""
+        a = self.lin('MonsterPicRefs') + 2 * species
+        g = self.r[a] | self.r[a + 1] << 8
         data = self.decompress(self.far_entry(g >> 8, g & 0xFF))
         img = [bytearray(48) for _ in range(48)]
         for t in range(36):
@@ -86,8 +87,8 @@ class Rom:
         return img, g
 
     def palette(self, species):
-        """The picture's four colours: 8 bytes per species from the table LoadMonPicPalette reads (bank $17)."""
-        a = 0x17 * 0x4000 + 0x62FD - 0x4000 + 8 * species
+        """The picture's four colours: 8 bytes per species from MonPicPalettes (read by LoadMonPicPalette)."""
+        a = self.lin('MonPicPalettes') + 8 * species
         out = []
         for i in range(4):
             w = self.r[a + 2 * i] | self.r[a + 2 * i + 1] << 8

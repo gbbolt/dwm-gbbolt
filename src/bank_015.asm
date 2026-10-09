@@ -30,13 +30,13 @@ TitleModeInit::
 	ld a, l
 	ld [wFieldStackPtr], a
 	ld a, h
-	ld [$da7c], a
-;> fill(wMenuChoice, 0, 8)               # menu cursors
+	ld [wFieldStackPtr + 1], a
+;> fill(addr(wMenuChoice), 0, 8)               # menu cursors
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
-;> fill(wTextTiles, 0, 0x12)             # text box set-up
+;> fill(addr(wTextTiles), 0, 0x12)             # text box set-up
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
@@ -46,8 +46,8 @@ TitleModeInit::
 	ld a, l
 	ld [wTextBoxMap], a
 	ld a, h
-	ld [$c83f], a
-;> fill(wTitleStep, 0, 8)
+	ld [wTextBoxMap + 1], a
+;> fill(addr(wTitleStep), 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -102,7 +102,7 @@ TitleInitOpening::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 ;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
@@ -156,12 +156,12 @@ TitleInitMenu::
 ;> StartFade(0xFC)
 	ld a, $fc
 	call StartFade
-;> fill(hPlayerGfx, 0, 0x21)              # HRAM part of the game state
+;> fill(addr(hPlayerGfx), 0, 0x21)              # HRAM part of the game state
 	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
 	call FillMemory
-;> fill(wGameStarted, 0, 0x1100)          # WRAM part of the game state
+;> fill(addr(wGameStarted), 0, 0x1100)          # WRAM part of the game state
 	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
@@ -171,32 +171,32 @@ TitleInitMenu::
 	ld [wMessageSpeed], a
 ;> CheckSaveChecksum()
 	call CheckSaveChecksum
-;> Decompress(0x2E1E, 0x9000)            # font
+;> Decompress(0x2E, 0x1E, 0x9000)            # font
 	ld de, $2e1e
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x2E1F, 0x8800)
+;> Decompress(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call Decompress
-;> Decompress(0x2E20, 0x8A00)
+;> Decompress(0x2E, 0x20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call Decompress
-;> Decompress(0x2E00, 0x8D00)            # window frame tiles
+;> Decompress(0x2E, 0x00, 0x8D00)            # window frame tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
-;> SetUpTextBox(0x8B00, 0x1202)          # 18 letters, 2 lines
+;> SetUpTextBox(0x8B00, 0x02, 0x12)          # 18 letters, 2 lines
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wMenuChoice, 0, 8)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wTitleStep, 0, 8)
+;> fill(addr(wTitleStep), 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -206,7 +206,7 @@ TitleInitMenu::
 	ld a, l
 	ld [wTitleBgMap], a
 	ld a, h
-	ld [$c8d7], a
+	ld [wTitleBgMap + 1], a
 ;> ClearBgMap_15()
 	call ClearBgMap_15
 ;> QueueMusic(0x24)                      # title menu music
@@ -225,7 +225,7 @@ TitleInitMenu::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 ;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
@@ -275,32 +275,32 @@ TitleInitVSLink::
 	ld [wMessageSpeed], a
 ;> CheckSaveChecksum()
 	call CheckSaveChecksum
-;> Decompress(0x2E1E, 0x9000)
+;> Decompress(0x2E, 0x1E, 0x9000)
 	ld de, $2e1e
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x2E1F, 0x8800)
+;> Decompress(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call Decompress
-;> Decompress(0x2E20, 0x8A00)
+;> Decompress(0x2E, 0x20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call Decompress
-;> Decompress(0x2E00, 0x8D00)
+;> Decompress(0x2E, 0x00, 0x8D00)
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
-;> SetUpTextBox(0x8B00, 0x1202)
+;> SetUpTextBox(0x8B00, 0x02, 0x12)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wMenuChoice, 0, 8)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wTitleStep, 0, 8)
+;> fill(addr(wTitleStep), 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -310,7 +310,7 @@ TitleInitVSLink::
 	ld a, l
 	ld [wTitleBgMap], a
 	ld a, h
-	ld [$c8d7], a
+	ld [wTitleBgMap + 1], a
 ;> ClearBgMap_15()
 	call ClearBgMap_15
 ;> fill(wSceneObjects, 0xFF, 0x17)
@@ -334,7 +334,7 @@ TitleInitVSLink::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 ;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
@@ -374,32 +374,32 @@ TitleInitBreedLink::
 	ld [wMessageSpeed], a
 ;> CheckSaveChecksum()
 	call CheckSaveChecksum
-;> Decompress(0x2E1E, 0x9000)
+;> Decompress(0x2E, 0x1E, 0x9000)
 	ld de, $2e1e
 	ld hl, $9000
 	call Decompress
-;> Decompress(0x2E1F, 0x8800)
+;> Decompress(0x2E, 0x1F, 0x8800)
 	ld de, $2e1f
 	ld hl, $8800
 	call Decompress
-;> Decompress(0x2E20, 0x8A00)
+;> Decompress(0x2E, 0x20, 0x8A00)
 	ld de, $2e20
 	ld hl, $8a00
 	call Decompress
-;> Decompress(0x2E00, 0x8D00)
+;> Decompress(0x2E, 0x00, 0x8D00)
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
-;> SetUpTextBox(0x8B00, 0x1202)
+;> SetUpTextBox(0x8B00, 0x02, 0x12)
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
-;> fill(wMenuChoice, 0, 8)
+;> fill(addr(wMenuChoice), 0, 8)
 	ld hl, wMenuChoice
 	ld bc, $0008
 	ld a, $00
 	call FillMemory
-;> fill(wTitleStep, 0, 8)
+;> fill(addr(wTitleStep), 0, 8)
 	xor a
 	ld hl, wTitleStep
 	ld bc, $0008
@@ -409,7 +409,7 @@ TitleInitBreedLink::
 	ld a, l
 	ld [wTitleBgMap], a
 	ld a, h
-	ld [$c8d7], a
+	ld [wTitleBgMap + 1], a
 ;> ClearBgMap_15()
 	call ClearBgMap_15
 ;> QueueMusic(0x24)
@@ -428,7 +428,7 @@ TitleInitBreedLink::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 ;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
@@ -474,8 +474,8 @@ TitleUpdateOpening::
 ;> SerialSendSlave(0xF4)
 	ld a, $f4
 	call SerialSendSlave
-;> far_call(0x5F, 0x03)                 # one frame of the opening
-	ld hl, $5f03
+;> OpeningUpdate()                 # one frame of the opening
+	ld hl, far_OpeningUpdate
 	rst $10
 	ret
 
@@ -511,7 +511,7 @@ TitleUpdateMenu::
 	call SerialSendMaster
 
 .wait
-;>         while wSerialLock & 0x03 != 0x03:
+;>         while (wSerialLock & 0x03) != 0x03:
 ;>             wait_serial()
 	ld a, [wSerialLock]
 	and $03
@@ -661,12 +661,12 @@ TitleMenuChoose::
 ;> SerialSendSlave(mem[p])
 	ld a, [de]
 	call SerialSendSlave
-;> if wJoyPressed & A_BUTTON:
+;> if wJoyPressed & 0x01:   # A
 	ld a, [wJoyPressed]
 	bit 0, a
 	jp z, .done
 
-;>     if wMenuChoice & 0x7F not in (2, 3):
+;>     if (wMenuChoice & 0x7F) not in (2, 3):
 	ld a, [wMenuChoice]
 	and $7f
 	cp $02
@@ -762,7 +762,7 @@ TitleMenuStartField::
 	ld [wGameMode], a
 	ld a, $00
 	ld [wGameModeStep], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [wOpeningScene], a
 	ld a, $00
@@ -790,8 +790,8 @@ TitleMenuLinkMismatch::
 ;>     PrintSystemText(0x0270)
 	ld hl, $0270
 	call PrintSystemText
-;>     DrawWindowLayout_15(0x2E07)      # the text box frame
-	ld de, $2e07
+;>     DrawWindowLayout_15(MessageWindowLayout)      # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;>     CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -806,8 +806,8 @@ TitleMenuLinkMismatch::
 .notSGB
 	ld hl, $021b
 	call PrintSystemText
-;>     DrawWindowLayout_15(0x2E07)
-	ld de, $2e07
+;>     DrawWindowLayout_15(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;>     CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -947,7 +947,7 @@ ContinueDrawSave::
 	or a
 	jr z, .empty0
 
-;>     level = GetPartyMonsterByte(wMonLevel, 0)
+;>     level = GetPartyMonsterByte(0, addr(wMonLevel))
 	ld hl, wMonLevel
 	ld a, $00
 	call GetPartyMonsterByte
@@ -962,7 +962,7 @@ ContinueDrawSave::
 	cp $01
 	jr z, .empty1
 
-;>         level = GetPartyMonsterByte(wMonLevel, 1)
+;>         level = GetPartyMonsterByte(1, addr(wMonLevel))
 	ld hl, wMonLevel
 	ld a, $01
 	call GetPartyMonsterByte
@@ -977,7 +977,7 @@ ContinueDrawSave::
 	cp $02
 	jr z, .empty2
 
-;>             level = GetPartyMonsterByte(wMonLevel, 2)
+;>             level = GetPartyMonsterByte(2, addr(wMonLevel))
 	ld hl, wMonLevel
 	ld a, $02
 	call GetPartyMonsterByte
@@ -1056,7 +1056,7 @@ DrawEmptyLevelSlot::
 ;@ test: skip writes VRAM
 DrawSavePartyNames::
 ;>@nm for i in range(3):
-;>@nm     name = PartyMonsterField(wMonName, i)
+;>@nm     name = PartyMonsterField(i, wMonName)
 	ld hl, wMonName
 	ld a, $00
 	call PartyMonsterField
@@ -1124,7 +1124,7 @@ DrawSavePartyName::
 ;@ menu cursor.
 ;@ test: skip names the joypad buttons
 ContinueConfirm::
-;> if wJoyPressed & A_BUTTON:
+;> if wJoyPressed & 0x01:   # A
 	ld a, [wJoyPressed]
 	bit 0, a
 	jr z, .notA
@@ -1137,7 +1137,7 @@ ContinueConfirm::
 	inc [hl]
 	jr .done
 
-;> elif wJoyPressed & B_BUTTON:
+;> elif wJoyPressed & 0x02:   # B
 .notA
 	ld a, [wJoyPressed]
 	bit 1, a
@@ -1178,12 +1178,12 @@ TitleNewGameSteps::
 ;@ with an empty party; the next title step starts the field.
 ;@ test: skip clears $1100 bytes of WRAM, the stack included
 NewGameSetup::
-;> fill(hPlayerGfx, 0, 0x21)
+;> fill(addr(hPlayerGfx), 0, 0x21)
 	ld hl, hPlayerGfx
 	ld bc, $0021
 	xor a
 	call FillMemory
-;> fill(wGameStarted, 0, 0x1100)
+;> fill(addr(wGameStarted), 0, 0x1100)
 	ld hl, wGameStarted
 	ld bc, $1100
 	xor a
@@ -1218,10 +1218,10 @@ NewGameSetup::
 	ld [wParty], a
 ;> wParty[1] = 0xFF
 	ld a, $ff
-	ld [$ca8f], a
+	ld [wParty + 1], a
 ;> wParty[2] = 0xFF
 	ld a, $ff
-	ld [$ca90], a
+	ld [wParty + 2], a
 	ret
 
 
@@ -1597,8 +1597,8 @@ VSDrawTeamWindows::
 ;> DrawWindowLayout_15(VSTeamWindow)
 	ld de, VSTeamWindow
 	call DrawWindowLayout_15
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> MenuResetBlink_15()
 	call MenuResetBlink_15
@@ -1651,7 +1651,7 @@ VSDrawListName::
 	cp $ff
 	jr z, .blank
 
-;>@name     DrawNameTiles_15(MonsterField(wMonName, mem[entry]), tiles)
+;>@name     DrawNameTiles_15(MonsterField(mem[entry], wMonName), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
@@ -1732,7 +1732,7 @@ DrawCursorMonName::
 	cp $ff
 	ret z
 
-;>@name DrawNameTiles_15(MonsterField(wMonName, slot), 0x9000)
+;>@name DrawNameTiles_15(MonsterField(slot, wMonName), 0x9000)
 	push af
 	ld hl, wMonName
 	call MonsterField
@@ -1741,7 +1741,7 @@ DrawCursorMonName::
 ;=@name
 	ld hl, $9000
 	call DrawNameTiles_15
-;> sex = mem[MonsterField(wMonGender, slot)] & 1
+;> sex = mem[MonsterField(slot, addr(wMonGender))] & 1
 	pop af
 	ld hl, wMonGender
 	call MonsterField
@@ -1830,7 +1830,7 @@ DrawCursorMonLevel::
 	cp $ff
 	ret z
 
-;> level = mem[MonsterField(wMonLevel, slot)]
+;> level = mem[MonsterField(slot, addr(wMonLevel))]
 	push af
 	ld hl, wMonLevel
 	call MonsterField
@@ -1850,7 +1850,7 @@ DrawCursorMonLevel::
 	ld [hld], a
 ;> PrintTwoDigits_15(level, p + 1)
 	call PrintTwoDigits_15
-;> owner = mem[MonsterField(wMonsters, slot)]
+;> owner = mem[MonsterField(slot, wMonsters)]
 	pop af
 	push af
 	ld hl, wMonsters
@@ -1954,7 +1954,7 @@ VSTeamListInput::
 	call CopyTilemapBufferToVram_15
 
 .samePage
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -2015,7 +2015,7 @@ VSTeamListInput::
 	ld [wLinkSendByte], a
 	jr .done
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -2131,7 +2131,7 @@ VSTeamChoiceInput::
 	ld hl, wConfirmChoice
 	ld b, $02
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -2157,7 +2157,7 @@ VSTeamChoiceInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -2352,8 +2352,8 @@ VSTeamStatusDone::
 ;@ VS mode step 8: asks "Choose another monster?".
 ;@ test: skip prints text
 VSAskAnother::
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -2423,7 +2423,7 @@ VSAnotherInput::
 	ld hl, wConfirmChoice2
 	ld b, $02
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -2435,7 +2435,7 @@ VSAnotherInput::
 	jp Jump_015_4be2
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -2487,8 +2487,8 @@ VSAnotherCursor::
 ;@ VS mode step 11: asks "Submit a prize?" (the winner of the battle takes the prize monster).
 ;@ test: skip prints text
 VSAskPrize::
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -2558,14 +2558,14 @@ VSPrizeYesNoInput::
 	ld hl, wMenuChoice3
 	ld b, $02
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
 
-;>@none     DrawWindowLayout_15(0x2E07)
+;>@none     DrawWindowLayout_15(MessageWindowLayout)
 .none
-	ld de, $2e07
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;>     CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -2584,7 +2584,7 @@ VSPrizeYesNoInput::
 	jp Jump_015_4c8d
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -2649,8 +2649,8 @@ VSStartPrizeList::
 	or a
 	ret nz
 
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -2831,8 +2831,8 @@ VSDrawPrizeWindows::
 ;> DrawWindowLayout_15(VSTeamWindow)
 	ld de, VSTeamWindow
 	call DrawWindowLayout_15
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> MenuResetBlink_15()
 	call MenuResetBlink_15
@@ -2885,7 +2885,7 @@ VSDrawPrizeListName::
 	cp $ff
 	jr z, .blank
 
-;>@name     DrawNameTiles_15(MonsterField(wMonName, mem[entry]), tiles)
+;>@name     DrawNameTiles_15(MonsterField(mem[entry], wMonName), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
@@ -3004,7 +3004,7 @@ VSPrizeListInput::
 	call CopyTilemapBufferToVram_15
 
 .samePage
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -3014,7 +3014,7 @@ VSPrizeListInput::
 	ld [wTitleStep], a
 	jr .done
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -3129,7 +3129,7 @@ VSPrizeChoiceInput::
 	ld hl, wConfirmChoice
 	ld b, $02
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -3155,7 +3155,7 @@ VSPrizeChoiceInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -3191,7 +3191,7 @@ VSPrizeChoiceInput::
 ;>         slot = wCurPartyMember
 	ld a, [wCurPartyMember]
 	ld b, a
-;>@party         if IsInStashedParty(slot) or mem[MonsterField(wMonsters, slot)] == 2:
+;>@party         if IsInStashedParty(slot) or mem[MonsterField(slot, wMonsters)] == 2:
 	call IsInStashedParty
 	jr nz, .inParty
 
@@ -3397,7 +3397,7 @@ VSSendPrize::
 ;> wLinkPrizeSlot = wCurPartyMember
 	ld a, [wCurPartyMember]
 	ld [wLinkPrizeSlot], a
-;> wLinkSendPtr = MonsterField(wMonsters, wCurPartyMember)
+;> wLinkSendPtr = MonsterField(wCurPartyMember, wMonsters)
 	ld hl, wMonsters
 	call MonsterField
 	ld a, l
@@ -3540,7 +3540,7 @@ VSReadyInput::
 	ld hl, wConfirmChoice2
 	ld b, $03
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -3558,7 +3558,7 @@ VSReadyInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -3758,7 +3758,7 @@ VSBackToTitle::
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -3847,11 +3847,11 @@ VSSendTeams::
 	call CopyTeamRecord
 ;> CopyTeamRecord(wVSTeam[1], wSavedTilemap + 0x95)
 	ld a, [wVSTeam + 1]
-	ld de, $c395
+	ld de, wSavedTilemap + 149
 	call CopyTeamRecord
 ;> CopyTeamRecord(wVSTeam[2], wSavedTilemap + 0x12A)
 	ld a, [wVSTeam + 2]
-	ld de, $c42a
+	ld de, wSavedTilemap + 298
 	call CopyTeamRecord
 ;>@copy copy(wMonsters, wSavedTilemap, 3 * 0x95)
 	ld hl, wSavedTilemap
@@ -3964,7 +3964,7 @@ VSSendTeams::
 ;@ record whose first byte is 0 (no monster).
 ;@ test: skip copies through MonsterField
 CopyTeamRecord::
-;> if slot & 0x7F == 0x7F:
+;> if (slot & 0x7F) == 0x7F:
 	and $7f
 	cp $7f
 	jr nz, .copy
@@ -3976,7 +3976,7 @@ CopyTeamRecord::
 
 
 ;> else:
-;>@copy     copy(dest, MonsterField(wMonsters, slot), 0x95)
+;>@copy     copy(dest, MonsterField(slot, wMonsters), 0x95)
 .copy
 	push de
 	ld hl, wMonsters
@@ -4109,7 +4109,7 @@ VSStartBattle::
 	ld [hli], a
 	ld a, $00
 	ld [hli], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -4217,8 +4217,8 @@ VSCheckPartnerCancel::
 ;> PrintSystemText(0x022E)             # "Battle refused."
 	ld hl, $022e
 	call PrintSystemText
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -4245,7 +4245,7 @@ VSDrawStatusMonster::
 	cp $05
 	ret nz
 
-;> species = mem[MonsterField(wMonRecSpecies, wCurPartyMember)]
+;> species = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld hl, wMonRecSpecies
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -4301,7 +4301,7 @@ VSDrawStatusParents::
 	cp $09
 	ret nz
 
-;> species = mem[MonsterField(wMonParent1, wCurPartyMember)]
+;> species = mem[MonsterField(wCurPartyMember, addr(wMonParent1))]
 	ld hl, wMonParent1
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -4347,7 +4347,7 @@ VSDrawStatusParents::
 ;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-;> species = mem[MonsterField(wMonParent2, wCurPartyMember)]
+;> species = mem[MonsterField(wCurPartyMember, addr(wMonParent2))]
 	ld hl, wMonParent2
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -4640,8 +4640,8 @@ BreedDrawWindows::
 ;> DrawWindowLayout_15(TitleListWindow)
 	ld de, TitleListWindow
 	call DrawWindowLayout_15
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> MenuResetBlink_15()
 	call MenuResetBlink_15
@@ -4694,7 +4694,7 @@ BreedDrawListName::
 	cp $ff
 	jr z, .blank
 
-;>@name     DrawNameTiles_15(MonsterField(wMonName, mem[entry]), tiles)
+;>@name     DrawNameTiles_15(MonsterField(mem[entry], wMonName), tiles)
 	ld a, [de]
 	ld hl, wMonName
 	call MonsterField
@@ -4813,7 +4813,7 @@ BreedListInput::
 	call CopyTilemapBufferToVram_15
 
 .samePage
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jp z, .notB
@@ -4829,7 +4829,7 @@ BreedListInput::
 	ld [wLinkSendByte], a
 	jr .done
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -4944,7 +4944,7 @@ BreedChoiceInput::
 	ld hl, wConfirmChoice
 	ld b, $02
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -4970,7 +4970,7 @@ BreedChoiceInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -4994,7 +4994,7 @@ BreedChoiceInput::
 	jp .done
 
 
-;>@party     elif IsInStashedParty(wCurPartyMember) or mem[MonsterField(wMonsters, wCurPartyMember)] == 2:
+;>@party     elif IsInStashedParty(wCurPartyMember) or mem[MonsterField(wCurPartyMember, wMonsters)] == 2:
 .ok
 	ld a, [wCurPartyMember]
 	ld b, a
@@ -5018,7 +5018,7 @@ BreedChoiceInput::
 	ld [wTitleStep], a
 	jr .done
 
-;>     elif mem[MonsterField(wMonLevel, wCurPartyMember)] < 10:
+;>     elif mem[MonsterField(wCurPartyMember, addr(wMonLevel))] < 10:
 .checkLevel
 	ld a, [wCurPartyMember]
 	ld hl, wMonLevel
@@ -5158,7 +5158,7 @@ BreedSendMonster::
 	ld [wLinkSendLength], a
 	xor a
 	ld [wLinkSendLength + 1], a
-;>@send wLinkSendPtr = MonsterField(wMonsters, wCurPartyMember)
+;>@send wLinkSendPtr = MonsterField(wCurPartyMember, wMonsters)
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
@@ -5198,7 +5198,7 @@ BreedCheckPair::
 ;> wLinkNoEnd = 0
 	xor a
 	ld [wLinkNoEnd], a
-;>@sex if mem[MonsterField(wMonGender, wCurPartyMember)] & 1 == wBreedParent2[0x0B] & 1:
+;>@sex if (mem[MonsterField(wCurPartyMember, addr(wMonGender))] & 1) == (wBreedParent2[0x0B] & 1):
 	ld a, [wCurPartyMember]
 	ld hl, wMonGender
 	call MonsterField
@@ -5361,7 +5361,7 @@ BreedMenuInput::
 	ld hl, wConfirmChoice2
 	ld b, $03
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -5379,7 +5379,7 @@ BreedMenuInput::
 	jp Jump_015_58e0
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -5599,7 +5599,7 @@ BreedBackToTitle::
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -5724,7 +5724,7 @@ BreedSaveInput::
 	ld hl, wMenuChoice3
 	ld b, $02
 	call MoveMenuCursor_15
-;> if wJoyPressed & B_BUTTON:
+;> if wJoyPressed & 0x02:   # B
 	ld a, [wJoyPressed]
 	bit 1, a
 	jr z, .notB
@@ -5745,7 +5745,7 @@ BreedSaveInput::
 	jp .done
 
 
-;> elif wJoyPressed & A_BUTTON:
+;> elif wJoyPressed & 0x01:   # A
 .notB
 	ld a, [wJoyPressed]
 	bit 0, a
@@ -5884,7 +5884,7 @@ BreedMakeOffspring::
 	ld [hli], a
 	ld a, $01
 	ld [hli], a
-;> mem[0xC88C] = 0; mem[0xC88D] = 0
+;> wOpeningScene = 0; wOpeningLogo = 0
 	ld a, $00
 	ld [hli], a
 	ld [hl], $00
@@ -5931,7 +5931,7 @@ BreedMakeOffspring::
 	ld h, a
 	ld a, [hl]
 	ld [wCurPartyMember], a
-;>@copy copy(wBreedParent1, MonsterField(wMonsters, wCurPartyMember), 0x95)
+;>@copy copy(wBreedParent1, MonsterField(wCurPartyMember, wMonsters), 0x95)
 	ld hl, wMonsters
 	call MonsterField
 	ld de, wBreedParent1
@@ -5945,7 +5945,7 @@ BreedMakeOffspring::
 	dec b
 	jr nz, .copy
 
-;> wEncGfx[0] = mem[MonsterField(wMonRecSpecies, wCurPartyMember)] + 0x10
+;> wEncGfx[0] = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))] + 0x10
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5955,12 +5955,12 @@ BreedMakeOffspring::
 ;> wEncGfx[1] = 1
 	ld a, $01
 	ld [wEncGfx + 1], a
-;> mem[MonsterField(wMonsters, wCurPartyMember)] = 0      # the parent leaves the farm
+;> mem[MonsterField(wCurPartyMember, wMonsters)] = 0      # the parent leaves the farm
 	ld a, [wCurPartyMember]
 	ld hl, wMonsters
 	call MonsterField
 	ld [hl], $00
-;> wEncGfx[2] = mem[MonsterField(wMonRecSpecies, 0x15)] + 0x10   # the partner's monster
+;> wEncGfx[2] = mem[MonsterField(0x15, addr(wMonRecSpecies))] + 0x10   # the partner's monster
 	ld a, $15
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -5986,7 +5986,7 @@ BreedMakeOffspring::
 	ld de, sLibraryFlags
 	ld b, $20
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 
 .saveFlags
 ;> copy(sLibraryFlags, wLibraryFlags, 0x20)
@@ -5998,12 +5998,12 @@ BreedMakeOffspring::
 
 ;> mem[0x0100] = 0x00                   # battery RAM off
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> SaveMonsters()
 	call SaveMonsters
 ;> enable_interrupts()
 	ei
-;>@n0 CopyName(MonsterField(wMonName, 0x14), wTextArg0)     # this side's parent
+;>@n0 CopyName(MonsterField(0x14, wMonName), wTextArg0)     # this side's parent
 	ld a, $14
 	ld hl, wMonName
 	call MonsterField
@@ -6012,7 +6012,7 @@ BreedMakeOffspring::
 ;=@n0
 	ld hl, wTextArg0
 	call CopyName
-;>@n1 CopyName(MonsterField(wMonName, 0x15), wTextArg1)     # the partner's
+;>@n1 CopyName(MonsterField(0x15, wMonName), wTextArg1)     # the partner's
 	ld a, $15
 	ld hl, wMonName
 	call MonsterField
@@ -6021,7 +6021,7 @@ BreedMakeOffspring::
 ;=@n1
 	ld hl, wTextArg1
 	call CopyName
-;>@sp CopySystemText(0x0500 + mem[MonsterField(wMonRecSpecies, wCurPartyMember)], wTextArg2)
+;>@sp CopySystemText(0x0500 + mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))], wTextArg2)
 	ld a, [wCurPartyMember]
 	ld hl, wMonRecSpecies
 	call MonsterField
@@ -6123,8 +6123,8 @@ BreedCheckPartnerCancel::
 ;> PrintSystemText(0x0222)             # "Breeding refused."
 	ld hl, $0222
 	call PrintSystemText
-;> DrawWindowLayout_15(0x2E07)          # the text box frame
-	ld de, $2e07
+;> DrawWindowLayout_15(MessageWindowLayout)          # the text box frame
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_15
 ;> CopyTilemapBufferToVram_15()
 	call CopyTilemapBufferToVram_15
@@ -6151,7 +6151,7 @@ BreedDrawStatusMonster::
 	cp $05
 	ret nz
 
-;> species = mem[MonsterField(wMonRecSpecies, wCurPartyMember)]
+;> species = mem[MonsterField(wCurPartyMember, addr(wMonRecSpecies))]
 	ld hl, wMonRecSpecies
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -6207,7 +6207,7 @@ BreedDrawStatusParents::
 	cp $09
 	ret nz
 
-;> species = mem[MonsterField(wMonParent1, wCurPartyMember)]
+;> species = mem[MonsterField(wCurPartyMember, addr(wMonParent1))]
 	ld hl, wMonParent1
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -6253,7 +6253,7 @@ BreedDrawStatusParents::
 ;> DrawActorSpriteOnScreen()
 	ld hl, far_DrawActorSpriteOnScreen
 	rst $10
-;> species = mem[MonsterField(wMonParent2, wCurPartyMember)]
+;> species = mem[MonsterField(wCurPartyMember, addr(wMonParent2))]
 	ld hl, wMonParent2
 	ld a, [wCurPartyMember]
 	call MonsterField
@@ -6300,7 +6300,7 @@ BreedDrawStatusParents::
 ;@ def NextBgColumn_15(addr: hl) -> hl
 ;@ path: gfx/tilemap
 ;@ Moves a BG map address one column right, wrapping around within its 32-tile row.
-;@ test: hl = rand(0x9800, 0x9BFF)
+;@ test: addr = rand(0x9800, 0x9BFF)
 NextBgColumn_15::
 ;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af
@@ -6324,7 +6324,7 @@ NextBgColumn_15::
 ;@ path: gfx/tilemap
 ;@ BG map address of a screen offset: wTitleBgMap + `offset`, wrapped around within the 1 KiB
 ;@ BG map.
-;@ test: hl = rand(0, 0x3FF)
+;@ test: offset = rand(0, 0x3FF)
 ;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
 TitleBgAddr::
 ;> addr = wTitleBgMap + offset
@@ -6347,7 +6347,7 @@ TitleBgAddr::
 ;@ def TilemapBufferAddr_15(offset: hl) -> hl
 ;@ path: gfx/tilemap
 ;@ Address of a screen offset in wTilemapBuffer.
-;@ test: hl = rand(0, 0x23F)
+;@ test: offset = rand(0, 0x23F)
 TilemapBufferAddr_15::
 ;>@g12 return wTilemapBuffer + offset
 	ld a, l
@@ -6364,7 +6364,7 @@ TilemapBufferAddr_15::
 ;@ path: gfx/tilemap
 ;@ BG map address of a screen offset (row * 32 + column), wrapping the column around within
 ;@ the BG map row as the screen is scrolled.
-;@ test: hl = rand(0, 0x23F)
+;@ test: offset = rand(0, 0x23F)
 ;@ test: wTitleBgMap = rand(0x9800, 0x9BFF)
 TitleBgAddrWrapped::
 ;> addr = TitleBgAddr(offset & 0xFFE0)  # start of the row
@@ -6951,7 +6951,7 @@ MenuDrawCursorMarks_15::
 	pop bc
 	pop de
 ;>     tile = 0xE0
-;>     if i == cursor & 0x7F:
+;>     if i == (cursor & 0x7F):
 	ld a, c
 	and $7f
 	cp b
@@ -7187,7 +7187,7 @@ MenuDrawCursorAt_15::
 CheckSaveChecksum::
 ;> mem[0x0100] = 0x0A; ok = False       # battery RAM on
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> if sSaveValid:
 	ld a, [sSaveValid]
 	or a
@@ -7199,7 +7199,7 @@ CheckSaveChecksum::
 	call SRAMChecksum
 ;>     mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;>@same     ok = sChecksum == sum
 	ld a, [sChecksum]
 	ld l, a
@@ -7230,7 +7230,7 @@ CheckSaveChecksum::
 	call SRAMChecksum
 ;>     mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;>     sChecksum = sum
 	ld a, e
 	ld [sChecksum], a
@@ -7240,7 +7240,7 @@ CheckSaveChecksum::
 .done
 ;> mem[0x0100] = 0x00                   # battery RAM off
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -7293,8 +7293,8 @@ PrintTwoDigits_15::
 ;@ def DivideBCByDE_15(n: bc, d: de) -> (a, bc)
 ;@ path: system/math
 ;@ Divides `n` by `d` by repeated subtraction: returns the quotient (8-bit) and the remainder.
-;@ test: bc = rand(0, 0x3FF)
-;@ test: de = rand(1, 0x30)
+;@ test: n = rand(0, 0x3FF)
+;@ test: d = rand(1, 0x30)
 DivideBCByDE_15::
 ;> q = -1
 	push hl
@@ -7343,7 +7343,7 @@ WriteDigitTile_15::
 ;@ def NextBgColumn2_15(addr: hl) -> hl
 ;@ path: gfx/tilemap
 ;@ A copy of NextBgColumn_15: one column right, wrapping around within the 32-tile row.
-;@ test: hl = rand(0x9800, 0x9BFF)
+;@ test: addr = rand(0x9800, 0x9BFF)
 NextBgColumn2_15::
 ;>@col return (addr & 0xFFE0) | ((addr + 1) & 0x1F)
 	push af

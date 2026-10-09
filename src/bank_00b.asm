@@ -64,7 +64,7 @@ LoadMapTileset::
 	add hl, hl
 ;=@i
 	add hl, de
-;>@d DecompressVRAM(mem16[info], 0x9000)   # the map's tiles
+;>@d DecompressVRAM(hi(mem16[info]), lo(mem16[info]), 0x9000)   # the map's tiles
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
@@ -77,16 +77,17 @@ LoadMapTileset::
 	ld a, [wMapId]
 	ld a, $08
 	jr nz, .size
-;>     DecompressVRAM(0x291D, 0x8800)
+;>     DecompressVRAM(0x29, 0x1D, 0x8800)
 	ld de, $291d
 	ld hl, $8800
 	call DecompressVRAM
 ;>     wFieldTimer = 0
 	xor a
 	ld [wFieldTimer], a
-	ld [$c8a7], a
+	ld [wFieldTimer + 1], a
 	jr .size
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $fa, $51, $d9, $fe, $07, $20, $0a, $af, $21, $d8, $c0, $01, $28, $00, $cd, $c7
 	db $12
 
@@ -96,12 +97,12 @@ LoadMapTileset::
 	ld a, [hli]
 	ldh [hMapWidth], a
 	ld a, [hli]
-	ldh [$ff9e], a
+	ldh [hMapWidth + 1], a
 ;> hMapHeight = mem16[info + 4]
 	ld a, [hli]
 	ldh [hMapHeight], a
 	ld a, [hl]
-	ldh [$ffa0], a
+	ldh [hMapHeight + 1], a
 ;> MakeGateFloor()
 	ld hl, far_MakeGateFloor
 	rst $10
@@ -131,7 +132,7 @@ ReloadMapTileset::
 	add hl, hl
 ;=@i
 	add hl, de
-;>@d DecompressVRAM(mem16[info], 0x9000)
+;>@d DecompressVRAM(hi(mem16[info]), lo(mem16[info]), 0x9000)
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
@@ -144,26 +145,26 @@ ReloadMapTileset::
 	ld a, [wMapId]
 	ld a, $08
 	jr nz, .size
-;>     DecompressVRAM(0x291D, 0x8800)
+;>     DecompressVRAM(0x29, 0x1D, 0x8800)
 	ld de, $291d
 	ld hl, $8800
 	call DecompressVRAM
 ;>     wFieldTimer = 0
 	xor a
 	ld [wFieldTimer], a
-	ld [$c8a7], a
+	ld [wFieldTimer + 1], a
 .size
 ;> hMapWidth = mem16[info + 2]
 	pop hl
 	ld a, [hli]
 	ldh [hMapWidth], a
 	ld a, [hli]
-	ldh [$ff9e], a
+	ldh [hMapWidth + 1], a
 ;> hMapHeight = mem16[info + 4]
 	ld a, [hli]
 	ldh [hMapHeight], a
 	ld a, [hl]
-	ldh [$ffa0], a
+	ldh [hMapHeight + 1], a
 ;> return
 	ret
 
@@ -182,7 +183,7 @@ DrawMapScreen::
 ;>@r row = hPlayerY // 128
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, $80
 	call Divide16
@@ -200,11 +201,11 @@ DrawMapScreen::
 	ldh [hScrollY], a
 ;=@sy
 	ld a, h
-	ldh [$ffbc], a
+	ldh [hScrollY + 1], a
 ;> col = hPlayerX // 160
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, $a0
 	call Divide16
@@ -221,7 +222,7 @@ DrawMapScreen::
 	ldh [hScrollX], a
 ;=@sx
 	ld a, h
-	ldh [$ffb8], a
+	ldh [hScrollX + 1], a
 ;> if not wFieldFlags & 0x0A:
 	ld a, [wFieldFlags]
 	bit 1, a
@@ -235,7 +236,7 @@ DrawMapScreen::
 	ld a, [wGameStarted]
 	bit 7, a
 	jr nz, .draw
-;>         Decompress(GetScreenTilemapRef(), wSavedTilemap)   # the screen's tilemap
+;>         ref = GetScreenTilemapRef(); Decompress(hi(ref), lo(ref), wSavedTilemap)   # the screen's tilemap
 	call GetScreenTilemapRef
 	ld hl, wSavedTilemap
 	call Decompress
@@ -289,7 +290,7 @@ DrawMapScreen::
 	ld b, $0a
 	push hl
 .attrPair
-;>@n1             WriteVRAM(wScreenMap[16 * y + x] >> 4)   # left tile (column wraps at 32)
+;>@n1             WriteVRAM(wScreenMap[16 * y + x] >> 4, 0x9800 | (base + 32 * y) & 0x3E0 | (base + 2 * x) & 0x1F)   # left tile (column wraps at 32)
 	ld a, [de]
 	swap a
 	and $0f
@@ -306,7 +307,7 @@ DrawMapScreen::
 	pop af
 	or l
 	ld l, a
-;>@n2             WriteVRAM(wScreenMap[16 * y + x] & 0x0F)  # right tile
+;>@n2             WriteVRAM(wScreenMap[16 * y + x] & 0x0F, 0x9800 | (base + 32 * y) & 0x3E0 | (base + 2 * x + 1) & 0x1F)  # right tile
 	ld a, [de]
 	and $0f
 	call WriteVRAM
@@ -386,7 +387,7 @@ DrawMapScreen::
 	ld b, $14
 	push hl
 .tile
-;>@tw         WriteVRAM(wSavedTilemap[32 * y + x])   # (columns wrap at 32)
+;>@tw         WriteVRAM(wSavedTilemap[32 * y + x], 0x9800 | (base + 32 * y) & 0x3E0 | (base + x) & 0x1F)   # (columns wrap at 32)
 	ld a, [de]
 	call WriteVRAM
 	ld a, l
@@ -448,7 +449,7 @@ RedrawScreenBuffer::
 ;> LoadMapPalettes()
 	ld hl, far_LoadMapPalettes
 	rst $10
-;> Decompress(GetScreenTilemapRef(), wTilemapBuffer)
+;> ref = GetScreenTilemapRef(); Decompress(hi(ref), lo(ref), wTilemapBuffer)
 	call GetScreenTilemapRef
 	ld hl, wTilemapBuffer
 	call Decompress
@@ -652,7 +653,7 @@ GateFloorNoObjects::
 ;@ screen's tilemap at wStairsOffset.
 ;@ test: skip writes a tilemap buffer
 PlaceFloorStairs::
-;> if not wOnGateFloor or wMapScreen != mem[0xC960]:
+;> if not wOnGateFloor or wMapScreen != wStairsScreen:
 	ld a, [wOnGateFloor]
 	or a
 	ret z
@@ -661,10 +662,10 @@ PlaceFloorStairs::
 	cp [hl]
 ;>     return
 	ret nz
-;> p = tilemap + mem16[0xC962]
+;> p = tilemap + wStairsOffset
 	ld a, [wStairsOffset]
 	ld l, a
-	ld a, [$c963]
+	ld a, [wStairsOffset + 1]
 	ld h, a
 	add hl, de
 ;> mem[p] = 0x3C
@@ -696,9 +697,9 @@ PlaceFloorStairs::
 ;@ hDivisorHigh/hFindY (see FindObjectAt) into hNumber, $FF for nothing.
 ;@ test: skip reads the map tables
 FindObjectAtPosition::
-;> mem[0xFFD6] = 0
+;> hNumber[1] = 0
 	ld a, $00
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;> hNumber[0] = FindObjectAt(wActors)
 	ld hl, wActors
 	call FindObjectAt
@@ -745,17 +746,17 @@ FindObjectAt::
 	ld a, h
 	adc $00
 	ld h, a
-;>     mem[0xFFD6] += 1
-	ldh a, [$ffd6]
+;>     hNumber[1] += 1
+	ldh a, [hNumber + 1]
 	inc a
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;=@na
 	jr FindObjectAt
 
 .triggers
-;> mem[0xFFD6] = 0xFF
+;> hNumber[1] = 0xFF
 	ld a, $ff
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;> obj = GetScreenObjects()
 	call GetScreenObjects
 
@@ -768,7 +769,7 @@ FindObjectAt::
 ;>         return 0xFF
 	bit 7, a
 	jr z, .none
-;>     if mem[obj] & 0xF0 == 0x80 and IsTriggerAt(obj):
+;>     if (mem[obj] & 0xF0) == 0x80 and IsTriggerAt(obj):
 	and $f0
 	cp $80
 	jr nz, .nextTrigger
@@ -858,7 +859,7 @@ FindStepTrigger::
 ;>         return 0xFF
 	bit 7, a
 	jr z, .none
-;>     if mem[obj] & 0xF0 == 0x90 and IsTriggerAt(obj):
+;>     if (mem[obj] & 0xF0) == 0x90 and IsTriggerAt(obj):
 	and $f0
 	cp $90
 	jr nz, .next
@@ -958,12 +959,12 @@ IsActorAt::
 	jr nc, PositionMiss
 
 .checkY
-;>@dy dy = mem16[0xFFDD] - mem16[actor + 0x1A]
+;>@dy dy = hFindY - mem16[actor + 0x1A]
 	ldh a, [hFindY]
 	sub [hl]
 	inc hl
 	ld c, a
-	ldh a, [$ffde]
+	ldh a, [hFindY + 1]
 	sbc [hl]
 ;=@dy
 	ld b, a
@@ -1041,13 +1042,13 @@ IsTriggerAt::
 	cp [hl]
 ;>     return False
 	jr nz, PositionMiss
-;>@y if (mem16[0xFFDD] >> 4) % 8 != mem[obj + 3]:
+;>@y if (hFindY >> 4) % 8 != mem[obj + 3]:
 	inc hl
 	ldh a, [hFindY]
 	swap a
 	and $0f
 	ld b, a
-	ldh a, [$ffde]
+	ldh a, [hFindY + 1]
 ;=@y
 	swap a
 	and $f0
@@ -1393,7 +1394,7 @@ TakeWarp:
 ;=@wx
 	ld [wWarpX], a
 	ld a, b
-	ld [$c970], a
+	ld [wWarpX + 1], a
 ;>@wy y = (ScreenTileOrigins[screen & 0x0F].y + mem[warp + 6]) * 16 + 8
 	ld a, [de]
 	add [hl]
@@ -1431,7 +1432,7 @@ TakeWarp:
 	ld a, c
 	ld [wWarpY], a
 	ld a, b
-	ld [$c972], a
+	ld [wWarpY + 1], a
 ;> wWarpPending = 1
 	ld a, $01
 	ld [wWarpPending], a
@@ -1608,7 +1609,7 @@ CheckFloorExplored::
 
 .loop
 ;>@f for i in range(16):
-;>     if wFloorLayout[i] & 0xF0 != 0xF0:     # a screen exists there
+;>     if (wFloorLayout[i] & 0xF0) != 0xF0:     # a screen exists there
 	ld a, [hl]
 	and $f0
 	cp $f0
@@ -1712,23 +1713,23 @@ SpawnMapObjects::
 ;>@nx mem16[0xD7EA] = wFloorNpcX          # the first actor's X
 	ld a, [wFloorNpcX]
 	ld l, a
-	ld a, [$c928]
+	ld a, [wFloorNpcX + 1]
 	ld h, a
 	ld a, l
-	ld [$d7ea], a
+	ld [wActors + 24], a
 ;=@nx
 	ld a, h
-	ld [$d7eb], a
+	ld [wActors + 25], a
 ;>@ny mem16[0xD7EC] = wFloorNpcY
 	ld a, [wFloorNpcY]
 	ld l, a
-	ld a, [$c92a]
+	ld a, [wFloorNpcY + 1]
 	ld h, a
 	ld a, l
-	ld [$d7ec], a
+	ld [wActors + 26], a
 ;=@ny
 	ld a, h
-	ld [$d7ed], a
+	ld [wActors + 27], a
 ;> return
 	ret
 
@@ -1751,7 +1752,7 @@ SpawnObjectList::
 	ld a, e
 	ldh [hNumber], a
 	ld a, d
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;>     flags = mem[obj]
 ;>     obj += 1
 	ld a, [hli]
@@ -1777,7 +1778,7 @@ SpawnObjectList::
 
 .actor
 ;>@or     origin = ScreenTileOrigins[wMapScreen]
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
 	ld bc, ScreenTileOrigins
 	ld a, [wMapScreen]
 	add a
@@ -1812,7 +1813,7 @@ SpawnObjectList::
 ;>     mem[actor + 6] = flags >> 4 & 3    # facing
 	inc de
 	inc de
-	ldh a, [$ffd7]
+	ldh a, [hNumber + 2]
 	swap a
 	and $03
 	ld [de], a
@@ -1820,7 +1821,7 @@ SpawnObjectList::
 	push hl
 	ldh a, [hNumber]
 	ld e, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld d, a
 	ld a, e
 ;=@g
@@ -1832,7 +1833,7 @@ SpawnObjectList::
 	ldh a, [hNumber]
 ;=@g
 	ld l, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld h, a
 	inc hl
 	ld a, [hli]
@@ -1845,7 +1846,7 @@ SpawnObjectList::
 	push af
 	ldh a, [hNumber]
 	ld e, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld d, a
 	ld a, e
 ;=@t
@@ -1860,7 +1861,7 @@ SpawnObjectList::
 ;>@p     p = actor + 0x18
 	ldh a, [hNumber]
 	ld e, a
-	ldh a, [$ffd6]
+	ldh a, [hNumber + 1]
 	ld d, a
 	ld a, e
 	add $18
@@ -1940,7 +1941,7 @@ ClearActorGfxSlots::
 ;@ $E0: Terry (tile 0, graphics $5E); $E1-$E3: party monster 1-3 following him (tiles
 ;@ $20/$30/$40); $F0-$F3: the monsters of the encounter list wEncGfx; anything else is
 ;@ a person sprite. Other graphics share 6 slots of 16 tiles (wActorGfxSlots: number,
-;@ source), decompressed from the home-bank table at $2ADF (people) or ActorGfxRefs
+;@ source), decompressed from ActorGfx (people) or ActorGfxRefs
 ;@ (monsters) to $8000 + slot * $100 plus an area offset (gate floors $700, map 8 none,
 ;@ map $45 $200, others $500). Graphics $15 and $55 of people take two slots. An actor
 ;@ without its monster is removed (sprite $FF); with no slot free $50 is returned.
@@ -2047,7 +2048,7 @@ LoadActorGfx::
 ;>@l1         wActorGfxSlots[2 * i] = number
 ;>@l2         wActorGfxSlots[2 * i + 1] = source
 ;>@l3         ref = ActorGfx[number] if source == 0 else ActorGfxRefs[number]
-;>@l4         DecompressVRAM(ref, 0x8000 + (slot + area) * 0x100)
+;>@l4         DecompressVRAM(hi(ref), lo(ref), 0x8000 + (slot + area) * 0x100)
 ;>@l5         return ActorGfxTiles(slot)
 	ld a, [hl]
 	cp $ff

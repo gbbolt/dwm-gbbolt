@@ -212,7 +212,7 @@ DrawLayoutToVram::
 	jr .loop
 .tile
 ;>     else:
-;>         WriteVRAM(ptr, b)
+;>         WriteVRAM(b, ptr)
 	call WriteVRAM
 ;>         ptr = NextBgColumn(ptr)
 	call NextBgColumn
@@ -298,7 +298,7 @@ CopyTilemapBufferToVram::
 	push hl
 .column
 ;>     for _ in range(32):
-;>         WriteVRAM(ptr, mem[src])
+;>         WriteVRAM(mem[src], ptr)
 	ld a, [de]
 	call WriteVRAM
 ;>@nc         ptr = NextBgColumn(ptr)
@@ -367,7 +367,7 @@ DrawTextTiles::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@restore restore(saved)                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
+;>@restore wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
@@ -426,7 +426,7 @@ DrawNameTiles::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@restore2 restore(saved)                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
+;>@restore2 wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
@@ -485,7 +485,7 @@ DrawCharTile::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@restore3 restore(saved)                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
+;>@restore3 wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]                                  # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
@@ -577,7 +577,7 @@ ClearBgMap::
 	ld hl, $9800
 	ld bc, $0400
 .loop
-;>     WriteVRAMInc(ptr, 0xE0)
+;>     WriteVRAMInc(0xE0, ptr)
 	ld a, $e0
 	call WriteVRAMInc
 	dec bc
@@ -875,7 +875,7 @@ DrawMenuCursor::
 	cp b
 	ld a, $e0
 	jr nz, .put
-;>     if i == cursor & 0x7F:
+;>     if i == (cursor & 0x7F):
 ;>@tile         tile = 0xE9 if cursor & 0x80 else 0xE0 if wCursorBlink & 0x10 else 0xE8
 	ld a, $e9
 	bit 7, c
@@ -887,7 +887,7 @@ DrawMenuCursor::
 	jr nz, .put
 	ld a, $e8
 .put
-;>     WriteVRAM(ptr, tile)
+;>     WriteVRAM(tile, ptr)
 	call WriteVRAM
 ;>@buf     mem[TilemapBufferAddr(offset)] = tile
 	push af
@@ -949,7 +949,7 @@ DrawPageNumber::
 	call WindowBgAddrWrapped
 	pop bc
 	pop de
-;> WriteVRAM(ptr, 0xF1 + (page & 0x7F))
+;> WriteVRAM(0xF1 + (page & 0x7F), ptr)
 	ld a, c
 	and $7f
 	add $f1
@@ -1161,7 +1161,7 @@ FarmKeeperInit::
 	ld [wWindowBgMap + 1], a
 ;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
-;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
+;> DecompressVRAM(0x2E, 0x10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -1232,8 +1232,8 @@ DrawFarmMainMenu::
 ;> DrawWindowLayout(FarmMainMenuWindow)
 	ld de, FarmMainMenuWindow
 	call DrawWindowLayout
-;> DrawWindowLayout(0x2E07)                           # message window (home bank)
-	ld de, $2e07
+;> DrawWindowLayout(MessageWindowLayout)                           # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout
 ;> ResetCursorBlink()
 	call ResetCursorBlink
@@ -1330,19 +1330,19 @@ FarmOptionTable::
 FarmKeeperClose::
 ;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
-;> DrawWindowLayout(0x2E07)                           # message window (home bank)
-	ld de, $2e07
+;> DrawWindowLayout(MessageWindowLayout)                           # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout
 ;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
 ;> BuildStatusBar()
 	call BuildStatusBar
 ;> CopyPartyBarRow(0xC13C, addr(wPartyBarTiles))
-	ld hl, $c13c
+	ld hl, wLineScroll + 60
 	ld de, wPartyBarTiles
 	call CopyPartyBarRow
 ;> CopyPartyBarRow(0xC150, addr(wPartyBarTiles) + 32)
-	ld hl, $c150
+	ld hl, wLineScroll + 80
 	ld de, wPartyBarTiles + 32
 	call CopyPartyBarRow
 ;> hSpriteClip = 0x80
@@ -1566,10 +1566,10 @@ LoadPartyNameSlot::
 ;>     for _ in range(0x20):                            # 4 tiles of 8 rows
 	ld b, $20
 .blank
-;>         WriteVRAMInc(dest, 0xFF); dest += 1
+;>         WriteVRAMInc(0xFF, dest); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
-;>         WriteVRAMInc(dest, 0x00); dest += 1
+;>         WriteVRAMInc(0x00, dest); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -1669,7 +1669,7 @@ DrawMonsterNameAndSex::
 ;> PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@restore restore(saved)                             # wTextTiles, wTextBoxLines, wTextBoxLineLength
+;>@restore wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]                             # wTextTiles, wTextBoxLines, wTextBoxLineLength
 	pop de
 	pop hl
 	ld a, l
@@ -2047,7 +2047,7 @@ FarmDepositStatusReturn::
 	ld a, [wViewResult]
 	or b
 	ld [wMenuChoice2], a
-;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
+;> DecompressVRAM(0x2E, 0x10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -2696,7 +2696,7 @@ FarmSwapStatusReturn::
 	srl a
 	srl a
 	ld [wListPage], a
-;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
+;> DecompressVRAM(0x2E, 0x10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -3071,10 +3071,10 @@ LoadListNameSlot::
 ;> for _ in range(0x20):
 	ld b, $20
 .loop
-;>     WriteVRAMInc(dest, 0xFF); dest += 1
+;>     WriteVRAMInc(0xFF, dest); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(dest, 0x00); dest += 1
+;>     WriteVRAMInc(0x00, dest); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -3458,7 +3458,7 @@ FarmWithdrawStatusReturn::
 	srl a
 	srl a
 	ld [wListPage], a
-;> DecompressVRAM(0x2E10, 0x8800)                     # menu font tiles
+;> DecompressVRAM(0x2E, 0x10, 0x8800)                     # menu font tiles
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -4063,7 +4063,7 @@ FarmExchangeStatusReturn::
 	srl a
 	srl a
 	ld [wListPage], a
-;> DecompressVRAM(0x2E10, 0x8800)
+;> DecompressVRAM(0x2E, 0x10, 0x8800)
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -4456,7 +4456,7 @@ FarmExchangePartyStatusReturn::
 	ld a, [wViewResult]
 	or b
 	ld [wMenuChoice3], a
-;> DecompressVRAM(0x2E10, 0x8800)
+;> DecompressVRAM(0x2E, 0x10, 0x8800)
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -4940,7 +4940,7 @@ CountMonstersOfKind::
 	ld a, d
 	adc $00
 	ld d, a
-;>@kind     if mem[rec] != 0 and ((egg | egg >> 1) & 1) == wMenuChoice2 & 1:
+;>@kind     if mem[rec] != 0 and ((egg | egg >> 1) & 1) == (wMenuChoice2 & 1):
 	ld a, [wMenuChoice2]
 	and $01
 	ld l, a
@@ -5002,7 +5002,7 @@ ListMonstersOfKind::
 	ld a, d
 	adc $00
 	ld d, a
-;>@kind     if wMonsters[slot * 0x95] != 0 and ((egg | egg >> 1) & 1) == wMenuChoice2 & 1:
+;>@kind     if wMonsters[slot * 0x95] != 0 and ((egg | egg >> 1) & 1) == (wMenuChoice2 & 1):
 	push hl
 	ld a, [wMenuChoice2]
 	and $01
@@ -5199,10 +5199,10 @@ LoadSpeciesNameSlot::
 ;> for _ in range(0x48):                              # 9 blank tiles
 	ld b, $48
 .loop
-;>     WriteVRAMInc(dest, 0xFF); dest += 1
+;>     WriteVRAMInc(0xFF, dest); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(dest, 0x00); dest += 1
+;>     WriteVRAMInc(0x00, dest); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -5317,7 +5317,7 @@ LoadEggMarkSlot::
 ;>     PrintText_41()
 	ld hl, far_PrintText_41
 	rst $10
-;>@restore     restore(saved)
+;>@restore     wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop de
 	pop hl
 	ld a, l
@@ -5345,10 +5345,10 @@ LoadEggMarkSlot::
 ;> for _ in range(8):                                 # one blank tile
 	ld b, $08
 .loop
-;>     WriteVRAMInc(dest, 0xFF); dest += 1
+;>     WriteVRAMInc(0xFF, dest); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(dest, 0x00); dest += 1
+;>     WriteVRAMInc(0x00, dest); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -5535,7 +5535,7 @@ FarmViewStatusReturn::
 	srl a
 	srl a
 	ld [wListPage], a
-;> DecompressVRAM(0x2E10, 0x8800)
+;> DecompressVRAM(0x2E, 0x10, 0x8800)
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -5818,7 +5818,7 @@ CountFarmOfKind::
 	ld a, d
 	adc $00
 	ld d, a
-;>@kind     if mem[rec] not in (0, 2) and ((egg | egg >> 1) & 1) == wMenuChoice2 & 1:
+;>@kind     if mem[rec] not in (0, 2) and ((egg | egg >> 1) & 1) == (wMenuChoice2 & 1):
 	ld a, [wMenuChoice2]
 	and $01
 	ld l, a
@@ -5882,7 +5882,7 @@ ListFarmOfKind::
 	ld a, d
 	adc $00
 	ld d, a
-;>@kind     if wMonsters[slot * 0x95] not in (0, 2) and ((egg | egg >> 1) & 1) == wMenuChoice2 & 1:
+;>@kind     if wMonsters[slot * 0x95] not in (0, 2) and ((egg | egg >> 1) & 1) == (wMenuChoice2 & 1):
 	push hl
 	ld a, [wMenuChoice2]
 	and $01
@@ -6394,7 +6394,7 @@ FarmReleaseStatusReturn::
 	srl a
 	srl a
 	ld [wListPage], a
-;> DecompressVRAM(0x2E10, 0x8800)
+;> DecompressVRAM(0x2E, 0x10, 0x8800)
 	ld de, $2e10
 	ld hl, $8800
 	call DecompressVRAM
@@ -6812,7 +6812,7 @@ FarmSwitchDoIt::
 	di
 	call SaveGame
 	ei
-;>@r restore(saved)
+;>@r wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop af
 	ld [wMenuOverlay], a
 	pop af
@@ -6960,7 +6960,7 @@ DrawTwoDigits::
 ;@ def DivideBcByDe(n: bc, d: de) -> (a, bc)
 ;@ path: menu/window
 ;@ Divides by repeated subtraction: returns the quotient in a and the remainder in bc.
-;@ test: de = rand(1, 0x40); bc = rand(0, 0x400)
+;@ test: d = rand(1, 0x40); n = rand(0, 0x400)
 DivideBcByDe::
 ;> q = 0
 	push hl
@@ -6995,7 +6995,7 @@ DivideBcByDe::
 ;@ Writes the digit tile $F0 + digit at `dest` (with the LCD-safe write).
 ;@ test: skip writes with the LCD-safe write
 PutDigitTile::
-;> WriteVRAM(dest, 0xF0 + digit)
+;> WriteVRAM(0xF0 + digit, dest)
 	add $f0
 	call WriteVRAM
 	ret
@@ -7090,12 +7090,12 @@ LibraryInit::
 	rst $10
 ;> ClearTilemapBuffer()
 	call ClearTilemapBuffer
-;> DrawWindowLayout(0x2E07)                           # message window (home bank)
-	ld de, $2e07
+;> DrawWindowLayout(MessageWindowLayout)                           # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout
 ;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
-;> DecompressVRAM(0x2E14, 0x9000)                     # library window tiles
+;> DecompressVRAM(0x2E, 0x14, 0x9000)                     # library window tiles
 	ld de, $2e14
 	ld hl, $9000
 	call DecompressVRAM
@@ -7253,8 +7253,8 @@ LibraryShowFamilies::
 DrawLibraryWindows::
 ;> ClearTilemapBuffer()
 	call ClearTilemapBuffer
-;> DrawWindowLayout(0x2E07)                           # message window (home bank)
-	ld de, $2e07
+;> DrawWindowLayout(MessageWindowLayout)                           # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout
 ;> DrawWindowLayout(LibraryFamilyWindow)
 	ld de, LibraryFamilyWindow
@@ -7646,10 +7646,10 @@ ClearNameSlot9::
 ;> for _ in range(0x48):
 	ld b, $48
 .loop
-;>     WriteVRAMInc(dest, 0xFF); dest += 1
+;>     WriteVRAMInc(0xFF, dest); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(dest, 0x00); dest += 1
+;>     WriteVRAMInc(0x00, dest); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -7784,7 +7784,7 @@ LibraryShowMonster::
 ;@ Loads the frame tiles of the monster page ($2E26 to $8A50) and draws its full-screen window.
 ;@ test: skip decompresses graphics into VRAM
 DrawMonsterPageFrame::
-;> DecompressVRAM(0x2E26, 0x8A50)
+;> DecompressVRAM(0x2E, 0x26, 0x8A50)
 	ld de, $2e26
 	ld hl, $8a50
 	call DecompressVRAM
@@ -7843,35 +7843,35 @@ DrawMonsterPage::
 	call DrawLongTextTiles
 ;> LoadSkillNameTiles()
 	call LoadSkillNameTiles
-;>@pic gfx = mem16[0x2B9F + 2 * wCurPartyMember]    # picture graphics of the species
+;>@pic gfx = mem16[MonsterPicRefs + 2 * wCurPartyMember]    # picture graphics of the species
 	ld a, [wCurPartyMember]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $9f
+	add LOW(MonsterPicRefs)
 ;=@pic
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
 ;=@pic
 	ld d, [hl]
-;> DecompressVRAM(gfx, 0x8800)
+;> DecompressVRAM(hi(gfx), lo(gfx), 0x8800)
 	ld hl, $8800
 	call DecompressVRAM
-;> mem16[0xC820] = 0x0021
+;> wMonPicPos = 0x0021
 	ld hl, $0021
 	ld a, l
 	ld [wMonPicPos], a
 	ld a, h
-	ld [$c821], a
+	ld [wMonPicPos + 1], a
 ;> wPaletteSet = wCurPartyMember
 	ld a, [wCurPartyMember]
 	ld [wPaletteSet], a
-;> mem[0xC81F] = 4
+;> wMonPicPalette = 4
 	ld a, $04
 	ld [wMonPicPalette], a
 ;> LoadMonPicPalette()
@@ -7916,7 +7916,7 @@ DrawLongTextTiles::
 ;> PrintText_4D()
 	ld hl, far_PrintText_4D
 	rst $10
-;>@restore restore(saved)
+;>@restore wTextTiles = saved[0]; wTextBoxLines = saved[1]; wTextBoxLineLength = saved[2]
 	pop de
 	pop hl
 	ld a, l
@@ -8219,7 +8219,7 @@ LoadBreedIconTiles::
 	jr z, .none
 	cp $f0
 	jr nc, .none
-;>@g DecompressVRAM(BreedIconGfx[partner + 0x10], dest)
+;>@g DecompressVRAM(hi(BreedIconGfx[partner + 0x10]), lo(BreedIconGfx[partner + 0x10]), dest)
 	push af
 	push hl
 	add $10
@@ -8445,7 +8445,7 @@ ChooseMonsterInit::
 	ld [wWindowBgMap + 1], a
 ;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
-;> DecompressVRAM(0x2E11, 0x8800)                     # menu font tiles
+;> DecompressVRAM(0x2E, 0x11, 0x8800)                     # menu font tiles
 	ld de, $2e11
 	ld hl, $8800
 	call DecompressVRAM
@@ -8505,8 +8505,8 @@ ChooseMonsterRun::
 ChooseMonsterClose::
 ;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
-;> DrawWindowLayout(0x2E07)                           # message window (home bank)
-	ld de, $2e07
+;> DrawWindowLayout(MessageWindowLayout)                           # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout
 ;> CopyTilemapBufferToVram()
 	call CopyTilemapBufferToVram
@@ -8616,8 +8616,8 @@ ChooseMonsterShowList::
 DrawChooseMonsterWindow::
 ;> RestoreTilemapBuffer()
 	call RestoreTilemapBuffer
-;> DrawWindowLayout(0x2E07)                           # message window (home bank)
-	ld de, $2e07
+;> DrawWindowLayout(MessageWindowLayout)                           # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout
 ;> DrawWindowLayout(ChooseMonsterWindow)
 	ld de, ChooseMonsterWindow
@@ -8697,10 +8697,10 @@ LoadChooseNameSlot::
 ;> for _ in range(0x20):
 	ld b, $20
 .loop
-;>     WriteVRAMInc(dest, 0xFF); dest += 1
+;>     WriteVRAMInc(0xFF, dest); dest += 1
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(dest, 0x00); dest += 1
+;>     WriteVRAMInc(0x00, dest); dest += 1
 	xor a
 	call WriteVRAMInc
 	dec b

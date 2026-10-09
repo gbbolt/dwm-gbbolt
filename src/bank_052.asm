@@ -2163,7 +2163,7 @@ SkillRainSlash::
 	call CheckBattlerPresent
 	jr c, .nextTarget
 
-;>@g1     if wSkillTarget != (wSkillTarget & 4) | 2:
+;>@g1     if wSkillTarget != ((wSkillTarget & 4) | 2):
 ;>@g2         wSkillTarget += 1
 ;>@g3         mem[wBattlerAction + 1 + 2 * wSkillUser] = wSkillTarget
 ;>@g4     return SkillEndsQuietly()
@@ -4673,7 +4673,7 @@ UnusedResetArgBattler::
 ;@ is noted for the palettes (SetBattlerPicSpecies). Only the enemy positions 4-6 have
 ;@ pictures (positions 0-2 on the Game Boy that drives a link battle); picture slot n sits at
 ;@ VRAM $9000 + $240 * n. The graphics are decompressed from the species' entry of the
-;@ picture table at ActorGfx + $C0 (bank, entry), then the battle palettes are rebuilt.
+;@ MonsterPicRefs (bank, entry), then the battle palettes are rebuilt.
 ;@ test: skip draws to VRAM through the decompressor and other banks
 LoadBattlerPic::
 ;> SetBattlerPicSpecies(pos, species)
@@ -4714,17 +4714,17 @@ LoadBattlerPic::
 	ld bc, $9000
 	add hl, bc
 	pop bc
-;>@r ref = mem16[ActorGfx + 0xC0 + 2 * species]
+;>@r ref = mem16[MonsterPicRefs + 2 * species]
 	push hl
 	ld l, c
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add LOW(ActorGfx + $c0)
+	add LOW(MonsterPicRefs)
 ;=@r
 	ld l, a
 	ld a, h
-	adc HIGH(ActorGfx + $c0)
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
@@ -4783,12 +4783,13 @@ SetBattlerPicSpecies::
 ;@ path: battle/skills/effects/special
 ;@ The maximum HP the monster at battle position `pos` has without battle changes (the far
 ;@ routine of bank $57 works it out into wBattleTemp / wBattleTempHigh), at most 999.
+;@ test: pos = rand(0, 7)
 GetBaseMaxHP::
 ;> wBattleTemp = pos
 	push hl
 	ld [wBattleTemp], a
-;> Call_57_4136()
-	ld hl, far_Call_57_4136
+;> CalcBaseMaxHP()
+	ld hl, far_CalcBaseMaxHP
 	rst $10
 ;> value = wBattleTemp | wBattleTempHigh << 8
 	ld a, [wBattleTemp]
@@ -4810,12 +4811,13 @@ GetBaseMaxHP::
 ;@ def GetBaseMaxMP(pos: a) -> bc
 ;@ path: battle/skills/effects/special
 ;@ The maximum MP of the monster at battle position `pos` without battle changes (bank $57).
+;@ test: pos = rand(0, 7)
 GetBaseMaxMP::
 ;> wBattleTemp = pos
 	push hl
 	ld [wBattleTemp], a
-;> Call_57_4192()
-	ld hl, far_Call_57_4192
+;> CalcBaseMaxMP()
+	ld hl, far_CalcBaseMaxMP
 	rst $10
 ;> return wBattleTemp | wBattleTempHigh << 8
 	ld a, [wBattleTemp]
@@ -4829,12 +4831,13 @@ GetBaseMaxMP::
 ;@ def GetBaseAttack(pos: a) -> bc
 ;@ path: battle/skills/effects/special
 ;@ The attack of the monster at battle position `pos` without battle changes (bank $57).
+;@ test: pos = rand(0, 7)
 GetBaseAttack::
 ;> wBattleTemp = pos
 	push hl
 	ld [wBattleTemp], a
-;> Call_57_41EE()
-	ld hl, far_Call_57_41EE
+;> CalcBaseAttack()
+	ld hl, far_CalcBaseAttack
 	rst $10
 ;> return wBattleTemp | wBattleTempHigh << 8
 	ld a, [wBattleTemp]
@@ -4848,12 +4851,13 @@ GetBaseAttack::
 ;@ def GetBaseDefense(pos: a) -> bc
 ;@ path: battle/skills/effects/special
 ;@ The defense of the monster at battle position `pos` without battle changes (bank $57).
+;@ test: pos = rand(0, 7)
 GetBaseDefense::
 ;> wBattleTemp = pos
 	push hl
 	ld [wBattleTemp], a
-;> Call_57_424A()
-	ld hl, far_Call_57_424A
+;> CalcBaseDefense()
+	ld hl, far_CalcBaseDefense
 	rst $10
 ;> return wBattleTemp | wBattleTempHigh << 8
 	ld a, [wBattleTemp]
@@ -4874,12 +4878,13 @@ GetBaseAgilityTemp::
 ;@ def GetBaseAgility(pos: a) -> bc
 ;@ path: battle/skills/effects/special
 ;@ The agility of the monster at battle position `pos` without battle changes (bank $57).
+;@ test: pos = rand(0, 7)
 GetBaseAgility::
 ;> wBattleTemp = pos
 	push hl
 	ld [wBattleTemp], a
-;> Call_57_42A6()
-	ld hl, far_Call_57_42A6
+;> CalcBaseAgility()
+	ld hl, far_CalcBaseAgility
 	rst $10
 ;> return wBattleTemp | wBattleTempHigh << 8
 	ld a, [wBattleTemp]
@@ -5816,7 +5821,7 @@ ItemShowUseMessage::
 	jr nc, .plain
 
 ;>     SetNameFormMessage()                          # bank $58 entry 9
-	ld hl, $5809
+	ld hl, far_SetNameFormMessage
 	rst $10
 ;>     wTextGroup = 1
 	ld a, $01
@@ -5888,7 +5893,7 @@ ItemHealHP::
 	jr c, .next
 
 	ld a, c
-	call $69ef
+	call IsHPFull
 	jr nz, .dew
 
 .next
@@ -5908,7 +5913,7 @@ ItemHealHP::
 .dew
 ;=@dew
 	ld a, [wSkillTarget]
-	call $69ef
+	call IsHPFull
 	jp z, ItemNoEffect
 
 ;>@dew1         return ItemNoEffect()
@@ -5939,7 +5944,7 @@ ItemHealHP::
 .normal
 ;=@n1
 	ld a, [wSkillTarget]
-	call $69ef
+	call IsHPFull
 	jp z, ItemNoEffect
 
 ;>@n2         return ItemNoEffect()
@@ -6294,8 +6299,8 @@ ItemMoonHerb::
 
 
 .cure
-;> TargetLosesTurn()                                 # $6B0B
-	call $6b0b
+;> TargetLosesTurn()
+	call TargetLosesTurn
 ;> wBattlerStatus[st] &= 0xBF
 	ld a, [hl]
 	and $bf
@@ -6331,8 +6336,8 @@ ItemSkyBell::
 
 
 .cure
-;> TargetLosesTurn()                                 # $6B0B
-	call $6b0b
+;> TargetLosesTurn()
+	call TargetLosesTurn
 ;> wBattlerStatus[st] &= 0xEF
 	ld a, [hl]
 	and $ef
@@ -6402,8 +6407,8 @@ ItemAwakeSand::
 
 
 .cure
-;> TargetLosesTurn()                                 # $6B0B
-	call $6b0b
+;> TargetLosesTurn()
+	call TargetLosesTurn
 ;> wBattlerStatus[st] &= 0x73
 	ld a, [hl]
 	and $73
@@ -8598,7 +8603,7 @@ ApplyPositionDamageCutLink::
 	ld l, a
 	ld a, [wSkillAmount + 1]
 	ld h, a
-;> if wSkillTarget & 3 in (0, 3):
+;> if (wSkillTarget & 3) in (0, 3):
 ;>     return
 	ld a, [wSkillTarget]
 	and $03
@@ -10918,6 +10923,7 @@ IsMPFull::
 ;@ Carry while the defense of battle position `pos` may still go up (Upper):
 ;@ up to 999, and no higher than four times its base defense (twice for a wild
 ;@ enemy, GetBaseDefense).
+;@ test: pos = rand(0, 7)
 CheckDefenseRaisable::
 ;> wBattleArg0 = pos
 ;> defense = GetBattlerDefense(pos)
@@ -10952,7 +10958,7 @@ CheckDefenseRaisable::
 ;> limit *= 2
 	sla c
 	rl b
-;> return defense <= limit & 0xFFFF
+;> return defense <= (limit & 0xFFFF)
 	pop hl
 	call CompareHLBC
 	jr nc, .atLeast
@@ -11306,6 +11312,7 @@ GetBattlerNameTo::
 ;@ path: battle/names
 ;@ Copies the name of party monster `pos` (the record's own name) to `dest` and
 ;@ returns the address of its $F0 end mark.
+;@ test: skip follows name and record pointers that random states leave invalid
 CopyPartyMonName::
 ;>@n CopyName(PartyMonsterField(pos, wMonName), dest)
 	push hl
@@ -11408,6 +11415,7 @@ CopyEnemyName::
 ;@ path: battle/names
 ;@ Copies the species name of battle position `pos` (system text group 5) to
 ;@ `dest`, and notes both for AppendEnemyLetter (wNameBattler, wNameDest).
+;@ test: pos = rand(0, 7)
 CopyBattlerSpeciesName::
 ;> wNameBattler = pos
 	ld [wNameBattler], a
@@ -11441,6 +11449,7 @@ CopyBattlerSpeciesName::
 ;@ name followed by "Like". When another enemy turned into the same monster, a
 ;@ number 1-3 follows, counted by the enemy's place (wNamePos); it is also left in
 ;@ wBattleArg1 (0 = none).
+;@ test: skip follows name and record pointers that random states leave invalid
 CopyMorphedEnemyName::
 ;> end = CopyPartyMonName(party_pos, dest)
 	call CopyPartyMonName
@@ -11840,7 +11849,7 @@ SkillStepDone::
 ;@ enemy that is gone, goes to the falling step ($1A); otherwise the party
 ;@ panel shows the new HP. CALLHOROR and Smashed have their own step instead.
 ActionStepDamage::
-;> if wSoundChannels[0] & mem[0xDD9A] != 0xFF:   # wait for two free sound channels
+;> if (wSoundChannels[0] & wSoundChannels[26]) != 0xFF:   # wait for two free sound channels
 ;>     return
 	ld a, [wSoundChannels]
 	ld hl, $dd9a
@@ -12378,6 +12387,7 @@ LifeSongStageTable::
 ;@ path: battle/actions
 ;@ After CHGDRAGON: the changed monster picks its next action
 ;@ (ChgDragonPickAction).
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ChgDragonFollowUp::
 ;> ChgDragonPickAction()
 	call ChgDragonPickAction
@@ -12500,7 +12510,7 @@ YellHelpNext::
 	ld b, $07
 
 jr_052_6fb2:
-;> if wHitCount & mask == wRandomLow & mask:
+;> if (wHitCount & mask) == (wRandomLow & mask):
 ;>     return EndBattlerAction()
 	and b
 	ld c, a
@@ -14029,8 +14039,11 @@ FindMeatTarget::
 	ret
 
 
-	; code not reached by the tracer (more battle item checks; reached only from
-	; code still in data form)
+;@ path: unused
+;@ Unused battle code nothing calls, a few small routines: one compares the ailment
+;@ level in a status byte (bits 2-3) with $C899 and rewrites the byte; others look at
+;@ the skill in $DB8A (ranges of skill numbers) and print a battle message.
+UnusedBattleItemChecks::
 	db $7e, $e6, $0c, $28, $14, $fe, $04, $28, $0c, $fe, $08, $28, $04, $06, $60, $18
 	db $0a, $06, $a0, $18, $06, $06, $e0, $18, $02, $06, $ff, $fa, $99, $c8, $b8, $28
 	db $1c, $38, $1a, $7e, $e6, $f3, $47, $7e, $e6, $0c, $3d, $c5, $f5, $c1, $cb, $69
@@ -15026,6 +15039,7 @@ LifeSongStage2::
 ;@ Scorching, IceStorm and DeMagic. Its target is the far side's first place;
 ;@ for Attack a random place of the far side, moving back over empty places
 ;@ (that search loses the side bit, so it then looks at places 0-2).
+;@ test: skip needs valid battle or party records; random states send the original code astray
 ChgDragonPickAction::
 ;> ptr = wBattlerAction + 2 * wSkillUser
 	ld a, [wSkillUser]
@@ -16042,7 +16056,7 @@ RestoreInterruptedAction::
 	ld [wSkillTarget], a
 	ld a, [hli]
 	ld [wHitCount], a
-;>@u copy(wBattlerAction + 2 * wSkillUser, saved[3:5])
+;>@u copy(wBattlerAction + 2 * wSkillUser, saved + 3, 2)
 	ld a, [wSkillUser]
 	ld de, wBattlerAction
 	add a
@@ -16058,7 +16072,7 @@ RestoreInterruptedAction::
 	ld a, [hli]
 ;=@u
 	ld [de], a
-;>@t copy(wBattlerAction + 2 * wSkillTarget, saved[5:7])
+;>@t copy(wBattlerAction + 2 * wSkillTarget, saved + 5, 2)
 	ld a, [wSkillTarget]
 	ld de, wBattlerAction
 	add a

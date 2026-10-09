@@ -107,7 +107,7 @@ LoadMapPalettes::
 .gate
 ;=@g1
 	ld de, GateAttrMaps1
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, .gateMaps
 
@@ -158,7 +158,7 @@ LoadMapPalettes::
 ;@ test: skip reads pointer tables in this bank
 LoadMapAttrBuffer::
 ;> if wOnGateFloor:
-;>@g     return Decompress(mem16[(GateAttrMaps2 if wFloorKind == 2 else GateAttrMaps1) + 2 * wFloorLayout[wMapScreen]], wScreenMap)
+;>@g     ref = mem16[(GateAttrMaps2 if wFloorKind == 2 else GateAttrMaps1) + 2 * wFloorLayout[wMapScreen]]; return Decompress(hi(ref), lo(ref), wScreenMap)
 	ld a, [wOnGateFloor]
 	or a
 	jp nz, .gate
@@ -207,7 +207,7 @@ LoadMapAttrBuffer::
 	inc hl
 	ld d, [hl]
 	inc hl
-;> Decompress(source, wScreenMap)
+;> Decompress(hi(source), lo(source), wScreenMap)
 	ld hl, wScreenMap
 	call Decompress
 	ret
@@ -215,7 +215,7 @@ LoadMapAttrBuffer::
 .gate
 ;=@g
 	ld de, GateAttrMaps1
-	ld a, [$c93f]
+	ld a, [wFloorKind]
 	cp $02
 	jr nz, .gateMaps
 
@@ -412,7 +412,7 @@ LoadMonPicPalette::
 	or a
 	ret z
 
-;>@pal CopyBGPalettes(MonPicPalettes + 8 * wPaletteSet, mem[0xC81F], 1)
+;>@pal CopyBGPalettes(MonPicPalettes + 8 * wPaletteSet, wMonPicPalette, 1)
 	ld a, [wPaletteSet]
 	ld l, a
 	ld h, $00
@@ -427,7 +427,7 @@ LoadMonPicPalette::
 	adc HIGH(MonPicPalettes)
 	ld h, a
 ;=@pal
-	ld a, [$c81f]
+	ld a, [wMonPicPalette]
 	ld c, a
 	ld b, $01
 	call CopyBGPalettes
@@ -467,15 +467,15 @@ DrawMonPicAttrs::
 	rrca
 	and $1f
 	add l
-;> offset = mem16[0xC820]
+;> offset = wMonPicPos
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
-	ld a, [$c820]
+	ld a, [wMonPicPos]
 	ld c, a
 ;> pos = corner + (offset & 0xFFE0)      # down to the picture's first row
-	ld a, [$c821]
+	ld a, [wMonPicPos + 1]
 	ld b, a
 	ld a, c
 	and $e0
@@ -484,7 +484,7 @@ DrawMonPicAttrs::
 ;> pos &= ~0x0400                        # stay inside the map at $9800
 	res 2, h
 ;>@cols for i in range(mem[0xC820] & 0x1F):
-	ld a, [$c820]
+	ld a, [wMonPicPos]
 	and $1f
 	ld b, a
 
@@ -511,8 +511,8 @@ DrawMonPicAttrs::
 
 .cell
 ;>@cells     for col in range(6):
-;>         WriteVRAM(mem[0xC81F], pos); pos = NextMapColumn_17(pos)
-	ld a, [$c81f]
+;>         WriteVRAM(wMonPicPalette, pos); pos = NextMapColumn_17(pos)
+	ld a, [wMonPicPalette]
 	call WriteVRAM
 	call NextMapColumn_17
 ;=@cells

@@ -316,7 +316,7 @@ BattleMenuInput::
 	ld bc, $0007
 	ld a, $00
 	call FillMemory
-;> if wMenuChoice & 0x0F != 1:            # not tactics
+;> if (wMenuChoice & 0x0F) != 1:            # not tactics
 ;>     return
 	ld a, [wMenuChoice]
 	and $0f
@@ -435,8 +435,8 @@ BattleMenuNoOrders::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)            # message window
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)            # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -555,8 +555,8 @@ BattleMenuTurnStart::
 	call DrawEnemyPictures
 ;>     DrawMessageWindowAndPanel()
 	call DrawMessageWindowAndPanel
-;>     DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;>     DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;>     CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -1023,8 +1023,8 @@ TacticsCommandBack::
 ;@ Unused: far call of entry 6 of bank $55, then the next tactics step.
 ;@ test: skip calls a routine in another bank
 UnusedTacticStepFar::
-;> far_call(0x55, 0x06)
-	ld hl, $5506
+;> LoadWindowLetters_3()
+	ld hl, far_LoadWindowLetters_3
 	rst $10
 ;> wCommandSubStep += 1
 	ld hl, wCommandSubStep
@@ -1180,14 +1180,14 @@ TacticsMenuOpen::
 	jr z, .team
 
 ;>@team         wTacticSlot = 1
-;>     elif wConfirmChoice2 & 3 == 0:
+;>     elif (wConfirmChoice2 & 3) == 0:
 	ld a, [wConfirmChoice2]
 	and $03
 	or a
 	jr z, .first
 
 ;>@first         wTacticSlot = 2
-;>     elif wConfirmChoice2 & 3 == 1:
+;>     elif (wConfirmChoice2 & 3) == 1:
 	cp $01
 	jr z, .second
 
@@ -1196,7 +1196,7 @@ TacticsMenuOpen::
 ;>         wTacticSlot = 4
 	ld a, $04
 	ld [wTacticSlot], a
-;>     t = mem[wTacticMenuRow + wTacticSlot]  # wTeamTactic or wMonTactics[slot - 2]
+;>     t = mem[addr(wTacticMenuRow) + wTacticSlot]  # wTeamTactic or wMonTactics[slot - 2]
 	ld a, [wMonTactics + 2]
 	jr .cursor
 
@@ -1243,7 +1243,7 @@ TacticsMenuOpen::
 	ld a, [wConfirmChoice2]
 	inc a
 	ld [wConfirmChoice2], a
-;>     if wConfirmChoice2 & 3 < 3:
+;>     if (wConfirmChoice2 & 3) < 3:
 ;>         return TacticsMenuOpen()
 	and $03
 	cp $03
@@ -1311,7 +1311,7 @@ TacticsMenuInput::
 ;>     LoadWindowLetters_5()
 	ld hl, far_LoadWindowLetters_5
 	rst $10
-;>@out     if not (wMenuChoice2 == 0x80 or wConfirmChoice2 == wPartyBarTiles[0] or wConfirmChoice2 & 3 == 0):
+;>@out     if not (wMenuChoice2 == 0x80 or wConfirmChoice2 == wPartyBarTiles[0] or (wConfirmChoice2 & 3) == 0):
 	ld a, [wMenuChoice2]
 	cp $80
 	jr z, .leave
@@ -1434,7 +1434,7 @@ TacticMenuConfirm::
 	ld h, a
 	ld a, [wConfirmChoice]
 	res 7, a
-;> mem[wTacticMenuRow + wTacticSlot] = t
+;> mem[addr(wTacticMenuRow) + wTacticSlot] = t
 	ld [hl], a
 ;> if t == 3:                             # direct orders
 ;>     return TacticDirectOrders()
@@ -1501,7 +1501,7 @@ SetMonTactic::
 	ld hl, wEnemyCount
 
 .compare
-;> if wConfirmChoice2 & 3 == count:       # the last one
+;> if (wConfirmChoice2 & 3) == count:       # the last one
 ;>     return TacticsMarkUnable()
 	pop af
 	and $03
@@ -1875,7 +1875,7 @@ OrdersSkipMon::
 ;> wConfirmChoice2 += 1
 	ld hl, wConfirmChoice2
 	inc [hl]
-;> if wConfirmChoice2 & 3 == 3:
+;> if (wConfirmChoice2 & 3) == 3:
 ;>     return OrdersDone()
 	ld a, [wConfirmChoice2]
 	and $03
@@ -2035,7 +2035,7 @@ OrdersInput::
 
 .back
 ;> while True:
-;>     if wMenuChoice2 != 0x80 or wConfirmChoice2 & 3 == 0:
+;>     if wMenuChoice2 != 0x80 or (wConfirmChoice2 & 3) == 0:
 	ld a, [wMenuChoice2]
 	cp $80
 	jr nz, OrdersBackToTactics
@@ -2249,8 +2249,8 @@ OrdersSkill::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -3069,8 +3069,8 @@ ShowOrdersMessage::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -3289,8 +3289,8 @@ TargetGone::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -3540,7 +3540,7 @@ OrdersNextMon::
 
 .find
 ;> while True:
-;>@od     if wSkillUser == 1 or wConfirmChoice2 & 3 == wSkillUser: return OrdersDone()
+;>@od     if wSkillUser == 1 or (wConfirmChoice2 & 3) == wSkillUser: return OrdersDone()
 	ld a, [wSkillUser]
 	cp $01
 	jr z, OrdersDone
@@ -3555,7 +3555,7 @@ OrdersNextMon::
 ;>     wConfirmChoice2 += 1
 	ld hl, wConfirmChoice2
 	inc [hl]
-;>     if wConfirmChoice2 & 3 == 3:
+;>     if (wConfirmChoice2 & 3) == 3:
 ;>         return OrdersDone()
 	ld a, [hl]
 	and $03
@@ -4278,8 +4278,8 @@ ShowItemMessage::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -4548,7 +4548,7 @@ ItemAllyInput::
 	bit 1, a
 	jr z, .a
 
-;>     if wBattleItemTarget & 0xF0 != 0x20:
+;>     if (wBattleItemTarget & 0xF0) != 0x20:
 	ld a, [wBattleItemTarget]
 	and $f0
 	cp $20
@@ -4647,8 +4647,8 @@ ItemAllyTargetGone::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -4836,7 +4836,7 @@ PrintEnemyTargetNames::
 
 ;>@x2     BlankEnemyName2()
 ;> elif wEnemyMorph[1] != 0xFF:
-	ld a, [$c1cb]
+	ld a, [wEnemyMorph + 1]
 	cp $ff
 	jr z, .plain2
 
@@ -4884,7 +4884,7 @@ PrintEnemyTargetNames::
 
 ;>@x3     return BlankEnemyName3()
 ;> elif wEnemyMorph[2] != 0xFF:
-	ld a, [$c1cc]
+	ld a, [wEnemyMorph + 2]
 	cp $ff
 	jr z, .plain3
 
@@ -4943,10 +4943,10 @@ BlankEnemyName3::
 ;@ test: skip writes to VRAM
 FillLetterTiles::
 ;> for i in range(rows):
-;>     WriteVRAMInc(0xFF)
+;>     WriteVRAMInc(0xFF, tiles + 2 * i)
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(0x00)
+;>     WriteVRAMInc(0x00, tiles + 2 * i + 1)
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -5159,7 +5159,7 @@ PrintEnemyNameAt::
 	pop hl
 	ld a, [wTextTiles]
 	ld c, a
-	ld a, [$c828]
+	ld a, [wTextTiles + 1]
 	ld b, a
 	push bc
 ;> saved_lines = wTextBoxLines
@@ -5173,7 +5173,7 @@ PrintEnemyNameAt::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> width = 9 if wBattleArg1 else 8
 	ld a, [wBattleArg1]
 	or a
@@ -5207,7 +5207,7 @@ PrintEnemyNameAt::
 	ld a, l
 	ld [wTextTiles], a
 	ld a, h
-	ld [$c828], a
+	ld [wTextTiles + 1], a
 ;> wTextBoxLines = saved_lines
 	ld a, e
 	ld [wTextBoxLines], a
@@ -5302,7 +5302,7 @@ ItemEnemyInput::
 	bit 1, a
 	jr z, .a
 
-;>     if wBattleItemTarget & 0xF0 != 0x10:
+;>     if (wBattleItemTarget & 0xF0) != 0x10:
 	ld a, [wBattleItemTarget]
 	and $f0
 	cp $10
@@ -5398,8 +5398,8 @@ ItemEnemyTargetGone::
 ;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
-;> DrawWindowLayout_50(0x2E07)
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> CopyTilemapBufferToScreen_50()
 	call CopyTilemapBufferToScreen_50
@@ -5531,10 +5531,10 @@ ClearLetterTilesAt::
 .outer
 	ld b, $f0
 .inner
-;>     WriteVRAMInc(0xFF)
+;>     WriteVRAMInc(0xFF, tiles + 2 * i)
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(0x00)
+;>     WriteVRAMInc(0x00, tiles + 2 * i + 1)
 	xor a
 	call WriteVRAMInc
 	dec b
@@ -7237,7 +7237,7 @@ RollSurprise::
 ;> wBattlerReload = 2
 	ld a, $02
 	ld [wBattlerReload], a
-;>@n if wBattleType != 0 or (wRandomHigh & 0x1F != 0x1F and wRandomLow & 0x1F != 0x1F):
+;>@n if wBattleType != 0 or ((wRandomHigh & 0x1F) != 0x1F and (wRandomLow & 0x1F) != 0x1F):
 	ld a, [wBattleType]
 	or a
 	jr nz, .normal
@@ -7263,7 +7263,7 @@ RollSurprise::
 
 
 .offGuard
-;> if wRandomHigh & 0x1F == 0x1F:                # the enemies are caught off guard
+;> if (wRandomHigh & 0x1F) == 0x1F:                # the enemies are caught off guard
 ;>     wBattleStep += 1                          # BattleStepSurprise adds one more
 	ld hl, wBattleStep
 	inc [hl]
@@ -7691,7 +7691,7 @@ BattleSteps::
 ;@ then wBattleType becomes 0.
 ;@ test: mem[0xDD80] = rng.choice([0, 0xFF]); mem[0xDD9A] = rng.choice([0, 0xFF])
 WaitBattleEndSound::
-;> if wSoundChannels[0] & wSoundChannels[26] != 0xFF:
+;> if (wSoundChannels[0] & wSoundChannels[26]) != 0xFF:
 ;>     return
 	ld a, [wSoundChannels]
 	ld hl, wSoundChannels + 26
@@ -8793,7 +8793,7 @@ CheckLevelUpDue::
 ;>     wCurPartyMember = slot
 	ld [wCurPartyMember], a
 ;>@c     if mem[MonsterField(slot, addr(wMonLevel))] != 99 and mem[MonsterField(slot, addr(wMonsters))]:
-;>@b         return mem16[MonsterField(slot, addr(wMonExp))] | mem[MonsterField(slot, addr(wMonExp)) + 2] << 16 < GetExpForNextLevel()
+;>@b         return (mem16[MonsterField(slot, addr(wMonExp))] | mem[MonsterField(slot, addr(wMonExp)) + 2] << 16) < GetExpForNextLevel()
 	ld hl, wMonLevel
 	call MonsterField
 	ld a, [hl]
@@ -9493,7 +9493,7 @@ FixVSTeamSlot::
 CopyFromSave::
 ;> mem[0x0100] = 0x0A                            # cartridge RAM on
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 
 .loop
 ;>@cp copy(dest, src, count)
@@ -9508,7 +9508,7 @@ CopyFromSave::
 
 ;> mem[0x0100] = 0                               # and off again
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -11676,7 +11676,7 @@ DrawWindowLayoutVRAM_50::
 
 .tile
 ;>     else:
-;>         WriteVRAM(addr, t)
+;>         WriteVRAM(t, addr)
 	call WriteVRAM
 ;>         addr = NextBufferColumn_50(addr)
 	call NextBufferColumn_50
@@ -11801,7 +11801,7 @@ RefreshPanelDigits::
 ;@ `digits` + 32 from wTilemapBuffer to the BG map at $9800.
 ;@ test: skip writes VRAM while waiting for the LCD
 CopyPanelSlotToScreen::
-;>@m WriteVRAM(0x9800 + mark, wTilemapBuffer[mark])
+;>@m WriteVRAM(wTilemapBuffer[mark], 0x9800 + mark)
 	ld l, b
 	ld h, $98
 	ld a, b
@@ -11891,7 +11891,7 @@ CopyTilemapBufferToScreen_50::
 CopyTileRowToScreen_50::
 .loop
 ;> for i in range(count):
-;>     WriteVRAM(dest, mem[src])
+;>     WriteVRAM(mem[src], dest)
 	ld a, [de]
 	call WriteVRAM
 ;>@n     dest = (dest & 0xFFE0) | ((dest + 1) & 0x1F)
@@ -12053,7 +12053,7 @@ ClearScreenMap_50::
 	ld hl, $9800
 	ld bc, $0400
 .loop
-;>     WriteVRAMInc(0x9800 + i, 0xE0)
+;>     WriteVRAMInc(0xE0, 0x9800 + i)
 	ld a, $e0
 	call WriteVRAMInc
 ;=@l
@@ -12411,7 +12411,7 @@ DrawMenuCursor_50::
 	call PosToScreenMap_50
 	pop bc
 	pop de
-;>     if sel & 0x7F != row:
+;>     if (sel & 0x7F) != row:
 	ld a, c
 	and $7f
 	cp b
@@ -12437,7 +12437,7 @@ DrawMenuCursor_50::
 	ld a, $e8
 
 .tile
-;>     WriteVRAM(addr, tile)
+;>     WriteVRAM(tile, addr)
 	call WriteVRAM
 ;>@buf     mem[TilemapBufferAddr_50(pos)] = tile
 	push af
@@ -12494,7 +12494,7 @@ DrawPageNumber_50::
 
 ;> pos -= 1
 	dec hl
-;>@w WriteVRAM(PosToScreenMap_50(pos), (page & 0x7F) + 0xF1)
+;>@w WriteVRAM((page & 0x7F) + 0xF1, PosToScreenMap_50(pos))
 	ld a, l
 	ldh [hNumber], a
 	ld a, h
@@ -12755,12 +12755,12 @@ DrawPictureBlock::
 
 ;@ def DrawMessageWindowAndPanel()
 ;@ path: battle/panel
-;@ Draws the message window (layout $2E07 in the home bank) and the party panel into
+;@ Draws the message window (MessageWindowLayout) and the party panel into
 ;@ wTilemapBuffer.
 ;@ test: skip reads layouts from ROM
 DrawMessageWindowAndPanel::
-;> DrawWindowLayout_50(0x2E07)            # message window
-	ld de, $2e07
+;> DrawWindowLayout_50(MessageWindowLayout)            # message window
+	ld de, MessageWindowLayout
 	call DrawWindowLayout_50
 ;> DrawBattlePanel()
 
@@ -13699,7 +13699,7 @@ GetLinkEnemyName_50::
 ;@ otherwise the species name with the enemy letter (AppendEnemyLetter).
 ;@ test: skip copies names through other banks
 GetEnemyName_50::
-;>@e if pos & 3 != 3:                      # not the master's slot
+;>@e if (pos & 3) != 3:                      # not the master's slot
 	push bc
 	ld b, a
 	and $03
@@ -13746,7 +13746,7 @@ GetEnemyName_50::
 	push af
 	call GetSpeciesName_50
 	pop af
-;> return AppendEnemyLetter(pos)
+;> return AppendEnemyLetter()
 	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret

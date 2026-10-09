@@ -39,8 +39,8 @@ FieldInit::
 	ld a, l
 	ld [wFieldStackPtr], a
 	ld a, h
-	ld [$da7c], a
-;> fill(wTextTiles, 0x12, 0)      # forget any text box
+	ld [wFieldStackPtr + 1], a
+;> fill(addr(wTextTiles), 0, 0x12)      # forget any text box
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
@@ -58,7 +58,7 @@ FieldInit::
 	call LoadSGBBorder
 ;> InitSGBPalettes()
 	call InitSGBPalettes
-;> SetUpTextBox(0x8B00, 0x1202)    # letter tiles at $8B00, box 18 x 2 lines
+;> SetUpTextBox(0x8B00, 0x02, 0x12)    # letter tiles at $8B00, box 18 x 2 lines
 	ld hl, $8b00
 	ld de, $1202
 	call SetUpTextBox
@@ -79,7 +79,7 @@ FieldInit::
 ;> wLCDC = 0x63                    # LCD stays off until EnableLCDAndInterrupts
 	ld a, $63
 	ld [wLCDC], a
-;> mem[0xC892] = 1
+;> wLCDEffect = 1
 	ld a, $01
 	ld [wLCDEffect], a
 ;> EnableLYCInterrupt()
@@ -140,7 +140,7 @@ LoadMap::
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
 ;> wPlayerAnimFrame = 0
 	xor a
 	ld [wPlayerAnimFrame], a
@@ -164,13 +164,13 @@ LoadMap::
 ;> hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;> hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;> GetCollisionAt()                     # read the tile under the player
 	call GetCollisionAt
 ;> wPrevMapId = wMapId
@@ -209,20 +209,20 @@ LoadMap::
 ;> wMapUpdateDest = 0              # no map row / column queued
 	xor a
 	ld [wMapUpdateDest], a
-	ld [$c741], a
+	ld [wMapUpdateDest + 1], a
 ;> wMapUpdateDir = 0xFF
 	ld a, $ff
 	ld [wMapUpdateDir], a
 ;> hCameraPrevX = hScrollX
 	ldh a, [hScrollX]
 	ldh [hCameraPrevX], a
-	ldh a, [$ffb8]
-	ldh [$ffba], a
+	ldh a, [hScrollX + 1]
+	ldh [hCameraPrevX + 1], a
 ;> hCameraPrevY = hScrollY
 	ldh a, [hScrollY]
 	ldh [hCameraPrevY], a
-	ldh a, [$ffbc]
-	ldh [$ffbe], a
+	ldh a, [hScrollY + 1]
+	ldh [hCameraPrevY + 1], a
 ;> HandleConveyor()
 	ld hl, far_HandleConveyor
 	rst $10
@@ -296,31 +296,31 @@ FieldMapChange::
 	ld a, l
 	ld [wSGBPalIds], a
 	ld a, h
-	ld [$c85c], a
+	ld [wSGBPalIds + 1], a
 ;=@pal
 	inc hl
 	ld a, l
-	ld [$c85d], a
+	ld [wSGBPalIds + 2], a
 	ld a, h
-	ld [$c85e], a
+	ld [wSGBPalIds + 3], a
 ;=@pal
 	inc hl
 	ld a, l
-	ld [$c85f], a
+	ld [wSGBPalIds + 4], a
 	ld a, h
-	ld [$c860], a
+	ld [wSGBPalIds + 5], a
 ;=@pal
 	inc hl
 	ld a, l
-	ld [$c861], a
+	ld [wSGBPalIds + 6], a
 	ld a, h
-	ld [$c862], a
+	ld [wSGBPalIds + 7], a
 ;>     wSGBPacket[0] = 0xB1        # SGB command ATTR_SET: color the screen areas
 	ld a, $b1
 	ld [wSGBPacket], a
 ;>     wSGBPacket[1] = wSGBAttrSet
 	ld a, [wSGBAttrSet]
-	ld [$c778], a
+	ld [wSGBPacket + 1], a
 ;>     wSGBPacketID = 0xFF         # send the packet built in RAM
 	ld a, $ff
 	ld [wSGBPacketID], a
@@ -426,7 +426,7 @@ InitNewGameState::
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;> if wGameStarted:
 	ld a, [wGameStarted]
 	or a
@@ -436,10 +436,10 @@ InitNewGameState::
 ;> wWorldFlags = 0
 	xor a
 	ld [wWorldFlags], a
-;> mem[0xCA3F] = 0
+;> wStatusBarMode = 0
 	xor a
 	ld [wStatusBarMode], a
-;> mem[0xC8EC] = 0
+;> wMenuOverlay = 0
 	xor a
 	ld [wMenuOverlay], a
 ;> wFieldFlags = 0
@@ -448,9 +448,9 @@ InitNewGameState::
 ;> wScriptRunning = 0
 	xor a
 	ld [wScriptRunning], a
-;> mem[0xD8D8] = 0
+;> wScriptFlags = 0
 	ld [wScriptFlags], a
-;> mem[0xC8EE] = 4
+;> wMessageSpeed = 4
 	ld a, $04
 	ld [wMessageSpeed], a
 ;> wStepTimer = 100
@@ -458,14 +458,14 @@ InitNewGameState::
 	ld a, l
 	ld [wStepTimer], a
 	ld a, h
-	ld [$ca3c], a
+	ld [wStepTimer + 1], a
 ;> wFarmStepTimer = 20
 	ld hl, $0014
 	ld a, l
 	ld [wFarmStepTimer], a
 	ld a, h
-	ld [$ca3e], a
-;> fill(0xD92A, 0xC0, 0)           # story progress
+	ld [wFarmStepTimer + 1], a
+;> fill(0xD92A, 0, 0xC0)           # story progress
 	ld hl, $d92a
 	ld bc, $00c0
 	ld a, $00
@@ -483,13 +483,13 @@ InitNewGameState::
 	ld [wPlayerName], a
 ;>     wPlayerName[1] = 0xD4
 	ld a, $d4
-	ld [$ca43], a
+	ld [wPlayerName + 1], a
 ;>     wPlayerName[2] = 0xD5
 	ld a, $d5
-	ld [$ca44], a
+	ld [wPlayerName + 2], a
 ;>     wPlayerName[3] = 0xD6
 	ld a, $d6
-	ld [$ca45], a
+	ld [wPlayerName + 3], a
 
 .nameDone
 ;> mem[0xCA4A] = wRandomHigh
@@ -509,25 +509,25 @@ InitNewGameState::
 	ld [wParty], a
 ;> wParty[1] = 0xFF
 	ld a, $ff
-	ld [$ca8f], a
+	ld [wParty + 1], a
 ;> wParty[2] = 0xFF
 	ld a, $ff
-	ld [$ca90], a
+	ld [wParty + 2], a
 ;> wGold[0] = 0
 	ld a, $00
 	ld [wGold], a
 ;> wGold[1] = 0
 	ld a, $00
-	ld [$ca4c], a
+	ld [wGold + 1], a
 ;> wGold[2] = 0
 	ld a, $00
-	ld [$ca4d], a
-;> fill(wBagItems, 20, 0xFF)
+	ld [wGold + 2], a
+;> fill(wBagItems, 0xFF, 20)
 	ld hl, wBagItems
 	ld bc, $0014
 	ld a, $ff
 	call FillMemory
-;> fill(wStoredItems, 40, 0xFF)
+;> fill(wStoredItems, 0xFF, 40)
 	ld hl, wStoredItems
 	ld bc, $0028
 	ld a, $ff
@@ -587,7 +587,7 @@ LoadMapGfxAndSong::
 ;>     return
 	ret nz
 
-;> Decompress(0x2E00, 0x8D00)      # common field tiles
+;> Decompress(0x2E, 0x00, 0x8D00)      # common field tiles
 	ld de, $2e00
 	ld hl, $8d00
 	call Decompress
@@ -597,16 +597,16 @@ LoadMapGfxAndSong::
 
 ;@ def InitSGBPalettes()
 ;@ path: system/sgb
-;@ Sets the Super Game Boy palette set and attribute file of the field (both 0, from two
-;@ bytes in the home bank) and sends them.
+;@ Sets the Super Game Boy palette set and attribute file of the field (both 0, from
+;@ FieldSGBSettings) and sends them.
 ;@ test: skip far call
 InitSGBPalettes::
-;> wSGBPalSet = mem[0x2ADD]
-	ld hl, $2add
+;> wSGBPalSet = FieldSGBSettings[0]
+	ld hl, FieldSGBSettings
 	ld a, [hl]
 	ld [wSGBPalSet], a
-;> wSGBAttrSet = mem[0x2ADE]
-	ld hl, $2ade
+;> wSGBAttrSet = FieldSGBSettings[1]
+	ld hl, FieldSGBSettings + 1
 	ld a, [hl]
 	ld [wSGBAttrSet], a
 ;> SGBSetFieldPalettes()
@@ -703,9 +703,9 @@ GetMapSGBBorder::
 ;> hNumber[0] = wMapId                # map to look at
 	ld a, [wMapId]
 	ldh [hNumber], a
-;> mem[0xFFD6] = wOnGateFloor
+;> hNumber[1] = wOnGateFloor
 	ld a, [wOnGateFloor]
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 ;> if wWarpPending:                # a warp is pending: look at its destination
 	ld a, [wWarpPending]
 	or a
@@ -713,13 +713,13 @@ GetMapSGBBorder::
 ;>     hNumber[0] = wWarpMap
 	ld a, [wWarpMap]
 	ldh [hNumber], a
-;>     mem[0xFFD6] = wWarpOnGateFloor
+;>     hNumber[1] = wWarpOnGateFloor
 	ld a, [wWarpOnGateFloor]
-	ldh [$ffd6], a
+	ldh [hNumber + 1], a
 
 .look
-;> if mem[0xFFD6]:
-	ldh a, [$ffd6]
+;> if hNumber[1]:
+	ldh a, [hNumber + 1]
 	or a
 	jr z, .fixedMap
 ;>     return 0
@@ -778,21 +778,21 @@ GetMapSGBBorder::
 ;@ tile coordinates and the previous-position copy.
 ;@ test: skip decompresses graphics
 PlacePlayerOnMap::
-;> DecompressVRAM(0x2F00, 0x8000)   # Terry's sprite tiles
+;> DecompressVRAM(0x2F, 0x00, 0x8000)   # Terry's sprite tiles
 	ld de, $2f00
 	ld hl, $8000
 	call DecompressVRAM
-;> DecompressVRAM(0x2E1D, 0x8180)
+;> DecompressVRAM(0x2E, 0x1D, 0x8180)
 	ld de, $2e1d
 	ld hl, $8180
 	call DecompressVRAM
 ;> hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;> hPlayerSpeedY = 0
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;> hPlayerXSub = 0
 	ldh [hPlayerXSub], a
 ;> hPlayerYSub = 0
@@ -804,13 +804,13 @@ PlacePlayerOnMap::
 ;>     hPlayerX = wWarpX
 	ld a, [wWarpX]
 	ldh [hPlayerX], a
-	ld a, [$c970]
-	ldh [$ff93], a
+	ld a, [wWarpX + 1]
+	ldh [hPlayerX + 1], a
 ;>     hPlayerY = wWarpY
 	ld a, [wWarpY]
 	ldh [hPlayerY], a
-	ld a, [$c972]
-	ldh [$ff96], a
+	ld a, [wWarpY + 1]
+	ldh [hPlayerY + 1], a
 	jr .resetTrail
 
 ;> elif wGameStarted:
@@ -837,7 +837,7 @@ PlacePlayerOnMap::
 	ldh [hPlayerDir], a
 ;>     hPlayerFlags = 0
 	ldh [hPlayerFlags], a
-;>     mem[0xD7BD] = 0
+;>     wTouchedActor = 0
 	ld [wTouchedActor], a
 ;>@p     p = MapStartPositions + wMapId * 4
 	ld a, [wMapId]
@@ -856,12 +856,12 @@ PlacePlayerOnMap::
 	ld a, [hli]
 	ldh [hPlayerX], a
 	ld a, [hli]
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 ;>     hPlayerY = mem16[p + 2]
 	ld a, [hli]
 	ldh [hPlayerY], a
 	ld a, [hl]
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 
 .resetTrail
 ;>@tr     for i in range(49):     # (also after a warp) the whole trail starts at the player
@@ -875,10 +875,10 @@ PlacePlayerOnMap::
 	ldh a, [hPlayerY]
 	ld [hli], a
 ;>         wPlayerTrail[4 * i + 2] = (hPlayerX >> 8) << 4 | (hPlayerY >> 8)
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	swap a
 	ld c, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	or c
 	ld [hli], a
 ;>         wPlayerTrail[4 * i + 3] = hPlayerFrame | hPlayerAttr
@@ -899,19 +899,19 @@ PlacePlayerOnMap::
 ;> hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;> hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;> GetCollisionAt()                     # tile under the player
 	call GetCollisionAt
 ;>@tx hPlayerTileX = (hPlayerX >> 4) & 0xFF
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	swap h
 	swap l
@@ -927,7 +927,7 @@ PlacePlayerOnMap::
 ;>@ty hPlayerTileY = (hPlayerY >> 4) & 0xFF
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	swap h
 	swap l
@@ -943,13 +943,13 @@ PlacePlayerOnMap::
 ;> hPlayerPrevX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hPlayerPrevX], a
-	ldh a, [$ff93]
-	ldh [$ff9a], a
+	ldh a, [hPlayerX + 1]
+	ldh [hPlayerPrevX + 1], a
 ;> hPlayerPrevY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hPlayerPrevY], a
-	ldh a, [$ff96]
-	ldh [$ff9c], a
+	ldh a, [hPlayerY + 1]
+	ldh [hPlayerPrevY + 1], a
 ;> return
 	ret
 
@@ -1140,7 +1140,7 @@ CompactMonsters::
 	ld [wParty], a
 .check1
 ;=@f1
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	cp $ff
 	jr z, .check2
 ;=@f2
@@ -1151,10 +1151,10 @@ CompactMonsters::
 	jr nz, .check2
 ;=@f3
 	ld a, $ff
-	ld [$ca8f], a
+	ld [wParty + 1], a
 .check2
 ;=@f1
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	cp $ff
 	jr z, .farm
 ;=@f2
@@ -1165,7 +1165,7 @@ CompactMonsters::
 	jr nz, .farm
 ;=@f3
 	ld a, $ff
-	ld [$ca90], a
+	ld [wParty + 2], a
 
 .farm
 ;>@m for m in range(20):
@@ -1194,10 +1194,10 @@ CompactMonsters::
 	ld a, [wParty]
 	call MarkInParty
 ;=@p
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	call MarkInParty
 ;=@p
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	call MarkInParty
 ;>@g for k in range(2):               # twice: close a gap in slot 0
 ;>@g     if wParty[0] == 0xFF:
@@ -1206,10 +1206,10 @@ CompactMonsters::
 	jr nz, .slot0Full
 ;>@h         wParty[0] = wParty[1]
 	ld hl, wParty
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld [hli], a
 ;>@i         wParty[1] = wParty[2]
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld [hli], a
 ;>@j         wParty[2] = 0xFF
 	ld [hl], $ff
@@ -1220,26 +1220,26 @@ CompactMonsters::
 	jr nz, .slot0Done
 ;=@h
 	ld hl, wParty
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld [hli], a
 ;=@i
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld [hli], a
 ;=@j
 	ld [hl], $ff
 .slot0Done
 ;> if wParty[1] == 0xFF:              # and a gap in slot 1
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	cp $ff
 	jr nz, .slot1Full
 ;>     wParty[1] = wParty[2]
-	ld hl, $ca8f
-	ld a, [$ca90]
+	ld hl, wParty + 1
+	ld a, [wParty + 2]
 	ld [hli], a
 ;>     wParty[2] = 0xFF
 	ld [hl], $ff
 .slot1Full
-;> fill(wSceneObjects, 20, 0xFF)    # new index of each record
+;> fill(wSceneObjects, 0xFF, 20)    # new index of each record
 	ld hl, wSceneObjects
 	ld bc, $0014
 	ld a, $ff
@@ -1302,13 +1302,13 @@ CompactMonsters::
 	call RemapMonsterIndex
 	ld [wParty], a
 ;=@r
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	call RemapMonsterIndex
-	ld [$ca8f], a
+	ld [wParty + 1], a
 ;=@r
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	call RemapMonsterIndex
-	ld [$ca90], a
+	ld [wParty + 2], a
 ;>@c n = 0
 	ld hl, wParty
 	ld b, $03
@@ -1428,6 +1428,7 @@ SortPartyOrClearIcons::
 ;> return RefreshPartyGfx()        # no party: that clears the icon tiles
 	jr RefreshPartyGfx.clearIcons
 
+	; a stray ret nothing reaches
 	db $c9
 
 ;@ def RefreshPartyGfx()
@@ -1448,7 +1449,7 @@ RefreshPartyGfx::
 	ld hl, $8dc0
 	ld b, $10
 .clear
-;>     WriteVRAMInc(0xFF)
+;>     WriteVRAMInc(0xFF, 0x8DC0 + i)
 	ld a, $ff
 	call WriteVRAMInc
 	dec b
@@ -1470,7 +1471,7 @@ RefreshPartyGfx::
 ;@ (condition bit 7) last; a fainted member's condition is set to exactly $80.
 ;@ test: skip reads monster records through the party helpers
 SortPartyFaintedLast::
-;> fill(wNumberBackup, 4, 0xFF)    # the new order
+;> fill(wNumberBackup, 0xFF, 4)    # the new order
 	ld hl, wNumberBackup
 	ld bc, $0004
 	ld a, $ff
@@ -1481,7 +1482,7 @@ SortPartyFaintedLast::
 	or a
 	jr z, .fainted
 ;>@u     for i in range(wPartyCount):    # members standing
-;>@v         if not GetPartyMonsterByte(i, wMonStatus) & 0x80:
+;>@v         if not GetPartyMonsterByte(i, addr(wMonStatus)) & 0x80:
 	ld hl, wNumberBackup
 	push hl
 	ld a, $00
@@ -1510,7 +1511,7 @@ SortPartyFaintedLast::
 	bit 7, a
 	jr nz, .alive2
 ;=@w
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld [hli], a
 .alive2
 ;=@u
@@ -1527,7 +1528,7 @@ SortPartyFaintedLast::
 	bit 7, a
 	jr nz, .fainted
 ;=@w
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld [hli], a
 
 .fainted
@@ -1536,7 +1537,7 @@ SortPartyFaintedLast::
 	or a
 	jr z, .store
 ;>@x     for i in range(wPartyCount):    # then the fainted ones
-;>@y         if GetPartyMonsterByte(i, wMonStatus) & 0x80:
+;>@y         if GetPartyMonsterByte(i, addr(wMonStatus)) & 0x80:
 	push hl
 	ld a, $00
 	ld hl, wMonStatus
@@ -1549,7 +1550,7 @@ SortPartyFaintedLast::
 ;>@z             out += 1
 	ld a, [wParty]
 	ld [hli], a
-;>@q             PartyMonsterField(i, wMonStatus)[0] = 0x80
+;>@q             PartyMonsterField(i, addr(wMonStatus))[0] = 0x80
 	push hl
 	ld a, $00
 	ld hl, wMonStatus
@@ -1571,7 +1572,7 @@ SortPartyFaintedLast::
 	bit 7, a
 	jr z, .down2
 ;=@z
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	ld [hli], a
 ;=@q
 	push hl
@@ -1595,7 +1596,7 @@ SortPartyFaintedLast::
 	bit 7, a
 	jr z, .store
 ;=@z
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	ld [hli], a
 ;=@q
 	push hl
@@ -1610,11 +1611,11 @@ SortPartyFaintedLast::
 	ld a, [wNumberBackup]
 	ld [wParty], a
 ;> wParty[1] = wNumberBackup[1]
-	ld a, [$c0a1]
-	ld [$ca8f], a
+	ld a, [wNumberBackup + 1]
+	ld [wParty + 1], a
 ;> wParty[2] = wNumberBackup[2]
-	ld a, [$c0a2]
-	ld [$ca90], a
+	ld a, [wNumberBackup + 2]
+	ld [wParty + 2], a
 ;> return
 	ret
 
@@ -1629,10 +1630,10 @@ LoadPartyGfx::
 	ld hl, $8da0
 	ld b, $18
 .clear
-;>     WriteVRAMInc(0xFF)
+;>     WriteVRAMInc(0xFF, 0x8DA0 + 2 * i)
 	ld a, $ff
 	call WriteVRAMInc
-;>     WriteVRAMInc(0x00)
+;>     WriteVRAMInc(0x00, 0x8DA0 + 2 * i + 1)
 	xor a
 	call WriteVRAMInc
 ;=@c
@@ -1659,7 +1660,7 @@ LoadPartyGfx::
 	ld [wCurPartyMember], a
 ;=@g
 	call LoadPartyMemberGfx
-	ld [$ca92], a
+	ld [wPartyGfx + 1], a
 ;=@m
 	ld a, [wPartyCount]
 	cp $02
@@ -1669,7 +1670,7 @@ LoadPartyGfx::
 	ld [wCurPartyMember], a
 ;=@g
 	call LoadPartyMemberGfx
-	ld [$ca93], a
+	ld [wPartyGfx + 2], a
 ;> return
 	ret
 
@@ -1716,7 +1717,7 @@ LoadPartyMemberGfx::
 	inc hl
 ;=@g
 	ld d, [hl]
-;> DecompressVRAM(ref, 0x8200 + wCurPartyMember * 0x100)
+;> DecompressVRAM(hi(ref), lo(ref), 0x8200 + wCurPartyMember * 0x100)
 	ld a, [wCurPartyMember]
 	add $82
 	ld h, a
@@ -1736,7 +1737,7 @@ LoadPartyMemberGfx::
 	ld e, [hl]
 	inc hl
 	ld d, [hl]
-;> DecompressVRAM(ref, 0x8DA0 + wCurPartyMember * 16)
+;> DecompressVRAM(hi(ref), lo(ref), 0x8DA0 + wCurPartyMember * 16)
 	ld a, [wCurPartyMember]
 	swap a
 	add $a0
@@ -1889,7 +1890,7 @@ RunMapEntryEvent::
 	cp $80
 ;>     return
 	ret z
-;> fill(0xD8E9, 0x40, 0)
+;> fill(0xD8E9, 0, 0x40)
 	ld hl, wMovers
 	ld bc, $0040
 	xor a
@@ -1989,7 +1990,7 @@ GetMonsterPersonality::
 ;@ path: monster/stats
 ;@ 0 when the byte at p is $C0 or more, 1 when it is $40-$BF, 2 below $40.
 ;@ test: mem[0xC000] = rng.randrange(256)
-;@ test: de = 0xC000
+;@ test: p = 0xC000
 ClassifyPersonalityByte::
 ;> if mem[p] >= 0xC0:
 	ld a, [de]
@@ -2021,22 +2022,22 @@ DebugSetupGame::
 	ld [wPlayerName], a
 ;> wPlayerName[1] = 0x86
 	ld a, $86
-	ld [$ca43], a
+	ld [wPlayerName + 1], a
 ;> wPlayerName[2] = 0x9C
 	ld a, $9c
-	ld [$ca44], a
+	ld [wPlayerName + 2], a
 ;> wPlayerName[3] = 0xF0
 	ld a, $f0
-	ld [$ca45], a
+	ld [wPlayerName + 3], a
 ;> wParty[0] = 0
 	ld a, $00
 	ld [wParty], a
 ;> wParty[1] = 1
 	ld a, $01
-	ld [$ca8f], a
+	ld [wParty + 1], a
 ;> wParty[2] = 2
 	ld a, $02
-	ld [$ca90], a
+	ld [wParty + 2], a
 ;>@g for m in range(20):
 	ld b, $14
 	ld c, $00
@@ -2055,35 +2056,35 @@ DebugSetupGame::
 	ld [wGold], a
 ;> wGold[1] = 0x54
 	ld a, $54
-	ld [$ca4c], a
+	ld [wGold + 1], a
 ;> wGold[2] = 0x01
 	ld a, $01
-	ld [$ca4d], a
+	ld [wGold + 2], a
 ;>@i for i in range(8):               # items 1 to 8 in the bag
 ;>@i     wBagItems[i] = i + 1
 	ld a, $01
 	ld [wBagItems], a
 ;=@i
 	ld a, $02
-	ld [$ca52], a
+	ld [wBagItems + 1], a
 ;=@i
 	ld a, $03
-	ld [$ca53], a
+	ld [wBagItems + 2], a
 ;=@i
 	ld a, $04
-	ld [$ca54], a
+	ld [wBagItems + 3], a
 ;=@i
 	ld a, $05
-	ld [$ca55], a
+	ld [wBagItems + 4], a
 ;=@i
 	ld a, $06
-	ld [$ca56], a
+	ld [wBagItems + 5], a
 ;=@i
 	ld a, $07
-	ld [$ca57], a
+	ld [wBagItems + 6], a
 ;=@i
 	ld a, $08
-	ld [$ca58], a
+	ld [wBagItems + 7], a
 ;> return
 	ret
 
@@ -2095,7 +2096,7 @@ DebugSetupGame::
 ;@ (+$17, +$20) and names for the parents from their families (+$83, +$8C).
 ;@ test: skip far calls
 DebugGenerateMonster::
-;> mem[0xDA14] = m
+;> wNewMonSlot = m
 	push af
 	ld [wNewMonSlot], a
 ;> mem[0xDA12] = (Random() & 0x3F) + 1
@@ -2106,7 +2107,7 @@ DebugGenerateMonster::
 	ld [wNewMonId], a
 ;> mem[0xDA13] = 0
 	xor a
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;> CreateMonster()                  # create the monster
 	ld hl, far_CreateMonster
 	rst $10
@@ -2285,16 +2286,16 @@ FieldUpdate::
 ;>     CheckScreenEdge()
 	call CheckScreenEdge
 .paused
-;> far_call(0x04, 0x04)
-	ld hl, $0404
+;> UpdateFieldScript()
+	ld hl, far_UpdateFieldScript
 	rst $10
-;> far_call(0x06, 0x06)
-	ld hl, $0606
+;> FieldInput()
+	ld hl, far_FieldInput
 	rst $10
 ;> DrawPlayerAndFollowers()
 	call DrawPlayerAndFollowers
-;> far_call(0x06, 0x01)
-	ld hl, $0601
+;> DrawFieldActors()
+	ld hl, far_DrawFieldActors
 	rst $10
 ;> DrawFloorObjects()
 	call DrawFloorObjects
@@ -2331,9 +2332,9 @@ UpdatePlayer::
 	ld a, [wFieldTimer]
 	add $01
 	ld [wFieldTimer], a
-	ld a, [$c8a7]
+	ld a, [wFieldTimer + 1]
 	adc $00
-	ld [$c8a7], a
+	ld [wFieldTimer + 1], a
 ;> if wPlayerPause:
 	ld a, [wPlayerPause]
 	or a
@@ -2370,8 +2371,8 @@ UpdatePlayer::
 	call HandlePlayerInput
 ;>     MovePlayer()
 	call MovePlayer
-;>     far_call(0x06, 0x02)        # animate Terry
-	ld hl, $0602
+;>     UpdateFieldActors()        # animate Terry
+	ld hl, far_UpdateFieldActors
 	rst $10
 .paused
 ;> ResolvePlayerOverlap()
@@ -2420,7 +2421,7 @@ CheckScreenEdge::
 	sub [hl]
 	ld e, a
 	inc hl
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 ;=@dx
 	sbc [hl]
 ;>@l if dx < 7:
@@ -2445,7 +2446,7 @@ CheckScreenEdge::
 	sub [hl]
 	ld e, a
 	inc hl
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 ;=@dy
 	sbc [hl]
 ;>@u     if dy < 7:
@@ -2557,7 +2558,7 @@ HandlePlayerInput::
 	sub [hl]
 	ld e, a
 	inc hl
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 ;=@ok
 	sbc [hl]
 	or a
@@ -2574,7 +2575,7 @@ HandlePlayerInput::
 	sub [hl]
 	ld e, a
 	inc hl
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 ;=@ok
 	sbc [hl]
 	or a
@@ -2612,7 +2613,7 @@ HandlePlayerInput::
 ;>                     hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;>                     wPlayerPause = 5
 	ld a, $05
 	ld [wPlayerPause], a
@@ -2624,8 +2625,8 @@ HandlePlayerInput::
 	ld a, l
 	ldh [hPlayerSpeedX], a
 	ld a, h
-	ldh [$ffa2], a
-;>                     if hPlayerY & 0x0F != 8:   # not lined up with the tile row
+	ldh [hPlayerSpeedX + 1], a
+;>                     if (hPlayerY & 0x0F) != 8:   # not lined up with the tile row
 	ldh a, [hPlayerY]
 	and $0f
 	cp $08
@@ -2635,7 +2636,7 @@ HandlePlayerInput::
 ;>@bx                         hTestX = hPlayerX + 16
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	add $10
@@ -2648,12 +2649,12 @@ HandlePlayerInput::
 	ldh [hTestX], a
 ;=@bx
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>                         hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;>                         GetCollisionAt()
 	call GetCollisionAt
 ;>                         blocked = hTestResult == 0xFF
@@ -2665,7 +2666,7 @@ HandlePlayerInput::
 ;>                         hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;>                         ExitMapEast()   # at the map's edge this leaves the map
 	call ExitMapEast
 ;>                         hPlayerFlags |= 0x10
@@ -2709,7 +2710,7 @@ HandlePlayerInput::
 ;>                     hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;>                     wPlayerPause = 5
 	ld a, $05
 	ld [wPlayerPause], a
@@ -2721,8 +2722,8 @@ HandlePlayerInput::
 	ld a, l
 	ldh [hPlayerSpeedX], a
 	ld a, h
-	ldh [$ffa2], a
-;>                     if hPlayerY & 0x0F != 8:
+	ldh [hPlayerSpeedX + 1], a
+;>                     if (hPlayerY & 0x0F) != 8:
 	ldh a, [hPlayerY]
 	and $0f
 	cp $08
@@ -2732,7 +2733,7 @@ HandlePlayerInput::
 ;>@cx                         hTestX = hPlayerX - 16
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -2745,12 +2746,12 @@ HandlePlayerInput::
 	ldh [hTestX], a
 ;=@cx
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;>                         hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;>                         GetCollisionAt()
 	call GetCollisionAt
 ;>                         blocked = hTestResult == 0xFF
@@ -2762,7 +2763,7 @@ HandlePlayerInput::
 ;>                         hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;>                         ExitMapWest()
 	call ExitMapWest
 ;>                         hPlayerFlags |= 0x10
@@ -2797,7 +2798,7 @@ HandlePlayerInput::
 ;>                     hPlayerSpeedY = 0
 	xor a
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;>                     wPlayerPause = 5
 	ld a, $05
 	ld [wPlayerPause], a
@@ -2809,11 +2810,11 @@ HandlePlayerInput::
 	ld a, l
 	ldh [hPlayerSpeedY], a
 	ld a, h
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;>@dy                     hTestY = ((hPlayerY - 8) & ~0x0F) + 0x18   # centre of the tile below
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	sub $08
@@ -2836,12 +2837,12 @@ HandlePlayerInput::
 	ld a, l
 	ldh [hTestY], a
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>                     hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;>                     GetCollisionAt()
 	call GetCollisionAt
 ;>                     if hTestResult == 0xFF:
@@ -2851,7 +2852,7 @@ HandlePlayerInput::
 ;>                         hPlayerSpeedY = 0
 	xor a
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;>                         ExitMapSouth()
 	call ExitMapSouth
 ;>                         hPlayerFlags |= 0x10
@@ -2893,7 +2894,7 @@ HandlePlayerInput::
 ;>                     hPlayerSpeedY = 0
 	xor a
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;>                     wPlayerPause = 5
 	ld a, $05
 	ld [wPlayerPause], a
@@ -2905,11 +2906,11 @@ HandlePlayerInput::
 	ld a, l
 	ldh [hPlayerSpeedY], a
 	ld a, h
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;>@uy                     hTestY = hPlayerY - 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -2922,12 +2923,12 @@ HandlePlayerInput::
 	ldh [hTestY], a
 ;=@uy
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;>                     hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;>                     GetCollisionAt()
 	call GetCollisionAt
 ;>                     if hTestResult == 0xFF:
@@ -2937,7 +2938,7 @@ HandlePlayerInput::
 ;>                         hPlayerSpeedY = 0
 	xor a
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;>                         ExitMapNorth()
 	call ExitMapNorth
 ;>                         hPlayerFlags |= 0x10
@@ -2976,7 +2977,7 @@ HandlePlayerInput::
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
 ;>             wPlayerAnimGfx = hPlayerGfx
 	ldh a, [hPlayerGfx]
 	ld [wPlayerAnimGfx], a
@@ -2991,13 +2992,13 @@ HandlePlayerInput::
 ;>         hTestX = hPlayerX            # look at the tile under Terry
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;>         hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;>         GetCollisionAt()
 	call GetCollisionAt
 
@@ -3047,7 +3048,7 @@ HandlePlayerInput::
 	ld a, l
 	ld [wPlayerAnimPtr], a
 	ld a, h
-	ld [$d7b5], a
+	ld [wPlayerAnimPtr + 1], a
 ;> wPlayerAnimGfx = hPlayerGfx
 	ldh a, [hPlayerGfx]
 	ld [wPlayerAnimGfx], a
@@ -3084,7 +3085,7 @@ ForceBackViewOnMap18::
 ;>@y if hPlayerY >= 0x90:
 	ldh a, [hPlayerY]
 	ld e, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld d, a
 	ld a, e
 	sub $90
@@ -3138,7 +3139,7 @@ ApplyPlayerSpeed::
 	jr z, .noX
 ;>@sx     mem24[hPlayerXSub] += sign16(hPlayerSpeedX)   # X with its fraction
 	ld b, $00
-	ldh a, [$ffa2]
+	ldh a, [hPlayerSpeedX + 1]
 	bit 7, a
 	jr z, .xPos
 	dec b
@@ -3148,7 +3149,7 @@ ApplyPlayerSpeed::
 	ldh a, [hPlayerSpeedX]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa2]
+	ldh a, [hPlayerSpeedX + 1]
 	adc [hl]
 ;=@sx
 	ld [hli], a
@@ -3168,7 +3169,7 @@ ApplyPlayerSpeed::
 	jr z, .clamp
 ;>@sy     mem24[hPlayerYSub] += sign16(hPlayerSpeedY)
 	ld b, $00
-	ldh a, [$ffa4]
+	ldh a, [hPlayerSpeedY + 1]
 	bit 7, a
 	jr z, .yPos
 	dec b
@@ -3178,7 +3179,7 @@ ApplyPlayerSpeed::
 	ldh a, [hPlayerSpeedY]
 	add [hl]
 	ld [hli], a
-	ldh a, [$ffa4]
+	ldh a, [hPlayerSpeedY + 1]
 	adc [hl]
 ;=@sy
 	ld [hli], a
@@ -3191,7 +3192,7 @@ ApplyPlayerSpeed::
 
 .clamp
 ;> if hPlayerX < 8:
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	or a
 	jr nz, .xNotLow
 	ldh a, [hPlayerX]
@@ -3204,14 +3205,14 @@ ApplyPlayerSpeed::
 	ld a, $08
 	ldh [hPlayerX], a
 	ld a, $00
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 	jr .clampY
 
 ;>@xh elif hPlayerX >= hMapWidth - 8:
 .xNotLow
 	ldh a, [hMapWidth]
 	ld l, a
-	ldh a, [$ff9e]
+	ldh a, [hMapWidth + 1]
 	ld h, a
 	ld a, l
 	sub $08
@@ -3220,7 +3221,7 @@ ApplyPlayerSpeed::
 	ld a, h
 	sbc $00
 	ld h, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	cp h
 ;=@xh
 	jr c, .clampY
@@ -3234,11 +3235,11 @@ ApplyPlayerSpeed::
 	ld a, l
 	ldh [hPlayerX], a
 	ld a, h
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 
 .clampY
 ;> if hPlayerY < 8:
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	or a
 	jr nz, .yNotLow
 	ldh a, [hPlayerY]
@@ -3251,14 +3252,14 @@ ApplyPlayerSpeed::
 	ld a, $08
 	ldh [hPlayerY], a
 	ld a, $00
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 	jr .arrived
 
 ;>@yh elif hPlayerY >= hMapHeight - 8:
 .yNotLow
 	ldh a, [hMapHeight]
 	ld l, a
-	ldh a, [$ffa0]
+	ldh a, [hMapHeight + 1]
 	ld h, a
 	ld a, l
 	sub $08
@@ -3267,7 +3268,7 @@ ApplyPlayerSpeed::
 	ld a, h
 	sbc $00
 	ld h, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	cp h
 ;=@yh
 	jr c, .arrived
@@ -3281,7 +3282,7 @@ ApplyPlayerSpeed::
 	ld a, l
 	ldh [hPlayerY], a
 	ld a, h
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 
 .arrived
 ;> if not hPlayerFlags & 0x01:
@@ -3289,7 +3290,7 @@ ApplyPlayerSpeed::
 	bit 0, a
 ;>     return
 	jp z, .done
-;> if hPlayerX & 0x0F == 8:          # on a tile centre: stop
+;> if (hPlayerX & 0x0F) == 8:          # on a tile centre: stop
 	ldh a, [hPlayerX]
 	and $0f
 	cp $08
@@ -3297,9 +3298,9 @@ ApplyPlayerSpeed::
 ;>     hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 .xMid
-;> if hPlayerY & 0x0F == 8:
+;> if (hPlayerY & 0x0F) == 8:
 	ldh a, [hPlayerY]
 	and $0f
 	cp $08
@@ -3307,7 +3308,7 @@ ApplyPlayerSpeed::
 ;>     hPlayerSpeedY = 0
 	xor a
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 .yMid
 ;>@mv if hPlayerSpeedX or hPlayerSpeedY:
 	ld hl, hPlayerSpeedX
@@ -3326,7 +3327,7 @@ ApplyPlayerSpeed::
 ;>@tx tx = (hPlayerX >> 4) & 0xFF
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	swap h
 	swap l
@@ -3342,7 +3343,7 @@ ApplyPlayerSpeed::
 ;>@ty ty = (hPlayerY >> 4) & 0xFF
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	swap h
 	swap l
@@ -3376,8 +3377,8 @@ ApplyPlayerSpeed::
 	call CheckFloorCleared
 ;> TickFloorTimer()
 	call TickFloorTimer
-;> far_call(0x0B, 0x06)
-	ld hl, $0b06
+;> CheckStandingWarp()
+	ld hl, far_CheckStandingWarp
 	rst $10
 ;> CheckStepEvent()
 	call CheckStepEvent
@@ -3409,7 +3410,7 @@ UpdatePlayerAfterMove::
 	cp [hl]
 	jr nz, .moved
 	inc hl
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 ;=@m
 	cp [hl]
 	jr nz, .moved
@@ -3419,7 +3420,7 @@ UpdatePlayerAfterMove::
 	jr nz, .moved
 ;=@m
 	inc hl
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	cp [hl]
 	jr z, .same
 .moved
@@ -3429,13 +3430,13 @@ UpdatePlayerAfterMove::
 ;> hPlayerPrevX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hPlayerPrevX], a
-	ldh a, [$ff93]
-	ldh [$ff9a], a
+	ldh a, [hPlayerX + 1]
+	ldh [hPlayerPrevX + 1], a
 ;> hPlayerPrevY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hPlayerPrevY], a
-	ldh a, [$ff96]
-	ldh [$ff9c], a
+	ldh a, [hPlayerY + 1]
+	ldh [hPlayerPrevY + 1], a
 ;> SaveActorPositions()
 	call SaveActorPositions
 ;>@w if wPlayerAnim not in (3, 4, 5):   # not walking
@@ -3557,7 +3558,7 @@ SaveActorPositions::
 ;@ test: skip far call into the map-exit code
 ExitMapWest::
 ;> if hPlayerX != 8:
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	or a
 	ret nz
 	ldh a, [hPlayerX]
@@ -3571,7 +3572,7 @@ ExitMapWest::
 	ld a, $08
 	ldh [hPlayerX], a
 	ld a, $00
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 ;> CheckEdgeWarp()                    # leave through the edge
 	ld hl, far_CheckEdgeWarp
 	rst $10
@@ -3587,7 +3588,7 @@ ExitMapEast::
 ;>@e if hPlayerX != hMapWidth - 8:
 	ldh a, [hMapWidth]
 	ld l, a
-	ldh a, [$ff9e]
+	ldh a, [hMapWidth + 1]
 	ld h, a
 	ld a, l
 	sub $08
@@ -3596,7 +3597,7 @@ ExitMapEast::
 	ld a, h
 	sbc $00
 	ld h, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	cp h
 ;=@e
 	ret c
@@ -3611,7 +3612,7 @@ ExitMapEast::
 	ld a, l
 	ldh [hPlayerX], a
 	ld a, h
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 ;> CheckEdgeWarp()
 	ld hl, far_CheckEdgeWarp
 	rst $10
@@ -3625,7 +3626,7 @@ ExitMapEast::
 ;@ test: skip far call into the map-exit code
 ExitMapNorth::
 ;> if hPlayerY != 8:
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	or a
 	ret nz
 	ldh a, [hPlayerY]
@@ -3639,7 +3640,7 @@ ExitMapNorth::
 	ld a, $08
 	ldh [hPlayerY], a
 	ld a, $00
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 ;> CheckEdgeWarp()
 	ld hl, far_CheckEdgeWarp
 	rst $10
@@ -3655,7 +3656,7 @@ ExitMapSouth::
 ;>@s if hPlayerY != hMapHeight - 8:
 	ldh a, [hMapHeight]
 	ld l, a
-	ldh a, [$ffa0]
+	ldh a, [hMapHeight + 1]
 	ld h, a
 	ld a, l
 	sub $08
@@ -3664,7 +3665,7 @@ ExitMapSouth::
 	ld a, h
 	sbc $00
 	ld h, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	cp h
 ;=@s
 	ret c
@@ -3679,7 +3680,7 @@ ExitMapSouth::
 	ld a, l
 	ldh [hPlayerY], a
 	ld a, h
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 ;> CheckEdgeWarp()
 	ld hl, far_CheckEdgeWarp
 	rst $10
@@ -3755,14 +3756,14 @@ TickMonsterWildness::
 ;>@t wStepTimer -= 1
 	ld a, [wStepTimer]
 	ld l, a
-	ld a, [$ca3c]
+	ld a, [wStepTimer + 1]
 	ld h, a
 	dec hl
 	ld a, l
 ;=@t
 	ld [wStepTimer], a
 	ld a, h
-	ld [$ca3c], a
+	ld [wStepTimer + 1], a
 ;> if wStepTimer == 0:
 	ld a, h
 	or l
@@ -3772,30 +3773,30 @@ TickMonsterWildness::
 	ld a, l
 	ld [wStepTimer], a
 	ld a, h
-	ld [$ca3c], a
+	ld [wStepTimer + 1], a
 ;>@p     for i in range(3):
 ;>@p         TamePartyMonster(wParty[i])
 	ld a, [wParty]
 	call TamePartyMonster
 ;=@p
-	ld a, [$ca8f]
+	ld a, [wParty + 1]
 	call TamePartyMonster
 ;=@p
-	ld a, [$ca90]
+	ld a, [wParty + 2]
 	call TamePartyMonster
 
 .farm
 ;>@f wFarmStepTimer -= 1
 	ld a, [wFarmStepTimer]
 	ld l, a
-	ld a, [$ca3e]
+	ld a, [wFarmStepTimer + 1]
 	ld h, a
 	dec hl
 	ld a, l
 ;=@f
 	ld [wFarmStepTimer], a
 	ld a, h
-	ld [$ca3e], a
+	ld [wFarmStepTimer + 1], a
 ;> if wFarmStepTimer == 0:
 	ld a, h
 	or l
@@ -3805,7 +3806,7 @@ TickMonsterWildness::
 	ld a, l
 	ld [wFarmStepTimer], a
 	ld a, h
-	ld [$ca3e], a
+	ld [wFarmStepTimer + 1], a
 ;>@m     for m in range(20):
 	ld b, $14
 	ld c, $00
@@ -3924,7 +3925,7 @@ CheckStepEvent::
 ;>@px hDivisorHigh = hPlayerX        # position to look up (u16 at $FFDB)
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	ldh [hDivisorHigh], a
@@ -3934,15 +3935,15 @@ CheckStepEvent::
 ;>@py hFindY = hPlayerY
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	ldh [hFindY], a
 ;=@py
 	ld a, h
-	ldh [$ffde], a
-;> far_call(0x0B, 0x05)           # finds the trigger -> hNumber ($FF = none)
-	ld hl, $0b05
+	ldh [hFindY + 1], a
+;> CheckStepTrigger()           # finds the trigger -> hNumber ($FF = none)
+	ld hl, far_CheckStepTrigger
 	rst $10
 ;> if hNumber == 0xFF:
 	ldh a, [hNumber]
@@ -3972,14 +3973,14 @@ CheckStepEvent::
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;> wFieldFlags |= 0x01
 	ld hl, wFieldFlags
 	set 0, [hl]
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;> return
 	ret
 
@@ -4012,10 +4013,10 @@ RecordTrailPosition::
 	ldh a, [hPlayerY]
 	ld [hli], a
 ;> mem[p + 2] = (hPlayerX >> 8) << 4 | (hPlayerY >> 8)
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	swap a
 	ld c, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	or c
 	ld [hli], a
 ;> mem[p + 3] = hPlayerFrame | hPlayerAttr
@@ -4046,7 +4047,7 @@ RecordTrailPosition::
 ;@ maps it is cleared every frame.
 ;@ test: skip draws sprites through far calls
 DrawPlayerAndFollowers::
-;>@k if not wScriptRunning and (wOnGateFloor or wMapId not in (0x06, 0x5D)) and not (mem[0xD92B] == 7 and mem[0xDA09] == 3 and mem[0xC8ED] == 0x0E):
+;>@k if not wScriptRunning and (wOnGateFloor or wMapId not in (0x06, 0x5D)) and not (wHomeWarpCause == 7 and wBattleKind == 3 and wHiddenSprites == 0x0E):
 	ld a, [wScriptRunning]
 	or a
 	jr nz, .keepHidden
@@ -4072,11 +4073,11 @@ DrawPlayerAndFollowers::
 	jr nz, .show
 	jr .keepHidden
 .show
-;>     mem[0xC8ED] = 0
+;>     wHiddenSprites = 0
 	xor a
 	ld [wHiddenSprites], a
 .keepHidden
-;>@b if mem[0xC8EC] or wFieldFlags & 0x8A or (wFieldFlags & 0x10 and mem[0xC8EF] == 0x0F):
+;>@b if wMenuOverlay or wFieldFlags & 0x8A or (wFieldFlags & 0x10 and wScriptMenu == 0x0F):
 	ld a, [wMenuOverlay]
 	or a
 	ret nz
@@ -4105,13 +4106,13 @@ DrawPlayerAndFollowers::
 	ld hl, hSpriteX
 	ldh a, [hPlayerX]
 	ld [hli], a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld [hli], a
 ;> hSpriteY = hPlayerY + 8
 	ldh a, [hPlayerY]
 	add $08
 	ld [hli], a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	adc $00
 	ld [hli], a
 ;> hSpriteSet = hPlayerGfx
@@ -4131,7 +4132,7 @@ DrawPlayerAndFollowers::
 	cp $ff
 ;>     return
 	ret z
-;> if not mem[0xC8ED] & 0x01:
+;> if not wHiddenSprites & 0x01:
 	ld a, [wHiddenSprites]
 	bit 0, a
 	jr nz, .party
@@ -4151,7 +4152,7 @@ DrawPlayerAndFollowers::
 ;>@t     hSpriteTileBase = 0x20 + 0x10 * i
 	ld a, $20
 	ldh [hSpriteTileBase], a
-;>@d     if not mem[0xC8ED] & (2 << i):
+;>@d     if not wHiddenSprites & (2 << i):
 ;>@e         DrawFollower(16 * (i + 1))   # this far back in the trail
 	ld b, $10
 	ld a, [wHiddenSprites]
@@ -4162,7 +4163,7 @@ DrawPlayerAndFollowers::
 	cp $01
 	ret z
 ;=@s
-	ld a, [$ca92]
+	ld a, [wPartyGfx + 1]
 	ldh [hSpriteSet], a
 ;=@t
 	ld a, $30
@@ -4177,7 +4178,7 @@ DrawPlayerAndFollowers::
 	cp $02
 	ret z
 ;=@s
-	ld a, [$ca93]
+	ld a, [wPartyGfx + 2]
 	ldh [hSpriteSet], a
 ;=@t
 	ld a, $40
@@ -4343,11 +4344,11 @@ ResolvePlayerOverlap::
 ;> hPlayerSpeedX = 0
 	xor a
 	ldh [hPlayerSpeedX], a
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;> hPlayerSpeedY = 0
 	xor a
 	ldh [hPlayerSpeedY], a
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;> hPlayerFlags &= ~0x01
 	ld hl, hPlayerFlags
 	res 0, [hl]
@@ -4364,13 +4365,13 @@ ResolvePlayerOverlap::
 ;> hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;> hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;> GetCollisionAt()
 	call GetCollisionAt
 ;> if hTestResult != 0xFF:           # the tile itself is free
@@ -4389,7 +4390,7 @@ ResolvePlayerOverlap::
 ;>@ty hTestY = hPlayerY + 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	add $10
@@ -4402,12 +4403,12 @@ ResolvePlayerOverlap::
 	ldh [hTestY], a
 ;=@ty
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;> hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;> GetCollisionAt()
 	call GetCollisionAt
 ;> if hTestResult != 0xFF:           # a tile down
@@ -4417,7 +4418,7 @@ ResolvePlayerOverlap::
 ;>@yd     hPlayerY += 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	add $10
@@ -4430,7 +4431,7 @@ ResolvePlayerOverlap::
 	ldh [hPlayerY], a
 ;=@yd
 	ld a, h
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 ;>     CheckActorOverlap()
 	ld hl, far_CheckActorOverlap
 	rst $10
@@ -4442,7 +4443,7 @@ ResolvePlayerOverlap::
 ;>@yu     hPlayerY -= 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -4455,12 +4456,12 @@ ResolvePlayerOverlap::
 	ldh [hPlayerY], a
 ;=@yu
 	ld a, h
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 .tryAbove
 ;>@tu hTestY = hPlayerY - 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -4473,12 +4474,12 @@ ResolvePlayerOverlap::
 	ldh [hTestY], a
 ;=@tu
 	ld a, h
-	ldh [$ffa8], a
+	ldh [hTestY + 1], a
 ;> hTestX = hPlayerX
 	ldh a, [hPlayerX]
 	ldh [hTestX], a
-	ldh a, [$ff93]
-	ldh [$ffa6], a
+	ldh a, [hPlayerX + 1]
+	ldh [hTestX + 1], a
 ;> GetCollisionAt()
 	call GetCollisionAt
 ;> if hTestResult != 0xFF:           # a tile up
@@ -4488,7 +4489,7 @@ ResolvePlayerOverlap::
 ;>@uu     hPlayerY -= 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -4501,7 +4502,7 @@ ResolvePlayerOverlap::
 	ldh [hPlayerY], a
 ;=@uu
 	ld a, h
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 ;>     CheckActorOverlap()
 	ld hl, far_CheckActorOverlap
 	rst $10
@@ -4513,7 +4514,7 @@ ResolvePlayerOverlap::
 ;>@ud     hPlayerY += 16
 	ldh a, [hPlayerY]
 	ld l, a
-	ldh a, [$ff96]
+	ldh a, [hPlayerY + 1]
 	ld h, a
 	ld a, l
 	add $10
@@ -4526,12 +4527,12 @@ ResolvePlayerOverlap::
 	ldh [hPlayerY], a
 ;=@ud
 	ld a, h
-	ldh [$ff96], a
+	ldh [hPlayerY + 1], a
 .tryLeft
 ;>@tl hTestX = hPlayerX - 16
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -4544,12 +4545,12 @@ ResolvePlayerOverlap::
 	ldh [hTestX], a
 ;=@tl
 	ld a, h
-	ldh [$ffa6], a
+	ldh [hTestX + 1], a
 ;> hTestY = hPlayerY
 	ldh a, [hPlayerY]
 	ldh [hTestY], a
-	ldh a, [$ff96]
-	ldh [$ffa8], a
+	ldh a, [hPlayerY + 1]
+	ldh [hTestY + 1], a
 ;> GetCollisionAt()
 	call GetCollisionAt
 ;> if hTestResult != 0xFF:           # a tile left
@@ -4559,7 +4560,7 @@ ResolvePlayerOverlap::
 ;>@xl     hPlayerX -= 16
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	sub $10
@@ -4572,7 +4573,7 @@ ResolvePlayerOverlap::
 	ldh [hPlayerX], a
 ;=@xl
 	ld a, h
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 ;>     CheckActorOverlap()
 	ld hl, far_CheckActorOverlap
 	rst $10
@@ -4584,7 +4585,7 @@ ResolvePlayerOverlap::
 ;>@xr     hPlayerX += 16
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	add $10
@@ -4597,13 +4598,13 @@ ResolvePlayerOverlap::
 	ldh [hPlayerX], a
 ;=@xr
 	ld a, h
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 .goRight
 ;>@r while True:                     # else walk right until clear
 ;>@x     hPlayerX += 16
 	ldh a, [hPlayerX]
 	ld l, a
-	ldh a, [$ff93]
+	ldh a, [hPlayerX + 1]
 	ld h, a
 	ld a, l
 	add $10
@@ -4616,7 +4617,7 @@ ResolvePlayerOverlap::
 	ldh [hPlayerX], a
 ;=@x
 	ld a, h
-	ldh [$ff93], a
+	ldh [hPlayerX + 1], a
 ;>     CheckActorOverlap()
 	ld hl, far_CheckActorOverlap
 	rst $10
@@ -4629,19 +4630,20 @@ ResolvePlayerOverlap::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $af, $ea, $bc, $d7
 
 .backOff
 ;=@b1
 	ldh a, [hPlayerPrevX]
 	ldh [hPlayerX], a
-	ldh a, [$ff9a]
-	ldh [$ff93], a
+	ldh a, [hPlayerPrevX + 1]
+	ldh [hPlayerX + 1], a
 ;=@b2
 	ldh a, [hPlayerPrevY]
 	ldh [hPlayerY], a
-	ldh a, [$ff9c]
-	ldh [$ff96], a
+	ldh a, [hPlayerPrevY + 1]
+	ldh [hPlayerY + 1], a
 ;=@b3
 	call SnapActorsToTiles
 ;=@b4
@@ -4692,7 +4694,7 @@ SnapActorToTile::
 	ld h, a
 	bit 5, [hl]
 	jr z, .done
-;>@p     if mem[a + 0x1C] & 0x0F == 8 and mem[a + 0x1E] & 0x0F == 8:
+;>@p     if (mem[a + 0x1C] & 0x0F) == 8 and (mem[a + 0x1E] & 0x0F) == 8:
 	ld a, l
 	add $13
 	ld l, a
@@ -5061,7 +5063,7 @@ TouchFloorObject::
 	ld [wFoundGold], a
 ;=@g1
 	xor a
-	ld [$d792], a
+	ld [wFoundGold + 1], a
 	jr .gold
 ;>     elif wFloorLoot == 2:
 .notSmall
@@ -5076,7 +5078,7 @@ TouchFloorObject::
 	ld [wFoundGold], a
 ;=@g2
 	xor a
-	ld [$d792], a
+	ld [wFoundGold + 1], a
 	jr .gold
 ;>     else:
 .byFloor
@@ -5103,7 +5105,7 @@ TouchFloorObject::
 	ld a, l
 	ld [wFoundGold], a
 	ld a, h
-	ld [$d792], a
+	ld [wFoundGold + 1], a
 .gold
 ;>@cap     total = wGold + wFoundGold    # compared with 100000, result unused
 	ld hl, wFoundGold
@@ -5111,12 +5113,12 @@ TouchFloorObject::
 	add [hl]
 	ld e, a
 	inc hl
-	ld a, [$ca4c]
+	ld a, [wGold + 1]
 ;=@cap
 	adc [hl]
 	ld d, a
 	inc hl
-	ld a, [$ca4d]
+	ld a, [wGold + 2]
 	adc $00
 	ld c, a
 ;=@cap
@@ -5182,13 +5184,13 @@ TouchFloorObject::
 ;>     wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;>     wEventRoutine = 0x0217        # text: a trap
 	ld hl, $0217
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;>     return
 	ret
 
@@ -5203,14 +5205,14 @@ TouchFloorObject::
 ;>     wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;>     hNumber = wFoundGold          # the amount as text
 	ld a, [wFoundGold]
 	ldh [hNumber], a
-	ld a, [$d792]
-	ldh [$ffd6], a
+	ld a, [wFoundGold + 1]
+	ldh [hNumber + 1], a
 	ld a, $00
-	ldh [$ffd7], a
+	ldh [hNumber + 2], a
 ;>     Number24ToDecimal(0xC180)
 	ld hl, wTextArg0
 	call Number24ToDecimal
@@ -5219,11 +5221,11 @@ TouchFloorObject::
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
-;>     AddGold(wFoundGold)         # add it to the gold
+	ld [wEventRoutine + 1], a
+;>     AddGold(0, wFoundGold)         # add it to the gold
 	ld a, [wFoundGold]
 	ld l, a
-	ld a, [$d792]
+	ld a, [wFoundGold + 1]
 	ld h, a
 	ld e, $00
 	call AddGold
@@ -5238,7 +5240,7 @@ TouchFloorObject::
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;> CopySystemText(0xC180, 0x0800 | wFloorObjectItem)   # the item's name
 	ld a, [wFloorObjectItem]
 	ld l, a
@@ -5250,7 +5252,7 @@ TouchFloorObject::
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;>@s for i in range(20):              # into the first free bag slot
 	ld hl, wBagItems
 	ld b, $14
@@ -5295,7 +5297,7 @@ TouchFloorObject::
 ;=@f5
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;=@f6
 	ld a, [wFloorObjectItem]
 	ld l, a
@@ -5307,11 +5309,12 @@ TouchFloorObject::
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;=@f8
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $7e, $e6, $78, $28, $07, $cb, $ee, $3e, $53, $cd, $2c, $1b, $21, $eb, $c8, $cb
 	db $c6, $af, $ea, $15, $c9, $ea, $16, $c9, $fa, $91, $d7, $e0, $d5, $fa, $92, $d7
 	db $e0, $d6, $3e, $00, $e0, $d7, $21, $80, $c1, $cd, $c7, $09, $21, $16, $02, $7d
@@ -5350,7 +5353,7 @@ WalkingConditionTicks::
 ;>@t if wStepTimer % 10 == 1:
 	ld a, [wStepTimer]
 	ld l, a
-	ld a, [$ca3c]
+	ld a, [wStepTimer + 1]
 	ld h, a
 	ld a, $0a
 	call Divide16
@@ -5376,7 +5379,7 @@ WalkingConditionTicks::
 ;>@p if wStepTimer % 5 == 4:
 	ld a, [wStepTimer]
 	ld l, a
-	ld a, [$ca3c]
+	ld a, [wStepTimer + 1]
 	ld h, a
 	ld a, $05
 	call Divide16
@@ -5405,8 +5408,7 @@ WalkingConditionTicks::
 ;@ def RegainPartyMemberMP(i: a)
 ;@ path: monster/walking
 ;@ Party member i (if there is one, it is not fainted and its condition bit 0 is clear)
-;@ gains 1 MP, up to its maximum. The bytes after it are an unused variant that heals
-;@ 1 HP with the damage flash.
+;@ gains 1 MP, up to its maximum.
 ;@ test: skip changes MP through the party helpers
 RegainPartyMemberMP::
 ;> if i >= wPartyCount:
@@ -5416,7 +5418,7 @@ RegainPartyMemberMP::
 	ret z
 	ret c
 ;>     return
-;> if PartyMonsterField(i, wMonStatus)[0] & 0x01:
+;> if PartyMonsterField(i, addr(wMonStatus))[0] & 0x01:
 	ld a, b
 	push bc
 	ld hl, wMonStatus
@@ -5425,7 +5427,7 @@ RegainPartyMemberMP::
 	pop bc
 ;>     return
 	ret nz
-;> if PartyMonsterField(i, wMonStatus)[0] & 0x80:   # fainted
+;> if PartyMonsterField(i, addr(wMonStatus))[0] & 0x80:   # fainted
 	push bc
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -5441,6 +5443,11 @@ RegainPartyMemberMP::
 	ret
 
 
+;@ path: unused
+;@ Unused code nothing calls: a variant of PoisonPartyMember for party members with
+;@ condition bit 0 set. Off conveyors, a member that is not fainted loses 1 MP
+;@ (LosePartyMP), with the damage sound $6C, an 8-frame pause and the screen flash.
+UnusedDrainPartyMemberMP::
 	db $47, $f0, $90, $cb, $4f, $c0, $fa, $8d, $ca, $b8, $c8, $d8, $78, $c5, $21, $0b
 	db $cb, $cd, $29, $22, $cb, $46, $c1, $c8, $c5, $21, $0b, $cb, $cd, $29, $22, $cb
 	db $7e, $c1, $c0, $78, $21, $01, $00, $cd, $f0, $22, $3e, $6c, $cd, $2c, $1b, $3e
@@ -5464,7 +5471,7 @@ PoisonPartyMember::
 	ret z
 	ret c
 ;>     return
-;> if not PartyMonsterField(i, wMonStatus)[0] & 0x04:   # not poisoned
+;> if not PartyMonsterField(i, addr(wMonStatus))[0] & 0x04:   # not poisoned
 	ld a, b
 	push bc
 	ld hl, wMonStatus
@@ -5473,7 +5480,7 @@ PoisonPartyMember::
 	pop bc
 ;>     return
 	ret z
-;> if PartyMonsterField(i, wMonStatus)[0] & 0x80:
+;> if PartyMonsterField(i, addr(wMonStatus))[0] & 0x80:
 	push bc
 	ld hl, wMonStatus
 	call PartyMonsterField
@@ -5618,7 +5625,7 @@ CheckConveyorTile::
 	ld a, l
 	ldh [hPlayerSpeedX], a
 	ld a, h
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;=@r2
 	ld hl, hPlayerFlags
 	set 1, [hl]
@@ -5632,7 +5639,7 @@ CheckConveyorTile::
 	ld a, l
 	ldh [hPlayerSpeedX], a
 	ld a, h
-	ldh [$ffa2], a
+	ldh [hPlayerSpeedX + 1], a
 ;=@l2
 	ld hl, hPlayerFlags
 	set 1, [hl]
@@ -5646,7 +5653,7 @@ CheckConveyorTile::
 	ld a, l
 	ldh [hPlayerSpeedY], a
 	ld a, h
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;=@d2
 	ld hl, hPlayerFlags
 	set 1, [hl]
@@ -5660,7 +5667,7 @@ CheckConveyorTile::
 	ld a, l
 	ldh [hPlayerSpeedY], a
 	ld a, h
-	ldh [$ffa4], a
+	ldh [hPlayerSpeedY + 1], a
 ;=@u2
 	ld hl, hPlayerFlags
 	set 1, [hl]
@@ -5769,7 +5776,7 @@ DamagePartyMember::
 	ret z
 	ret c
 ;>     return
-;>@f if PartyMonsterField(i, wMonStatus)[0] & 0x80:
+;>@f if PartyMonsterField(i, addr(wMonStatus))[0] & 0x80:
 	ld a, b
 	push bc
 	push hl
@@ -5800,7 +5807,7 @@ CheckPartyFainted::
 ;> n = 0
 	ld c, $00
 ;>@a for i in range(3):
-;>@a     n += CheckMemberFainted(i)
+;>@a     n = CheckMemberFainted(i, n)
 	ld a, $00
 	call CheckMemberFainted
 ;=@a
@@ -5818,7 +5825,7 @@ CheckPartyFainted::
 	push bc
 	ld c, $00
 ;>@d for i in range(3):
-;>@d     down += CountFaintedMember(i)
+;>@d     down = CountFaintedMember(i, down)
 	ld a, $00
 	call CountFaintedMember
 ;=@d
@@ -5849,14 +5856,14 @@ CheckPartyFainted::
 	ld a, l
 	ld [wEventRoutine], a
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;>     wFieldFlags |= 0x01
 	ld hl, wFieldFlags
 	set 0, [hl]
 ;>     wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;>     return
 	ret
 
@@ -5871,14 +5878,14 @@ CheckPartyFainted::
 	ld [wEventRoutine], a
 ;=@e
 	ld a, h
-	ld [$c918], a
+	ld [wEventRoutine + 1], a
 ;> wFieldFlags |= 0x01
 	ld hl, wFieldFlags
 	set 0, [hl]
 ;> wEventStep = 0
 	xor a
 	ld [wEventStep], a
-	ld [$c916], a
+	ld [wEventStep + 1], a
 ;> RefreshPartyGfx()
 	call RefreshPartyGfx
 ;> BuildStatusBar()
@@ -5902,7 +5909,7 @@ CheckMemberFainted::
 	jr z, .no
 	jr c, .no
 ;>     return 0
-;> if PartyMonsterField(i, wMonStatus)[0] & 0x80:
+;> if PartyMonsterField(i, addr(wMonStatus))[0] & 0x80:
 	ld a, b
 	push bc
 	ld hl, wMonStatus
@@ -5911,7 +5918,7 @@ CheckMemberFainted::
 	pop bc
 ;>     return 0
 	jr nz, .no
-;> if GetPartyMonsterWord(i, wMonHP):          # HP left
+;> if GetPartyMonsterWord(i, addr(wMonHP)):          # HP left
 	ld a, b
 	push bc
 	ld hl, wMonHP
@@ -5921,7 +5928,7 @@ CheckMemberFainted::
 ;>@n3     return 0
 	pop bc
 	jr nz, .no
-;> PartyMonsterField(i, wMonStatus)[0] |= 0x80
+;> PartyMonsterField(i, addr(wMonStatus))[0] |= 0x80
 	ld a, b
 	push bc
 	ld hl, wMonStatus
@@ -5974,7 +5981,7 @@ CountFaintedMember::
 	ret z
 	ret c
 ;>     return n
-;> if not PartyMonsterField(i, wMonStatus)[0] & 0x80:
+;> if not PartyMonsterField(i, addr(wMonStatus))[0] & 0x80:
 	ld a, b
 	push bc
 	ld hl, wMonStatus
@@ -5993,7 +6000,7 @@ CountFaintedMember::
 ;@ On a gate floor (and when the field is not busy) draws every floor object.
 ;@ test: skip draws sprites through far calls
 DrawFloorObjects::
-;>@b if mem[0xC8EC] or wFieldFlags & 0x8A or (wFieldFlags & 0x10 and mem[0xC8EF] == 0x0F):
+;>@b if wMenuOverlay or wFieldFlags & 0x8A or (wFieldFlags & 0x10 and wScriptMenu == 0x0F):
 	ld a, [wMenuOverlay]
 	or a
 	ret nz
@@ -6050,7 +6057,7 @@ DrawFloorObject::
 ;> if flags & 0x80:                  # taken
 	bit 7, a
 	jr z, .draw
-;>     if flags & 0x78 == 0 or mem[o + 1] == 0:
+;>     if (flags & 0x78) == 0 or mem[o + 1] == 0:
 	and $78
 	ret z
 	inc de
@@ -6068,7 +6075,7 @@ DrawFloorObject::
 	ld a, [de]
 	dec a
 	ld [de], a
-;>         if mem[o + 1] & 1 == 0:   # every other frame
+;>         if (mem[o + 1] & 1) == 0:   # every other frame
 	and $01
 ;>             return
 	ret z
@@ -6183,7 +6190,7 @@ ItemObjectKinds::
 ;@ current map's routine from MapTileAnimTable, unless the field is busy.
 ;@ test: skip jumps through a table to VRAM writers
 AnimateMapTiles::
-;>@b if wFadeState or wMapLoadState or wOnGateFloor or wFieldFlags & 0xEE or (wFieldFlags & 0x10 and mem[0xC8EF] == 0x0F):
+;>@b if wFadeState or wMapLoadState or wOnGateFloor or wFieldFlags & 0xEE or (wFieldFlags & 0x10 and wScriptMenu == 0x0F):
 	ld a, [wFadeState]
 	or a
 	ret nz
@@ -6400,7 +6407,7 @@ TileAnimMap08::
 ;>@b wBGP = mem[Map08PaletteCycleA + ((wFieldTimer >> 5) & 7)]
 	ld a, [wFieldTimer]
 	ld l, a
-	ld a, [$c8a7]
+	ld a, [wFieldTimer + 1]
 	ld h, a
 	srl h
 	rr l
@@ -6443,7 +6450,7 @@ TileAnimMap08AfterStar::
 ;>@t t = wFieldTimer * 3
 	ld a, [wFieldTimer]
 	ld l, a
-	ld a, [$c8a7]
+	ld a, [wFieldTimer + 1]
 	ld h, a
 	ld c, l
 	ld b, h
@@ -6532,7 +6539,7 @@ TileAnimMap10::
 ;@ Maps $19-$1A: every 32 frames the two tiles at $9320 swap with the ones at $93D0.
 ;@ test: skip writes VRAM
 TileAnimMap19::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6560,7 +6567,7 @@ TileAnimMap1B::
 ;@ Map $1C: every 32 frames the tiles at $9240 and $92C0 swap (2 tiles).
 ;@ test: skip writes VRAM
 TileAnimMap1C::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6604,7 +6611,7 @@ TileAnimMap1F::
 ;@ Maps $20-$21: every 32 frames the tiles at $9320 and $9380 swap (2 tiles).
 ;@ test: skip writes VRAM
 TileAnimMap20::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6632,7 +6639,7 @@ TileAnimMap22::
 ;@ Map $23: every 32 frames the tiles at $9130 and $9190 swap (4 tiles).
 ;@ test: skip writes VRAM
 TileAnimMap23::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6672,7 +6679,7 @@ TileAnimMap26::
 ;> ScrollTilePairOnTick(0x9240)
 	ld hl, $9240
 	call ScrollTilePairOnTick
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6721,7 +6728,7 @@ TileAnimMap29::
 ;> ScrollTilePairOnTick(0x90A0)
 	ld hl, $90a0
 	call ScrollTilePairOnTick
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6746,7 +6753,7 @@ TileAnimMap29::
 ;@ Maps $2A and $2C: every 32 frames the tiles at $9060 and $91A0 swap (4 tiles).
 ;@ test: skip writes VRAM
 TileAnimMap2A::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6786,7 +6793,7 @@ TileAnimMap2D::
 ;@ Map $2E: every 32 frames swaps $9060 with $9200 and $9160 with $9220.
 ;@ test: skip writes VRAM
 TileAnimMap2E::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6811,7 +6818,7 @@ TileAnimMap2E::
 ;@ Map $2F: every 32 frames the tile at $94E0 swaps with the one at $94F0.
 ;@ test: skip writes VRAM
 TileAnimMap2F::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6891,7 +6898,7 @@ TileAnimMap36::
 ;@ Maps $37 and $3E: every 32 frames the tile at $9230 swaps with the one at $9240.
 ;@ test: skip writes VRAM
 TileAnimMap37::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -6967,7 +6974,7 @@ TileAnimMap3D::
 ;@ Map $3F: every 32 frames the tiles at $9380 and $93C0 swap (4 tiles).
 ;@ test: skip writes VRAM
 TileAnimMap3F::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7020,7 +7027,7 @@ TileAnimMap43::
 ;@ at frame 3, $91E0/$91F0 at frame $23.
 ;@ test: skip writes VRAM
 TileAnimMap44::
-;> if wFieldTimer & 0x3F == 0x03:
+;> if (wFieldTimer & 0x3F) == 0x03:
 	ld a, [wFieldTimer]
 	and $3f
 	cp $03
@@ -7029,7 +7036,7 @@ TileAnimMap44::
 	ld b, $10
 ;>     SwapVRAMBytes(0x90E0, 0x90F0, 0x10)
 	call z, SwapVRAMBytes
-;> if wFieldTimer & 0x3F != 0x23:
+;> if (wFieldTimer & 0x3F) != 0x23:
 	ld a, [wFieldTimer]
 	and $3f
 	cp $23
@@ -7069,7 +7076,7 @@ TileAnimMap46::
 ;@ Map $47: every 32 frames swaps $94C0 with $95A0 and $94E0 with $95B0 (1 tile each).
 ;@ test: skip writes VRAM
 TileAnimMap47::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7094,7 +7101,7 @@ TileAnimMap47::
 ;@ Map $48: every 32 frames the tile at $9190 swaps with the one at $91A0.
 ;@ test: skip writes VRAM
 TileAnimMap48::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7118,7 +7125,7 @@ TileAnimMap49::
 ;> ScrollTilePairOnTick(0x9310)
 	ld hl, $9310
 	call ScrollTilePairOnTick
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7156,7 +7163,7 @@ TileAnimMap4A::
 ;@ Map $4B: in a 32-frame cycle $90C0/$90D0 swap at frame 3 and $90E0/$90F0 at frame $13.
 ;@ test: skip writes VRAM
 TileAnimMap4B::
-;> if wFieldTimer & 0x1F == 0x03:
+;> if (wFieldTimer & 0x1F) == 0x03:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7165,7 +7172,7 @@ TileAnimMap4B::
 	ld b, $10
 ;>     SwapVRAMBytes(0x90C0, 0x90D0, 0x10)
 	call z, SwapVRAMBytes
-;> if wFieldTimer & 0x1F != 0x13:
+;> if (wFieldTimer & 0x1F) != 0x13:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $13
@@ -7197,7 +7204,7 @@ TileAnimMap4D::
 ;> ScrollTilePairOnTick(0x9340)
 	ld hl, $9340
 	call ScrollTilePairOnTick
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7230,7 +7237,7 @@ TileAnimMap4E::
 ;@ Map $4F: every 32 frames the tiles at $95C0 and $95E0 swap (2 tiles).
 ;@ test: skip writes VRAM
 TileAnimMap4F::
-;> if wFieldTimer & 0x1F != 3:
+;> if (wFieldTimer & 0x1F) != 3:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $03
@@ -7263,7 +7270,7 @@ TileAnimMap52::
 ;>@a if (wFieldTimer + 5) % 0x20 == 0:
 	ld a, [wFieldTimer]
 	ld l, a
-	ld a, [$c8a7]
+	ld a, [wFieldTimer + 1]
 	ld h, a
 	ld a, l
 	add $05
@@ -7291,7 +7298,7 @@ TileAnimMap52::
 ;>@b if (wFieldTimer + 10) % 25 == 0:
 	ld a, [wFieldTimer]
 	ld l, a
-	ld a, [$c8a7]
+	ld a, [wFieldTimer + 1]
 	ld h, a
 	ld a, l
 	add $0a
@@ -7400,7 +7407,7 @@ TileAnimMap5E::
 ;@ four tiles in alternating directions; the directions swap every 512 frames.
 ;@ test: skip writes VRAM
 ScrollWaterTiles::
-;> if wFieldTimer & 0x1F != 5:
+;> if (wFieldTimer & 0x1F) != 5:
 	ld a, [wFieldTimer]
 	and $1f
 	cp $05
@@ -7411,7 +7418,7 @@ ScrollWaterTiles::
 
 .tick
 ;> if not wFieldTimer & 0x0200:
-	ld a, [$c8a7]
+	ld a, [wFieldTimer + 1]
 	bit 1, a
 ;>     return ScrollWaterTilesOtherWay()
 	jr z, ScrollWaterTilesOtherWay
@@ -7887,9 +7894,9 @@ RollEncounterGroup::
 	ld a, $ff
 	ld [wEncSpecies], a
 ;> wEncSpecies[2] = 0xFF
-	ld [$da05], a
+	ld [wEncSpecies + 2], a
 ;> wEncSpecies[4] = 0xFF
-	ld [$da07], a
+	ld [wEncSpecies + 4], a
 ;> wEncSpecies[0] = PickWeighted(wSceneObjects)
 	ld hl, wSceneObjects
 	call PickWeighted
@@ -7906,7 +7913,7 @@ RollEncounterGroup::
 ;>         wEncSpecies[2] = PickWeighted(wSceneObjects)
 	ld hl, wSceneObjects
 	call PickWeighted
-	ld [$da05], a
+	ld [wEncSpecies + 2], a
 ;>         limit = CheckSpeciesLimit(wEncSpecies[2])
 	call CheckSpeciesLimit
 ;>@b2         if limit >= count and limit != 1:   # (count: slots holding this species)
@@ -7924,7 +7931,7 @@ RollEncounterGroup::
 ;>             wEncSpecies[4] = PickWeighted(wSceneObjects)
 	ld hl, wSceneObjects
 	call PickWeighted
-	ld [$da07], a
+	ld [wEncSpecies + 4], a
 ;>             limit = CheckSpeciesLimit(wEncSpecies[4])
 	call CheckSpeciesLimit
 ;>@c2             if limit >= count and limit != 1:
@@ -7963,13 +7970,13 @@ RollEncounterGroup::
 	ld a, [hli]
 	ld [wEncSpecies], a
 	ld a, [hl]
-	ld [$da04], a
+	ld [wEncSpecies + 1], a
 ;>@q     wEncCount = m
 	ld a, $00
 	ld [wEncCount], a
 	pop hl
 ;=@n
-	ld a, [$da05]
+	ld a, [wEncSpecies + 2]
 	cp $ff
 	jr z, .done
 ;=@p
@@ -7982,15 +7989,15 @@ RollEncounterGroup::
 ;=@p
 	ld h, a
 	ld a, [hli]
-	ld [$da05], a
+	ld [wEncSpecies + 2], a
 	ld a, [hl]
-	ld [$da06], a
+	ld [wEncSpecies + 3], a
 ;=@q
 	ld a, $01
 	ld [wEncCount], a
 	pop hl
 ;=@n
-	ld a, [$da07]
+	ld a, [wEncSpecies + 4]
 	cp $ff
 	jr z, .done
 ;=@p
@@ -8003,9 +8010,9 @@ RollEncounterGroup::
 ;=@p
 	ld h, a
 	ld a, [hli]
-	ld [$da07], a
+	ld [wEncSpecies + 4], a
 	ld a, [hl]
-	ld [$da08], a
+	ld [wEncSpecies + 5], a
 ;=@q
 	ld a, $02
 	ld [wEncCount], a
@@ -8038,7 +8045,7 @@ CheckSpeciesLimit::
 	inc b
 .next1
 ;=@l
-	ld a, [$da05]
+	ld a, [wEncSpecies + 2]
 	cp $ff
 	jr z, .limit
 ;=@m
@@ -8048,7 +8055,7 @@ CheckSpeciesLimit::
 	inc b
 .next2
 ;=@l
-	ld a, [$da07]
+	ld a, [wEncSpecies + 4]
 	cp $ff
 	jr z, .limit
 ;=@m
@@ -8201,7 +8208,7 @@ LoadFloorMusic::
 ;@ Also sets wFloorStyle from the entry's first byte.
 ;@ test: skip reads the floor tables
 SelectFloorTable::
-;>@f first = GateWorldFirstTable[wGateWorld]
+;>@f first = mem[GateWorldFirstTable + wGateWorld]
 	ld a, [wGateWorld]
 	ld hl, GateWorldFirstTable
 	add l

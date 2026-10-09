@@ -75,6 +75,7 @@ FarCall::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $ff, $1e, $01, $1a, $3c, $12, $c9, $ff, $ff
 
 ;@ def VBlankInterrupt()
@@ -88,6 +89,7 @@ VBlankInterrupt::
 	jp VBlankHandler
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $01, $1a, $18, $b8
 
 ;@ def LCDCInterrupt()
@@ -99,6 +101,7 @@ LCDCInterrupt::
 	jp LCDInterruptHandler
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $fa, $90, $cd, $18, $b0
 
 ;@ def TimerOverflowInterrupt()
@@ -110,6 +113,7 @@ TimerOverflowInterrupt::
 	reti
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $fa, $02, $c0, $b7, $c9, $ff, $ff
 
 ;@ def SerialTransferCompleteInterrupt()
@@ -302,7 +306,7 @@ SoftReset::
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
-;> mem[0xC8EE] = 4
+;> wMessageSpeed = 4
 	ld a, $04
 	ld [wMessageSpeed], a
 ;> wGameMode = 0
@@ -322,7 +326,7 @@ SoftReset::
 	ld [$4100], a
 ;> mem[0x0100] = 0x0A                     # ... cartridge RAM enabled ...
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> set_rom_bank(1)                        # ... ROM bank 1
 	ld a, $01
 	ld [$2100], a
@@ -427,14 +431,14 @@ SoftReset::
 	ld hl, far_SendSGBPacket
 	rst $10
 	call SGBPacketDelay
-;>     SGBTransfer(0x0C, 0x08, 0x03, 0x800)   # border tiles: packet $0C, bank $08 entry 3, $800 bytes
+;>     SGBTransfer(0x0C, 0x0803, 0x800)   # border tiles: packet $0C, bank $08 entry 3, $800 bytes
 	ld a, $0c
 	ld de, $0803
 	ld bc, $0800
 	call SGBTransfer
 ;>     SGBPacketDelay()
 	call SGBPacketDelay
-;>     SGBTransferCompressed(0x0D, 0x08, 0x04)  # border map and palettes: packet $0D, bank $08 entry 4
+;>     SGBTransferCompressed(0x0D, 0x0804)  # border map and palettes: packet $0D, bank $08 entry 4
 	ld a, $0d
 	ld de, $0804
 	call SGBTransferCompressed
@@ -464,9 +468,9 @@ SoftReset::
 ;>     wOnSGB = 1
 	ld a, $01
 	ld [wOnSGB], a
-;>     mem[0xC81B] = 0xFF
+;>     wLoadedGfxSet = 0xFF
 	ld a, $ff
-	ld [$c81b], a
+	ld [wLoadedGfxSet], a
 
 .startMode
 ;>@mode for _ in forever():                # each pass starts wGameMode anew
@@ -492,7 +496,7 @@ SoftReset::
 ;>     wLinkTimeout = 0
 	ld [wLinkTimeout], a
 	ld [wLinkTimeout + 1], a
-;>     mem[0xDF0E] = 0
+;>     wNameCleared = 0
 	ld [wNameCleared], a
 ;>     InitGameMode()
 	call InitGameMode
@@ -671,8 +675,8 @@ InitGameMode05::
 ;@ Starts game mode $06: entry 0 of bank $18.
 ;@ test: skip calls a routine in another bank
 InitGameMode06::
-;> far_call(0x18, 0x00)
-	ld hl, $1800
+;> VSResultInit()
+	ld hl, far_VSResultInit
 	rst $10
 	ret
 
@@ -681,8 +685,8 @@ InitGameMode06::
 ;@ Starts game mode $07, a debug menu: entry $0D of bank $55.
 ;@ test: skip calls a routine in another bank
 InitGameMode07::
-;> far_call(0x55, 0x0D)
-	ld hl, $550d
+;> DebugMenuInit()
+	ld hl, far_DebugMenuInit
 	rst $10
 	ret
 
@@ -721,8 +725,8 @@ InitGameMode0A::
 ;@ Starts game mode $0B: entry 3 of bank $56.
 ;@ test: skip calls a routine in another bank
 InitGameMode0B::
-;> far_call(0x56, 0x03)
-	ld hl, $5603
+;> MsgViewerInit()
+	ld hl, far_MsgViewerInit
 	rst $10
 	ret
 
@@ -731,8 +735,8 @@ InitGameMode0B::
 ;@ Starts game mode $0C, a debug menu: entry 7 of bank $56.
 ;@ test: skip calls a routine in another bank
 InitGameMode0C::
-;> far_call(0x56, 0x07)
-	ld hl, $5607
+;> TileViewerInit()
+	ld hl, far_TileViewerInit
 	rst $10
 	ret
 
@@ -834,7 +838,7 @@ VBlankHandler::
 	ld [wFrameCounter + 1], a
 
 .checkReset
-;>     if wJoyHeld & 0x0F == 0x0F:        # A+B+Select+Start
+;>     if (wJoyHeld & 0x0F) == 0x0F:        # A+B+Select+Start
 	ld a, [wJoyHeld]
 	and $0f
 	cp $0f
@@ -852,7 +856,7 @@ VBlankHandler::
 	or a
 	jr nz, .done
 
-;>         if wJoyHeld & 3 == 3 and False:   # A+B held: debug menus, switched off (the jump always skips them)
+;>         if (wJoyHeld & 3) == 3 and False:   # A+B held: debug menus, switched off (the jump always skips them)
 	ld a, [wJoyHeld]
 	and $03
 	cp $03
@@ -870,10 +874,10 @@ VBlankHandler::
 ;>                 wDebugSavedMode[1] = wGameModeStep
 	ld a, [wGameModeStep]
 	ld [hli], a
-;>                 wDebugSavedMode[2] = mem[0xC88C]
+;>                 wDebugSavedMode[2] = wOpeningScene
 	ld a, [wOpeningScene]
 	ld [hli], a
-;>                 wDebugSavedMode[3] = mem[0xC88D]
+;>                 wDebugSavedMode[3] = wOpeningLogo
 	ld a, [wOpeningLogo]
 	ld [hl], a
 ;>                 wGameMode = 0x07
@@ -903,10 +907,10 @@ VBlankHandler::
 ;>                 wDebugSavedMode[1] = wGameModeStep
 	ld a, [wGameModeStep]
 	ld [hli], a
-;>                 wDebugSavedMode[2] = mem[0xC88C]
+;>                 wDebugSavedMode[2] = wOpeningScene
 	ld a, [wOpeningScene]
 	ld [hli], a
-;>                 wDebugSavedMode[3] = mem[0xC88D]
+;>                 wDebugSavedMode[3] = wOpeningLogo
 	ld a, [wOpeningLogo]
 	ld [hl], a
 ;>                 wGameMode = 0x0C
@@ -1130,8 +1134,8 @@ GameModeUpdateTable::
 ;@ Per-frame routine of game mode $00: entry 1 of bank $15.
 ;@ test: skip calls a routine in another bank
 UpdateGameMode00::
-;> far_call(0x15, 0x01)
-	ld hl, $1501
+;> TitleModeUpdate()
+	ld hl, far_TitleModeUpdate
 	rst $10
 	ret
 
@@ -1141,8 +1145,8 @@ UpdateGameMode00::
 ;@ Per-frame routine of game mode $01, the field: entry 1 of bank $01.
 ;@ test: skip calls a routine in another bank
 UpdateGameMode01::
-;> far_call(0x01, 0x01)
-	ld hl, $0101
+;> FieldFrame()
+	ld hl, far_FieldFrame
 	rst $10
 	ret
 
@@ -1207,8 +1211,8 @@ UpdateGameMode06::
 ;@ Per-frame routine of game mode $07, a debug menu: entry $0E of bank $55.
 ;@ test: skip calls a routine in another bank
 UpdateGameMode07::
-;> far_call(0x55, 0x0E)
-	ld hl, $550e
+;> DebugMenuUpdate()
+	ld hl, far_DebugMenuUpdate
 	rst $10
 	ret
 
@@ -1247,8 +1251,8 @@ UpdateGameMode0A::
 ;@ Per-frame routine of game mode $0B: entry 4 of bank $56.
 ;@ test: skip calls a routine in another bank
 UpdateGameMode0B::
-;> far_call(0x56, 0x04)
-	ld hl, $5604
+;> MsgViewerUpdate()
+	ld hl, far_MsgViewerUpdate
 	rst $10
 	ret
 
@@ -1257,8 +1261,8 @@ UpdateGameMode0B::
 ;@ Per-frame routine of game mode $0C, a debug menu: entry 8 of bank $56.
 ;@ test: skip calls a routine in another bank
 UpdateGameMode0C::
-;> far_call(0x56, 0x08)
-	ld hl, $5608
+;> TileViewerUpdate()
+	ld hl, far_TileViewerUpdate
 	rst $10
 	ret
 
@@ -1523,7 +1527,7 @@ TextPrinterStep::
 	ld c, $ee
 
 .arrow
-;>         WriteVRAM(MapAdvanceTiles(TextBoxMapAddress(0x60), 9), tile)
+;>         WriteVRAM(tile, MapAdvanceTiles(TextBoxMapAddress(0x60), 9))
 	ld hl, $0060
 	call TextBoxMapAddress
 	ld b, $09
@@ -1608,7 +1612,7 @@ TextPrinterStep::
 	call ScreenMapAddress
 	ld b, $0f
 	call MapAdvanceTiles
-;>             WriteVRAM(pos, yes_tile)
+;>             WriteVRAM(yes_tile, pos)
 	pop bc
 	ld a, c
 	call WriteVRAM
@@ -1618,7 +1622,7 @@ TextPrinterStep::
 	call ScreenMapAddress
 	ld b, $0f
 	call MapAdvanceTiles
-;>             WriteVRAM(pos, no_tile)
+;>             WriteVRAM(no_tile, pos)
 	pop bc
 	ld a, b
 	call WriteVRAM
@@ -1675,7 +1679,7 @@ TextPrinterStep::
 	push hl
 
 .col
-;>                         WriteVRAM(pos, mem[src])     # pos starts at row_addr, src at wTilemapBuffer
+;>                         WriteVRAM(mem[src], pos)     # pos starts at row_addr, src at wTilemapBuffer
 	ld a, [de]
 	call WriteVRAM
 ;>                         next_col = (pos + 1) & 0x1F
@@ -1949,7 +1953,7 @@ EraseTextPromptArrow::
 	call TextBoxMapAddress
 	ld b, $09
 	call MapAdvanceTiles
-;> WriteVRAM(pos, 0xEE)                   # box background tile
+;> WriteVRAM(0xEE, pos)                   # box background tile
 	ld a, $ee
 	call WriteVRAM
 	ret
@@ -3195,7 +3199,7 @@ DrawTextBoxTiles::
 
 .tile
 ;>@tile     for _ in range(per_line):
-;>         WriteVRAM(pos, lo(tile))
+;>         WriteVRAM(lo(tile), pos)
 	ld a, e
 	call WriteVRAM
 ;>         pos = MapNextTile(pos)
@@ -3324,7 +3328,7 @@ ScreenMapAddress::
 ;@ test: skip waits for the LCD
 ClearMapTiles::
 ;> for _ in range(count):
-;>     WriteVRAM(pos, 0xE0)
+;>     WriteVRAM(0xE0, pos)
 	ld a, $e0
 	call WriteVRAM
 ;>     pos = MapNextTile(pos)
@@ -4218,7 +4222,7 @@ DetectSGB::
 	rst $10
 ;> SGBPacketDelay()
 	call SGBPacketDelay
-;> found = rP1 & 3 != 3
+;> found = (rP1 & 3) != 3
 	ldh a, [rP1]
 	and $03
 	cp $03
@@ -4252,7 +4256,7 @@ DetectSGB::
 	ldh a, [rP1]
 	ldh a, [rP1]
 	ldh a, [rP1]
-;>     found = pad & 3 != 3               # the SGB switched to pad 2
+;>     found = (pad & 3) != 3               # the SGB switched to pad 2
 	and $03
 	cp $03
 	jr nz, .found
@@ -4790,8 +4794,8 @@ ApplyLCDC::
 ;@ the Game Boy palettes wBGP, wOBP0, wOBP1.
 ;@ test: skip calls a routine in another bank
 ApplyPalettes::
-;> far_call(0x17, 0x03)                   # Game Boy Color palettes
-	ld hl, $1703
+;> ApplyDMGPalettes()                   # Game Boy Color palettes
+	ld hl, far_ApplyDMGPalettes
 	rst $10
 ;> rBGP = wBGP
 	ld hl, wBGP
@@ -5201,6 +5205,7 @@ UpdateJoypadPresses::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $87, $85, $6f, $3e, $00, $8c, $67, $2a, $66, $6f, $c9
 
 ;@ def InitPalettes()
@@ -5727,7 +5732,7 @@ DecompressVRAMCore::
 	cp [hl]
 	jr z, .reference
 
-;>         dest = WriteVRAMInc(dest, byte)
+;>         dest = WriteVRAMInc(byte, dest)
 	pop hl
 	call WriteVRAMInc
 ;>         length -= 1
@@ -5852,7 +5857,7 @@ DecompressVRAMCore::
 	ei
 
 .put
-;>             dest = WriteVRAMInc(dest, value)
+;>             dest = WriteVRAMInc(value, dest)
 	call WriteVRAMInc
 ;>             src += 1
 	inc de
@@ -6047,7 +6052,7 @@ StartFade::
 	ld [wFadeSpeed], a
 ;>         wFadeTimer = wFadeSpeed
 	ld [wFadeTimer], a
-;>         StartMusicFadeOut()
+;>         StartMusicFadeOut(wFadeSpeed)
 	call StartMusicFadeOut
 	jp .done
 
@@ -6181,7 +6186,7 @@ StartFade::
 	ld [wFadeSpeed], a
 ;>             wFadeTimer = wFadeSpeed
 	ld [wFadeTimer], a
-;>             StartMusicFadeOut()
+;>             StartMusicFadeOut(wFadeSpeed)
 	call StartMusicFadeOut
 	jr .done
 
@@ -6239,7 +6244,7 @@ StartFade::
 	ld [wFadeSpeed], a
 ;>             wFadeTimer = wFadeSpeed
 	ld [wFadeTimer], a
-;>             StartMusicFadeOut()
+;>             StartMusicFadeOut(wFadeSpeed)
 	call StartMusicFadeOut
 	jr .done
 
@@ -6271,6 +6276,7 @@ StartFade::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $29, $29, $29, $01, $00, $88, $09, $0e, $08, $2a, $12, $13, $0d, $20, $fa, $c9
 
 ;@ def UpdateFade()
@@ -6638,8 +6644,8 @@ FadeComponent::
 ;@ Game Boy Color fade step: entry 5 of bank $17.
 ;@ test: skip calls a routine in another bank
 UpdateFadeCGB::
-;> far_call(0x17, 0x05)
-	ld hl, $1705
+;> UpdateCGBFade()
+	ld hl, far_UpdateCGBFade
 	rst $10
 	ret
 
@@ -7193,7 +7199,9 @@ QueueSound::
 ;@ Starts sound effect `id` without stopping the music. Like PlayMusic it picks
 ;@ the engine entry by number: $3F, $47, $49, $4B, $4D, $4F, $57, $5D, $63,
 ;@ $69, $74, $76, $78, $7C, $86, $8A, $90, $97, $99, $9D use StartSounds2; $41,
-;@ $44, $61 use StartSounds3; all others StartSoundChannel. Keeps all registers.
+;@ $44, $61 use StartSounds3; all others StartSoundChannel. Part $63 is also the
+;@ third (noise) part of sound $61; asked for directly, it starts parts $63 and
+;@ $64. Keeps all registers.
 ;@ test: skip runs the sound engine
 PlaySound::
 ;> wSoundID = id                          # (all registers are kept)
@@ -7471,7 +7479,7 @@ UpdateMusicFadeOut::
 .step
 ;> vol = rNR50
 	ldh a, [rNR50]
-;> if vol & 0x88 == 0x88 or wMusicFadeVolume == 0:
+;> if (vol & 0x88) == 0x88 or wMusicFadeVolume == 0:
 	and $88
 	cp $88
 	jr z, .stop
@@ -7758,7 +7766,7 @@ CloseLink::
 ;> wLinkPhase = 0
 	xor a
 	ld [wLinkPhase], a
-;> fill(wJoyHeld, 0, 14)                  # all pad state
+;> fill(addr(wJoyHeld), 0, 14)                  # all pad state
 	ld hl, wJoyHeld
 	ld b, $0e
 
@@ -7892,7 +7900,7 @@ Multiply24::
 ;@ def Divide8(n: b, d: a) -> (b, a)
 ;@ path: system/math
 ;@ 8-bit division: returns n // d in b and the remainder in a (bit by bit).
-;@ test: a = rng.randint(1, 255)
+;@ test: d = rng.randint(1, 255)
 Divide8::
 ;>@q return n // d, n % d
 	ld d, $08
@@ -7924,7 +7932,7 @@ Divide8::
 ;@ def Divide16(n: hl, d: a) -> (hl, a)
 ;@ path: system/math
 ;@ 16 by 8 bit division: returns n // d in hl and the remainder in a.
-;@ test: a = rng.randint(1, 255)
+;@ test: d = rng.randint(1, 255)
 Divide16::
 ;>@q return n // d, n % d
 	ld d, $10
@@ -7957,7 +7965,7 @@ Divide16::
 ;@ path: system/math
 ;@ 24 by 8 bit division of e:hl: returns the quotient in e:hl and the
 ;@ remainder in a.
-;@ test: a = rng.randint(1, 255)
+;@ test: d = rng.randint(1, 255)
 Divide24::
 ;>@q q = (n_high << 16 | n) // d; r = (n_high << 16 | n) % d
 	ld d, $18
@@ -8612,8 +8620,8 @@ jr_000_20b9:
 ;@ path: text/numbers
 ;@ One decimal digit of n: how often `unit` fits (counted by subtracting), and
 ;@ the rest.
-;@ test: de = rng.randint(1, 0xFFFF)
-;@ test: bc = rng.randint(0, 0xFFFF) % (de * 200 + 1)
+;@ test: unit = rng.randint(1, 0xFFFF)
+;@ test: n = rng.randint(0, 0xFFFF) % (unit * 200 + 1)
 NextDigit16::
 ;>@q return u8(n // unit), n % unit
 	push hl
@@ -8698,13 +8706,13 @@ ReadSRAMByte::
 	di
 ;> mem[0x0100] = 0x0A                     # cartridge RAM on
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> value = mem[addr]
 	ld a, [hl]
 	push af
 ;> mem[0x0100] = 0x00                     # and off again
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> enable_interrupts()
 	pop af
 	ei
@@ -8722,13 +8730,13 @@ WriteSRAMByte::
 ;> mem[0x0100] = 0x0A
 	push af
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> mem[addr] = value
 	pop af
 	ld [hl], a
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> enable_interrupts()
 	ei
 	ret
@@ -8742,7 +8750,7 @@ WriteSRAMByte::
 SRAMChecksum::
 ;> mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> total = 0x4638
 	ld de, $4638
 
@@ -8763,7 +8771,7 @@ SRAMChecksum::
 
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> return total
 	ret
 
@@ -8808,20 +8816,20 @@ FinishSave::
 	ld a, $01
 	push af
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> sSaveValid = 1
 	pop af
 	ld [hl], a
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> checksum = SRAMChecksum(sSaveValid, 0x1FFE)
 	ld hl, sSaveValid
 	ld bc, $1ffe
 	call SRAMChecksum
 ;> mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> sChecksum = checksum
 	ld hl, sChecksum
 	ld [hl], e
@@ -8829,7 +8837,7 @@ FinishSave::
 	ld [hl], d
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -8840,7 +8848,7 @@ FinishSave::
 CopyToSRAM::
 ;> mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 
 .loop
 ;>@c copy(dest, src, count)
@@ -8855,7 +8863,7 @@ CopyToSRAM::
 
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -8888,13 +8896,13 @@ LoadGame::
 ;> mem[0x0100] = 0x0A
 	ld hl, sSaveValid
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> valid = sSaveValid
 	ld a, [hl]
 	push af
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 ;> if not valid:
 ;>     return
 	pop af
@@ -8931,7 +8939,7 @@ LoadGame::
 CopyFromSRAM::
 ;> mem[0x0100] = 0x0A
 	ld a, $0a
-	ld [$0100], a
+	ld [rRAMG + $100], a
 
 .loop
 ;>@c copy(dest, src, count)
@@ -8946,7 +8954,7 @@ CopyFromSRAM::
 
 ;> mem[0x0100] = 0x00
 	ld a, $00
-	ld [$0100], a
+	ld [rRAMG + $100], a
 	ret
 
 
@@ -9285,6 +9293,7 @@ RaiseMonsterDefense::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $cd, $62, $24
 
 ;@ def LowerMonsterDefense(slot: a, amount: hl)
@@ -9317,6 +9326,7 @@ RaiseMonsterAgility::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $cd, $62, $24
 
 ;@ def LowerMonsterAgility(slot: a, amount: hl)
@@ -9363,6 +9373,7 @@ LowerMonsterIntelligence::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $cd, $42, $24, $11, $21, $cb, $01, $ff, $00, $cd, $48, $24, $c9
 
 ;@ def LowerPartyWildness(pos: a, amount: hl)
@@ -9482,6 +9493,7 @@ RaiseMonsterMaxHP::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $cd, $62, $24
 
 ;@ def LowerMonsterMaxHP(slot: a, amount: hl)
@@ -9514,6 +9526,7 @@ RaiseMonsterMaxMP::
 	ret
 
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $cd, $62, $24
 
 ;@ def LowerMonsterMaxMP(slot: a, amount: hl)
@@ -10471,9 +10484,10 @@ FieldSGBSettings::
 	db $00, $00
 
 ;@ path: gfx/sprites
-;@ Sprite graphics of the field actors (people and monsters), one u16 per
-;@ sprite set: far-table entry in the low byte, bank in the high byte (banks
-;@ $2E-$3A). 356 entries; the last ones all repeat 32:0F.
+;@ Sprite graphics of the people on the field, by graphics number ($00-$5F), one
+;@ u16 per sprite set: far-table entry in the low byte, bank in the high byte
+;@ (banks $2E-$3A). Decompressed by LoadActorGfx and LoadFieldActorGfx. The
+;@ monster picture table MonsterPicRefs follows directly.
 ActorGfx::
 	db $00, $31, $01, $31, $02, $31
 	db $03, $31, $04, $31, $05, $31, $06, $31, $07, $31, $08, $31, $09, $31, $0a, $31
@@ -10487,7 +10501,16 @@ ActorGfx::
 	db $2a, $3a, $3e, $38, $31, $38, $04, $39, $39, $38, $0b, $3a, $14, $3a, $06, $39
 	db $29, $38, $00, $38, $42, $31, $00, $31, $00, $31, $3a, $31, $3b, $31, $3c, $31
 	db $3d, $31, $3e, $31, $3f, $31, $40, $31, $41, $31, $3a, $31, $3a, $31, $3a, $31
-	db $3a, $31, $3a, $31, $3a, $31, $00, $2f, $19, $2e, $11, $2f, $12, $2f, $13, $2f
+	db $3a, $31, $3a, $31, $3a, $31, $00, $2f, $19, $2e
+
+;@ path: monster/pictures
+;@ The big picture of each monster, by species number: one u16 per species,
+;@ far-table entry in the low byte, bank in the high byte (banks $2F and
+;@ $32-$36). Read by LoadMonsterPicture and the other picture loaders, which
+;@ pass the entry to DecompressVRAM. 260 entries: the first 216 are distinct
+;@ pictures, the rest all repeat 32:0F.
+MonsterPicRefs::
+	db $11, $2f, $12, $2f, $13, $2f
 	db $14, $2f, $15, $2f, $16, $2f, $17, $2f, $18, $2f, $19, $2f, $1a, $2f, $1b, $2f
 	db $1c, $2f, $1d, $2f, $1e, $2f, $1f, $2f, $20, $2f, $21, $2f, $22, $2f, $23, $2f
 	db $24, $2f, $25, $2f, $26, $2f, $27, $2f, $28, $2f, $29, $2f, $2a, $2f, $2b, $2f
@@ -10730,7 +10753,7 @@ CompareHLBC::
 ;@ path: system/math
 ;@ 16 by 16 bit division: quotient in hl, remainder in bc. Divisors below 256
 ;@ go through Divide16, larger ones are subtracted repeatedly.
-;@ test: bc = rng.randint(1, 0xFFFF)
+;@ test: d = rng.randint(1, 0xFFFF)
 DivideHLBC::
 ;> if hi(d) != 0:
 ;>@big     return n // d, n % d
@@ -10796,7 +10819,7 @@ AddEightTimes::
 ;@ Carry when the monster at battle position `pos` cannot act: it is not in the
 ;@ fight (CheckBattlerPresent), or one of its status flags is set (bits $D0 of
 ;@ status byte 0, $3F of byte 3, $C0 of byte 5 in wBattlerStatus).
-;@ test: a = rng.randint(0, 9)
+;@ test: pos = rng.randint(0, 9)
 CheckBattlerCanAct::
 ;> if CheckBattlerPresent(pos):
 ;>@x     return True
@@ -10859,7 +10882,7 @@ CheckBattlerCanAct::
 ;@ path: battle/state
 ;@ Carry when battle position `pos` (0-7) has no monster in the fight:
 ;@ wBattlerState is not 0 (or `pos` is out of range).
-;@ test: a = rng.randint(0, 9)
+;@ test: pos = rng.randint(0, 9)
 CheckBattlerPresent::
 ;> if pos >= 8:
 ;>@n     return True
@@ -11010,7 +11033,7 @@ UpdateSkillAnimation::
 	and $02
 	sla a
 	ld b, a
-;>@w if wSkillUser ^ side < 4 and wSkillTarget ^ side < 4:   # own side only
+;>@w if (wSkillUser ^ side) < 4 and (wSkillTarget ^ side) < 4:   # own side only
 	ld a, [wSkillUser]
 	xor b
 	cp $04
@@ -11025,7 +11048,7 @@ UpdateSkillAnimation::
 ;>     wSkillAnimSprites = 0
 	ld a, $00
 	ld [wSkillAnimSprites], a
-;>     mem[0xDD62] = 0
+;>     wBattleAnimRunning = 0
 ;>     return
 	ld a, $00
 	ld [wBattleAnimRunning], a
@@ -11312,18 +11335,18 @@ StartSkillAnimSprites::
 	ld a, [hl]
 	ld [wOBP0], a
 ;> if anim < 0x0E:
-;>@c     StartSkillAnimSprite_5C()
+;>@c     StartSkillAnimSprite_5C(wSkillAnim)
 	ld a, [wSkillAnim]
 	cp $0e
 	jr c, .bank5C
 
 ;> elif anim < 0x21:
-;>@d     StartSkillAnimSprite_5D()
+;>@d     StartSkillAnimSprite_5D(wSkillAnim)
 	cp $21
 	jr c, .bank5D
 
 ;> else:
-;>     StartSkillAnimSprite_5E()
+;>     StartSkillAnimSprite_5E(wSkillAnim)
 	ld hl, far_StartSkillAnimSprite_5E
 	rst $10
 	ret
@@ -11401,8 +11424,10 @@ InstrumentTable::
 ;@ path: sound/engine
 ;@ Resets the sound engine: sound on, all outputs off, master volume full, all
 ;@ six channels free. The bytes after it are two unused routines: one lets all
-;@ channels play again (wSoundFirstChannel = 0), the other mutes the music
-;@ channels 0-3 and lets only the sound effect channels 4-5 run.
+;@ channel records run again (wSoundFirstChannel = 0); the other sets
+;@ wSoundFirstChannel to 4 and clears wSoundPanning, so only records 4-5, the
+;@ music's wave and noise parts, keep playing (records 0-1 are the sound
+;@ effects, 2-5 the music).
 ;@ test: skip writes the sound registers
 InitSound::
 ;> SetSyncedBankSwitch(0, 0)
@@ -11499,7 +11524,7 @@ MarkNoteEnd::
 ;@ new note this frame, their sound bank (record byte 4) gets the low nibble
 ;@ wSyncSwitchBank and the switch is disarmed. wSyncNoteEnds is cleared.
 ApplySyncedBankSwitch::
-;> if wSyncNoteEnds & wSyncSwitchChannels == wSyncSwitchChannels:
+;> if (wSyncNoteEnds & wSyncSwitchChannels) == wSyncSwitchChannels:
 	ld a, [wSyncNoteEnds]
 	ld hl, wSyncSwitchChannels
 	and [hl]
@@ -11771,7 +11796,7 @@ UpdateSound::
 
 .channel
 ;>@lp for _ in forever():
-;>@cp     copy(hChanPos, chan, 26)
+;>@cp     copy(addr(hChanPos), chan, 26)
 	push hl
 	ld de, hChanPos
 	ld b, $03
@@ -11953,7 +11978,7 @@ UpdateSound::
 	ld a, [wSoundClaimed]
 	or b
 	ld [wSoundClaimed], a
-;>@co         copy(chan, hChanPos, 26)
+;>@co         copy(chan, addr(hChanPos), 26)
 	pop hl
 	push hl
 	ld de, hChanPos
@@ -12144,6 +12169,8 @@ UpdateSound::
 ;@ to the event number in the next event), $Cn instrument envelope row n with
 ;@ operand steps, $Dn / $En volume slide up / down by n every operand ticks;
 ;@ $FD sets the loop point, $FF ends the channel; other commands are skipped.
+;@ The loop point's high byte is kept in hLoopPosHi, one byte that all channels
+;@ share, so a loop relies on no other channel setting a loop point in between.
 ;@ The bytes inside are an unused event skipper.
 ;@ test: skip sound engine with ROM data and hardware writes
 ReadChannelEvents::
@@ -12176,7 +12203,7 @@ ReadChannelEvents::
 ;>@d1         if cmd >= 0xF0:
 ;>@d2             if cmd == 0xFD:          # the loop point is here
 ;>@d3                 hChanLoopPos = hChanPos
-;>@d4                 mem[0xFFFE] = hChanPosHi
+;>@d4                 hLoopPosHi = hChanPosHi
 ;>@d5             elif cmd == 0xFF:        # end of the channel
 ;>@d6                 hChanPos = 0xFF; hChanPosHi = 0xFF
 ;>@d7                 StopChannelOutput(); return
@@ -12193,7 +12220,7 @@ ReadChannelEvents::
 
 ;>     elif cmd >= 0xB0:
 ;>@b1         if cmd >= 0xC0:              # instrument envelope
-;>@b2             if wSoundHWChannel != 2 and hChanEnvelope & 0x0F == 0:
+;>@b2             if wSoundHWChannel != 2 and (hChanEnvelope & 0x0F) == 0:
 ;>@b3                 hChanInstLength = mem[p]
 ;>@b4                 mem[0xFFF0] = (cmd & 0x0F) << 4
 ;>@b5             p += 1
@@ -12214,7 +12241,7 @@ ReadChannelEvents::
 ;>@bj                 if mem[p] == 0xFC:
 ;>@bk                     hChanPos = mem[p + 1]; hChanPosHi = mem[p + 2]
 ;>                 else:
-;>@bl                     hChanPos = hChanLoopPos; hChanPosHi = mem[0xFFFE]
+;>@bl                     hChanPos = hChanLoopPos; hChanPosHi = hLoopPosHi
 ;>@bm                 return ReadChannelEvents()
 	cp $b0
 	jr nc, .cmdB0
@@ -12277,7 +12304,7 @@ ReadChannelEvents::
 	ldh [hChanLoopPos], a
 ;=@d4
 	ldh a, [hChanPosHi]
-	ldh [$fffe], a
+	ldh [hLoopPosHi], a
 
 .skip
 ;=@d8
@@ -12419,7 +12446,7 @@ ReadChannelEvents::
 ;=@bl
 	ldh a, [hChanLoopPos]
 	ldh [hChanPos], a
-	ldh a, [$fffe]
+	ldh a, [hLoopPosHi]
 	ldh [hChanPosHi], a
 ;=@bm
 	jp ReadChannelEvents
@@ -12781,7 +12808,7 @@ PlayNote::
 
 .tone
 ;> else:
-;>     if note & 0x0F >= 12:
+;>     if (note & 0x0F) >= 12:
 ;>         return PlayRest()
 	ld a, b
 	and $0f
@@ -13098,7 +13125,7 @@ UpdateChannelVolume::
 ;@ pace gets the "increase" bit so the volume holds.
 ;@ test: skip writes the sound registers
 SetChannelEnvelope::
-;> if env & 0x07 == 0:
+;> if (env & 0x07) == 0:
 ;>     env |= 0x08
 	ld b, a
 	and $07
@@ -13190,7 +13217,7 @@ InstrumentWaveVolume::
 UpdateInstrument::
 ;> SkipIfChannelClaimed()
 	call SkipIfChannelClaimed
-;> if hChanFreq & 0x7FFF == 0:             # a rest
+;> if (hChanFreq & 0x7FFF) == 0:             # a rest
 ;>     return SilenceChannel()
 	ldh a, [hChanFreq]
 	and a
@@ -13361,7 +13388,7 @@ InstrumentStep:
 
 
 .compare
-;>@cmp if mem[0xFF12 + wSoundRegOffset] & 0x08 == byte & 0x08:
+;>@cmp if (mem[0xFF12 + wSoundRegOffset] & 0x08) == (byte & 0x08):
 ;>     return                             # same direction: leave it running
 	ld c, $12
 	ld a, [wSoundRegOffset]

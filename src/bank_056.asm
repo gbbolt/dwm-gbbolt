@@ -231,7 +231,7 @@ ClearTextBoxTiles::
 	bit 1, a
 	jr nz, .wait
 
-;>             mem[pos] = TextBoxClearPattern[i]; pos += 1
+;>             mem[pos] = mem[TextBoxClearPattern + i]; pos += 1
 	ld a, [de]
 	ld [hli], a
 	ei
@@ -1347,10 +1347,10 @@ MsgViewerInit::
 ;@ page's four text tables (text wGameModeStep + 1) at $9300, maps them, and draws "00" numbers.
 ;@ test: skip calls routines in other banks
 MsgViewerDrawPage::
-;> wSGBPalSet[0] = 0
+;> wSGBPalSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
-;> wSGBPalSet[1] = 0
+;> mem[addr(wSGBPalSet) + 1] = 0
 	inc hl
 	ld [hl], $00
 ;> SGBSetFieldPalettes()
@@ -1886,7 +1886,7 @@ MsgViewerInput::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $41.
 ;@ test: skip calls a routine in another bank
 MsgViewText41::
-;> far_StartText_41()
+;> StartText_41()
 	ld hl, far_StartText_41
 	rst $10
 	ret
@@ -1918,7 +1918,7 @@ MsgViewText42::
 	jr MsgViewText43
 
 .start
-;> far_StartText_42()
+;> StartText_42()
 	ld hl, far_StartText_42
 	rst $10
 	ret
@@ -1950,7 +1950,7 @@ MsgViewText43::
 	jr MsgViewText44
 
 .start
-;> far_StartText_43()
+;> StartText_43()
 	ld hl, far_StartText_43
 	rst $10
 	ret
@@ -1982,7 +1982,7 @@ MsgViewText44::
 	jr MsgViewText45
 
 .start
-;> far_StartText_44()
+;> StartText_44()
 	ld hl, far_StartText_44
 	rst $10
 	ret
@@ -1993,7 +1993,7 @@ MsgViewText44::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $45.
 ;@ test: skip calls a routine in another bank
 MsgViewText45::
-;> far_StartText_45()
+;> StartText_45()
 	ld hl, far_StartText_45
 	rst $10
 	ret
@@ -2025,7 +2025,7 @@ MsgViewText46::
 	jr MsgViewText47
 
 .start
-;> far_StartText_46()
+;> StartText_46()
 	ld hl, far_StartText_46
 	rst $10
 	ret
@@ -2057,7 +2057,7 @@ MsgViewText47::
 	jr MsgViewText48
 
 .start
-;> far_StartText_47()
+;> StartText_47()
 	ld hl, far_StartText_47
 	rst $10
 	ret
@@ -2089,7 +2089,7 @@ MsgViewText48::
 	jr MsgViewText49
 
 .start
-;> far_StartText_48()
+;> StartText_48()
 	ld hl, far_StartText_48
 	rst $10
 	ret
@@ -2149,7 +2149,7 @@ MsgViewText4A::
 	jr MsgViewText4B
 
 .start
-;> far_StartText_4A()
+;> StartText_4A()
 	ld hl, far_StartText_4A
 	rst $10
 	ret
@@ -2181,7 +2181,7 @@ MsgViewText4B::
 	jr MsgViewText4E
 
 .start
-;> far_StartText_4B()
+;> StartText_4B()
 	ld hl, far_StartText_4B
 	rst $10
 	ret
@@ -2192,7 +2192,7 @@ MsgViewText4B::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4C.
 ;@ test: skip calls a routine in another bank
 MsgViewText4C::
-;> far_StartText_4C()
+;> StartText_4C()
 	ld hl, far_StartText_4C
 	rst $10
 	ret
@@ -2203,8 +2203,8 @@ MsgViewText4C::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4D (its far entry 0).
 ;@ test: skip calls a routine in another bank
 MsgViewText4D::
-;> far_call(0x4d, 0x00)()
-	ld hl, $4d00
+;> StartText_4D()
+	ld hl, far_StartText_4D
 	rst $10
 	ret
 
@@ -2214,7 +2214,7 @@ MsgViewText4D::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $4E.
 ;@ test: skip calls a routine in another bank
 MsgViewText4E::
-;> far_StartText_4E()
+;> StartText_4E()
 	ld hl, far_StartText_4E
 	rst $10
 	ret
@@ -2236,8 +2236,8 @@ MsgViewText59::
 ;@ Message viewer: starts text wTextGroup/wTextIndex from text bank $56 (StartText_56).
 ;@ test: skip calls a routine in another bank
 MsgViewText56::
-;> far_call(0x56, 0x00)()
-	ld hl, $5600
+;> StartText_56()
+	ld hl, far_StartText_56
 	rst $10
 	ret
 

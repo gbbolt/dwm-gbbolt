@@ -278,7 +278,7 @@ FarTable_58::
 ;@ act. Ties are broken at random.
 ;@ test: skip far calls into the damage estimate
 AITargetAttack::
-;> fill(wSkillAmount, 8, 0)                      # the score scratch
+;> fill(addr(wSkillAmount), 0, 8)                      # the score scratch
 	ld hl, wSkillAmount
 	ld bc, $0008
 	xor a
@@ -428,7 +428,7 @@ AITargetAttack::
 	call GetBattlerHP
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 ;=@hp
 	ld a, l
@@ -448,7 +448,7 @@ AITargetAttack::
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	jr .exposedScore
 
 .exposedNone:
@@ -456,7 +456,7 @@ AITargetAttack::
 ;>             wSkillAmount = 0xFFFF
 	ld a, $ff
 	ld [wSkillAmount], a
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
 .exposedScore:
 ;>         AIMetalPenalty(c)
@@ -465,7 +465,7 @@ AITargetAttack::
 ;>         AISetScore(c, wSkillAmount)
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call AISetScore
 ;=@a2
@@ -501,7 +501,7 @@ AITargetAttack::
 	call GetBattlerHP
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 ;=@a7
 	ld a, l
@@ -520,14 +520,14 @@ AITargetAttack::
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	jr .activeScore
 
 .activeNone:
 ;=@a4
 	ld a, $ff
 	ld [wSkillAmount], a
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
 .activeScore:
 ;=@a8
@@ -536,7 +536,7 @@ AITargetAttack::
 ;=@a9
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	call AISetScore
 ;=@a2
@@ -550,7 +550,7 @@ AITargetAttack::
 .store:
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -600,7 +600,7 @@ AIPickLowestScore::
 ;> low = wTargetScores
 	ld a, [wTargetScores]
 	ld c, a
-	ld a, [$db59]
+	ld a, [wTargetScores + 1]
 	ld b, a
 ;>@l for e in (1, 2):
 	ld de, $0201
@@ -969,7 +969,7 @@ AIPickOfOne::
 
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -1034,7 +1034,7 @@ AITargetWeakSmart::
 ;>@w     mem16[wNameDest] = score; wNameDest += 2
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, e
 	ld [hli], a
@@ -1044,7 +1044,7 @@ AITargetWeakSmart::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	inc c
 	dec b
@@ -1341,7 +1341,7 @@ AIHealSmart::
 	ld a, l
 	ld [wSkillStatusPtr], a
 	ld a, h
-	ld [$db62], a
+	ld [wSkillStatusPtr + 1], a
 ;> side = wSkillUser & 4
 	ld a, [wSkillUser]
 	and $04
@@ -1388,7 +1388,7 @@ AIHealSmart::
 ;>     if hp == wSkillStatusPtr:
 	ld a, [wSkillStatusPtr]
 	ld c, a
-	ld a, [$db62]
+	ld a, [wSkillStatusPtr + 1]
 	ld b, a
 	call CompareHLBC
 	jr z, .tie
@@ -1403,7 +1403,7 @@ AIHealSmart::
 	ld a, l
 	ld [wSkillStatusPtr], a
 	ld a, h
-	ld [$db62], a
+	ld [wSkillStatusPtr + 1], a
 ;>         wBattleArg2 = e
 	ld a, [wBattleArg0]
 	ld [wBattleArg2], a
@@ -1440,7 +1440,7 @@ AIHealSmart::
 ;>@rt     return AIHealByRatio(side, 3)          # nobody under the limit
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wBattleArg2
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -1499,7 +1499,7 @@ AITargetRevive::
 .found:
 ;>@st wBattlerAction[2 * wSkillUser + 1] = c
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -1572,7 +1572,7 @@ AITargetAntidote::
 .found:
 ;>@st wBattlerAction[2 * wSkillUser + 1] = c
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -1692,7 +1692,7 @@ AITargetUpper::
 ;>         defense = GetBattlerDefense(wBattleArg2)
 	ld a, [wBattleArg2]
 	call GetBattlerDefense
-;>@dbl         if (wLinkActive or wSkillUser < 4) and wBattleArg2 & 3 != 3:
+;>@dbl         if (wLinkActive or wSkillUser < 4) and (wBattleArg2 & 3) != 3:
 	ld a, [wLinkActive]
 	or a
 	jr nz, .ownSide
@@ -1732,7 +1732,7 @@ AITargetUpper::
 
 .atLimit:
 ;=@ft
-	ld hl, $fffe
+	ld hl, hLoopPosHi
 	jr .store
 
 .none:
@@ -1741,7 +1741,7 @@ AITargetUpper::
 	ld hl, $ffff
 
 .store:
-;>@w     mem16[wBattleArg0 + 256 * wBattleArg1] = score
+;>@w     mem16[addr(wBattleArg0) + 256 * wBattleArg1] = score
 	push hl
 	pop de
 	ld a, [wBattleArg0]
@@ -1790,7 +1790,7 @@ AITargetUpper::
 
 .pick:
 ;>@pk while wNamePos:
-;>@sc     s = mem16[wBattleArg0 + 256 * wBattleArg1]
+;>@sc     s = mem16[addr(wBattleArg0) + 256 * wBattleArg1]
 	ld a, [wBattleArg0]
 	ld l, a
 	ld a, [wBattleArg1]
@@ -1858,7 +1858,7 @@ AITargetUpper::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -1900,7 +1900,7 @@ AITargetSap::
 ;>         defense = GetBattlerDefense(c)
 	ld a, c
 	call GetBattlerDefense
-;>         if not (defense & 0xFF == 0 or defense == 1):
+;>         if not ((defense & 0xFF) == 0 or defense == 1):
 	cp $01
 	jr c, .store
 
@@ -2000,11 +2000,11 @@ AITargetSlow::
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
-;>@lw         if agility & 0xFF != 0:
+;>@lw         if (agility & 0xFF) != 0:
 	cp $01
 	jr c, .store
 
-;>             if agility & 0xFF == 1:
+;>             if (agility & 0xFF) == 1:
 ;>                 agility = 0x0101
 	jr nz, .high
 
@@ -2124,7 +2124,7 @@ AITargetSpeed::
 	jr nc, .atLimit
 
 ;>         else:
-;>@dbl             if (wLinkActive or wSkillUser < 4) and wBattleArg2 & 3 != 3:
+;>@dbl             if (wLinkActive or wSkillUser < 4) and (wBattleArg2 & 3) != 3:
 	ld a, [wLinkActive]
 	or a
 	jr nz, .ownSide
@@ -2159,7 +2159,7 @@ AITargetSpeed::
 
 .atLimit:
 ;=@m1
-	ld hl, $fffe
+	ld hl, hLoopPosHi
 	jr .store
 
 .none:
@@ -2168,7 +2168,7 @@ AITargetSpeed::
 	ld hl, $ffff
 
 .store:
-;>@w     mem16[wBattleArg0 + 256 * wBattleArg1] = score
+;>@w     mem16[addr(wBattleArg0) + 256 * wBattleArg1] = score
 	push hl
 	pop de
 	ld a, [wBattleArg0]
@@ -2217,7 +2217,7 @@ AITargetSpeed::
 
 .pick:
 ;>@pk while wNamePos:
-;>@sc     s = mem16[wBattleArg0 + 256 * wBattleArg1]
+;>@sc     s = mem16[addr(wBattleArg0) + 256 * wBattleArg1]
 	ld a, [wBattleArg0]
 	ld l, a
 	ld a, [wBattleArg1]
@@ -2285,7 +2285,7 @@ AITargetSpeed::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -2533,7 +2533,7 @@ AITargetCover::
 	call AIPickLowestOwnScore
 ;>@t t = addr(wBattlerAction) + 2 * wSkillUser + 1
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -2666,7 +2666,7 @@ AITargetSickLick::
 	jr c, .none
 
 ;>@k0         key = 0xFF
-;>@el     elif (d := GetBattlerDefense(c)) & 0xFF == 0 or d == 1:
+;>@el     elif ((d := GetBattlerDefense(c)) & 0xFF) == 0 or d == 1:
 	ld a, c
 	call GetBattlerDefense
 	cp $01
@@ -3713,7 +3713,7 @@ AITargetTransform::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -3752,7 +3752,7 @@ AIMetalPenalty::
 	ld a, [wSkillAmount]
 	ld c, a
 ;=@ml
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	ld a, $32
 	call Multiply24
@@ -3760,7 +3760,7 @@ AIMetalPenalty::
 	ld [wSkillAmount], a
 ;=@ml
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 ;=@ml
 	pop hl
 	pop de
@@ -3867,7 +3867,7 @@ AITargetBeat::
 ;>@w     mem16[wNameDest] = score; wNameDest += 2
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, e
 	ld [hli], a
@@ -3877,17 +3877,17 @@ AITargetBeat::
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 ;=@w
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 ;=@w
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	pop bc
 	inc c
@@ -3998,7 +3998,7 @@ AITargetBlaze::
 ;>@w     mem16[wNameDest] = score; wNameDest += 2
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, e
 	ld [hli], a
@@ -4008,17 +4008,17 @@ AITargetBlaze::
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 ;=@w
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 ;=@w
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	pop bc
 	inc c
@@ -4104,7 +4104,7 @@ AITargetRamming::
 ;>@w     mem16[wNameDest] = score; wNameDest += 2
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld [hl], e
 	inc hl
@@ -4114,7 +4114,7 @@ AITargetRamming::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	inc c
 	dec b
@@ -4862,7 +4862,7 @@ ChooseTargetsPick::
 	ld [wHitCount], a
 ;>@tg if wBattlerAction[2 * wSkillUser + 1] == 0xFF:   # no target yet
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -4961,7 +4961,7 @@ RunTargetPicker::
 
 ;>@cl     wBattlerAction[2 * wSkillUser + 1] = 0xFF
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -5018,17 +5018,17 @@ SetActionAttack::
 ;@ positions to wBattleArg0.., Terry's item (position $10) with speed $200. Then the sort.
 ;@ test: skip runs the sort step and draws random numbers
 TurnOrderRollSpeeds::
-;> fill(wTurnOrder, 9, 0xFF)
+;> fill(wTurnOrder, 0xFF, 9)
 	ld hl, wTurnOrder
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
-;> fill(wBattleArg0, 9, 0xFF)                     # positions
+;> fill(addr(wBattleArg0), 0xFF, 9)                     # positions
 	ld hl, wBattleArg0
 	ld bc, $0009
 	ld a, $ff
 	call FillMemory
-;> fill(wSkillStatusPtr, 16, 0)                    # speeds
+;> fill(addr(wSkillStatusPtr), 0, 16)                    # speeds
 	ld hl, wSkillStatusPtr
 	ld bc, $0010
 	ld a, $00
@@ -5043,7 +5043,7 @@ TurnOrderRollSpeeds::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;>@lp for e in range(8):
 	ld de, $0800
 
@@ -5247,7 +5247,7 @@ TurnOrderSort::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;>     first = wSkillStatusPtr; second = wStatPtr
 	ld a, [hli]
 	ld b, [hl]
@@ -5269,25 +5269,25 @@ TurnOrderSort::
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ld a, c
 	ld [wTargetScores], a
 ;=@sw
 	ld a, b
-	ld [$db59], a
+	ld [wTargetScores + 1], a
 ;>@wr             mem16[wNameDest] = wSkillAmount; mem16[wNameDest + 2] = wTargetScores
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, [wSkillAmount]
 	ld [hli], a
 ;=@wr
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld [hli], a
 	ld a, [wTargetScores]
 	ld [hli], a
-	ld a, [$db59]
+	ld a, [wTargetScores + 1]
 	ld [hl], a
 ;>@xp             p = addr(wBattleArg0) + e; mem[p], mem[p + 1] = mem[p + 1], mem[p]
 	ld a, e
@@ -5314,7 +5314,7 @@ TurnOrderSort::
 ;>@nx         wNameDest += 2
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	inc hl
 	inc hl
@@ -5322,7 +5322,7 @@ TurnOrderSort::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;>@ld         first = mem16[wNameDest]; second = mem16[wNameDest + 2]
 	ld a, [hli]
 	ld b, [hl]
@@ -6155,7 +6155,7 @@ CopySpeciesName::
 	ld [wNameDest], a
 	ld a, d
 ;=@wd
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> CopySystemText(0x0500 + species, dest)
 	call CopySystemText
 	ret
@@ -6220,7 +6220,7 @@ NotePersonalitySkill::
 
 ;>     LinkRandom()
 	call LinkRandom
-;>     if wSkillUser & 3 == 3:
+;>     if (wSkillUser & 3) == 3:
 ;>         return
 	ld a, [wSkillUser]
 	and $03
@@ -6623,7 +6623,7 @@ NotePersonalityAttack::
 
 ;>     LinkRandom()
 	call LinkRandom
-;>     if wSkillUser & 3 == 3:
+;>     if (wSkillUser & 3) == 3:
 ;>         return
 	ld a, [wSkillUser]
 	and $03
@@ -6743,7 +6743,7 @@ LinkRandom::
 	push hl
 	ld a, [wLinkRandom]
 	ld l, a
-	ld a, [$c1ee]
+	ld a, [wLinkRandom + 1]
 	ld h, a
 	ld a, l
 ;=@lr
@@ -6761,7 +6761,7 @@ LinkRandom::
 	ld [wLinkRandom], a
 ;=@lr
 	ld a, h
-	ld [$c1ee], a
+	ld [wLinkRandom + 1], a
 	pop hl
 	ret
 
@@ -6871,7 +6871,7 @@ GetBaseDefense_58::
 	cp $03
 	jr c, .party
 
-;>     if pos & 3 == 3:
+;>     if (pos & 3) == 3:
 ;>@sp         template = 0x100 + wBattlerSpecies[pos]
 	and $03
 	cp $03
@@ -6897,19 +6897,19 @@ GetBaseDefense_58::
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;>     LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
 ;>     return wTemplateDefense + 256 * mem[0xDA24]
 	ld a, [wTemplateDefense]
 	ld c, a
-	ld a, [$da24]
+	ld a, [wTemplateDefense + 1]
 	ld b, a
 	jr .done
 
 .link:
-;> elif pos & 3 == 3:
+;> elif (pos & 3) == 3:
 ;>@ls     template = 0x100 + wBattlerSpecies[pos]   # then as above
 	ld a, b
 	and $03
@@ -6955,7 +6955,7 @@ AIPickBestKeyLowScore::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> wNameBattler = 0                                # best index
 	ld a, $00
 	ld [wNameBattler], a
@@ -7012,7 +7012,7 @@ AIPickBestKeyLowScore::
 	push hl
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, [hli]
 ;=@cp
@@ -7037,7 +7037,7 @@ AIPickBestKeyLowScore::
 ;=@cp
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
@@ -7056,16 +7056,16 @@ AIPickBestKeyLowScore::
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@nx
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	inc e
 	dec d
@@ -7084,7 +7084,7 @@ AIPickBestKeyHighScore::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> wNameBattler = 0                                # best index
 	ld a, $00
 	ld [wNameBattler], a
@@ -7139,7 +7139,7 @@ AIPickBestKeyHighScore::
 	push hl
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, [hli]
 ;=@cp
@@ -7164,7 +7164,7 @@ AIPickBestKeyHighScore::
 ;=@cp
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, [hli]
 	ld b, [hl]
@@ -7183,16 +7183,16 @@ AIPickBestKeyHighScore::
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@nx
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	inc e
 	dec d
@@ -7212,7 +7212,7 @@ AIStartScoresAlt::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> return (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
@@ -7253,7 +7253,7 @@ AISetTargetFromBest::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -7525,7 +7525,7 @@ AIPickLowestKey::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -7694,7 +7694,7 @@ AITargetResistHPDef::
 	jr nz, .take
 
 ;=@cm
-	ld hl, $db57
+	ld hl, wSkillAmount + 1
 	ld a, [hld]
 	cp d
 	jr c, .next
@@ -7751,7 +7751,7 @@ AITargetResistHPDef::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -7827,7 +7827,7 @@ AITargetResistHP::
 	jr nz, .take
 
 ;=@cm
-	ld hl, $db57
+	ld hl, wSkillAmount + 1
 	ld a, [hld]
 	cp d
 	jr c, .next
@@ -7884,7 +7884,7 @@ AITargetResistHP::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -7908,7 +7908,7 @@ IsAtMostOne::
 	or a
 	jr nz, .no
 
-;>@r return x & 0xFF <= 1
+;>@r return (x & 0xFF) <= 1
 	ld a, l
 	or a
 	jr z, .yes
@@ -7947,7 +7947,7 @@ GetBaseAgility_58::
 	cp $03
 	jr c, .party
 
-;>     if pos & 3 == 3:
+;>     if (pos & 3) == 3:
 ;>@sp         template = 0x100 + wBattlerSpecies[pos]
 	and $03
 	cp $03
@@ -7973,19 +7973,19 @@ GetBaseAgility_58::
 	ld a, l
 	ld [wNewMonId], a
 	ld a, h
-	ld [$da13], a
+	ld [wNewMonId + 1], a
 ;>     LoadMonTemplate2()
 	ld hl, far_LoadMonTemplate2
 	rst $10
 ;>     return wTemplateAgility + 256 * mem[0xDA26]
 	ld a, [wTemplateAgility]
 	ld c, a
-	ld a, [$da26]
+	ld a, [wTemplateAgility + 1]
 	ld b, a
 	jr .done
 
 .link:
-;> elif wLinkActive & 3 == 3:                    # (tests wLinkActive, not pos: a bug)
+;> elif (wLinkActive & 3) == 3:                    # (tests wLinkActive, not pos: a bug)
 ;>     template = 0x100 + wBattlerSpecies[pos]   # then as above
 	and $03
 	cp $03
@@ -8034,7 +8034,7 @@ UnusedAverageEnemyAgility::
 AIFlipTargetSide::
 ;>@t wBattlerAction[2 * wSkillUser + 1] ^= 4
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8059,7 +8059,7 @@ AIPickHighestScore::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> wNameBattler = 0
 	ld a, $00
 	ld [wNameBattler], a
@@ -8076,7 +8076,7 @@ AIPickHighestScore::
 	push hl
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, [hli]
 ;=@s
@@ -8119,16 +8119,16 @@ AIPickHighestScore::
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@nx
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;=@lp
 	inc e
 	dec d
@@ -8145,7 +8145,7 @@ AIPickHighestScore::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8169,12 +8169,12 @@ AIPickLowestOwnScore::
 	ld [wNameBattler], a
 	ld a, [wTargetScores]
 	ld l, a
-	ld a, [$db59]
+	ld a, [wTargetScores + 1]
 	ld h, a
 ;> if not low < wSkillAmount2:
 	ld a, [wSkillAmount2]
 	ld c, a
-	ld a, [$db5b]
+	ld a, [wSkillAmount2 + 1]
 	ld b, a
 	call CompareHLBC
 	jr c, .third
@@ -8184,7 +8184,7 @@ AIPickLowestOwnScore::
 	ld [wNameBattler], a
 	ld a, [wSkillAmount2]
 	ld l, a
-	ld a, [$db5b]
+	ld a, [wSkillAmount2 + 1]
 	ld h, a
 
 .third:
@@ -8192,7 +8192,7 @@ AIPickLowestOwnScore::
 ;>@w2     wNameBattler = 2
 	ld a, [wSkillTempPtr]
 	ld c, a
-	ld a, [$db5d]
+	ld a, [wSkillTempPtr + 1]
 	ld b, a
 	call CompareHLBC
 	jr c, .done
@@ -8211,7 +8211,7 @@ AIPickLowestOwnScore::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8235,7 +8235,7 @@ AIStartScores::
 	ld a, l
 	ld [wNameDest], a
 	ld a, h
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 ;> return (wSkillUser & 4) ^ 4
 	ld a, [wSkillUser]
 	and $04
@@ -8253,7 +8253,7 @@ AIStoreScore::
 ;>@w mem16[wNameDest] = score
 	ld a, [wNameDest]
 	ld l, a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld h, a
 	ld a, e
 	ld [hli], a
@@ -8264,17 +8264,17 @@ AIStoreScore::
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 ;=@n
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 	ld a, [wNameDest]
 	add $01
 	ld [wNameDest], a
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 ;=@n
 	adc $00
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 	ret
 
 
@@ -8341,7 +8341,7 @@ AITargetFirstPresent::
 jr_058_62ed:
 ;>@st wBattlerAction[2 * wSkillUser + 1] = c
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8374,7 +8374,7 @@ AITargetSweep::
 
 .first:
 ;>@f1     while CheckBattlerPresent(c):
-;>@f2         if c & 3 == 3:                       # nobody before slot 3:
+;>@f2         if (c & 3) == 3:                       # nobody before slot 3:
 ;>             break                              # (goes on as a later hit, below)
 	ld a, c
 	call CheckBattlerPresent
@@ -8394,7 +8394,7 @@ AITargetSweep::
 .store:
 ;>@st     wBattlerAction[2 * wSkillUser + 1] = c
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8410,7 +8410,7 @@ AITargetSweep::
 ;> else:
 ;>@t     c = wBattlerAction[2 * wSkillUser + 1]
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8420,7 +8420,7 @@ AITargetSweep::
 	ld h, a
 	ld a, [hl]
 	ld c, a
-;>     if c & 3 >= 3:
+;>     if (c & 3) >= 3:
 	ld a, c
 	and $03
 	cp $03
@@ -8431,7 +8431,7 @@ AITargetSweep::
 	and $04
 	xor $04
 	ld b, a
-;>         if wSkillUser & 4 == b:
+;>         if (wSkillUser & 4) == b:
 ;>             wBattlerAction[2 * wSkillUser + 1] = b
 	ld a, [wSkillUser]
 	and $04
@@ -8449,7 +8449,7 @@ AITargetSweep::
 
 .scan:
 ;>@n2         while CheckBattlerPresent(c):
-;>             if c & 3 == 3:
+;>             if (c & 3) == 3:
 ;>                 return
 	ld a, c
 	call CheckBattlerPresent
@@ -8489,7 +8489,7 @@ AITargetOwnFirst::
 AITargetSelf::
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillUser
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -8928,7 +8928,7 @@ GetUserIntClass::
 ;@ test: pos = rng.randint(0, 7)
 KnowsBreathSkill::
 ;> p = addr(wBattlerSkills) + 16 * pos + 1           # skill numbers, 2 bytes apart
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
@@ -9049,7 +9049,7 @@ AIAimPlainInstead::
 	cp $02
 	jr z, .score
 
-;> if wSkillUser & 3 != 3 and (wLinkActive or wSkillUser < 4):
+;> if (wSkillUser & 3) != 3 and (wLinkActive or wSkillUser < 4):
 ;>@g     return False
 	ld a, [wSkillUser]
 	and $03
@@ -9092,14 +9092,14 @@ AIPickLowestHPRatio::
 	ld a, $00
 	ld [wNameDest], a
 	ld a, $01
-	ld [$db5f], a
+	ld [wNameDest + 1], a
 	ld a, $02
 	ld [wNameBattler], a
 
 .loop:
 ;>@lp while wNameBattler:
 ;>@qc     qc = mem16[addr(wTargetScores) + 2 * mem[0xDB5F]]
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld hl, wTargetScores
 	add a
 	add l
@@ -9132,7 +9132,7 @@ AIPickLowestHPRatio::
 	jr nz, .next
 
 ;>@rc         rc = mem16[addr(wSkillStatusPtr) + 2 * mem[0xDB5F]]
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld hl, wSkillStatusPtr
 	add a
 	add l
@@ -9164,12 +9164,12 @@ AIPickLowestHPRatio::
 .take:
 ;>     if take:
 ;>         mem[addr(wNameDest)] = mem[0xDB5F]
-	ld a, [$db5f]
+	ld a, [wNameDest + 1]
 	ld [wNameDest], a
 
 .next:
 ;>     mem[0xDB5F] += 1; wNameBattler -= 1
-	ld hl, $db5f
+	ld hl, wNameDest + 1
 	inc [hl]
 	ld a, [wNameBattler]
 	dec a
@@ -9186,7 +9186,7 @@ AIPickLowestHPRatio::
 	ld [wSkillTarget], a
 ;>@st wBattlerAction[2 * wSkillUser + 1] = wSkillTarget
 	ld a, [wSkillUser]
-	ld hl, $dced
+	ld hl, wBattlerAction + 1
 	add a
 	add l
 	ld l, a
@@ -9222,43 +9222,43 @@ AIDropScore::
 ;>@s1     t = wSkillAmount; wSkillAmount = wTargetScores; wTargetScores = t
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	ld a, [wTargetScores]
 	ld e, a
 ;=@s1
-	ld a, [$db59]
+	ld a, [wTargetScores + 1]
 	ld d, a
 	ld a, l
 	ld [wTargetScores], a
 	ld a, h
-	ld [$db59], a
+	ld [wTargetScores + 1], a
 ;=@s1
 	ld a, e
 	ld [wSkillAmount], a
 	ld a, d
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 
 .second:
 ;>@s2 t = wTargetScores; wTargetScores = wSkillAmount2; wSkillAmount2 = t
 	ld a, [wTargetScores]
 	ld l, a
-	ld a, [$db59]
+	ld a, [wTargetScores + 1]
 	ld h, a
 	ld a, [wSkillAmount2]
 	ld e, a
 ;=@s2
-	ld a, [$db5b]
+	ld a, [wSkillAmount2 + 1]
 	ld d, a
 	ld a, l
 	ld [wSkillAmount2], a
 	ld a, h
-	ld [$db5b], a
+	ld [wSkillAmount2 + 1], a
 ;=@s2
 	ld a, e
 	ld [wTargetScores], a
 	ld a, d
-	ld [$db59], a
+	ld [wTargetScores + 1], a
 
 .done:
 ;=@s2
@@ -9397,7 +9397,7 @@ FixGroupTarget::
 	ld hl, far_GetSkillWord
 	rst $10
 	pop hl
-;> if wBattleArg0 & 3 == 1:                        # one target
+;> if (wBattleArg0 & 3) == 1:                        # one target
 ;>     return
 	ld a, [wBattleArg0]
 	and $03
@@ -9406,7 +9406,7 @@ FixGroupTarget::
 
 .loop:
 ;>@lp while CheckBattlerPresent(mem[target]):
-;>     if mem[target] & 3 == 2:
+;>     if (mem[target] & 3) == 2:
 ;>@r2         return
 	ld a, [hl]
 	call CheckBattlerPresent
@@ -9441,7 +9441,7 @@ AIAttackWeight::
 	call GetBattlerAttack
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 ;=@a1
 	call CompareHLBC
@@ -9454,14 +9454,14 @@ AIAttackWeight::
 ;>@a2     if GetBattlerAttack(wSkillUser) >= wSkillAmount + wSkillAmount // 2:
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	srl b
 	rr c
 ;=@a2
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	add hl, bc
 	push hl
@@ -9479,12 +9479,12 @@ AIAttackWeight::
 ;>@a3         if GetBattlerAttack(wSkillUser) >= 2 * wSkillAmount:
 	ld a, [wSkillAmount]
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	ld a, [wSkillAmount]
 	ld l, a
 ;=@a3
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	add hl, bc
 	push hl
@@ -9502,13 +9502,13 @@ AIAttackWeight::
 ;>@a4             if GetBattlerAttack(wSkillUser) >= 2 * wSkillAmount + wSkillAmount // 2:
 	ld a, [wSkillAmount]
 	ld l, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld h, a
 	add hl, hl
 	ld a, [wSkillAmount]
 ;=@a4
 	ld c, a
-	ld a, [$db57]
+	ld a, [wSkillAmount + 1]
 	ld b, a
 	srl b
 	rr c
@@ -9657,17 +9657,17 @@ AILowestEnemyDefense::
 ;>@m1 low = wTargetScores; wSkillAmount = low
 	ld a, [wTargetScores]
 	ld l, a
-	ld a, [$db59]
+	ld a, [wTargetScores + 1]
 	ld h, a
 	ld a, [wSkillAmount2]
 	ld c, a
 ;=@m1
-	ld a, [$db5b]
+	ld a, [wSkillAmount2 + 1]
 	ld b, a
 	ld a, l
 	ld [wSkillAmount], a
 	ld a, h
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 ;> if not low < wSkillAmount2:
 	call CompareHLBC
 	jr c, .third
@@ -9676,7 +9676,7 @@ AILowestEnemyDefense::
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ld h, b
 	ld l, c
 
@@ -9684,7 +9684,7 @@ AILowestEnemyDefense::
 ;> if not low < wSkillTempPtr:
 	ld a, [wSkillTempPtr]
 	ld c, a
-	ld a, [$db5d]
+	ld a, [wSkillTempPtr + 1]
 	ld b, a
 	call CompareHLBC
 	ret c
@@ -9693,7 +9693,7 @@ AILowestEnemyDefense::
 	ld a, c
 	ld [wSkillAmount], a
 	ld a, b
-	ld [$db57], a
+	ld [wSkillAmount + 1], a
 	ret
 
 

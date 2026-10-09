@@ -46,7 +46,7 @@ PlaySkillSound0::
 ;@ target position is the fourth of its side (wSkillTarget & 3 == 3).
 ;@ test: skip calls a routine in another bank
 PlaySkillSound1::
-;> if wSkillTarget & 3 != 3:
+;> if (wSkillTarget & 3) != 3:
 ;>     return
 	ld a, [wSkillTarget]
 	and $03
@@ -692,10 +692,10 @@ DebugPageInits::
 ;@ maps 16 x 2 rows of them at $98A3.
 ;@ test: skip calls routines in other banks
 DebugMainInit::
-;> wSGBPalSet[0] = 0
+;> wSGBPalSet = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
-;> wSGBPalSet[1] = 0
+;> mem[addr(wSGBPalSet) + 1] = 0
 	inc hl
 	ld [hl], $00
 ;> SGBSetFieldPalettes()
@@ -862,14 +862,14 @@ DebugWarpInit::
 	ld [wTextIndex], a
 ;> DebugPrintTextBox(0x9120, lines=10, line_length=10)
 	call DebugPrintTextBox
-;> mem[0xC0A0] = wOnGateFloor
+;> wNumberBackup[0] = wOnGateFloor
 	ld hl, wNumberBackup
 	ld a, [wOnGateFloor]
 	ld [hli], a
-;> mem[0xC0A1] = wMapId
+;> wNumberBackup[1] = wMapId
 	ld a, [wMapId]
 	ld [hli], a
-;> mem[0xC0A2] = wPartyCount
+;> wNumberBackup[2] = wPartyCount
 	ld a, [wPartyCount]
 	ld [hli], a
 ;> for i in range(3): mem[0xC0A3 + i] = wParty[i]
@@ -918,7 +918,7 @@ DebugSoundTestInit::
 	ld [wTextIndex], a
 ;> DebugPrintTextBox(0x9120, lines=6, line_length=16)
 	call DebugPrintTextBox
-;> mem[0xC0A0] = mem[0xC0A1] = 0          # song and sound effect numbers
+;> wNumberBackup[0] = wNumberBackup[1] = 0          # song and sound effect numbers
 	xor a
 	ld [wNumberBackup], a
 	ld [wNumberBackup + 1], a
@@ -951,7 +951,7 @@ DebugBattleInit::
 	ld [wTextIndex], a
 ;> DebugPrintTextBox(0x9120, lines=10, line_length=10)
 	call DebugPrintTextBox
-;> mem[0xC0A0] = wEncCount
+;> wNumberBackup[0] = wEncCount
 	ld hl, wNumberBackup
 	ld a, [wEncCount]
 	ld [hli], a
@@ -1111,7 +1111,7 @@ DebugMainPage::
 	and $90
 	jr z, .notDown
 
-;>     line = (mem[0xC0A0] + 1) % 6
+;>     line = (wNumberBackup[0] + 1) % 6
 	ld a, [wNumberBackup]
 	inc a
 	cp $06
@@ -1126,7 +1126,7 @@ DebugMainPage::
 	and $60
 	jr z, .draw
 
-;>     line = (mem[0xC0A0] - 1) % 6
+;>     line = (wNumberBackup[0] - 1) % 6
 	ld a, [wNumberBackup]
 	dec a
 	cp $ff
@@ -1135,14 +1135,14 @@ DebugMainPage::
 	ld a, $05
 
 .moved
-;>     mem[0xC0A0] = line
+;>     wNumberBackup[0] = line
 	ld [wNumberBackup], a
 ;>     QueueSound(0x59)                   # cursor click
 	ld a, $59
 	call QueueSound
 
 .draw
-;> tile = 0xA0 + mem[0xC0A0] * 16
+;> tile = 0xA0 + wNumberBackup[0] * 16
 	ld a, [wNumberBackup]
 	swap a
 	add $a0
@@ -1165,12 +1165,12 @@ DebugMainPage::
 ;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;> if mem[0xC0A0] != 5:
+;> if wNumberBackup[0] != 5:
 	ld a, [wNumberBackup]
 	cp $05
 	jr z, .back
 
-;>     wGameModeStep = mem[0xC0A0] + 1   # open that page
+;>     wGameModeStep = wNumberBackup[0] + 1   # open that page
 	inc a
 	ld [wGameModeStep], a
 ;>     wGameModeChange += 1
@@ -1180,7 +1180,7 @@ DebugMainPage::
 	ret
 
 .back
-;>@back for i in range(4): mem[wGameMode + i] = wDebugSavedMode[i]   # mode, step, scene, logo
+;>@back for i in range(4): mem[addr(wGameMode) + i] = wDebugSavedMode[i]   # mode, step, scene, logo
 	ld hl, wGameMode
 	ld a, [wDebugSavedMode]
 	ld [hli], a
@@ -1240,17 +1240,17 @@ DebugModeJumpPage::
 ;>     StartFade(4)
 	ld a, $04
 	call StartFade
-;>     wGameMode = mem[0xC0A0]
+;>     wGameMode = wNumberBackup[0]
 	ld hl, wNumberBackup
 	ld a, [hli]
 	ld [wGameMode], a
-;>     wGameModeStep = mem[0xC0A1]
+;>     wGameModeStep = wNumberBackup[1]
 	ld a, [hli]
 	ld [wGameModeStep], a
-;>     wOpeningScene = mem[0xC0A2]
+;>     wOpeningScene = wNumberBackup[2]
 	ld a, [hli]
 	ld [wOpeningScene], a
-;>     wOpeningLogo = mem[0xC0A3]
+;>     wOpeningLogo = wLineUpOrder[0]
 	ld a, [hli]
 	ld [wOpeningLogo], a
 ;>     wGameModeChange += 1
@@ -1405,7 +1405,7 @@ DebugModeJumpPage::
 	dec c
 	jr nz, .line
 
-;> tile = 0x80 + mem[0xC0A0] * 8       # name of the chosen game mode
+;> tile = 0x80 + wNumberBackup[0] * 8       # name of the chosen game mode
 	ld a, [wNumberBackup]
 	add a
 	add a
@@ -1485,21 +1485,21 @@ DebugMonsterViewPage::
 
 ;@ def ShowDebugMonster()
 ;@ path: system/debug
-;@ Shows monster picture wMenuChoice: decompresses it (pointer table at $2B9F in bank 0) to $8800,
+;@ Shows monster picture wMenuChoice: decompresses it (picture entry from MonsterPicRefs) to $8800,
 ;@ loads its palette and prints its name into the tiles at $8A40.
 ;@ test: skip calls routines in other banks
 ShowDebugMonster::
-;>@pic pic = mem16[0x2B9F + 2 * wMenuChoice]   # bank and entry of the compressed picture
+;>@pic pic = mem16[MonsterPicRefs + 2 * wMenuChoice]   # bank and entry of the compressed picture
 	ld a, [wMenuChoice]
 	ld l, a
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $9f
+	add LOW(MonsterPicRefs)
 ;=@pic
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
@@ -1590,14 +1590,14 @@ DebugWarpApply::
 ;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;> wOnGateFloor = mem[0xC0A0]
+;> wOnGateFloor = wNumberBackup[0]
 	ld hl, wNumberBackup
 	ld a, [hli]
 	ld [wOnGateFloor], a
-;> wMapId = mem[0xC0A1]
+;> wMapId = wNumberBackup[1]
 	ld a, [hli]
 	ld [wMapId], a
-;> wPartyCount = mem[0xC0A2]
+;> wPartyCount = wNumberBackup[2]
 	ld a, [hli]
 	ld [wPartyCount], a
 ;>@p for i in range(3): wParty[i] = mem[0xC0A3 + i]
@@ -1848,7 +1848,7 @@ DebugWarpRefresh::
 	ld [hl], b
 
 .names
-;> wTextIndex = mem[0xC0A0]
+;> wTextIndex = wNumberBackup[0]
 	ld a, [wNumberBackup]
 	ld [wTextIndex], a
 ;> wTextGroup = 1                         # the debug labels
@@ -1864,7 +1864,7 @@ DebugWarpRefresh::
 ;> PrintTextAt(0x8800)
 	ld hl, $8800
 	call PrintTextAt
-;>@ti wTextIndex = 3 if mem[0xC0A0] else mem[0xC0A1] + 4
+;>@ti wTextIndex = 3 if wNumberBackup[0] else wNumberBackup[1] + 4
 	ld a, [wNumberBackup]
 	cp $00
 	jr z, .mapName
@@ -1895,19 +1895,19 @@ DebugWarpRefresh::
 ;> wTextGroup = 4
 	ld a, $04
 	ld [wTextGroup], a
-;> wTextIndex = mem[0xC0A3]
+;> wTextIndex = wLineUpOrder[0]
 	ld a, [wLineUpOrder]
 	ld [wTextIndex], a
 ;> PrintTextAt(0x88E0)
 	ld hl, $88e0
 	call PrintTextAt
-;> wTextIndex = mem[0xC0A4]
+;> wTextIndex = wLineUpOrder[1]
 	ld a, [wLineUpOrder + 1]
 	ld [wTextIndex], a
 ;> PrintTextAt(0x8950)
 	ld hl, $8950
 	call PrintTextAt
-;> wTextIndex = mem[0xC0A5]
+;> wTextIndex = wLineUpOrder[2]
 	ld a, [wLineUpOrder + 2]
 	ld [wTextIndex], a
 ;> PrintTextAt(0x89C0)
@@ -1992,7 +1992,7 @@ DebugSoundTestPage::
 	or a
 	jr nz, .effect
 
-;>@mus         QueueMusic(DebugMusicList[mem[0xC0A0]]); return
+;>@mus         QueueMusic(DebugMusicList[wNumberBackup[0]]); return
 	ld a, [wNumberBackup]
 	ld hl, DebugMusicList
 	add l
@@ -2008,7 +2008,7 @@ DebugSoundTestPage::
 ;>     InitSound()
 .effect
 	call InitSound
-;>@se     QueueSound(DebugSoundList[mem[0xC0A1]]); return
+;>@se     QueueSound(DebugSoundList[wNumberBackup[1]]); return
 	ld a, [wNumberBackup + 1]
 	ld hl, DebugSoundList
 	add l
@@ -2296,7 +2296,7 @@ DebugBattleApply::
 ;> QueueSound(0x59)
 	ld a, $59
 	call QueueSound
-;> wEncCount = mem[0xC0A0]
+;> wEncCount = wNumberBackup[0]
 	ld hl, wNumberBackup
 	ld a, [hli]
 	ld [wEncCount], a
@@ -2710,7 +2710,7 @@ DrawNumberDigits::
 
 .hundreds
 ;> else:
-;>     d, value = DivideAByE(value, 100); WriteDigitTile(d, pos); pos += 1; tens = True
+;>     d, value = DivideAByE(value, 100); WriteDigitTile(d, pos, digit_base); pos += 1; tens = True
 	ld e, $64
 	call DivideAByE
 	call WriteDigitTile
@@ -2718,7 +2718,7 @@ DrawNumberDigits::
 
 .tens
 ;> if tens:
-;>     d, value = DivideAByE(value, 10); WriteDigitTile(d, pos); pos += 1
+;>     d, value = DivideAByE(value, 10); WriteDigitTile(d, pos, digit_base); pos += 1
 	ld e, $0a
 	call DivideAByE
 	call WriteDigitTile
@@ -2727,7 +2727,7 @@ DrawNumberDigits::
 ;>@b     WriteBlankTile(blank, pos); pos += 1
 
 .ones
-;> WriteDigitTile(value, pos)
+;> WriteDigitTile(value, pos, digit_base)
 	ld d, a
 	call WriteDigitTile
 	ret
@@ -2736,7 +2736,7 @@ DrawNumberDigits::
 ;@ def DivideAByE(n: a, d: e) -> (d, a)
 ;@ path: system/debug
 ;@ Division by repeated subtraction: returns n // d in d and n % d in a.
-;@ test: e = rand(1, 255)
+;@ test: d = rand(1, 255)
 DivideAByE::
 ;> q = -1
 	ld d, $ff
@@ -2786,14 +2786,14 @@ WriteBlankTile::
 ;@ Writes `value` as two hex digits (tiles digit_base + digit) at pos + 1 and pos + 2.
 ;@ test: skip polls the LCD
 DrawHexDigits::
-;> WriteDigitTile(value >> 4, pos + 1)
+;> WriteDigitTile(value >> 4, pos + 1, digit_base)
 	inc hl
 	push af
 	swap a
 	and $0f
 	ld d, a
 	call WriteDigitTile
-;> WriteDigitTile(value & 0x0F, pos + 2)
+;> WriteDigitTile(value & 0x0F, pos + 2, digit_base)
 	inc hl
 	pop af
 	and $0f
@@ -2932,7 +2932,7 @@ DebugMakeMonster::
 	call SetMonsterField
 	push af
 	pop af
-;> family = mem[MonsterField(slot, wMonFamily)]
+;> family = mem[MonsterField(slot, addr(wMonFamily))]
 	push af
 	ld hl, wMonFamily
 	call MonsterField
@@ -2962,7 +2962,7 @@ DebugMakeMonster::
 	pop af
 	ld hl, wMonParent2Master
 	call SetRandomMonsterName
-;> wMonSpecies = mem[MonsterField(slot, wMonParent1)]
+;> wMonSpecies = mem[MonsterField(slot, addr(wMonParent1))]
 	push af
 	ld hl, wMonParent1
 	call MonsterField
@@ -2977,7 +2977,7 @@ DebugMakeMonster::
 	pop af
 	ld hl, wMonParent1Name
 	call SetRandomMonsterName
-;> wMonSpecies = mem[MonsterField(slot, wMonParent2)]
+;> wMonSpecies = mem[MonsterField(slot, addr(wMonParent2))]
 	push af
 	ld hl, wMonParent2
 	call MonsterField

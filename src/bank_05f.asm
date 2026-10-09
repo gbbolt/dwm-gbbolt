@@ -106,7 +106,7 @@ EndingInitCredits::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 ;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
@@ -161,7 +161,7 @@ EndingInitSavePrompt::
 ;> wFrameCounter = 0
 	xor a
 	ld [wFrameCounter], a
-	ld [$c8a5], a
+	ld [wFrameCounter + 1], a
 ;> wLCDEffect = 0
 	xor a
 	ld [wLCDEffect], a
@@ -262,7 +262,6 @@ EndingSavePromptStates::
 ;@ path: event/ending
 ;@ Credits state 0: counts frames and seconds; after 5 seconds the page fades out and state 1
 ;@ draws the next one.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 CreditsWaitPage::
 ;> wSceneObjects[2] += 1                   # frames
 	ld hl, wSceneObjects + 2
@@ -370,7 +369,6 @@ CreditsCheckLast::
 ;@ path: event/ending
 ;@ Credits state 4: shows the last page for 5 seconds, then fades out and returns to the field
 ;@ (game mode 1) with a warp to map $2F at X $38, Y $C8.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 CreditsLeaveToField::
 ;> wSceneObjects[2] += 1                   # frames
 	ld hl, wSceneObjects + 2
@@ -457,7 +455,7 @@ SavePromptPrintEnd::
 	ld a, $00
 	ld [wTextIndex], a
 ;> PrintText_4C()
-	ld hl, $4c02
+	ld hl, far_PrintText_4C
 	rst $10
 ;> wSceneObjects[0] += 1
 	ld hl, wSceneObjects
@@ -781,7 +779,7 @@ PrintCreditsHeading::
 	ld a, d
 	ld [wTextBoxLineLength], a
 ;> PrintText_4C()
-	ld hl, $4c02
+	ld hl, far_PrintText_4C
 	rst $10
 ;> wTextTiles = saved_tiles
 	pop de
@@ -832,7 +830,7 @@ PrintCreditsBody::
 	ld a, d
 	ld [wTextBoxLineLength], a
 ;> PrintText_4C()
-	ld hl, $4c02
+	ld hl, far_PrintText_4C
 	rst $10
 ;> wTextTiles = saved_tiles
 	pop de
@@ -1168,7 +1166,7 @@ OpeningInitStarScene::
 	ld a, $00
 	ld [wPaletteSet], a
 ;> LoadObjPaletteA()
-	ld hl, $170c
+	ld hl, far_LoadObjPaletteA
 	rst $10
 ;> rVBK = 1
 	ld a, $01
@@ -1344,7 +1342,6 @@ OpeningUpdateScenes::
 ;@ A, B or Start during the opening: on the title screen it opens the title menu (game mode 0
 ;@ step 1); during the second logo it jumps to the third; from the third logo on it jumps to the
 ;@ title screen. The first logo cannot be skipped. Every jump fades out and restarts the mode.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningSkip::
 ;> scene = wOpeningScene
 	ld a, [wOpeningScene]
@@ -1463,7 +1460,6 @@ OpeningLogoSteps::
 ;@ path: title/opening
 ;@ First logo: once faded in, shows it for 60 frames, then fades out and restarts the mode
 ;@ for the next logo.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningLogo0::
 ;> if wFadeState:
 ;>     return
@@ -1498,7 +1494,6 @@ OpeningLogo0::
 ;@ def OpeningLogo1()
 ;@ path: title/opening
 ;@ Second logo: shown for 180 frames, then on to the third.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningLogo1::
 ;> if wFadeState:
 ;>     return
@@ -1533,7 +1528,6 @@ OpeningLogo1::
 ;@ def OpeningLogo2()
 ;@ path: title/opening
 ;@ Third logo: shown for 180 frames, then on to scene 1 with its two sprite objects set up.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningLogo2::
 ;> if wFadeState:
 ;>     return
@@ -1614,8 +1608,8 @@ OpeningStarScene1::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;>     far_call(0x02, 0x04)               # UpdateSceneObject: draw and animate it
-	ld hl, $0204
+;>     UpdateSceneObjectFar()             # draw and animate it
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;>     wSceneObjects[5] -= 2              # X: to the left
 	ld hl, wSceneObjects + 5
@@ -1669,8 +1663,8 @@ OpeningStarScene1::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;> far_call(0x02, 0x04)                    # UpdateSceneObject (hides it when its script ends)
-	ld hl, $0204
+;> UpdateSceneObjectFar()                  # hides it when its script ends
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;> if wSceneObjects[10] == 0:              # sparkle still playing
 ;>     return
@@ -1736,8 +1730,8 @@ OpeningStarScene2::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;>     far_call(0x02, 0x04)               # UpdateSceneObject: draw and animate it
-	ld hl, $0204
+;>     UpdateSceneObjectFar()             # draw and animate it
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;>     wSceneObjects[5] -= 2              # X: to the left
 	ld hl, wSceneObjects + 5
@@ -1791,8 +1785,8 @@ OpeningStarScene2::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;> far_call(0x02, 0x04)                    # UpdateSceneObject (hides it when its script ends)
-	ld hl, $0204
+;> UpdateSceneObjectFar()                  # hides it when its script ends
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;> if wSceneObjects[10] == 0:              # sparkle still playing
 ;>     return
@@ -1858,8 +1852,8 @@ OpeningStarScene3::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;>     far_call(0x02, 0x04)               # UpdateSceneObject: draw and animate it
-	ld hl, $0204
+;>     UpdateSceneObjectFar()             # draw and animate it
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;>     wSceneObjects[5] -= 2              # X: to the left
 	ld hl, wSceneObjects + 5
@@ -1913,8 +1907,8 @@ OpeningStarScene3::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;> far_call(0x02, 0x04)                    # UpdateSceneObject (hides it when its script ends)
-	ld hl, $0204
+;> UpdateSceneObjectFar()                  # hides it when its script ends
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;> if wSceneObjects[10] == 0:              # sparkle still playing
 ;>     return
@@ -1947,7 +1941,6 @@ OpeningStarScene3::
 ;@ path: title/opening
 ;@ Scene 4: shows the picture for 120 frames, then fades out to scene 5 with its two stars set
 ;@ up.
-;@ test: skip calls StartFade (the Game Boy Color fade code of bank $17)
 OpeningPicture::
 ;> if wFadeState:
 ;>     return
@@ -2037,8 +2030,8 @@ OpeningStarScene5::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;>     far_call(0x02, 0x04)                # UpdateSceneObject
-	ld hl, $0204
+;>     UpdateSceneObjectFar()              # draw and animate it
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;>     wSceneObjects[5] -= 2               # X: to the left
 	ld hl, wSceneObjects + 5
@@ -2080,8 +2073,8 @@ OpeningStarScene5::
 	ld [wSceneStep], a
 	ld a, h
 	ld [wSceneTimer], a
-;>     far_call(0x02, 0x04)                # UpdateSceneObject
-	ld hl, $0204
+;>     UpdateSceneObjectFar()              # draw and animate it
+	ld hl, far_UpdateSceneObjectFar
 	rst $10
 ;>     wSceneObjects[11] -= 2
 	ld hl, wSceneObjects + 11
@@ -2137,14 +2130,14 @@ OpeningStarScene5::
 ;@ back on.
 ;@ test: skip starts the music
 OpeningTitle::
-;> done = mem[0xDDB4] & mem[0xDDCE]
-	ld a, [$ddb4]
-	ld hl, $ddce
+;> done = wSoundChannels[52] & wSoundChannels[78]
+	ld a, [wSoundChannels + 52]
+	ld hl, wSoundChannels + 78
 	and [hl]
-;> done &= mem[0xDDE8] & mem[0xDE02]
-	ld hl, $dde8
+;> done &= wSoundChannels[104] & wSoundChannels[130]
+	ld hl, wSoundChannels + 104
 	and [hl]
-	ld hl, $de02
+	ld hl, wSoundChannels + 130
 	and [hl]
 ;> if done != 0xFF:
 ;>     return
@@ -2596,19 +2589,19 @@ StartSkillHitEffect::
 ;@ sound $6C instead.
 ;@ test: skip runs the effects through a jump table
 UpdateScreenEffect::
-;> t = mem[0xDA34] + 1
-	ld a, [$da34]
+;> t = wMonStats[1] + 1
+	ld a, [wMonStats + 1]
 	inc a
-;> mem[0xDA34] = t
+;> wMonStats[1] = t
 	cp $05
-	ld [$da34], a
+	ld [wMonStats + 1], a
 ;> if t < 5:
 ;>     return
 	ret c
 
-;> mem[0xDA34] = 0
+;> wMonStats[1] = 0
 	xor a
-	ld [$da34], a
+	ld [wMonStats + 1], a
 ;> if wBattleAnimDone:
 ;>     return
 	ld a, [wBattleAnimDone]
@@ -4992,7 +4985,7 @@ SetSkillAnimPlace::
 	and $02
 	srl a
 	xor $01
-;>     count = mem[wPartyBattlers + i]       # monsters on this Game Boy's enemy side
+;>     count = mem[addr(wPartyBattlers) + i]       # monsters on this Game Boy's enemy side
 	add l
 	ld l, a
 	ld a, $00
@@ -5002,7 +4995,7 @@ SetSkillAnimPlace::
 ;>     wBattleItemUsedUp = count
 	ld [wBattleItemUsedUp], a
 ;>     if count == 1:
-;>@uo         place = 8 if wSkillUser & 3 >= 3 else 1
+;>@uo         place = 8 if (wSkillUser & 3) >= 3 else 1
 	ld a, [hl]
 	cp $01
 	jr z, .userOne
@@ -5070,7 +5063,7 @@ SetSkillAnimPlace::
 
 
 .notAtUser
-;>@t if IsUserOwnSide() or (wSkillTarget & 3 < 3 and not IsTargetOwnSide()):   # at the target
+;>@t if IsUserOwnSide() or ((wSkillTarget & 3) < 3 and not IsTargetOwnSide()):   # at the target
 	call IsUserOwnSide
 	jr nc, .enemyUser
 
@@ -5081,7 +5074,7 @@ SetSkillAnimPlace::
 	and $02
 	srl a
 	xor $01
-;>     count = mem[wPartyBattlers + i]       # monsters on this Game Boy's enemy side
+;>     count = mem[addr(wPartyBattlers) + i]       # monsters on this Game Boy's enemy side
 	add l
 	ld l, a
 	ld a, $00
@@ -5091,7 +5084,7 @@ SetSkillAnimPlace::
 ;>     wBattleItemUsedUp = count
 	ld [wBattleItemUsedUp], a
 ;>     if count == 1:
-;>@to         place = 8 if wSkillTarget & 3 >= 3 else 1
+;>@to         place = 8 if (wSkillTarget & 3) >= 3 else 1
 	ld a, [hl]
 	cp $01
 	jr z, .targetOne
@@ -5159,7 +5152,7 @@ SetSkillAnimPlace::
 
 
 .nowhere
-;> elif wSkillTarget & 3 >= 3:               # (also where every place 8 above ends up)
+;> elif (wSkillTarget & 3) >= 3:               # (also where every place 8 above ends up)
 ;>     wItemMsgGroup = 8                      # nowhere
 	ld a, $08
 	ld [wItemMsgGroup], a
@@ -5184,7 +5177,7 @@ SetSkillAnimPlace::
 	ld a, [wLinkFlags]
 	and $02
 	srl a
-;>     count = mem[wPartyBattlers + i]       # monsters on the own side
+;>     count = mem[addr(wPartyBattlers) + i]       # monsters on the own side
 	add l
 	ld l, a
 	ld a, $00
@@ -5194,7 +5187,7 @@ SetSkillAnimPlace::
 ;>     wBattleItemUsedUp = count
 	ld [wBattleItemUsedUp], a
 ;>     if count == 1:
-;>@eo         place = 8 if wSkillUser & 3 >= 3 else 1
+;>@eo         place = 8 if (wSkillUser & 3) >= 3 else 1
 	ld a, [hl]
 	cp $01
 	jr z, .ownOne
@@ -5847,19 +5840,19 @@ IsTargetOwnSide::
 ;@ screen effect row; the numbers are shown in hex with the font's letters.
 ;@ test: skip calls routines in other banks
 AnimViewerInit::
-;> fill(wMenuChoice, 0, 8)                  # cursor row, animation, picture on/off, monster, ...
+;> fill(addr(wMenuChoice), 0, 8)                  # cursor row, animation, picture on/off, monster, ...
 	xor a
 	ld hl, wMenuChoice
 	ld bc, $0008
 	call FillMemory
-;> fill(wTextTiles, 0, 18)
+;> fill(addr(wTextTiles), 0, 18)
 	xor a
 	ld hl, wTextTiles
 	ld bc, $0012
 	call FillMemory
 ;> DisableSTATInterrupts()
 	call DisableSTATInterrupts
-;> wSGBPalSet = 0; mem[wSGBPalSet + 1] = 0
+;> wSGBPalSet = 0; mem[addr(wSGBPalSet) + 1] = 0
 	ld hl, wSGBPalSet
 	ld [hl], $00
 	inc hl
@@ -5872,7 +5865,7 @@ AnimViewerInit::
 	ld hl, wTilemapBuffer
 	ld bc, $0240
 	call FillMemory
-;> fill(wBattleAnimDone, 0, 6)              # also wScreenEffect and its counters
+;> fill(addr(wBattleAnimDone), 0, 6)              # also wScreenEffect and its counters
 	xor a
 	ld hl, wBattleAnimDone
 	ld bc, $0006
@@ -6498,7 +6491,7 @@ AnimViewerPlayEffect::
 ;> wEnemyCount = 1
 	ld a, $01
 	ld [wEnemyCount], a
-;> fill(wBattleAnimDone, 0, 6)              # effect not done, its counters cleared
+;> fill(addr(wBattleAnimDone), 0, 6)              # effect not done, its counters cleared
 	xor a
 	ld hl, wBattleAnimDone
 	ld bc, $0006
@@ -6790,17 +6783,17 @@ CopyTileVRAM_5F::
 ;@ Shows the skill animation number wMenuChoice2 as two hex digits in tiles $B4-$B5.
 ;@ test: skip switches banks and polls the LCD
 AnimViewerDrawAnimNumber::
-;> mem[wMenuChoice3] = wMenuChoice2 >> 4    # a string: two hex digits, then the end mark
+;> wMenuChoice3 = wMenuChoice2 >> 4    # a string: two hex digits, then the end mark
 	ld hl, wMenuChoice3
 	ld a, [wMenuChoice2]
 	and $f0
 	call HighNibble_5F
 	ld [hli], a
-;> mem[wMenuChoice3 + 1] = wMenuChoice2 & 0x0F
+;> mem[addr(wMenuChoice3) + 1] = wMenuChoice2 & 0x0F
 	ld a, [wMenuChoice2]
 	and $0f
 	ld [hli], a
-;> mem[wMenuChoice3 + 2] = 0xFF
+;> mem[addr(wMenuChoice3) + 2] = 0xFF
 	ld a, $ff
 	ld [hl], a
 ;> DrawDebugString(wMenuChoice3, 0x8B40)
@@ -6840,17 +6833,17 @@ AnimViewerDrawBGSwitch::
 ;@ Shows the monster number wConfirmChoice2 as two hex digits in tiles $B2-$B3.
 ;@ test: skip switches banks and polls the LCD
 AnimViewerDrawBGNumber::
-;> mem[wMenuChoice3] = wConfirmChoice2 >> 4
+;> wMenuChoice3 = wConfirmChoice2 >> 4
 	ld hl, wMenuChoice3
 	ld a, [wConfirmChoice2]
 	and $f0
 	call HighNibble_5F
 	ld [hli], a
-;> mem[wMenuChoice3 + 1] = wConfirmChoice2 & 0x0F
+;> mem[addr(wMenuChoice3) + 1] = wConfirmChoice2 & 0x0F
 	ld a, [wConfirmChoice2]
 	and $0f
 	ld [hli], a
-;> mem[wMenuChoice3 + 2] = 0xFF
+;> mem[addr(wMenuChoice3) + 2] = 0xFF
 	ld a, $ff
 	ld [hl], a
 ;> DrawDebugString(wMenuChoice3, 0x8B20)
@@ -6865,17 +6858,17 @@ AnimViewerDrawBGNumber::
 ;@ Shows the screen effect number wListLastRows as two hex digits in tiles $A9-$AA.
 ;@ test: skip switches banks and polls the LCD
 AnimViewerDrawEffectNumber::
-;> mem[wMenuChoice3] = wListLastRows >> 4
+;> wMenuChoice3 = wListLastRows >> 4
 	ld hl, wMenuChoice3
 	ld a, [wListLastRows]
 	and $f0
 	call HighNibble_5F
 	ld [hli], a
-;> mem[wMenuChoice3 + 1] = wListLastRows & 0x0F
+;> mem[addr(wMenuChoice3) + 1] = wListLastRows & 0x0F
 	ld a, [wListLastRows]
 	and $0f
 	ld [hli], a
-;> mem[wMenuChoice3 + 2] = 0xFF
+;> mem[addr(wMenuChoice3) + 2] = 0xFF
 	ld a, $ff
 	ld [hl], a
 ;> DrawDebugString(wMenuChoice3, 0x8A90)
@@ -6984,18 +6977,18 @@ AnimViewerStartSprite::
 
 .start
 ;> if n < 0x0E:
-;>@c     StartSkillAnimSprite_5C()
+;>@c     StartSkillAnimSprite_5C(wMenuChoice2)
 	ld a, [wMenuChoice2]
 	cp $0e
 	jr c, .bank5C
 
 ;> elif n < 0x21:
-;>@d     StartSkillAnimSprite_5D()
+;>@d     StartSkillAnimSprite_5D(wMenuChoice2)
 	cp $21
 	jr c, .bank5D
 
 ;> else:
-;>     StartSkillAnimSprite_5E()
+;>     StartSkillAnimSprite_5E(wMenuChoice2)
 	ld hl, far_StartSkillAnimSprite_5E
 	rst $10
 	ret
@@ -7030,7 +7023,7 @@ AnimViewerClearBG::
 
 ;@ def AnimViewerLoadBG()
 ;@ path: unused/debug/animviewer
-;@ Monster picture on: decompresses the graphics of monster wConfirmChoice2 (ActorGfx entry
+;@ Monster picture on: decompresses the graphics of monster wConfirmChoice2 (MonsterPicRefs entry
 ;@ $60 + n, the monsters' entries) into the picture tiles at $9000.
 ;@ test: skip switches banks and polls the LCD
 AnimViewerLoadBG::
@@ -7039,12 +7032,12 @@ AnimViewerLoadBG::
 	ld l, a
 	ld h, $00
 	add hl, hl
-;> p = ActorGfx + 0xC0 + i
+;> p = MonsterPicRefs + i
 	ld a, l
-	add LOW(ActorGfx + $c0)
+	add LOW(MonsterPicRefs)
 	ld l, a
 	ld a, h
-	adc HIGH(ActorGfx + $c0)
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 ;> gfx = mem16[p]                           # bank in the high byte, entry in the low byte
 	ld e, [hl]
@@ -7206,7 +7199,7 @@ DebugStatsWindow::
 	ld l, a
 	ld a, $00
 	adc h
-;> mem16[wBattleArg1] = p
+;> mem16[addr(wBattleArg1)] = p
 	ld h, a
 	ld a, l
 	ld [wBattleArg1], a
@@ -7215,7 +7208,7 @@ DebugStatsWindow::
 ;> DrawDebugStatsColumn()
 	call DrawDebugStatsColumn
 ;> for _ in range(2):                         # up to two more monsters
-;>@p1     p = mem16[wBattleArg1]
+;>@p1     p = mem16[addr(wBattleArg1)]
 	ld a, [wBattleArg1]
 	ld l, a
 	ld a, [wBattleArg2]
@@ -7226,7 +7219,7 @@ DebugStatsWindow::
 	cp $ff
 	jr z, .show
 
-;>@p4     mem16[wBattleArg1] = p + 1
+;>@p4     mem16[addr(wBattleArg1)] = p + 1
 	inc hl
 	ld a, l
 	ld [wBattleArg1], a

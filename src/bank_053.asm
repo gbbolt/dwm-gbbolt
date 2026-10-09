@@ -124,6 +124,7 @@ GetBattlerName_53::
 ;@ path: battle/names
 ;@ Copies the nickname of party monster `pos` to `dest` (CopyName) and returns the address of its
 ;@ $F0 end mark, so more text can be appended.
+;@ test: skip follows name and record pointers that random states leave invalid
 GetPartyMonName_53::
 ;> name = PartyMonsterField(pos, addr(wMonName))
 	push hl
@@ -165,7 +166,7 @@ GetLinkEnemyName_53::
 ;@ monsters (Transform, wEnemyMorph) is called "<nickname>Like" instead (GetMorphName_53).
 ;@ test: skip calls routines in other banks
 GetEnemyName_53::
-;>@n3 if pos & 3 != 3:                    # not the fourth position of a side
+;>@n3 if (pos & 3) != 3:                    # not the fourth position of a side
 	push bc
 	ld b, a
 	and $03
@@ -212,7 +213,7 @@ GetEnemyName_53::
 	push af
 	call GetSpeciesName_53
 	pop af
-;> AppendEnemyLetter(pos)
+;> AppendEnemyLetter()
 	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret
@@ -488,10 +489,10 @@ ActionStart_Begin_53::
 	xor a
 	ld [wHitCount], a
 	ld [wBattleStepArg0], a
-;> wBattleStepArg1 = 0; mem[0xDD6D] = 0
+;> wBattleStepArg1 = 0; wReflectAnim = 0
 	ld [wBattleStepArg1], a
 	ld [wReflectAnim], a
-;> mem[0xDD6E] = 0; wBattleAnimRunning = 0
+;> wInterceptState = 0; wBattleAnimRunning = 0
 	ld [wInterceptState], a
 	ld [wBattleAnimRunning], a
 ;> if not wLinkActive:
@@ -1742,7 +1743,7 @@ ActionStart_CheckDown_53::
 ;> pos = wSkillUser
 	ld a, [wSkillUser]
 	ld b, a
-;> if pos & 3 == 3:                       # a monster called in to help
+;> if (pos & 3) == 3:                       # a monster called in to help
 	and $03
 	cp $03
 	jr nz, .monster
@@ -2050,7 +2051,7 @@ IsMPFree_53::
 	cp $32
 	jr z, .no
 
-;>@h if skill == 0x42: return mem[addr(wBattlerStatus4) + 8 * wSkillUser] & 0x0C != 0
+;>@h if skill == 0x42: return (mem[addr(wBattlerStatus4) + 8 * wSkillUser] & 0x0C) != 0
 	cp $42
 	jr z, .highJump
 
@@ -2058,7 +2059,7 @@ IsMPFree_53::
 	cp $66
 	jr z, .no
 
-;>@l if skill == 0x95: return mem[addr(wBattlerStatus5) + 8 * wSkillUser] & 0x30 != 0
+;>@l if skill == 0x95: return (mem[addr(wBattlerStatus5) + 8 * wSkillUser] & 0x30) != 0
 	cp $95
 	jr z, .lifeSong
 
@@ -2071,7 +2072,7 @@ IsMPFree_53::
 	bit 6, a
 	jr z, .no
 
-;>@w return wSideFlags[wSkillUser >> 2] & 0x08 != 0  # MagicWall
+;>@w return (wSideFlags[wSkillUser >> 2] & 0x08) != 0  # MagicWall
 	ld a, [wSkillUser]
 	rrca
 	rrca
@@ -3160,7 +3161,7 @@ UserNameToTextArg2_53::
 ;@ (DodgeTo_53; the third position is taken without a check).
 ;@ test: skip jumps on into other routines
 DodgeToTargetSide_53::
-;>@f if c & 4 == wSkillTarget & 4: c = (c & 4) ^ 4
+;>@f if (c & 4) == (wSkillTarget & 4): c = (c & 4) ^ 4
 	ld a, [wSkillTarget]
 	and $04
 	ld b, a
@@ -3179,14 +3180,14 @@ DodgeToTargetSide_53::
 	and $04
 	xor $04
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jp nc, DodgeTo_53
 
 ;> e += 1
 	inc e
 	ld a, e
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jp nc, DodgeTo_53
 
@@ -3212,7 +3213,7 @@ DodgeToOtherSide_53::
 	ld c, a
 	or d
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jp nc, DodgeTo_53
 
@@ -3220,7 +3221,7 @@ DodgeToOtherSide_53::
 	ld a, e
 	xor $02
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jp nc, DodgeTo_53
 
@@ -3248,7 +3249,7 @@ DodgeToOtherSide2_53::
 	ld c, a
 	add d
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jp nc, DodgeTo_53
 
@@ -3259,7 +3260,7 @@ DodgeToOtherSide2_53::
 	ld a, c
 	sub d
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jp nc, DodgeTo_53
 
@@ -3335,11 +3336,11 @@ DodgeAside_53::
 ;> e = first | side
 	or b
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jr nc, DodgeTo_53
 
-;> second = d ^ 3 if d ^ 3 != 3 else 1
+;> second = d ^ 3 if (d ^ 3) != 3 else 1
 	ld a, d
 	xor $03
 	cp $03
@@ -3351,7 +3352,7 @@ DodgeAside_53::
 ;> e = second | side
 	or b
 	ld e, a
-;> if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;> if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jr nc, DodgeTo_53
 
@@ -3376,7 +3377,7 @@ DodgeAside_53::
 	ld a, c
 	inc a
 	ld e, a
-;>         if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;>         if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jr nc, DodgeTo_53
 
@@ -3384,7 +3385,7 @@ DodgeAside_53::
 	ld a, c
 	dec a
 	ld e, a
-;>         if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;>         if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jr nc, DodgeTo_53
 
@@ -3397,7 +3398,7 @@ DodgeAside_53::
 	ld a, c
 	dec a
 	ld e, a
-;>         if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;>         if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jr nc, DodgeTo_53
 
@@ -3405,7 +3406,7 @@ DodgeAside_53::
 	ld a, c
 	inc a
 	ld e, a
-;>         if not IsDodgeSpotFree_53(e): return DodgeTo_53(e)
+;>         if not IsDodgeSpotFree_53(e, e): return DodgeTo_53(e)
 	call IsDodgeSpotFree_53
 	jr nc, DodgeTo_53
 
@@ -3494,6 +3495,7 @@ DodgeTo_53::
 ;> return ShowDodgeMessage_53()
 	jr ShowDodgeMessage_53
 
+	; unused bytes nothing reaches (a leftover code fragment)
 	db $3e, $7f, $ea, $23, $c8
 
 ;@ def ShowDodgeMessage_53()
@@ -3537,7 +3539,7 @@ IsDodgeSpotFree_53::
 	call CheckBattlerPresent
 	jr c, .no
 
-;>@s return mem[addr(wBattlerStatus4) + 8 * e] & 0x0C != 0
+;>@s return (mem[addr(wBattlerStatus4) + 8 * e] & 0x0C) != 0
 	ld a, e
 	push hl
 	ld hl, wBattlerStatus4
@@ -3855,7 +3857,7 @@ Hit_Announce_53::
 ;=@e
 	adc h
 	ld h, a
-;>     if mem[entry] & 3 == 3: return
+;>     if (mem[entry] & 3) == 3: return
 	ld a, [hl]
 	and $03
 	cp $03
@@ -3891,7 +3893,7 @@ Hit_AfterAnnounce_53::
 ;> LoadSkillFlags()
 	ld hl, far_LoadSkillFlags
 	rst $10
-;>@hj if wSkillId == 0x42 and not (wBattlerStatus4[8 * wSkillUser] & 0x0C):    # HighJump, first turn
+;>@hj if wSkillId == 0x42 and not (mem[addr(wBattlerStatus4) + 8 * wSkillUser] & 0x0C):    # HighJump, first turn
 	ld a, [wSkillId]
 	cp $42
 	jr nz, .target
@@ -4021,7 +4023,7 @@ Hit_NextAnimTarget_53::
 	ld c, a
 
 .next
-;>@l while c & 3 != 2:
+;>@l while (c & 3) != 2:
 	and $03
 	cp $02
 	jr z, .restore
@@ -4147,7 +4149,7 @@ Hit_Intercept_53::
 	ld hl, far_LoadSkillFlags
 	rst $10
 	call DrawRandom_53
-;>@n if wBattlerStatus4[8 * wSkillTarget] & 0x0C and wSkillFlags3 & 0x20:   # high in the sky
+;>@n if mem[addr(wBattlerStatus4) + 8 * wSkillTarget] & 0x0C and wSkillFlags3 & 0x20:   # high in the sky
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
@@ -4289,14 +4291,14 @@ Hit_Intercept_53::
 	or a
 	jr nz, Hit_TryDodgeAside_53
 
-;>         if wBattlerStatus6[8 * wSkillTarget] & 0x10:   # protected
+;>         if mem[addr(wBattlerStatus6) + 8 * wSkillTarget] & 0x10:   # protected
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	bit 4, [hl]
 	jr z, Hit_TryDodgeAside_53
 
-;>@pr             protector = wBattlerStatus7[8 * wSkillTarget] >> 4
+;>@pr             protector = mem[addr(wBattlerStatus7) + 8 * wSkillTarget] >> 4
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
 	call AddEightTimes
@@ -4620,14 +4622,14 @@ Hit_EasyDodge_53::
 	bit 1, a
 	jr z, .easyDodge
 
-;>     if not (wBattlerStatus6[8 * wSkillTarget] & 0x10): return EasyDodgeCheck()
+;>     if not (mem[addr(wBattlerStatus6) + 8 * wSkillTarget] & 0x10): return EasyDodgeCheck()
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
 	bit 4, [hl]
 	jr z, .easyDodge
 
-;>@pr     protector = wBattlerStatus7[8 * wSkillTarget] >> 4
+;>@pr     protector = mem[addr(wBattlerStatus7) + 8 * wSkillTarget] >> 4
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus7
 	call AddEightTimes
@@ -5144,6 +5146,7 @@ Hit_Critical_53::
 	inc [hl]
 	jr Hit_Damage_53
 
+	; a stray ret nothing reaches
 	db $c9
 
 .noCrit
@@ -5181,7 +5184,7 @@ Hit_Damage_53::
 	bit 7, [hl]
 	jr z, .noCrit
 
-;>     if wSoundChannels & mem[addr(wSoundChannels) + 26] != 0xFF: return
+;>     if (wSoundChannels & mem[addr(wSoundChannels) + 26]) != 0xFF: return
 	ld a, [wSoundChannels]
 	ld hl, wSoundChannels+26
 	and [hl]
@@ -6038,7 +6041,7 @@ IsWindReflecting_53::
 	cp $8f
 	ret z
 
-;> return wBattlerStatus[8 * wSkillTarget + 2] & 0x40 != 0
+;> return (wBattlerStatus[8 * wSkillTarget + 2] & 0x40) != 0
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus2
 	call AddEightTimes
@@ -6883,7 +6886,7 @@ AbsorbAfterHit_53::
 ;@ Far entry 10: cures the target - all of status byte 0 (sleep, paralysis, confusion, curse, poison),
 ;@ byte 1 except bits 2-5, byte 3 bit 7, byte 5 bits 0-1 (blind); a sleeping or confused target loses
 ;@ its turn. A lowered stat (byte 6 bit 7) comes back: agility and defense return to their normal
-;@ values (Call_57_42A6, Call_57_424A) where they are below.
+;@ values (CalcBaseAgility, CalcBaseDefense) where they are below.
 ;@ test: skip calls routines in other banks
 CureAilments_53::
 ;> status = addr(wBattlerStatus) + 8 * wSkillTarget
@@ -6916,10 +6919,10 @@ CureAilments_53::
 
 ;> mem[status + 6] &= ~0x80
 	res 7, [hl]
-;> wBattleTemp = wSkillTarget; Call_57_42A6()         # normal agility -> wBattleTemp
+;> wBattleTemp = wSkillTarget; CalcBaseAgility()         # normal agility -> wBattleTemp
 	ld a, [wSkillTarget]
 	ld [wBattleTemp], a
-	ld hl, far_Call_57_42A6
+	ld hl, far_CalcBaseAgility
 	rst $10
 ;>@a agi = addr(wBattlerAgility) + 2 * wSkillTarget
 	ld a, [wSkillTarget]
@@ -6952,10 +6955,10 @@ CureAilments_53::
 	ld [hl], a
 
 .defense
-;> wBattleTemp = wSkillTarget; Call_57_424A()         # normal defense
+;> wBattleTemp = wSkillTarget; CalcBaseDefense()         # normal defense
 	ld a, [wSkillTarget]
 	ld [wBattleTemp], a
-	ld hl, far_Call_57_424A
+	ld hl, far_CalcBaseDefense
 	rst $10
 ;>@d df = addr(wBattlerDefense) + 2 * wSkillTarget
 	ld a, [wSkillTarget]
@@ -7259,7 +7262,7 @@ Dispel_Picture_53::
 ;@ position 3 of the side (stage 6).
 ;@ test: wSkillTarget = rand(0, 7); wBattleSubStep2 = 5
 Dispel_NextTarget_53::
-;> if wSkillTarget & 3 != 2:
+;> if (wSkillTarget & 3) != 2:
 	ld a, [wSkillTarget]
 	and $03
 	cp $02
@@ -7367,7 +7370,7 @@ Dispel_Side_53::
 	ld a, [wSkillUser]
 	and $04
 	ld b, a
-;> if wSkillTarget & 4 == u: return
+;> if (wSkillTarget & 4) == u: return
 	ld a, [wSkillTarget]
 	and $04
 	cp b
@@ -7532,7 +7535,7 @@ RefillFromMax_53::
 ;@ bytes per position - for positions above 0 they land in the wrong entry.
 ;@ test: skip calls routines of the home bank
 LoadStatsFromRecord_53::
-;> if wSkillTarget & 3 == 3: return LoadStatsFromTemplate_53(wSkillTarget)
+;> if (wSkillTarget & 3) == 3: return LoadStatsFromTemplate_53(wSkillTarget)
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
@@ -7824,7 +7827,7 @@ RestoreDefAgility_53::
 
 
 .record
-;> if wSkillTarget & 3 == 3: return
+;> if (wSkillTarget & 3) == 3: return
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
@@ -7854,7 +7857,7 @@ RestoreDefAgility_53::
 ;@ bits 6-7) are cleared.
 ;@ test: skip calls a routine in another bank
 RestoreDefAgilityTemplate_53::
-;> if wSkillTarget & 3 == 3: return
+;> if (wSkillTarget & 3) == 3: return
 	ld a, [wSkillTarget]
 	and $03
 	cp $03
@@ -8000,7 +8003,7 @@ StoreBattlerByte_53::
 ;@ path: battle/screen
 ;@ Draws the picture of `species` again for enemy position `pos` (4-6; seen from this Game Boy, so
 ;@ positions 0-2 for the link partner when wLinkFlags bit 1 is set): decompressed to $9000 +
-;@ $240 per slot from the species' picture entry in the table at $2B9F, then the palettes.
+;@ $240 per slot from the species' picture entry in MonsterPicRefs, then the palettes.
 ;@ test: skip decompresses into VRAM
 ReloadBattlerPicture_53::
 ;> StoreSpeciesCGB_53(pos, species)
@@ -8038,17 +8041,17 @@ ReloadBattlerPicture_53::
 	ld bc, $9000
 	add hl, bc
 	pop bc
-;>@s DecompressVRAM(mem16[0x2B9F + 2 * species], dest)
+;>@s ref = mem16[MonsterPicRefs + 2 * species]; DecompressVRAM(hi(ref), lo(ref), dest)
 	push hl
 	ld l, c
 	ld h, $00
 	add hl, hl
 	ld a, l
-	add $9f
+	add LOW(MonsterPicRefs)
 ;=@s
 	ld l, a
 	ld a, h
-	adc $2b
+	adc HIGH(MonsterPicRefs)
 	ld h, a
 	ld e, [hl]
 	inc hl
@@ -8116,17 +8119,17 @@ WeakenStages_53::
 
 ;@ def Weaken_Defense_53()
 ;@ path: battle/skills
-;@ Stage 0: the target's defense drops by half its normal value (Call_57_424A; at least 1, and never
+;@ Stage 0: the target's defense drops by half its normal value (CalcBaseDefense; at least 1, and never
 ;@ below 1): "... loses ... defense" ($86/$87), its stat-down mark (status byte 6 bit 7) is set.
 ;@ test: skip calls routines in other banks
 Weaken_Defense_53::
 ;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
-;> wBattleTemp = wSkillTarget; Call_57_424A()          # normal defense -> wBattleTemp
+;> wBattleTemp = wSkillTarget; CalcBaseDefense()          # normal defense -> wBattleTemp
 	ld a, [wSkillTarget]
 	ld [wBattleTemp], a
-	ld hl, far_Call_57_424A
+	ld hl, far_CalcBaseDefense
 	rst $10
 ;> drop = (wBattleTemp | wBattleTempHigh << 8) >> 1
 	ld a, [wBattleTemp]
@@ -8187,16 +8190,16 @@ Weaken_Defense_53::
 
 ;@ def Weaken_Agility_53()
 ;@ path: battle/skills
-;@ Stage 1: the same for agility (Call_57_42A6): "... speed goes down by ..." ($95/$96).
+;@ Stage 1: the same for agility (CalcBaseAgility): "... speed goes down by ..." ($95/$96).
 ;@ test: skip calls routines in other banks
 Weaken_Agility_53::
 ;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
-;> wBattleTemp = wSkillTarget; Call_57_42A6()          # normal agility -> wBattleTemp
+;> wBattleTemp = wSkillTarget; CalcBaseAgility()          # normal agility -> wBattleTemp
 	ld a, [wSkillTarget]
 	ld [wBattleTemp], a
-	ld hl, far_Call_57_42A6
+	ld hl, far_CalcBaseAgility
 	rst $10
 ;> drop = (wBattleTemp | wBattleTempHigh << 8) >> 1
 	ld a, [wBattleTemp]
@@ -8460,7 +8463,7 @@ Death_Begin_53::
 	call CheckBattlerPresent
 	jr c, .skip
 
-;> if wBattlerStatus5[8 * wSkillTarget] & 0xC0:     # an iron lump
+;> if mem[addr(wBattlerStatus5) + 8 * wSkillTarget] & 0xC0:     # an iron lump
 	ld a, [wSkillTarget]
 	ld hl, wBattlerStatus5
 	call AddEightTimes
@@ -8491,12 +8494,12 @@ Death_Begin_53::
 	or a
 	jr nz, .done
 
-;> if not wBattlerStatus6[8 * wSkillTarget] & 0x10: return
+;> if not mem[addr(wBattlerStatus6) + 8 * wSkillTarget] & 0x10: return
 	inc hl
 	bit 4, [hl]
 	jr z, .done
 
-;> guard = wBattlerStatus7[8 * wSkillTarget] >> 4
+;> guard = mem[addr(wBattlerStatus7) + 8 * wSkillTarget] >> 4
 	inc hl
 	ld a, [hl]
 	swap a
@@ -8829,7 +8832,7 @@ Death_NextTarget_53::
 ;@ the third nothing changes.
 ;@ test: skip calls a routine that starts messages
 NextTargetOfSide_53::
-;> if wSkillTarget & 3 == 2: return
+;> if (wSkillTarget & 3) == 2: return
 	ld a, [wSkillTarget]
 	and $03
 	cp $02
@@ -9468,7 +9471,7 @@ Revive_Message_53::
 	call QueueSound
 
 .next
-;> if wSkillTarget & 3 == 2: return
+;> if (wSkillTarget & 3) == 2: return
 	ld a, [wSkillTarget]
 	and $03
 	cp $02
