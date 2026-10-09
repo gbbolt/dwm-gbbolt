@@ -3,7 +3,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from monsters import Rom, SPECIES  # noqa: E402
+from _dwm import Rom, SPECIES, species_cell  # noqa: E402
 
 GROUP = 'gates'
 WORLDS = 32
@@ -35,25 +35,33 @@ def build(ctx):
             hi = min(t - 1, nfloors) if t <= nfloors else nfloors
             e = r[first + g] + n
             d = r[tables + 26 * e: tables + 26 * e + 26]
-            sp = [d[0x0A + 2 * i] for i in range(5)]
+            nums = [d[0x0A + 2 * i] | d[0x0B + 2 * i] << 8 for i in range(5)]
             ws = pct(d[5:10])
-            mons = ['{} {}%{}'.format(names[s] if s < SPECIES else '#{}'.format(s), q,
-                                      ' (alone)' if d[0x14 + i] == 1 else '')
-                    for i, (s, q) in enumerate(zip(sp, ws)) if q and s != 0xFF]
+            mons = []
+            for i, (m, q) in enumerate(zip(nums, ws)):
+                if not q or m == 0xFFFF:
+                    continue
+                tp = rom.template(m)
+                s = tp['species']
+                mons.append(species_cell(names, s, '{} Lv {} {}%{}'.format(
+                    names[s] if s < SPECIES else '#{}'.format(s), tp['level'], q,
+                    ' (alone)' if d[0x14 + i] == 1 else '')))
             sizes = '/'.join(str(q) for q in pct(d[2:5]))
-            rows.append([g, nfloors, '{}-{}'.format(lo, hi) if hi > lo else str(lo), e,
-                         ', '.join(mons), sizes, d[0x19]])
+            rows.append([{'asset': 'gate-worlds@w{}'.format(g), 'text': str(g)}, nfloors,
+                         '{}-{}'.format(lo, hi) if hi > lo else str(lo), e, mons, sizes, d[0x19]])
             if t > nfloors:
                 break
             lo = hi + 1
-    return [{'name': 'gate-encounters', 'type': 'table', 'title': 'Gate worlds and their monsters',
+    return [{'name': 'gate-encounters', 'type': 'table', 'title': 'Gate worlds and their monsters', 'unit': 'FloorTables',
              'columns': ['Gate world', 'Floors', 'On floors', 'Table', 'Wild monsters (chance)',
                          'Group of 1/2/3 (%)', 'Music'],
              'rows': rows,
              'doc': ['The wild monsters of each gate world, floor by floor. GateWorldTable gives a world\'s '
                      'number of floors; SelectFloorTable picks the FloorTables entry from the world\'s first '
                      'entry (GateWorldFirstTable) and how many of its floor thresholds (GateWorldFloorSplits) '
-                     'are reached, so deeper floors move on to stronger tables. Each entry weighs five species '
-                     'and the size of a group; "alone" species never come with others (RollEncounterGroup).'],
+                     'are reached, so deeper floors move on to stronger tables. Each entry weighs five monster '
+                     'numbers and the size of a group; a monster number is a MonTemplates entry, which gives the '
+                     'species and the level it is met at. "Alone" monsters never come with others '
+                     '(RollEncounterGroup).'],
              'users': ['GateWorldTable', 'GateWorldFirstTable', 'GateWorldFloorSplits', 'FloorTables',
                        'SelectFloorTable', 'RollEncounterGroup']}]

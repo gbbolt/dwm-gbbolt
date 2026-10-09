@@ -4404,7 +4404,7 @@ DamageToText::
 EndCalledHelp::
 ;> mem[0xDB51] = 5
 	ld a, $05
-	ld [$db51], a
+	ld [wAIKindBonus2], a
 ;> wSkillMsgMode = 2
 	ld a, $02
 	ld [wSkillMsgMode], a
@@ -13284,7 +13284,7 @@ ActionStepItem::
 	inc [hl]
 ;> mem[0xDB52] = wBattleItemTarget
 	ld a, [wBattleItemTarget]
-	ld [$db52], a
+	ld [wAIKindBonus3], a
 ;> wSkillUser = 0x10
 	ld a, $10
 	ld [wSkillUser], a
@@ -15650,10 +15650,10 @@ CounterStageEnd::
 
 ;@ def BattleRedraw57()
 ;@ path: battle/actions
-;@ Calls bank $57's routine Call_57_7C44 after an action.
+;@ Calls bank $57's routine EndCallForHelp after an action.
 BattleRedraw57::
-;> Call_57_7C44()
-	ld hl, far_Call_57_7C44
+;> EndCallForHelp()
+	ld hl, far_EndCallForHelp
 	rst $10
 	ret
 
@@ -15987,8 +15987,8 @@ ActionStepItemFails::
 ;@ path: battle/actions
 ;@ Action steps 22 and 24, in bank $57.
 ActionStep6E0E::
-;> Call_57_6E0E()
-	ld hl, far_Call_57_6E0E
+;> AIChooseAction()
+	ld hl, far_AIChooseAction
 	rst $10
 	ret
 

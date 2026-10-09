@@ -4,6 +4,7 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $066", ROMX[$4000], BANK[$66]
 
+LeftoverData_66::
 	db $40, $e0, $e0, $b0, $e0, $b3, $f3, $9f, $bf, $ce, $96, $fd, $ad, $fb, $7b, $f6
 	db $5b, $f6, $f4, $ef, $f4, $ef, $f4, $af, $7c, $df, $3f, $67, $1f, $38, $07, $1f
 	db $00, $00, $00, $00, $00, $c2, $c2, $f7, $b7, $7d, $ef, $fd, $07, $fd, $9f, $79

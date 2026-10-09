@@ -4,12 +4,17 @@ INCLUDE "far.inc"
 
 SECTION "ROM Bank $057", ROMX[$4000], BANK[$57]
 
+;@ path: system/banks
+;@ Bank number byte: every switchable bank starts with its own number.
 BankNumber_57::
 	db $57
 
+;@ path: battle/ai
+;@ Entry points of bank $57: 0 AIChooseAction (the enemy and party AI), 1 EndCallForHelp, then the unused
+;@ CheckHPAgainstDamage and CalcHitsToKO and the base stat calculations (CalcBaseMaxHP to CalcBaseAgility).
 FarTable_57::
-	dw Call_57_6E0E
-	dw Call_57_7C44
+	dw AIChooseAction
+	dw EndCallForHelp
 	dw CheckHPAgainstDamage
 	dw CalcHitsToKO
 	dw CalcBaseMaxHP
@@ -17,6 +22,14 @@ FarTable_57::
 	dw CalcBaseAttack
 	dw CalcBaseDefense
 	dw CalcBaseAgility
+
+;@ def CheckHPAgainstDamage()
+;@ path: unused
+;@ Far entry 2 (nothing calls it): counts the monsters present on the side facing wSkillUser, then
+;@ works out the normal attack damage of battle position wBattleArg0 on each of that side's four
+;@ positions (CalcAttackDamage). wBattleArg2 = 1 as soon as wBattleArg0's own HP is at least that damage
+;@ times 10 times the number counted, else 0. wSkillUser and wSkillTarget are kept.
+;@ test: skip calls a routine in another bank
 
 ;@ def CheckHPAgainstDamage()
 ;@ path: unused
@@ -691,11 +704,17 @@ CalcBaseAgility::
 	ret
 
 
+;@ path: battle/ai/rules
+;@ The rule list for each skill kind (wAIKind 1 attack, 2 status, 3 heal and support), picked by
+;@ AIStepNextSkill.
 AIRuleLists::
 	dw AIRulesAttack
 	dw AIRulesStatus
 	dw AIRulesHeal
 
+;@ path: battle/ai/rules
+;@ Rules for the attack skills (kind 1), run in this order by AIStepRunRules on each skill; 0 ends the
+;@ list.
 AIRulesAttack::
 	dw AIRuleNoLatePrep
 	dw AIRuleUsable
@@ -738,6 +757,8 @@ AIRulesAttack::
 	dw AIBonusEnemyDamage
 	dw $0000
 
+;@ path: battle/ai/rules
+;@ Rules for the status skills (kind 2), run in this order by AIStepRunRules; 0 ends the list.
 AIRulesStatus::
 	dw AIRuleNoLatePrep
 	dw AIRuleUsable
@@ -826,6 +847,8 @@ AIRulesStatus::
 	dw AIBonusResistMouthShut
 	dw $0000
 
+;@ path: battle/ai/rules
+;@ Rules for the heal and support skills (kind 3), run in this order by AIStepRunRules; 0 ends the list.
 AIRulesHeal::
 	dw AIRuleNoLatePrep
 	dw AIRuleUsable
@@ -868,6 +891,13 @@ AIRulesHeal::
 	dw AIBonusGuardWhenLow
 	dw AIBonusSurge
 	dw $0000
+
+;@ def AIRuleOutIfAllHave(first: c, count: b, status: hl, mask: e)
+;@ path: battle/ai/rules
+;@ Rules the skill out (wAIPenalty = $FF) when every monster present among the `count` battle positions
+;@ from `first` on already has one of the `mask` bits in its status byte (`status` points to the first
+;@ position's byte; they are 8 apart): the effect would be wasted on all of them.
+;@ test: first = rand(0, 5); count = rand(1, 3); status = 0xDB02 + first * 8
 
 ;@ def AIRuleOutIfAllHave(first: c, count: b, status: hl, mask: e)
 ;@ path: battle/ai/rules
@@ -11499,232 +11529,312 @@ UserNameToArg0_57::
 	call GetBattlerNameTo_57
 	ret
 
-Call_57_6E0E::
+;@ def AIChooseAction()
+;@ path: battle/ai
+;@ Far entry 0: one step of choosing the action of the monster at wSkillUser, by wBattleSubStep2
+;@ (AIChooseSteps): 0 the order or the tactic (AIStepStart), 1 weigh the three skill kinds
+;@ (AIStepKindWeights), 2 pick the kind to try (AIStepPickKind), 3 base scores of the skills
+;@ (AIStepBaseScores), 4 the next skill to judge (AIStepNextSkill), 7 run the kind's rule list on it
+;@ (AIStepRunRules), 5 pick the best skill (AIStepPickBest), 6 done (AIStepDone). The choice lands in
+;@ wBattlerAction.
+;@ test: skip calls through a table of routines
+AIChooseAction::
+;> return AIChooseSteps[wBattleSubStep2]()
 	ld a, [wBattleSubStep2]
 	rst $00
 
-JumpTable_57_6E12::
-	dw Jump_57_6E2A
-	dw Jump_57_7129
-	dw Jump_57_73B9
-	dw Jump_57_7529
-	dw Jump_57_7439
-	dw Jump_57_75A2
-	dw Jump_57_7859
-	dw Jump_57_7865
+;@ path: battle/ai
+;@ The steps of AIChooseAction, by wBattleSubStep2.
+AIChooseSteps::
+	dw AIStepStart
+	dw AIStepKindWeights
+	dw AIStepPickKind
+	dw AIStepBaseScores
+	dw AIStepNextSkill
+	dw AIStepPickBest
+	dw AIStepDone
+	dw AIStepRunRules
 
-jr_057_6e22:
+;@ def AIFinishTurn()
+;@ path: battle/ai
+;@ Part of AIStepStart: the monster's action for this turn is set already, so the choice ends (step 6).
+;@ test: skip jumps on to another step
+AIFinishTurn::
+;> wBattleSubStep2 = 6
 	ld a, $06
 	ld [wBattleSubStep2], a
-	jp Jump_57_7859
+;> return AIStepDone()
+	jp AIStepDone
 
 
-Jump_57_6E2A::
+;@ def AIStepStart()
+;@ path: battle/ai
+;@ Step 0 of AIChooseAction. Clears the scores and kind weights, then decides how the monster acts. One
+;@ that cannot act or is confused, and a called helper (position 3 or 7) or an enemy outside a link
+;@ battle that was judged before, lets the AI pick a skill. On the first look this turn its obedience is
+;@ rolled (RollDisobey, from personality, tactic and wildness): an obedient one follows its tactic
+;@ (AIFollowTactic). A disobedient one is marked (wBattlerTactic bit 6); without a direct command the AI
+;@ picks for it, with one it acts on a whim (AIWhimAction): during the command phase (wBattleSubStep 1)
+;@ and when nothing keeps it from acting, message $B4 says so first.
+;@ test: skip calls routines in other banks
+AIStepStart::
+;> if wBattleSubStep >= 0x16:                   # chosen again while the actions run
 	ld a, [wBattleSubStep]
 	cp $16
-	jr c, jr_057_6e50
+	jr c, .clear
 
+;>@a     wBattlerAction[2 * wSkillUser] = 0xFF; wBattlerAction[2 * wSkillUser + 1] = 0xFF
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@a
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hli], a
 	ld [hl], a
+;>@o     wBattlerOrder[wSkillUser] = 1
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@o
 	ld h, a
 	ld [hl], $01
 
-jr_057_6e50:
+.clear
+;> fill(addr(wAISkillScores), 0, 8)
 	ld hl, wAISkillScores
 	ld bc, $0008
 	xor a
 	call FillMemory
+;>@b if wBattlerOrder[wSkillUser] != 1: return AIFinishTurn()
 	ld a, [wSkillUser]
 	ld hl, wBattlerOrder
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@b
 	ld h, a
 	ld a, [hl]
 	cp $01
-	jr nz, jr_057_6e22
+	jr nz, AIFinishTurn
 
+;> fill(addr(wSkillTargeting), 0, 7)             # the kind weights and their order
 	ld hl, wSkillTargeting
 	ld bc, $0007
 	xor a
 	call FillMemory
+;> wNamePos = 0                                  # the tactic's bonus for each kind
 	xor a
 	ld [wNamePos], a
-	ld [$db51], a
-	ld [$db52], a
+;> wAIKindBonus2 = 0
+	ld [wAIKindBonus2], a
+;> wAIKindBonus3 = 0
+	ld [wAIKindBonus3], a
+;>@c if CheckBattlerCanAct(wSkillUser) or mem[AddEightTimes(wSkillUser, addr(wBattlerStatus))] & 0x10 or wBattlerTactic[wSkillUser] & 0x40 and wSkillUser >= 3 and (wSkillUser in (3, 7) or not wLinkActive):
 	ld a, [wSkillUser]
 	call CheckBattlerCanAct
-	jr c, jr_057_6eb9
+	jr c, .own
 
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;=@c
 	bit 4, [hl]
-	jr nz, jr_057_6eb9
+	jr nz, .own
 
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
+;=@c
 	ld a, $00
 	adc h
 	ld h, a
 	bit 6, [hl]
-	jr z, jr_057_6ec1
+	jr z, .first
 
 	ld a, [wSkillUser]
+;=@c
 	cp $03
-	jr c, jr_057_6f1f
+	jr c, .command
 
-	jr z, jr_057_6eb9
+	jr z, .own
 
 	cp $07
-	jr z, jr_057_6eb9
+	jr z, .own
 
 	ld a, [wLinkActive]
+;=@c
 	or a
-	jr z, jr_057_6eb9
+	jr z, .own
 
-	jr jr_057_6f1f
+	jr .command
 
-jr_057_6eb9:
+.own
+;>     wBattleSubStep2 += 1                      # the AI picks a skill
 	ld hl, wBattleSubStep2
 	inc [hl]
-	jp Jump_57_7129
+;>     return AIStepKindWeights()
+	jp AIStepKindWeights
 
-
+; unused byte
 	db $c9
 
-jr_057_6ec1:
+.first
+;> if not wBattlerTactic[wSkillUser] & 0x40:   # first look at this turn's order
+;>@m     wBattleTemp = (wOrderFlag0 if wSkillUser < 4 else wOrderFlag1) if wLinkActive else wMenuChoice
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_6ecc
+	jr nz, .link
 
 	ld a, [wMenuChoice]
-	jr jr_057_6edb
+	jr .order
 
-jr_057_6ecc:
+.link
+;=@m
 	ld a, [wSkillUser]
 	cp $04
-	jr nc, jr_057_6ed8
+	jr nc, .partner
 
 	ld a, [wOrderFlag0]
-	jr jr_057_6edb
+	jr .order
 
-jr_057_6ed8:
+.partner
+;=@m
 	ld a, [wOrderFlag1]
 
-jr_057_6edb:
+.order
+;=@m
 	ld [wBattleTemp], a
+;>     TacticPersonalityTenth(wBattlerTactic[wSkillUser])     # wBattleArg0
 	ld a, [hl]
-	call Call_57_78D4
-	call Call_57_7905
-	call Call_57_791A
-	call Call_57_7A03
-	call Call_57_7A16
-	call Call_57_7A5D
-	jp nc, Jump_057_6f8c
+	call TacticPersonalityTenth
+;>     Personality3Tenth()                                     # wBattleArg1
+	call Personality3Tenth
+;>     TacticWeight()                                          # wBattleItemUsedUp
+	call TacticWeight
+;>     WildnessQuarter()                                       # wBattleArg2
+	call WildnessQuarter
+;>     WildnessRoll()                                          # wBattleArg3
+	call WildnessRoll
+;>     if not RollDisobey(): return AIFollowTactic()
+	call RollDisobey
+	jp nc, AIFollowTactic
 
+;>@d     wBattlerAction[2 * wSkillUser] = 0xFF; wBattlerAction[2 * wSkillUser + 1] = 0xFF
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@d
 	adc h
 	ld h, a
 	ld a, $ff
 	ld [hli], a
 	ld [hl], a
+;>@e     wBattlerTactic[wSkillUser] |= 0x40       # judged disobedient this turn
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@e
 	ld h, a
 	set 6, [hl]
+;>     if wBattleTemp != 0x81: return AIStepKindWeights()
 	ld a, [wBattleTemp]
 	cp $81
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
+;>     wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
 
-jr_057_6f1f:
+.command
+;> if wBattleSubStep == 1:                     # the command phase
 	ld a, [wBattleSubStep]
 	cp $01
-	jr nz, jr_057_6f64
+	jr nz, .whim
 
+;>     if CheckBattlerPresent(wSkillUser): return AIStepKindWeights()
 	ld a, [wSkillUser]
 	call CheckBattlerPresent
-	jp c, Jump_57_7129
+	jp c, AIStepKindWeights
 
+;>     s = AddEightTimes(wSkillUser, addr(wBattlerStatus))
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;>@t     if mem[s] & 0xDC or mem[s + 3] & 0x1F or mem[s + 4] & 0x04 or mem[s + 5] & 0xD0: return AIStepKindWeights()
 	ld a, [hl]
 	and $dc
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
 	inc hl
 	inc hl
 	inc hl
+;=@t
 	ld a, [hl]
 	and $1f
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
 	inc hl
 	bit 2, [hl]
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
+;=@t
 	inc hl
 	ld a, [hl]
 	and $d0
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
-	call Call_57_7E82
+;>     UserNameToArg0b_57()
+	call UserNameToArg0b_57
+;>     wTextIndex = 0xB4
 	ld a, $b4
 	ld [wTextIndex], a
+;>     wTextGroup = 0
 	xor a
 	ld [wTextGroup], a
+;>     StartText_4C()                          # message $B4
 	ld hl, far_StartText_4C
 	rst $10
 
-jr_057_6f64:
+.whim
+;> wBattleSubStep2 = 6
 	ld a, $06
 	ld [wBattleSubStep2], a
+;> s4 = AddEightTimes(wSkillUser, addr(wBattlerStatus4))
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus4
 	call AddEightTimes
+;> mem[s4] &= 0x0C                             # only being high in the sky stays
 	ld a, [hl]
 	and $0c
 	ld [hli], a
+;> mem[s4 + 1] &= 0xCF                         # LifeSong ends
 	ld a, [hl]
 	and $cf
 	ld [hl], a
-	call Call_57_7F5F
+;>@x wBattlerAction[2 * wSkillUser] = AIWhimAction()
+	call AIWhimAction
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
+;=@x
 	ld a, $00
 	adc h
 	ld h, a
@@ -11732,221 +11842,291 @@ jr_057_6f64:
 	ret
 
 
-Jump_057_6f8c:
+;@ def AIFollowTactic()
+;@ path: battle/ai
+;@ Part of AIStepStart for a monster that obeys. With tactic 3 and no direct command it simply attacks.
+;@ Otherwise the tactic gives its skill kind a bonus (tactic 0 kind 1 in wNamePos, 1 kind 2 in
+;@ wAIKindBonus2, 2 kind 3 in wAIKindBonus3): 20, or 45 with a direct command. A direct command outside a
+;@ link battle in battle step 5 also shifts the four personality bytes by a row of PersonalityShiftTable
+;@ (by tactic, a seasoned monster with personality 3 at $97 or more, and level band). Then on to
+;@ AIStepKindWeights.
+;@ test: skip jumps on to other steps
+AIFollowTactic::
+;>@t tactic = wBattlerTactic[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t
 	ld h, a
 	ld a, [hl]
 	ld b, a
+;> if tactic == 3:
 	cp $03
-	jr nz, jr_057_6fbc
+	jr nz, .bonus
 
+;>     if wBattleTemp != 0x81:
 	ld a, [wBattleTemp]
 	cp $81
-	jr z, jr_057_6fd2
+	jr z, .shift
 
+;>@b         wBattlerAction[2 * wSkillUser] = 0x3A     # Attack
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@b
 	adc h
 	ld h, a
 	ld [hl], $3a
+;>         wBattleSubStep2 = 6
 	ld a, $06
 	ld [wBattleSubStep2], a
-	jp Jump_57_7859
+;>         return AIStepDone()
+	jp AIStepDone
 
 
-jr_057_6fbc:
+.bonus
+;> else:
+;>@k     mem[addr(wNamePos) + tactic] = 0x2D if wBattleTemp == 0x81 else 0x14
 	ld hl, wNamePos
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@k
 	ld a, [wBattleTemp]
 	cp $81
-	jr z, jr_057_6fd0
+	jr z, .commanded
 
 	ld [hl], $14
-	jr jr_057_6fd2
+	jr .shift
 
-jr_057_6fd0:
+.commanded
+;=@k
 	ld [hl], $2d
 
-jr_057_6fd2:
+.shift
+;> if wBattleStep != 5:
 	ld a, [wBattleStep]
 	cp $05
-	jr z, jr_057_6fe0
+	jr z, .step5
 
+;>     wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
-	jp Jump_57_7129
+;>     return AIStepKindWeights()
+	jp AIStepKindWeights
 
 
-jr_057_6fe0:
+.step5
+;> if wLinkActive or wBattleTemp != 0x81: return AIStepKindWeights()
 	ld a, [wLinkActive]
 	or a
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
 	ld a, [wBattleTemp]
 	cp $81
-	jp nz, Jump_57_7129
+	jp nz, AIStepKindWeights
 
+;>@r row = PersonalityShiftTable + 0x20 * wBattlerTactic[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@r
 	ld h, a
 	ld a, [hl]
 	cp $03
-	jr z, jr_057_7017
+	jr z, .tactic3
 
 	cp $02
-	jr z, jr_057_7012
+	jr z, .tactic2
 
+;=@r
 	cp $01
-	jr z, jr_057_700d
+	jr z, .tactic1
 
 	ld hl, PersonalityShiftTable
-	jr jr_057_701a
+	jr .row
 
-jr_057_700d:
+.tactic1
+;=@r
 	ld hl, PersonalityShiftTable + $20
-	jr jr_057_701a
+	jr .row
 
-jr_057_7012:
+.tactic2
+;=@r
 	ld hl, PersonalityShiftTable + $40
-	jr jr_057_701a
+	jr .row
 
-jr_057_7017:
+.tactic3
+;=@r
 	ld hl, PersonalityShiftTable + $60
 
-jr_057_701a:
+.row
+;>@v seasoned = 0x10 if wBattlerPersonality3[wSkillUser] >= 0x97 else 0
 	ld de, $0000
 	ld a, [wSkillUser]
 	ld bc, wBattlerPersonality3
 	add c
 	ld c, a
 	ld a, $00
+;=@v
 	adc b
 	ld b, a
 	ld a, [bc]
 	cp $97
-	jr c, jr_057_7030
+	jr c, .level
 
 	ld d, $10
 
-jr_057_7030:
+.level
+;>@l band = 0 if wBattlerLevel[wSkillUser] < 10 else 4 if wBattlerLevel[wSkillUser] < 20 else 8 if wBattlerLevel[wSkillUser] < 30 else 12
 	ld a, [wSkillUser]
 	ld bc, wBattlerLevel
 	add c
 	ld c, a
 	ld a, $00
 	adc b
+;=@l
 	ld b, a
 	ld a, [bc]
 	cp $0a
-	jr c, jr_057_7050
+	jr c, .add
 
 	cp $14
-	jr c, jr_057_704b
+	jr c, .band1
 
+;=@l
 	cp $1e
-	jr c, jr_057_704a
+	jr c, .band2
 
 	inc e
 
-jr_057_704a:
+.band2
+;=@l
 	inc e
 
-jr_057_704b:
+.band1
+;=@l
 	inc e
 	ld a, e
 	add a
 	add a
 	ld e, a
 
-jr_057_7050:
+.add
+;>@q row += seasoned + band
 	ld a, d
 	add e
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@q
 	ld h, a
+;>@p for k in range(4):        # personality 1, byte +$67, personality 2, personality 3: 8 bytes apart
 	ld a, [wSkillUser]
 	ld bc, wBattlerPersonality1
 	add c
 	ld c, a
 	ld a, $00
 	adc b
+;=@p
 	ld b, a
-	call Call_57_7092
+;>@z     AddPersonalityShift(row + k, addr(wBattlerPersonality1) + 8 * k + wSkillUser)
+	call AddPersonalityShift
+;=@p
 	inc hl
 	ld a, $08
 	add c
 	ld c, a
 	ld a, $00
 	adc b
+;=@p
 	ld b, a
-	call Call_57_7092
+;=@z
+	call AddPersonalityShift
+;=@p
 	inc hl
 	ld a, $08
 	add c
 	ld c, a
 	ld a, $00
 	adc b
+;=@p
 	ld b, a
-	call Call_57_7092
+;=@z
+	call AddPersonalityShift
+;=@p
 	inc hl
 	ld a, $08
 	add c
 	ld c, a
 	ld a, $00
 	adc b
+;=@p
 	ld b, a
-	call Call_57_7092
+;=@z
+	call AddPersonalityShift
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
-	jp Jump_57_7129
+;> return AIStepKindWeights()
+	jp AIStepKindWeights
 
 
-Call_57_7092::
+;@ def AddPersonalityShift(shift: hl, value: bc)
+;@ path: battle/ai
+;@ Adds the signed byte at `shift` to the byte at `value`, kept within 0-255.
+;@ test: shift = rand(0xC000, 0xDFFF); value = rand(0xC000, 0xDFFF)
+AddPersonalityShift::
+;>@m if mem[shift] & 0x80:
 	bit 7, [hl]
-	jr nz, jr_057_709e
+	jr nz, .minus
 
+;>@n     v = max(mem[value] - (0x100 - mem[shift]), 0)
+;> else:
+;>     v = min(mem[value] + mem[shift], 0xFF)
 	ld a, [bc]
 	add [hl]
-	jr nc, jr_057_70a7
+	jr nc, .store
 
 	ld a, $ff
-	jr jr_057_70a7
+	jr .store
 
-jr_057_709e:
+.minus
+;=@n
 	ld a, [hl]
 	cpl
 	inc a
 	ld d, a
 	ld a, [bc]
 	sub d
-	jr nc, jr_057_70a7
+;=@n
+	jr nc, .store
 
 	xor a
 
-jr_057_70a7:
+.store
+;> mem[value] = v
 	ld [bc], a
 	ret
 
 
+;@ path: battle/ai
+;@ Signed changes to the four personality bytes (wBattlerPersonality1, wBattlerStat67,
+;@ wBattlerPersonality2, wBattlerPersonality3) of a monster that carries out a direct command
+;@ (AIFollowTactic): 32 bytes per tactic 0-3, the second 16 of them for a seasoned monster (personality 3
+;@ at $97 or more), 4 bytes per level band (below 10, 20, 30, from 30 up).
 PersonalityShiftTable::
 	db $07, $ff, $00, $03
 	db $05, $ff, $00, $02
@@ -11981,462 +12161,612 @@ PersonalityShiftTable::
 	db $00, $00, $00, $fe
 	db $00, $00, $00, $ff
 
-Jump_57_7129::
+;@ def AIStepKindWeights()
+;@ path: battle/ai
+;@ Step 1 of AIChooseAction: a monster with tactic 3 that carries out a direct command (not a called
+;@ helper) is done. Otherwise the three skill kinds are weighed (AIKindWeights; the heal kind loses 30
+;@ unless running is under way, AIReduceHealWeight) and put in order (AISortKinds). The dullest monsters
+;@ (intelligence class 0) go straight to step 5, the others to step 2.
+;@ test: skip jumps on to other steps
+AIStepKindWeights::
+;>@f if wLinkActive:
 	ld a, [wLinkActive]
 	or a
-	jr z, jr_057_7140
+	jr z, .menu
 
+;>@g     order = wOrderFlag0 if wSkillUser < 4 else wOrderFlag1
 	ld a, [wSkillUser]
 	cp $04
-	jr nc, jr_057_713b
+	jr nc, .partner
 
 	ld a, [wOrderFlag0]
-	jr jr_057_7143
+	jr .check
 
-jr_057_713b:
+.partner
+;=@g
 	ld a, [wOrderFlag1]
-	jr jr_057_7143
+	jr .check
 
-jr_057_7140:
+.menu
+;> else:
+;>     order = wMenuChoice
 	ld a, [wMenuChoice]
 
-jr_057_7143:
+.check
+;>@d if order == 0x81 and wSkillUser not in (3, 7) and wBattlerTactic[wSkillUser] == 3:
 	cp $81
-	jr nz, jr_057_7160
+	jr nz, .weigh
 
 	ld a, [wSkillUser]
 	cp $03
-	jr z, jr_057_7160
+	jr z, .weigh
 
 	cp $07
-	jr z, jr_057_7160
+;=@d
+	jr z, .weigh
 
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@d
 	ld h, a
 	ld a, [hl]
 	cp $03
-	jr z, jr_057_718c
+	jr z, .done
 
-jr_057_7160:
-	call Call_57_71B9
+;>@e     wBattleSubStep2 = 6
+;>@e2     return AIStepDone()
+.weigh
+;> AIKindWeights()
+	call AIKindWeights
+;> if not wRunTurn: AIReduceHealWeight()
 	ld a, [wRunTurn]
 	or a
-	call z, Call_57_719B
-	call Call_57_7322
+	call z, AIReduceHealWeight
+;> AISortKinds()
+	call AISortKinds
+;>@i if wBattlerIntClass[wSkillUser]:
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@i
 	ld h, a
 	ld a, [hl]
 	or a
-	jr z, jr_057_7184
+	jr z, .dull
 
+;>     wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
-	jp Jump_57_73B9
+;>     return AIStepPickKind()
+	jp AIStepPickKind
 
 
-jr_057_7184:
+.dull
+;> wBattleSubStep2 = 5
 	ld a, $05
 	ld [wBattleSubStep2], a
-	jp Jump_57_75A2
+;> return AIStepPickBest()
+	jp AIStepPickBest
 
 
-jr_057_718c:
+.done
+;=@e
 	ld a, $06
 	ld [wBattleSubStep2], a
-	jp Jump_57_7859
+;=@e2
+	jp AIStepDone
 
 
 
-Call_57_7194::
-	call Call_57_7F2C
+;@ def RandomHigh_57() -> a
+;@ path: battle/ai
+;@ Unused: draws a random number (AIRandom) and returns its high byte.
+;@ test: skip draws from the shared link random state
+RandomHigh_57::
+;> AIRandom()
+	call AIRandom
+;> return wRandomHigh
 	ld a, [wRandomHigh]
 	ret
 
-Call_57_719B::
+;@ def AIReduceHealWeight()
+;@ path: battle/ai
+;@ Lowers the weight of skill kind 3 (heal and support, wSkillFlags2) by 30, not below 0, except for a
+;@ monster of the player's side that carries out a direct command (wMenuChoice $81).
+;@ test: wSkillUser = rand(0, 7)
+AIReduceHealWeight::
+;> if wSkillUser < 4 and wMenuChoice == 0x81: return
 	ld a, [wSkillUser]
 	cp $04
-	jr nc, jr_057_71a8
+	jr nc, .lower
 
 	ld a, [wMenuChoice]
 	cp $81
 	ret z
 
-jr_057_71a8:
+.lower
+;>@w wSkillFlags2 = max(wSkillFlags2 - 30, 0)
 	ld a, [wSkillFlags2]
 	cp $1e
-	jr nc, jr_057_71b3
+	jr nc, .sub
 
 	ld a, $00
-	jr jr_057_71b5
+	jr .store
 
-jr_057_71b3:
+.sub
+;=@w
 	sub $1e
 
-jr_057_71b5:
+.store
+;=@w
 	ld [wSkillFlags2], a
 	ret
 
 
-Call_57_71B9::
+;@ def AIKindWeights()
+;@ path: battle/ai
+;@ Weighs the three skill kinds of wSkillUser (AIKindWeight: a tenth of a personality byte, the tactic's
+;@ bonus and a random part): kind 1 (attack, wSkillTargeting) from personality 1 with the bonus in
+;@ wNamePos (only for the player's monsters and in a link battle), kind 2 (status, wSkillFlags1) from
+;@ byte +$67, kind 3 (heal and support, wSkillFlags2) from personality 2. Kind 1 gets 30 more while the
+;@ attack is doubled, ALLCHANGE is on, or the monster charges or holds its breath (not when it carries
+;@ out a direct command). A smart monster's kind 3 gets 30 more when a monster of its side has less than
+;@ a sixth of its HP and it knows Heal to HealUsAll, Meditate or Hustle.
+;@ test: skip draws from the shared link random state
+AIKindWeights::
+;> bonus, own = 0, False
 	ld c, $00
 	ld d, c
+;> if wLinkActive or wSkillUser < 3:
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_71c9
+	jr nz, .own
 
 	ld a, [wSkillUser]
 	cp $03
-	jr nc, jr_057_71cf
+	jr nc, .weigh1
 
-jr_057_71c9:
+.own
+;>     bonus, own = wNamePos, True
 	ld d, $01
 	ld a, [wNamePos]
 	ld c, a
 
-jr_057_71cf:
+.weigh1
+;>@w AIKindWeight(addr(wSkillTargeting), wBattlerPersonality1[wSkillUser], bonus)
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@w
 	ld h, a
 	ld b, [hl]
 	ld hl, wSkillTargeting
-	call Call_57_72CE
+	call AIKindWeight
+;>@x if not own or (wMenuChoice if not wLinkActive else wOrderFlag1 if wLinkFlags & 2 else wOrderFlag0) != 0x81:
 	ld a, d
 	or a
-	jr nz, jr_057_71e8
+	jr nz, .ownOrder
 
-	jr jr_057_7206
+	jr .boost
 
-jr_057_71e8:
+.ownOrder
+;=@x
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_71f3
+	jr nz, .linkOrder
 
 	ld a, [wMenuChoice]
-	jr jr_057_7202
+	jr .gotOrder
 
-jr_057_71f3:
+.linkOrder
+;=@x
 	ld a, [wLinkFlags]
 	bit 1, a
-	jr nz, jr_057_71ff
+	jr nz, .master
 
 	ld a, [wOrderFlag0]
-	jr jr_057_7202
+	jr .gotOrder
 
-jr_057_71ff:
+.master
+;=@x
 	ld a, [wOrderFlag1]
 
-jr_057_7202:
+.gotOrder
+;=@x
 	cp $81
-	jr z, jr_057_7228
+	jr z, .kind2
 
-jr_057_7206:
+.boost
+;>@y     s = addr(wBattlerStatus1) + 8 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus1
 	add a
 	add a
 	add a
 	add l
+;=@y
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>@z     if mem[s] & 0x0C or mem[s + 3] & 0x33:
 	ld a, [hli]
 	and $0c
-	jr nz, jr_057_7221
+	jr nz, .plus30
 
 	inc hl
 	inc hl
 	ld a, [hl]
+;=@z
 	and $33
-	jr z, jr_057_7228
+	jr z, .kind2
 
-jr_057_7221:
+.plus30
+;>         wSkillTargeting += 30
 	ld a, $1e
 	ld hl, wSkillTargeting
 	add [hl]
 	ld [hl], a
 
-jr_057_7228:
-	ld a, [$db51]
+.kind2
+;>@k AIKindWeight(addr(wSkillFlags1), wBattlerStat67[wSkillUser], wAIKindBonus2)
+	ld a, [wAIKindBonus2]
 	ld c, a
 	ld a, [wSkillUser]
 	ld hl, wBattlerStat67
 	add l
 	ld l, a
+;=@k
 	ld a, $00
 	adc h
 	ld h, a
 	ld b, [hl]
 	ld hl, wSkillFlags1
-	call Call_57_72CE
-	ld a, [$db52]
+	call AIKindWeight
+;>@h AIKindWeight(addr(wSkillFlags2), wBattlerPersonality2[wSkillUser], wAIKindBonus3)
+	ld a, [wAIKindBonus3]
 	ld c, a
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality2
 	add l
 	ld l, a
+;=@h
 	ld a, $00
 	adc h
 	ld h, a
 	ld b, [hl]
 	ld hl, wSkillFlags2
-	call Call_57_72CE
+	call AIKindWeight
+;>@i if wBattlerIntClass[wSkillUser] != 2: return
 	ld a, [wSkillUser]
 	ld d, a
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
+;=@i
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $02
 	ret nz
 
+;>@n count = wEnemyCount if wSkillUser >= 4 else wPartyBattlers
 	ld a, [wSkillUser]
 	cp $04
-	jr c, jr_057_7273
+	jr c, .party
 
 	ld a, [wEnemyCount]
-	jr jr_057_7276
+	jr .count
 
-jr_057_7273:
+.party
+;=@n
 	ld a, [wPartyBattlers]
 
-jr_057_7276:
+.count
+;=@n
 	ld b, a
+;> side = wSkillUser & 4
 	ld a, [wSkillUser]
 	and $04
 	ld c, a
 
-jr_057_727d:
+;>@f for pos in range(side, side + count):
+.loop
+;>     if CheckBattlerPresent(pos): continue
 	ld a, c
 	call CheckBattlerPresent
-	jr c, jr_057_7298
+	jr c, .next
 
+;>@g     if GetBattlerHP(pos) * 6 & 0xFFFF < GetBattlerMaxHP(pos): break
 	push bc
 	call GetBattlerMaxHP
 	push hl
 	ld a, c
 	call GetBattlerHP
 	add hl, hl
+;=@g
 	ld b, h
 	ld c, l
 	add hl, bc
 	add hl, bc
 	pop bc
 	call CompareHLBC
+;=@g
 	pop bc
-	jr c, jr_057_729d
+	jr c, .low
 
-jr_057_7298:
+.next
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_727d
+	jr nz, .loop
 
+;> else:
+;>     return
 	ret
 
 
-jr_057_729d:
+.low
+;>@p p = addr(wBattlerSkills) + 1 + wSkillUser * 16
 	ld a, [wSkillUser]
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;>@q for k in range(8):
 	ld b, $08
 
-jr_057_72ad:
+.skills
+;>     skill = mem[p]; p += 2
 	ld a, [hli]
+;>     if skill == 0xFF: return
 	cp $ff
 	ret z
 
+;>@r     if 0x2B <= skill < 0x30 or skill in (0x93, 0x94):
 	cp $2b
-	jr c, jr_057_72c1
+	jr c, .skip
 
 	cp $30
-	jr c, jr_057_72c6
+	jr c, .heal
 
 	cp $93
-	jr z, jr_057_72c6
+	jr z, .heal
 
+;=@r
 	cp $94
-	jr z, jr_057_72c6
+	jr z, .heal
 
-jr_057_72c1:
+;>@s         wSkillFlags2 += 30
+;>@s2         return
+.skip
+;=@q
 	inc hl
 	dec b
-	jr nz, jr_057_72ad
+	jr nz, .skills
 
+;> return
 	ret
 
 
-jr_057_72c6:
+.heal
+;=@s
 	ld a, $1e
 	ld hl, wSkillFlags2
 	add [hl]
 	ld [hl], a
+;=@s2
 	ret
 
 
-Call_57_72CE::
+;@ def AIKindWeight(weight: hl, personality: b, bonus: c)
+;@ path: battle/ai
+;@ Sets the byte at `weight` to `bonus` + `personality` // 10 + a random number below a spread: 10, or
+;@ for an enemy outside a link battle 30, 25, 20 or 10 as `personality` is below 50, 100, 150 or higher.
+;@ test: skip draws from the shared link random state
+AIKindWeight::
+;> wBattleTemp = personality
 	push hl
 	push de
 	ld a, b
 	ld [wBattleTemp], a
-	call Call_57_78CE
+;> base = bonus + DivideBy10_57(personality)
+	call DivideBy10_57
 	ld a, c
 	add b
 	ld b, a
-	call Call_57_7F2C
+;> AIRandom()
+	call AIRandom
+;>@r r = wRandomHigh | wRandomLow << 8
 	push bc
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;>@s spread = 10 if wLinkActive or wSkillUser < 3 else 30 if personality < 50 else 25 if personality < 100 else 20 if personality < 150 else 10
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_7316
+	jr nz, .ten
 
 	ld a, [wSkillUser]
 	cp $03
-	jr c, jr_057_7316
+	jr c, .ten
 
+;=@s
 	ld a, [wBattleTemp]
 	cp $32
-	jr c, jr_057_730a
+	jr c, .thirty
 
 	cp $64
-	jr c, jr_057_730e
+	jr c, .twentyFive
 
+;=@s
 	cp $96
-	jr c, jr_057_7312
+	jr c, .twenty
 
 	cp $c8
-	jr c, jr_057_7316
+	jr c, .ten
 
 	ld a, $0a
-	jr jr_057_7318
+	jr .divide
 
-jr_057_730a:
+.thirty
+;=@s
 	ld a, $1e
-	jr jr_057_7318
+	jr .divide
 
-jr_057_730e:
+.twentyFive
+;=@s
 	ld a, $19
-	jr jr_057_7318
+	jr .divide
 
-jr_057_7312:
+.twenty
+;=@s
 	ld a, $14
-	jr jr_057_7318
+	jr .divide
 
-jr_057_7316:
+.ten
+;=@s
 	ld a, $0a
 
-jr_057_7318:
+.divide
+;>@d mem[weight] = base + r % spread & 0xFF
 	call Divide16
 	pop bc
 	pop de
 	add b
 	ld b, a
 	pop hl
+;=@d
 	ld [hl], b
 	ret
 
 
-Call_57_7322::
+;@ def AISortKinds()
+;@ path: battle/ai
+;@ Puts the three skill kinds in order of their weights: the first in wSkillFlags3, then wAIKindOrder2,
+;@ wAIKindOrder3. When kind 1 (attack) is not first it gets 30 more weight (AIBoostKind1) before the last
+;@ two are compared. The first kind is tried first (wAIKindTry = 3).
+;@ test: wSkillTargeting = rand(0, 255)
+AISortKinds::
+;> wSkillFlags3 = 1
 	ld a, $01
 	ld [wSkillFlags3], a
+;> wAIKindOrder2 = 2
 	ld a, $02
 	ld [wAIKindOrder2], a
+;> wAIKindOrder3 = 3
 	ld a, $03
 	ld [wAIKindOrder3], a
+;> best = wSkillTargeting
 	ld a, [wSkillTargeting]
 	ld l, a
+;>@b if best < wSkillFlags1:
 	ld a, [wSkillFlags1]
 	ld c, a
 	xor a
 	ld h, a
 	ld b, a
 	call CompareHLBC
-	jr nc, jr_057_734d
+;=@b
+	jr nc, .third
 
+;>     best = wSkillFlags1
 	ld l, c
 	ld h, b
+;>     wSkillFlags3 = 2
 	ld a, $02
 	ld [wSkillFlags3], a
+;>     wAIKindOrder2 = 1
 	ld a, $01
 	ld [wAIKindOrder2], a
 
-jr_057_734d:
+.third
+;> if best < wSkillFlags2:
 	ld a, [wSkillFlags2]
 	ld c, a
 	ld b, $00
 	call CompareHLBC
-	jr nc, jr_057_7366
+	jr nc, .rest
 
+;>     t = wSkillFlags3
 	ld a, [wSkillFlags3]
 	ld b, a
+;>     wSkillFlags3 = wAIKindOrder3
 	ld a, [wAIKindOrder3]
 	ld [wSkillFlags3], a
+;>     wAIKindOrder3 = t
 	ld a, b
 	ld [wAIKindOrder3], a
 
-jr_057_7366:
-	call Call_57_73A5
-	call z, Call_57_73B1
+.rest
+;> if AIKind1NotFirst(): AIBoostKind1()
+	call AIKind1NotFirst
+	call z, AIBoostKind1
+;>@d if mem[addr(wSkillTargeting) + wAIKindOrder2 - 1] < mem[addr(wSkillTargeting) + wAIKindOrder3 - 1]:
 	ld a, [wAIKindOrder3]
 	dec a
 	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
+;=@d
 	adc h
 	ld h, a
 	ld c, [hl]
 	ld b, $00
 	ld a, [wAIKindOrder2]
 	dec a
+;=@d
 	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@d
 	ld l, [hl]
 	ld h, $00
 	call CompareHLBC
-	jr nc, jr_057_739f
+	jr nc, .done
 
+;>     t = wAIKindOrder2
 	ld a, [wAIKindOrder2]
 	ld b, a
+;>     wAIKindOrder2 = wAIKindOrder3
 	ld a, [wAIKindOrder3]
 	ld [wAIKindOrder2], a
+;>     wAIKindOrder3 = t
 	ld a, b
 	ld [wAIKindOrder3], a
 
-jr_057_739f:
+.done
+;> wAIKindTry = 3
 	ld a, $03
 	ld [wAIKindTry], a
 	ret
 
 
-Call_57_73A5::
+;@ def AIKind1NotFirst() -> zero
+;@ path: battle/ai
+;@ Zero when skill kind 1 (attack) is second or third in the kind order.
+;@ test: wAIKindOrder2 = rand(1, 3)
+AIKind1NotFirst::
+;> return wAIKindOrder2 == 1 or wAIKindOrder3 == 1
 	ld a, [wAIKindOrder2]
 	cp $01
 	ret z
@@ -12446,7 +12776,12 @@ Call_57_73A5::
 	ret
 
 
-Call_57_73B1::
+;@ def AIBoostKind1()
+;@ path: battle/ai
+;@ Adds 30 to the weight of skill kind 1 (attack, wSkillTargeting).
+;@ test: wSkillTargeting = rand(0, 255)
+AIBoostKind1::
+;> wSkillTargeting = wSkillTargeting + 30 & 0xFF
 	ld hl, wSkillTargeting
 	ld a, $1e
 	add [hl]
@@ -12454,1119 +12789,1526 @@ Call_57_73B1::
 	ret
 
 
-Jump_57_73B9::
+;@ def AIStepPickKind()
+;@ path: battle/ai
+;@ Step 2 of AIChooseAction: picks the skill kind to try next from the kind order (wAIKindTry 3, 4, 5 =
+;@ first, second, third) into wAIKind and goes on to step 3. When the attack kind comes up second or
+;@ third, or every kind has been tried (wAIKindTry 6), the monster simply attacks. When the first kind
+;@ was heal and support and the second is tried, a monster with tactic 2 that is not chosen during the
+;@ actions defends (Defence) if AIShouldDefend says so, and otherwise attacks.
+;@ test: skip jumps on to other steps
+AIStepPickKind::
+;> t = wAIKindTry
 	ld a, [wAIKindTry]
+;>@a if t == 6 or t == 5 and wAIKindOrder2 == 1 or t == 4 and (wSkillFlags3 == 1 or wSkillFlags3 == 3 and (wBattleSubStep >= 0x15 or IsTacticTwo() and not AIShouldDefend())):
 	cp $06
-	jr z, jr_057_73ed
+	jr z, .attack
 
 	cp $04
-	jr z, jr_057_73f1
+	jr z, .second
 
+;=@a
 	cp $03
-	jr z, jr_057_73d9
+	jr z, .pick
 
 	ld b, a
 	dec a
 	ld hl, wSkillTargeting
 	add l
+;=@a
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $01
-	jr z, jr_057_73ed
+;=@a
+	jr z, .attack
 
 	ld a, b
 
-jr_057_73d9:
+;>@a2     action = 0x3A                            # Attack
+;>@d elif t == 4 and wSkillFlags3 == 3 and IsTacticTwo():
+;>@d2     action = 0x8D                            # Defence
+;> else:
+.pick
+;>     entry = addr(wSkillTargeting) + t
 	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;>     wAIKind = mem[entry]
 	ld a, [hl]
 	ld [wAIKind], a
+;>     wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
-	jp Jump_57_7529
+;>     return AIStepBaseScores()
+	jp AIStepBaseScores
 
 
-jr_057_73ed:
+.attack
+;=@a2
 	ld c, $3a
-	jr jr_057_7418
+	jr .set
 
-jr_057_73f1:
+.second
+;=@a
 	ld a, [wSkillFlags3]
 	cp $01
-	jr z, jr_057_73ed
+	jr z, .attack
 
 	cp $03
 	ld a, [wAIKindTry]
-	jr nz, jr_057_73d9
+	jr nz, .pick
 
+;=@a
 	ld a, [wBattleSubStep]
 	cp $15
 	ld a, [wAIKindTry]
-	jr nc, jr_057_73ed
+	jr nc, .attack
 
-	call Call_57_77A4
+;=@d
+	call IsTacticTwo
 	ld a, [wAIKindTry]
-	jr nz, jr_057_73d9
+	jr nz, .pick
 
-	call Call_57_77B4
-	jr nc, jr_057_73ed
+;=@a
+	call AIShouldDefend
+	jr nc, .attack
 
+;=@d2
 	ld c, $8d
 
-jr_057_7418:
+.set
+;>@t wBattlerAction[2 * wSkillUser] = action
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@t
 	adc h
 	ld h, a
 	ld [hl], c
+;>@u wBattleSubStep2 += 4
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ld hl, wBattleSubStep2
 	inc [hl]
 	ld hl, wBattleSubStep2
 	inc [hl]
+;=@u
 	ld hl, wBattleSubStep2
 	inc [hl]
-	jp Jump_57_7859
+;> return AIStepDone()
+	jp AIStepDone
 
 
-Jump_57_7439::
+;@ def AIStepNextSkill()
+;@ path: battle/ai
+;@ Step 4 of AIChooseAction: looks at the skill entry wAISkillPtr points to. An empty entry (kind 0)
+;@ clears the scores from here on and ends the judging; a skill of another kind than wAIKind scores 0.
+;@ A skill of the kind is set up for its rules: wSkillId, its record byte +7 in wSkillMsgMode (spell,
+;@ dance and breath flags), the rule list in wAIRulePtr (AIRuleLists), then step 7.
+;@ test: skip calls a routine in another bank
+AIStepNextSkill::
+;> p = wAISkillPtr
 	ld a, [wAISkillPtr]
 	ld l, a
-	ld a, [$c1ff]
+	ld a, [wAISkillPtr + 1]
 	ld h, a
 
-Jump_057_7441:
+.check
+;> if mem[p] == 0: return AINextSkillSlot.clearRest()
 	ld a, [hl]
 	or a
-	jp z, Jump_057_74ca
+	jp z, AINextSkillSlot.clearRest
 
+;>@k if mem[p] == wAIKind:
 	ld a, [wAIKind]
 	cp [hl]
-	jr nz, jr_057_7487
+	jr nz, .other
 
+;>     wAttackWeight = 0
 	xor a
 	ld [wAttackWeight], a
+;>     wAIPenalty = 0
 	ld [wAIPenalty], a
+;>     wSkillId = mem[p + 1]
 	inc hl
 	ld a, [hl]
 	ld [wSkillId], a
+;>     wBattleArg0 = mem[p + 1]
 	ld [wBattleArg0], a
+;>     wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;>     wBattleArg2 = 7
 	ld a, $07
 	ld [wBattleArg2], a
+;>     GetSkillWord()
 	ld hl, far_GetSkillWord
 	rst $10
+;>     wSkillMsgMode = wBattleArg0
 	ld a, [wBattleArg0]
 	ld [wSkillMsgMode], a
+;>@r     wAIRulePtr = WordTableEntry_57(wAIKind - 1, AIRuleLists)
 	ld a, [wAIKind]
 	dec a
 	ld hl, AIRuleLists
 	call WordTableEntry_57
 	ld a, l
 	ld [wAIRulePtr], a
+;=@r
 	ld a, h
-	ld [$c1fb], a
+	ld [wAIRulePtr + 1], a
+;>     wBattleSubStep2 = 7
 	ld a, $07
 	ld [wBattleSubStep2], a
 	ret
 
 
-jr_057_7487:
+.other
+;> else:
+;>@s     wAISkillScores[wAISkillSlot] = 0
 	ld a, [wAISkillSlot]
 	ld hl, wAISkillScores
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	xor a
 	ld [hl], a
+;>     wAttackWeight = 0
 	ld [wAttackWeight], a
+;>     wAIPenalty = 0
 	ld [wAIPenalty], a
+;>     return AINextSkillSlot()                 # runs on into it
 
-Jump_057_749b:
+;@ def AINextSkillSlot()
+;@ path: battle/ai
+;@ Moves the judging on to the user's next skill entry (wAISkillPtr, wAISkillSlot, wAISlotsLeft) and
+;@ judges it (AIStepNextSkill); after the last one, step 5 (AIStepPickBest). Its part clearRest zeroes
+;@ the scores of the slots left once an empty entry is met.
+;@ test: skip jumps on to other steps
+AINextSkillSlot::
+;>@w wAISkillPtr += 2
 	ld a, [wAISkillPtr]
 	ld l, a
-	ld a, [$c1ff]
+	ld a, [wAISkillPtr + 1]
 	ld h, a
 	inc hl
 	inc hl
+;=@w
 	ld a, l
 	ld [wAISkillPtr], a
 	ld a, h
-	ld [$c1ff], a
+	ld [wAISkillPtr + 1], a
+;>@s wAISkillSlot += 1
 	ld a, [wAISkillSlot]
 	ld c, a
+;>@t wAISlotsLeft -= 1
 	ld a, [wAISlotsLeft]
 	ld b, a
+;=@s
 	inc c
+;=@t
 	dec b
+;=@s
 	ld a, c
 	ld [wAISkillSlot], a
+;=@t
 	ld a, b
 	ld [wAISlotsLeft], a
-	jp nz, Jump_057_7441
+;> if wAISlotsLeft: return AIStepNextSkill.check()
+	jp nz, AIStepNextSkill.check
 
-jr_057_74c2:
+.done
+;> wBattleSubStep2 = 5
 	ld a, $05
 	ld [wBattleSubStep2], a
-	jp Jump_57_75A2
+;> return AIStepPickBest()
+	jp AIStepPickBest
 
 
-Jump_057_74ca:
+.clearRest
+;>@c fill(addr(wAISkillScores) + wAISkillSlot, 0, slots_left)      # clearRest: no more skills
 	ld a, [wAISkillSlot]
 	ld hl, wAISkillScores
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@c
 	ld h, a
 	xor a
 
-jr_057_74d7:
+.clear
+;=@c
 	ld [hli], a
 	dec b
-	jr nz, jr_057_74d7
+	jr nz, .clear
 
-	jr jr_057_74c2
+;> return AINextSkillSlot.done()
+	jr .done
 
 
-Call_57_74DD::
+;@ def AIJudgeSkill(skill: hl)
+;@ path: battle/ai
+;@ Unused: judges the skill number at `skill` with the rule list of wAIKind all in one go
+;@ (AIRunRuleList) instead of one step per skill as AIStepNextSkill and AIStepRunRules do. Keeps the
+;@ registers.
+;@ test: skip calls a routine in another bank
+AIJudgeSkill::
+;> wSkillId = mem[skill]
 	push hl
 	push de
 	push bc
 	ld a, [hl]
 	ld [wSkillId], a
+;> wBattleArg0 = mem[skill]
 	ld [wBattleArg0], a
+;> wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;> wBattleArg2 = 7
 	ld a, $07
 	ld [wBattleArg2], a
+;> GetSkillWord()
 	ld hl, far_GetSkillWord
 	rst $10
+;> wSkillMsgMode = wBattleArg0
 	ld a, [wBattleArg0]
 	ld [wSkillMsgMode], a
+;>@r AIRunRuleList(WordTableEntry_57(wAIKind - 1, AIRuleLists))
 	ld a, [wAIKind]
 	dec a
 	ld hl, AIRuleLists
 	call WordTableEntry_57
-	call Call_57_750C
+	call AIRunRuleList
 	pop bc
+;=@r
 	pop de
 	pop hl
 	ret
 
 
-Call_57_750C::
+;@ def AIRunRuleList(rules: hl)
+;@ path: battle/ai
+;@ Unused: runs the rules of a list (words, ended by 0) one after the other until one rules the skill out
+;@ (wAIPenalty $FF).
+;@ test: skip calls rules through a table
+AIRunRuleList::
+;>@w while mem16[rules]:
 	ld a, [hli]
 	ld d, a
 	ld a, [hld]
 	or d
-	jr z, jr_057_7524
+	jr z, .done
+
+;>     CallRuleAt(rules)
 	push hl
-	call Call_57_7525
+	call CallRuleAt
 	pop hl
+;>     if wAIPenalty == 0xFF: return
 	ld a, [wAIPenalty]
 	cp $ff
-	jr z, jr_057_7524
+	jr z, .done
+
+;>     rules += 2
 	inc hl
 	inc hl
 	push hl
 	pop hl
-	jr Call_57_750C
+;=@w
+	jr AIRunRuleList
 
 
-jr_057_7524:
+.done
+;> return
 	ret
 
 
-Call_57_7525::
+;@ def CallRuleAt(entry: hl)
+;@ path: battle/ai
+;@ Unused: jumps to the routine whose address is the word at `entry` (AIRunRuleList).
+;@ test: skip jumps through a pointer
+CallRuleAt::
+;> return call_address(mem16[entry])
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	jp hl
 
-Jump_57_7529::
+;@ def AIStepBaseScores()
+;@ path: battle/ai
+;@ Step 3 of AIChooseAction: every skill of the user starts with its record's AI weight (byte +3) plus a
+;@ random 0-15 (each sum at most 255). Then the judging starts at the first skill entry (step 4).
+;@ test: skip calls a routine in another bank
+AIStepBaseScores::
+;>@p p = addr(wBattlerSkills) + 1 + wSkillUser * 16
 	ld bc, $0800
 	ld a, [wSkillUser]
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
+;=@p
 	ld a, $00
 	adc h
 	ld h, a
 
-jr_057_753a:
+;>@f for slot in range(8):
+.loop
+;>     if mem[p] != 0xFF:
 	ld a, [hl]
 	cp $ff
-	jr z, jr_057_7574
+	jr z, .next
 
+;>         wBattleArg0 = mem[p]
 	push hl
 	ld [wBattleArg0], a
+;>         wBattleArg1 = 0
 	ld a, $00
 	ld [wBattleArg1], a
+;>         wBattleArg2 = 3
 	ld a, $03
 	ld [wBattleArg2], a
+;>         GetSkillWord()
 	push bc
 	ld hl, far_GetSkillWord
 	rst $10
 	pop bc
+;>@s         wAISkillScores[slot] = min(wAISkillScores[slot] + wBattleArg0, 0xFF)
 	ld a, c
 	ld hl, wAISkillScores
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [wBattleArg0]
 	add [hl]
 	ld [hl], a
-	jr nc, jr_057_7566
+	jr nc, .random
 
 	ld [hl], $ff
 
-jr_057_7566:
+.random
+;>@r         wAISkillScores[slot] = min(wAISkillScores[slot] + RandomMod_57(16), 0xFF)
 	push hl
 	ld a, $10
-	call Call_57_7A93
+	call RandomMod_57
 	pop hl
 	add [hl]
 	ld [hl], a
-	jr nc, jr_057_7573
+;=@r
+	jr nc, .done
 
 	ld [hl], $ff
 
-jr_057_7573:
+.done
+;=@r
 	pop hl
 
-jr_057_7574:
+.next
+;>     p += 2
 	inc hl
 	inc hl
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_753a
+	jr nz, .loop
 
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;> wAISkillSlot = 0
 	ld bc, $0800
 	ld a, c
 	ld [wAISkillSlot], a
+;> wAISlotsLeft = 8
 	ld a, b
 	ld [wAISlotsLeft], a
+;>@q wAISkillPtr = addr(wBattlerSkills) + wSkillUser * 16
 	ld a, [wSkillUser]
 	ld hl, wBattlerSkills
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@q
 	adc h
 	ld h, a
 	ld a, l
 	ld [wAISkillPtr], a
 	ld a, h
-	ld [$c1ff], a
-	jp Jump_57_7439
+	ld [wAISkillPtr + 1], a
+;> return AIStepNextSkill()
+	jp AIStepNextSkill
 
 
-Jump_57_75A2::
+;@ def AIStepPickBest()
+;@ path: battle/ai
+;@ Step 5 of AIChooseAction. A confused monster attacks, one high in the sky comes down (HighJump), one
+;@ singing LifeSong goes on with it. The dullest monsters pick at random (AIPickRandomSkill). Otherwise
+;@ the best score wins (a tie is decided at random). Attack kind: the plain Attack wins when its weight
+;@ (AIAttackWeight) is at least the best score. Status kind: no score above 0 means the next kind is
+;@ tried. Heal and support kind: a score below 20 is not good enough; then a monster with tactic 2 that
+;@ is not chosen during the actions defends (Defence) or attacks as AIShouldDefend says, the others try
+;@ the next kind (back to step 2).
+;@ test: skip calls a routine in another bank
+AIStepPickBest::
+;> s = AddEightTimes(wSkillUser, addr(wBattlerStatus))
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus
 	call AddEightTimes
+;> if mem[s] & 0x10:                           # confused
 	bit 4, [hl]
-	jp nz, Jump_057_76bd
+	jp nz, .confused
 
+;>@c2     AIActionSlot()[0] = 0x3A; return AIStepDone()           # Attack
+;> elif mem[s + 4] & 0x04:                     # high in the sky
 	inc hl
 	inc hl
 	inc hl
 	inc hl
 	bit 2, [hl]
-	jp nz, Jump_057_76b5
+	jp nz, .highJump
 
+;>@j2     AIActionSlot()[0] = 0x42; return AIStepDone()           # HighJump
+;> elif mem[s + 5] & 0x10:                     # singing LifeSong
 	inc hl
 	bit 4, [hl]
-	jp nz, Jump_057_76c5
+	jp nz, .lifeSong
 
+;>@l2     AIActionSlot()[0] = 0x95; return AIStepDone()           # LifeSong
+;>@i elif wBattlerIntClass[wSkillUser] == 0:
 	ld a, [wSkillUser]
 	ld hl, wBattlerIntClass
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@i
 	ld h, a
 	ld a, [hl]
 	or a
-	jp z, Jump_057_76df
+;>     return AIPickRandomSkill()
+	jp z, AIPickRandomSkill
 
+;> else:
+;>     best, slot, k = wAISkillScores[0], 0, 1
 	ld hl, wAISkillScores
 	ld bc, $0701
 	ld d, [hl]
 	inc hl
 	ld e, $00
 
-jr_057_75da:
+.skipZero
+;>@z     while best == 0 and k < 8:
 	ld a, d
 	or a
-	jr nz, jr_057_75ec
+	jr nz, .compare
 
+;>         best, slot, k = wAISkillScores[k], k, k + 1
 	ld a, [hli]
 	ld d, a
 	inc e
+;=@z
 	inc c
 	dec b
-	jr nz, jr_057_75da
+	jr nz, .skipZero
 
+;>     next_kind = best == 0
 	ld a, d
 	or a
-	jp z, Jump_057_76a9
+	jp z, .nextKind
 
-	jr jr_057_75fa
+	jr .chosen
 
-jr_057_75ec:
+.compare
+;>     if not next_kind:
+;>@f         for k in range(k, 8):
+;>@d             if wAISkillScores[k] > best or wAISkillScores[k] == best and AIRandom() is not None and wRandomHigh & 1:
 	ld a, [hl]
 	cp d
-	jp z, Jump_057_769b
+	jp z, .tie
 
-	jr c, jr_057_75f5
+	jr c, .keep
 
-Jump_057_75f3:
+.take
+;>                 best, slot = wAISkillScores[k], k
 	ld d, [hl]
 	ld e, c
 
-Jump_057_75f5:
-jr_057_75f5:
+.keep
+;=@f
 	inc hl
 	inc c
 	dec b
-	jr nz, jr_057_75ec
+	jr nz, .compare
 
-jr_057_75fa:
+.chosen
+;>@k         kind = mem[addr(wSkillTargeting) + wAIKindTry]
 	ld a, [wAIKindTry]
 	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@k
 	ld h, a
 	ld a, [hl]
+;>         if kind == 1:
 	cp $01
-	jr z, jr_057_7650
+	jr z, .attackKind
 
+;>@1a             AIAttackWeight()
+;>@1p             p = addr(wBattlerAction) + 2 * wSkillUser
+;>@1b             skill = mem[addr(wBattlerSkills) + 1 + wSkillUser * 16 + 2 * slot]
+;>@1c             action = 0x3A if wAttackWeight >= best or skill == 0xFF else skill
+;>@1d             mem[p] = action
+;>@1e             wBattleSubStep2 += 1
+;>@1f             return
+;>         elif kind == 2 and best == 0:
 	cp $02
-	jr z, jr_057_762e
+	jr z, .statusKind
 
+;>@2a             next_kind = True
+;>         elif kind == 3 and best < 20:
 	ld a, d
 	cp $14
-	jr nc, jr_057_7632
+	jr nc, .takeSkill
 
+;>             if wBattleSubStep >= 0x15 or not IsTacticTwo(): next_kind = True
 	ld a, [wBattleSubStep]
 	cp $15
-	jp nc, Jump_057_76a9
+	jp nc, .nextKind
 
-	call Call_57_77A4
-	jp nz, Jump_057_76a9
+	call IsTacticTwo
+	jp nz, .nextKind
 
-	call Call_57_77B4
-	jp nc, Jump_057_7686
+;>             elif AIShouldDefend():
+	call AIShouldDefend
+	jp nc, .attack
 
-	call Call_57_76CD
+;>                 AIActionSlot()[0] = 0x8D; return          # Defence
+	call AIActionSlot
 	ld [hl], $8d
 	ret
 
-
-jr_057_762e:
+;>@k3             else:
+;>@k4                 wBattlerAction[2 * wSkillUser] = 0x3A; wBattleSubStep2 += 1; return     # Attack
+.statusKind
+;=@2a
 	ld a, d
 	or a
-	jr z, jr_057_76a9
+	jr z, .nextKind
 
-jr_057_7632:
-	call Call_57_76CD
+.takeSkill
+;>         else:
+;>@x             AIActionSlot()[0] = mem[addr(wBattlerSkills) + 1 + wSkillUser * 16 + 2 * slot]
+	call AIActionSlot
 	push hl
 	ld a, [wSkillUser]
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
+;=@x
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, e
 	add a
+;=@x
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
+;=@x
 	pop hl
 	ld [hl], a
+;>             return
 	ret
 
 
-jr_057_7650:
+.attackKind
+;=@1a
 	push de
 	ld hl, far_AIAttackWeight
 	rst $10
 	ld a, [wAttackWeight]
 	pop de
+;=@1c
 	cp d
-	jr nc, jr_057_7686
+	jr nc, .attack
 
+;=@1p
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@1p
 	adc h
 	ld h, a
 	push hl
+;=@1b
 	ld a, [wSkillUser]
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@1b
 	adc h
 	ld h, a
 	ld a, e
 	add a
 	add l
 	ld l, a
+;=@1b
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [hl]
 	pop hl
+;=@1c
 	cp $ff
-	jr nz, jr_057_7695
+	jr nz, .store
 
-Jump_057_7686:
-jr_057_7686:
+.attack
+;=@1c
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@1c
 	adc h
 	ld h, a
 	ld a, $3a
 
-jr_057_7695:
+.store
+;=@1d
 	ld [hl], a
+;=@1e
 	ld hl, wBattleSubStep2
 	inc [hl]
+;=@1f
 	ret
 
 
-Jump_057_769b:
-	call Call_57_7F2C
+.tie
+;=@d
+	call AIRandom
 	ld a, [wRandomHigh]
 	bit 0, a
-	jp z, Jump_057_75f5
+	jp z, .keep
 
-	jp Jump_057_75f3
+	jp .take
 
 
-Jump_057_76a9:
-jr_057_76a9:
+.nextKind
+;> if next_kind:
+;>     wAIKindTry += 1
 	ld hl, wAIKindTry
 	inc [hl]
+;>     wBattleSubStep2 = 2
 	ld a, $02
 	ld [wBattleSubStep2], a
-	jp Jump_57_73B9
+;>     return AIStepPickKind()
+	jp AIStepPickKind
 
 
-Jump_057_76b5:
-	call Call_57_76CD
+.highJump
+;=@j2
+	call AIActionSlot
 	ld [hl], $42
-	jp Jump_57_7859
+	jp AIStepDone
 
 
-Jump_057_76bd:
-	call Call_57_76CD
+.confused
+;=@c2
+	call AIActionSlot
 	ld [hl], $3a
-	jp Jump_57_7859
+	jp AIStepDone
 
 
-Jump_057_76c5:
-	call Call_57_76CD
+.lifeSong
+;=@l2
+	call AIActionSlot
 	ld [hl], $95
-	jp Jump_57_7859
+	jp AIStepDone
 
 
-Call_57_76CD::
+;@ def AIActionSlot() -> hl
+;@ path: battle/ai
+;@ Moves AIChooseAction on one step and returns the address of the user's action in wBattlerAction.
+;@ test: wSkillUser = rand(0, 7)
+AIActionSlot::
+;> wBattleSubStep2 += 1
 	ld hl, wBattleSubStep2
 	inc [hl]
+;>@r return addr(wBattlerAction) + 2 * wSkillUser
 	ld a, [wSkillUser]
 	ld hl, wBattlerAction
 	add a
 	add l
 	ld l, a
 	ld a, $00
+;=@r
 	adc h
 	ld h, a
 	ret
 
 
-Jump_057_76df:
+;@ def AIPickRandomSkill()
+;@ path: battle/ai
+;@ Part of AIStepPickBest for the dullest monsters (intelligence class 0): every skill of the kind being
+;@ tried, and the plain Attack (attack kind) or Defence (heal kind), draws a random 1-8 into a table of
+;@ ten (wSkillStatusPtr on); the highest draw wins, a later one on a tie. The status kind with no such
+;@ skill moves on to the next kind. Defence is only taken by a monster with tactic 2, the others attack.
+;@ The search for the highest draw reads one byte past the table.
+;@ test: skip draws from the shared link random state
+AIPickRandomSkill::
+;> fill(addr(wSkillStatusPtr), 0, 10)          # the draws: slots 0-7, Attack, Defence
 	ld b, $0a
 	ld hl, wSkillStatusPtr
 	xor a
 
-jr_057_76e5:
+.clear
 	ld [hli], a
 	dec b
-	jr nz, jr_057_76e5
+	jr nz, .clear
 
-jr_057_76e9:
+.tryKind
+;>@w while True:
+;>@k     kind = mem[addr(wSkillTargeting) + wAIKindTry]
 	ld a, [wAIKindTry]
 	ld hl, wSkillTargeting
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@k
 	ld h, a
 	ld d, [hl]
+;>     count = 0
 	ld e, $00
+;>@p     p = addr(wBattlerSkills) + wSkillUser * 16
 	ld hl, wBattlerSkills
 	ld a, [wSkillUser]
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@p
 	adc h
 	ld h, a
+;>@f     for slot in range(8):
 	ld bc, $0800
 
-jr_057_7709:
+.slots
+;>         if mem[p] == kind:
 	ld a, [hli]
 	cp d
-	jr nz, jr_057_7724
+	jr nz, .next
 
+;>@r             AIRandom(); mem[addr(wSkillStatusPtr) + slot] = (wRandomHigh & 7) + 1
 	push hl
-	call Call_57_7F2C
+	call AIRandom
 	ld hl, wSkillStatusPtr
 	ld a, c
 	add l
 	ld l, a
+;=@r
 	ld a, $00
 	adc h
 	ld h, a
 	ld a, [wRandomHigh]
 	and $07
 	inc a
+;=@r
 	ld [hl], a
 	pop hl
+;>             count += 1
 	inc e
 
-jr_057_7724:
+.next
+;>         p += 2
 	inc hl
+;=@f
 	inc c
 	dec b
-	jr nz, jr_057_7709
+	jr nz, .slots
 
-	call Call_57_7F2C
+;>     AIRandom()
+	call AIRandom
+;>     if kind != 2:
 	ld a, d
 	cp $02
-	jr z, jr_057_7741
+	jr z, .any
 
+;>@h         mem[wAIUserHPOne if kind == 1 else wAIUserHPOne + 1] = (wRandomLow & 7) + 1   # draws 8, 9
 	ld hl, wAIUserHPOne
 	cp $01
-	jr z, jr_057_7739
+	jr z, .draw
 
 	inc hl
 
-jr_057_7739:
+.draw
+;=@h
 	ld a, [wRandomLow]
 	and $07
 	inc a
 	ld [hl], a
+;>         count += 1
 	inc e
 
-jr_057_7741:
+.any
+;>     if count or kind != 2: break
 	ld a, e
 	or a
-	jr nz, jr_057_7761
+	jr nz, .pick
 
 	ld a, d
 	cp $02
-	jr nz, jr_057_7750
+	jr nz, .noSkill
 
+;>     wAIKindTry += 1
 	ld hl, wAIKindTry
 	inc [hl]
-	jr jr_057_76e9
+;=@w
+	jr .tryKind
 
-jr_057_7750:
+.noSkill
+;> if count:
+;>@m     first = next((i for i in range(10) if mem[addr(wSkillStatusPtr) + i]), None)
+;>@s     choice = 8 if first is None else max(range(first, 11), key=lambda i: (mem[addr(wSkillStatusPtr) + i], i))
+;> else:
+;>     choice = 9 if kind == 3 else 8
 	cp $03
-	jr z, jr_057_7758
+	jr z, .defend
 
-jr_057_7754:
+;>@d action = (0x8D if IsTacticTwo() else 0x3A) if choice >= 9 else 0x3A if choice == 8 else mem[addr(wBattlerSkills) + 1 + wSkillUser * 16 + 2 * choice]   # 8 Attack, 9 Defence (tactic 2 only)
+.attack
+;=@d
 	ld b, $3a
-	jr jr_057_77a0
+	jr .set
 
-jr_057_7758:
-	call Call_57_77A4
-	jr nz, jr_057_7754
+.defend
+;=@d
+	call IsTacticTwo
+	jr nz, .attack
 
 	ld b, $8d
-	jr jr_057_77a0
+	jr .set
 
-jr_057_7761:
+.pick
+;=@m
 	ld bc, $0a00
 	ld hl, wSkillStatusPtr
 
-jr_057_7767:
+.first
+;=@m
 	ld a, [hli]
 	or a
-	jr nz, jr_057_7773
+	jr nz, .found
 
 	inc c
 	dec b
-	jr nz, jr_057_7767
+	jr nz, .first
 
+;=@m
 	ld b, $3a
-	jr jr_057_77a0
+	jr .set
 
-jr_057_7773:
+.found
+;=@m
 	ld d, a
 	ld e, c
 	inc c
 
-jr_057_7776:
+.scan
+;=@s
 	ld a, [hli]
 	cp d
-	jr c, jr_057_777c
+	jr c, .lower
 
 	ld d, a
 	ld e, c
 
-jr_057_777c:
+.lower
+;=@s
 	inc c
 	dec b
-	jr nz, jr_057_7776
+	jr nz, .scan
 
+;=@d
 	ld a, e
 	cp $09
-	jr nc, jr_057_7758
+	jr nc, .defend
 
+;=@d
 	cp $08
-	jr z, jr_057_7754
+	jr z, .attack
 
+;=@d
 	ld a, [wSkillUser]
-	ld hl, $dc65
+	ld hl, wBattlerSkills + 1
 	swap a
 	add l
 	ld l, a
 	ld a, $00
+;=@d
 	adc h
 	ld h, a
 	ld a, e
 	add a
 	add l
 	ld l, a
+;=@d
 	ld a, $00
 	adc h
 	ld h, a
 	ld b, [hl]
 
-jr_057_77a0:
-	call Call_57_76CD
+.set
+;> AIActionSlot()[0] = action                  # then runs on into IsTacticTwo, which only reads
+	call AIActionSlot
 	ld [hl], b
 
-Call_57_77A4::
+;@ def IsTacticTwo() -> zero
+;@ path: battle/ai
+;@ Zero when the user's tactic is 2.
+;@ test: wSkillUser = rand(0, 7)
+IsTacticTwo::
+;>@t return wBattlerTactic[wSkillUser] == 2
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@t
 	ld h, a
 	ld a, [hl]
 	cp $02
 	ret
 
 
-Call_57_77B4::
+;@ def AIShouldDefend() -> carry
+;@ path: battle/ai
+;@ Carry when the user should defend: an enemy present could fell it (EnemyNoThreat), or no enemy could
+;@ be felled by its attack (EnemyHoldsOut). Never for a called helper (position 3 or 7), nor for an
+;@ enemy outside a link battle.
+;@ test: wSkillUser = rand(0, 7)
+AIShouldDefend::
+;> if (wSkillUser & 3) == 3: return False
 	ld a, [wSkillUser]
 	ld c, a
 	and $03
 	cp $03
-	jr z, jr_057_77f2
+	jr z, .no
 
+;> if not wLinkActive and wSkillUser & 4: return False
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_77c8
+	jr nz, .check
 
 	bit 2, c
-	jr nz, jr_057_77f2
+	jr nz, .no
 
-jr_057_77c8:
+.check
+;> side = (wSkillUser ^ 4) & 4
 	ld a, c
 	xor $04
 	and $04
 	ld c, a
-	call Call_57_77F5
-	jr nc, jr_057_77f0
+;>@t if not all(EnemyNoThreat(pos) for pos in range(side, side + 3)): return True
+	call EnemyNoThreat
+	jr nc, .yes
 
 	inc c
-	call Call_57_77F5
-	jr nc, jr_057_77f0
+	call EnemyNoThreat
+	jr nc, .yes
 
+;=@t
 	inc c
-	call Call_57_77F5
-	jr nc, jr_057_77f0
+	call EnemyNoThreat
+	jr nc, .yes
 
-	call Call_57_7828
-	jr nc, jr_057_77f2
-
-	dec c
-	call Call_57_7828
-	jr nc, jr_057_77f2
+;>@h if not all(EnemyHoldsOut(pos) for pos in (side + 2, side + 1, side)): return False
+	call EnemyHoldsOut
+	jr nc, .no
 
 	dec c
-	call Call_57_7828
-	jr nc, jr_057_77f2
+;=@h
+	call EnemyHoldsOut
+	jr nc, .no
 
-jr_057_77f0:
+	dec c
+	call EnemyHoldsOut
+	jr nc, .no
+
+.yes
+;> return True
 	scf
 	ret
 
 
-jr_057_77f2:
+.no
+;> # (return False)
 	scf
 	ccf
 	ret
 
 
-Call_57_77F5::
+;@ def EnemyNoThreat(pos: c) -> carry
+;@ path: battle/ai
+;@ Carry when position `pos` holds no monster, or its attack is below half the user's HP plus half the
+;@ user's defense (it cannot fell the user in one hit).
+;@ test: pos = rand(0, 7); wSkillUser = rand(0, 7)
+EnemyNoThreat::
+;> if CheckBattlerPresent(pos): return True
 	ld a, c
 	call CheckBattlerPresent
 	ret c
 
+;>@a attack = WordTableEntry_57(pos, addr(wBattlerAttack))
 	push bc
 	ld a, c
 	ld hl, wBattlerAttack
 	call WordTableEntry_57
 	push hl
+;>@h guard = (WordTableEntry_57(wSkillUser, addr(wBattlerHP)) >> 1) + (WordTableEntry_57(wSkillUser, addr(wBattlerDefense)) >> 1)
 	ld a, [wSkillUser]
 	ld hl, wBattlerHP
 	call WordTableEntry_57
 	srl h
 	rr l
 	push hl
+;=@h
 	ld a, [wSkillUser]
 	ld hl, wBattlerDefense
 	call WordTableEntry_57
 	srl h
 	rr l
 	pop bc
+;=@h
 	add hl, bc
 	ld b, h
 	ld c, l
+;> return attack < guard & 0xFFFF
 	pop hl
 	call CompareHLBC
 	pop bc
 	ret
 
 
-Call_57_7828::
+;@ def EnemyHoldsOut(pos: c) -> carry
+;@ path: battle/ai
+;@ Carry when position `pos` holds no monster, or the user's attack is below half that monster's
+;@ maximum HP plus half its defense (the user cannot fell it in one hit).
+;@ test: pos = rand(0, 7); wSkillUser = rand(0, 7)
+EnemyHoldsOut::
+;> if CheckBattlerPresent(pos): return True
 	ld a, c
 	call CheckBattlerPresent
 	ret c
 
+;>@a attack = WordTableEntry_57(wSkillUser, addr(wBattlerAttack))
 	push bc
 	ld a, [wSkillUser]
 	ld hl, wBattlerAttack
 	call WordTableEntry_57
 	push hl
+;>@h guard = (WordTableEntry_57(pos, addr(wBattlerMaxHP)) >> 1) + (WordTableEntry_57(pos, addr(wBattlerDefense)) >> 1)
 	ld a, c
 	ld hl, wBattlerMaxHP
 	call WordTableEntry_57
 	srl h
 	rr l
 	push hl
+;=@h
 	ld a, c
 	ld hl, wBattlerDefense
 	call WordTableEntry_57
 	srl h
 	rr l
 	pop bc
+;=@h
 	add hl, bc
 	ld b, h
 	ld c, l
+;> return attack < guard & 0xFFFF
 	pop hl
 	call CompareHLBC
 	pop bc
 	ret
 
 
-Jump_57_7859::
+;@ def AIStepDone()
+;@ path: battle/ai
+;@ Step 6 of AIChooseAction: the choice is made; the battle's own step moves on.
+;@ test: wBattleSubStep = rand(0, 254)
+AIStepDone::
+;> wBattleSubStep2 = 0
 	ld a, [wSkillUser]
 	xor a
 	ld [wBattleSubStep2], a
+;> wBattleSubStep += 1
 	ld hl, wBattleSubStep
 	inc [hl]
 	ret
 
 
-Jump_57_7865::
+;@ def AIStepRunRules()
+;@ path: battle/ai
+;@ Step 7 of AIChooseAction: runs the rules of the list in wAIRulePtr on the skill being judged (all in
+;@ this one step). Unless one rules it out (wAIPenalty $FF) or the penalty is larger than the bonus, the
+;@ skill's score grows by bonus minus penalty (wrapping at 256); otherwise it scores 0. Then on to the
+;@ next skill (step 4, AINextSkillSlot).
+;@ test: skip calls rules through a table
+AIStepRunRules::
+;> p = wAIRulePtr
 	ld a, [wAIRulePtr]
 	ld l, a
-	ld a, [$c1fb]
+	ld a, [wAIRulePtr + 1]
 	ld h, a
 
-jr_057_786d:
+;>@w while mem16[p]:
+.loop
 	ld a, [hli]
 	ld d, a
 	ld a, [hld]
 	or d
-	jr z, jr_057_78a2
+	jr z, .end
 
+;>     CallRule(p)
 	push hl
-	call Call_57_78CA
+	call CallRule
 	pop hl
+;>     if wAIPenalty == 0xFF: break
 	ld a, [wAIPenalty]
 	cp $ff
-	jr z, jr_057_788b
+	jr z, .out
 
+;>     p += 2
 	inc hl
 	inc hl
+;>     wAIRulePtr = p
 	ld a, l
 	ld [wAIRulePtr], a
 	ld a, h
-	ld [$c1fb], a
-	jr jr_057_786d
+	ld [wAIRulePtr + 1], a
+;=@w
+	jr .loop
 
-jr_057_788b:
+;>@e if wAIPenalty != 0xFF and wAttackWeight >= wAIPenalty:
+;>@f     wAttackWeight -= wAIPenalty
+;>@g     wAISkillScores[wAISkillSlot] = wAISkillScores[wAISkillSlot] + wAttackWeight & 0xFF
+;> else:
+.out
+;>     wAttackWeight = 0
 	xor a
 	ld [wAttackWeight], a
+;>     wAIPenalty = 0
 	ld [wAIPenalty], a
+;>@z     wAISkillScores[wAISkillSlot] = 0
 	ld a, [wAISkillSlot]
 	ld hl, wAISkillScores
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@z
 	ld h, a
 	ld [hl], $00
-	jr jr_057_78c1
+	jr .next
 
-jr_057_78a2:
+.end
+;=@g
 	ld a, [wAISkillSlot]
 	ld hl, wAISkillScores
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@g
 	ld h, a
+;=@e
 	ld a, [wAIPenalty]
 	cp $ff
-	jr z, jr_057_788b
+	jr z, .out
 
+;=@f
 	ld e, a
 	ld a, [wAttackWeight]
 	sub e
-	jr c, jr_057_788b
+;=@e
+	jr c, .out
 
+;=@f
 	ld [wAttackWeight], a
+;=@g
 	add [hl]
 	ld [hl], a
 
-jr_057_78c1:
+.next
+;> wBattleSubStep2 = 4
 	ld a, $04
 	ld [wBattleSubStep2], a
-	jp Jump_057_749b
+;> return AINextSkillSlot()
+	jp AINextSkillSlot
 
-
+; unused byte
 	db $c9
 
-Call_57_78CA::
+;@ def CallRule(entry: hl)
+;@ path: battle/ai
+;@ Jumps to the rule whose address is the word at `entry` (AIStepRunRules).
+;@ test: skip jumps through a pointer
+CallRule::
+;> return call_address(mem16[entry])
 	ld a, [hli]
 	ld h, [hl]
 	ld l, a
 	jp hl
 
 
-Call_57_78CE::
+;@ def DivideBy10_57(n: b) -> b
+;@ path: system/math
+;@ n // 10 (Divide8; the remainder is left in a).
+;@ test: n = rand(0, 255)
+DivideBy10_57::
+;> return n // 10
 	ld a, $0a
 	call Divide8
 	ret
 
 
-Call_57_78D4::
+;@ def TacticPersonalityTenth(tactic: a)
+;@ path: battle/ai
+;@ Obedience part 1: wBattleArg0 = a tenth of the user's personality byte that goes with `tactic`
+;@ (0 personality 1, 1 byte +$67, 2 personality 2); 0 for tactic 3.
+;@ test: tactic = rand(0, 3); wSkillUser = rand(0, 7)
+TacticPersonalityTenth::
+;>@a if tactic == 3:
 	cp $03
-	jr z, jr_057_78e5
+	jr z, .none
 
+;>@a2     wBattleArg0 = 0
+;> else:
+;>@t     table = addr(wBattlerStat67) if tactic == 1 else addr(wBattlerPersonality2) if tactic == 2 else addr(wBattlerPersonality1)
 	cp $02
-	jr z, jr_057_78f0
+	jr z, .p2
 
 	cp $01
-	jr z, jr_057_78eb
+	jr z, .stat67
 
 	ld hl, wBattlerPersonality1
-	jr jr_057_78f3
+	jr .read
 
-jr_057_78e5:
+.none
+;=@a2
 	ld a, $00
 	ld [wBattleArg0], a
 	ret
 
 
-jr_057_78eb:
+.stat67
+;=@t
 	ld hl, wBattlerStat67
-	jr jr_057_78f3
+	jr .read
 
-jr_057_78f0:
+.p2
+;=@t
 	ld hl, wBattlerPersonality2
 
-jr_057_78f3:
+.read
+;>@r     wBattleArg0 = DivideBy10_57(mem[table + wSkillUser])
 	ld a, [wSkillUser]
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;=@r
 	ld b, [hl]
-	call Call_57_78CE
+	call DivideBy10_57
 	ld a, b
 	ld [wBattleArg0], a
 	ret
 
 
-Call_57_7905::
+;@ def Personality3Tenth()
+;@ path: battle/ai
+;@ Obedience part 2: wBattleArg1 = a tenth of the user's personality 3 (it grows with the battles
+;@ survived).
+;@ test: wSkillUser = rand(0, 7)
+Personality3Tenth::
+;>@r wBattleArg1 = DivideBy10_57(wBattlerPersonality3[wSkillUser])
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality3
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@r
 	ld h, a
 	ld b, [hl]
-	call Call_57_78CE
+	call DivideBy10_57
 	ld a, b
 	ld [wBattleArg1], a
 	ret
 
 
-Call_57_791A::
+;@ def TacticWeight()
+;@ path: battle/ai
+;@ Obedience part 3: wBattleItemUsedUp = the TacticWeights entry for the user's tactic and the bands of
+;@ its personality 1, personality 2 and byte +$67 (band 0 from $C0 up, 1 from $40, 2 below $40).
+;@ test: wSkillUser = rand(0, 7); wBattlerTactic[wSkillUser] = rand(0, 3)
+TacticWeight::
+;>@1 index = 0 if wBattlerPersonality1[wSkillUser] >= 0xC0 else 9 if wBattlerPersonality1[wSkillUser] >= 0x40 else 18
 	ld b, $00
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality1
 	add l
 	ld l, a
 	ld a, $00
+;=@1
 	adc h
 	ld h, a
 	ld a, [hl]
 	cp $c0
-	jr nc, jr_057_7937
+	jr nc, .p2
 
 	cp $40
-	jr nc, jr_057_7935
+;=@1
+	jr nc, .mid1
 
 	ld b, $12
-	jr jr_057_7937
+	jr .p2
 
-jr_057_7935:
+.mid1
+;=@1
 	ld b, $09
 
-jr_057_7937:
+.p2
+;>@2 index += 0 if wBattlerPersonality2[wSkillUser] >= 0xC0 else 3 if wBattlerPersonality2[wSkillUser] >= 0x40 else 6
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality2
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@2
 	ld h, a
 	ld a, [hl]
 	cp $c0
-	jr nc, jr_057_7954
+	jr nc, .p3
 
 	cp $40
-	jr nc, jr_057_7950
+	jr nc, .mid2
 
+;=@2
 	ld a, $06
-	jr jr_057_7952
+	jr .add2
 
-jr_057_7950:
+.mid2
+;=@2
 	ld a, $03
 
-jr_057_7952:
+.add2
+;=@2
 	add b
 	ld b, a
 
-jr_057_7954:
+.p3
+;>@3 index += 0 if wBattlerStat67[wSkillUser] >= 0xC0 else 1 if wBattlerStat67[wSkillUser] >= 0x40 else 2
 	ld a, [wSkillUser]
 	ld hl, wBattlerStat67
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@3
 	ld h, a
 	ld a, [hl]
 	cp $c0
-	jr nc, jr_057_7970
+	jr nc, .tactic
 
 	cp $40
-	jr nc, jr_057_796f
+	jr nc, .mid3
 
+;=@3
 	inc b
 	inc b
 	ld a, $02
-	jr jr_057_7970
+	jr .tactic
 
-jr_057_796f:
+.mid3
+;=@3
 	inc b
 
-jr_057_7970:
+.tactic
+;>@4 index += 27 * wBattlerTactic[wSkillUser]
 	ld a, [wSkillUser]
 	ld hl, wBattlerTactic
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@4
 	ld h, a
 	ld c, [hl]
 
-jr_057_797d:
+.loop
+;=@4
 	ld a, c
 	or a
-	jr z, jr_057_7988
+	jr z, .read
 
 	ld a, $1b
 	add b
 	ld b, a
+;=@4
 	dec c
-	jr jr_057_797d
+	jr .loop
 
-jr_057_7988:
+.read
+;>@5 wBattleItemUsedUp = mem[TacticWeights + index]
 	add b
 	ld hl, TacticWeights
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@5
 	ld h, a
 	ld a, [hl]
 	ld [wBattleItemUsedUp], a
 	ret
 
 
+;@ path: battle/ai
+;@ Obedience base for TacticWeight: 27 bytes per tactic 0-3, inside them 9 per band of personality 1,
+;@ 3 per band of personality 2 and 1 per band of byte +$67 (band 0 from $C0 up, 1 from $40, 2 below).
 TacticWeights::
 	db $19, $19, $19, $14, $14, $19, $19, $19, $19
 	db $14, $0f, $0a, $14, $14, $14, $14, $0f, $14
@@ -13581,11 +14323,17 @@ TacticWeights::
 	db $19, $0f, $0a, $19, $14, $0a, $05, $05, $05
 	db $19, $14, $0f, $14, $14, $19, $14, $19, $05
 
-Call_57_7A03::
+;@ def WildnessQuarter()
+;@ path: battle/ai
+;@ Obedience part 4: wBattleArg2 = a quarter of the low byte of the user's wildness.
+;@ test: wSkillUser = rand(0, 7)
+WildnessQuarter::
+;> w = mem[WordTableAddr_57(wSkillUser, addr(wBattlerWildness))]
 	ld a, [wSkillUser]
 	ld hl, wBattlerWildness
 	call WordTableAddr_57
 	ld b, [hl]
+;> wBattleArg2 = w >> 2
 	srl b
 	srl b
 	ld a, b
@@ -13593,121 +14341,164 @@ Call_57_7A03::
 	ret
 
 
-Call_57_7A16::
+;@ def WildnessRoll()
+;@ path: battle/ai
+;@ Obedience part 5: wBattleArg3 = a random number 0 to a limit that grows with the low byte of the
+;@ user's wildness (5 below $20, 7 below $40, 9 below $60, 11 below $90, 13 below $C0, else 15).
+;@ test: skip draws from the shared link random state
+WildnessRoll::
+;> w = mem[WordTableAddr_57(wSkillUser, addr(wBattlerWildness))]
 	ld a, [wSkillUser]
 	ld hl, wBattlerWildness
 	call WordTableAddr_57
 	ld a, [hl]
+;>@l limit = 5 if w < 0x20 else 7 if w < 0x40 else 9 if w < 0x60 else 11 if w < 0x90 else 13 if w < 0xC0 else 15
 	cp $20
-	jr c, jr_057_7a38
+	jr c, .five
 
 	cp $40
-	jr c, jr_057_7a3c
+	jr c, .seven
 
 	cp $60
-	jr c, jr_057_7a40
+	jr c, .nine
 
+;=@l
 	cp $90
-	jr c, jr_057_7a44
+	jr c, .eleven
 
 	cp $c0
-	jr c, jr_057_7a48
+	jr c, .thirteen
 
 	ld b, $0f
-	jr jr_057_7a4a
+	jr .roll
 
-jr_057_7a38:
+.five
+;=@l
 	ld b, $05
-	jr jr_057_7a4a
+	jr .roll
 
-jr_057_7a3c:
+.seven
+;=@l
 	ld b, $07
-	jr jr_057_7a4a
+	jr .roll
 
-jr_057_7a40:
+.nine
+;=@l
 	ld b, $09
-	jr jr_057_7a4a
+	jr .roll
 
-jr_057_7a44:
+.eleven
+;=@l
 	ld b, $0b
-	jr jr_057_7a4a
+	jr .roll
 
-jr_057_7a48:
+.thirteen
+;=@l
 	ld b, $0d
 
-jr_057_7a4a:
-	call Call_57_7F2C
+.roll
+;> AIRandom()
+	call AIRandom
+;> r = wRandomHigh & 0x3F
 	ld a, [wRandomHigh]
 	and $3f
 
-jr_057_7a52:
+;>@w while r >= limit:
+.reduce
 	cp b
-	jr c, jr_057_7a59
+	jr c, .done
 
+;>     r -= limit
 	sub b
-	jr nz, jr_057_7a52
+;>@z     if r == 0: r = limit; break
+;=@w
+	jr nz, .reduce
 
+;=@z
 	ld a, b
 
-jr_057_7a59:
+.done
+;> wBattleArg3 = r
 	ld [wBattleArg3], a
 	ret
 
 
-Call_57_7A5D::
+;@ def RollDisobey() -> carry
+;@ path: battle/ai
+;@ Carry when the monster disobeys: never while the low byte of its wildness is below $15, always from
+;@ $F0 up, otherwise when wBattleArg0 + wBattleArg1 + wBattleItemUsedUp is below wBattleArg2 +
+;@ wBattleArg3 (8-bit sums; see AIStepStart).
+;@ test: wSkillUser = rand(0, 7)
+RollDisobey::
+;>@w w = mem[addr(wBattlerWildness) + 2 * wSkillUser]
 	ld a, [wSkillUser]
 	add a
 	ld hl, wBattlerWildness
 	add l
 	ld l, a
 	ld a, $00
+;=@w
 	adc h
 	ld h, a
 	ld a, [hl]
+;>@o if w < 0x15: return False
 	or a
-	jr z, jr_057_7a8e
+	jr z, .obey
 
 	cp $15
-	jr c, jr_057_7a8e
+	jr c, .obey
 
+;>@f if w >= 0xF0: return True
 	cp $f0
-	jr nc, jr_057_7a91
+	jr nc, .disobey
 
+;>@s return (wBattleArg0 + wBattleArg1 + wBattleItemUsedUp & 0xFF) < (wBattleArg2 + wBattleArg3 & 0xFF)
 	ld a, [wBattleArg2]
 	ld b, a
 	ld a, [wBattleArg3]
 	add b
 	ld b, a
 	ld a, [wBattleArg0]
+;=@s
 	ld c, a
 	ld a, [wBattleArg1]
 	add c
 	ld c, a
 	ld a, [wBattleItemUsedUp]
 	add c
+;=@s
 	sub b
 	ret
 
 
-jr_057_7a8e:
+.obey
+;=@o
 	scf
 	ccf
 	ret
 
 
-jr_057_7a91:
+.disobey
+;=@f
 	scf
 	ret
 
 
-Call_57_7A93::
+;@ def RandomMod_57(n: a) -> a
+;@ path: battle/ai
+;@ A random number below `n` (the remainder of the 16-bit random number divided by `n`). Keeps bc.
+;@ test: skip draws from the shared link random state
+RandomMod_57::
+;> AIRandom()
 	push bc
 	push af
-	call Call_57_7F2C
+	call AIRandom
+;> r = wRandomHigh | wRandomLow << 8
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
+;> return r % n
 	pop af
 	call Divide16
 	pop bc
@@ -14026,160 +14817,233 @@ HasBreathSkill::
 	ret
 
 
-Call_57_7BAA::
+;@ def CopyBattlerName_57(pos: a, dest: hl)
+;@ path: battle/names
+;@ Unused: the name of battle position `pos` to `dest`: an own monster's name from its record, else the
+;@ species name with the enemy's letter (AppendEnemyLetter).
+;@ test: skip calls routines in other banks
+CopyBattlerName_57::
+;> if pos < 3:
 	cp $03
-	jr nc, jr_057_7bbc
+	jr nc, .enemy
+
+;>@n     CopyName(PartyMonsterField(pos, wMonName), dest)
 	push hl
 	ld hl, wMonName
 	call PartyMonsterField
 	ld e, l
 	ld d, h
 	pop hl
+;=@n
 	call CopyName
+;>     return
 	ret
 
 
-jr_057_7bbc:
+.enemy
+;> wNameBattler = pos
 	push af
 	ld [wNameBattler], a
+;>@s species = wBattlerSpecies[pos]
 	push hl
 	ld hl, wBattlerSpecies
 	add l
 	ld l, a
 	ld a, $00
 	adc h
+;=@s
 	ld h, a
 	ld a, [hl]
+;>@w wNameDest = dest
 	ld l, a
 	ld h, $05
 	pop de
 	ld a, e
 	ld [wNameDest], a
 	ld a, d
+;=@w
 	ld [wNameDest + 1], a
+;> CopySystemText(0x0500 | species, dest)
 	call CopySystemText
+;> AppendEnemyLetter()
 	pop af
 	ld hl, far_AppendEnemyLetter
 	rst $10
 	ret
 
 
-Call_57_7BE0::
+;@ def ClearTurnAilments_57()
+;@ path: battle/actions
+;@ Unused: clears the one-turn conditions of the skill user (bits 0-5 of status byte 3: frozen, lured,
+;@ stumbling, licked, shocked, feeling good). Keeps the registers. Behind it lies SleepTurn_57, which
+;@ nothing reaches: a sleeping monster's turn (status byte 0 in hl; bit 7 asleep, bits 2-3 turns left).
+;@ It wakes up if wRandomHigh is at most $FF, $E0, $A0 or $60 as 0-3 turns are left, otherwise one turn
+;@ less; returns message $0F (sleeping) or $DB (wakes up).
+;@ test: wSkillUser = rand(0, 7)
+ClearTurnAilments_57::
+;>@c mem[AddEightTimes(wSkillUser, addr(wBattlerStatus3))] &= 0xC0
 	push af
 	push bc
 	push de
 	push hl
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus3
+;=@c
 	call AddEightTimes
 	ld a, [hl]
 	and $c0
 	ld [hl], a
 	pop hl
 	pop de
+;=@c
 	pop bc
 	pop af
 	ret
 
+SleepTurn_57:
+;> # SleepTurn_57(status) -> a, unreached
+;> left = mem[status] & 0x0C
 	ld a, [hl]
 	and $0c
-	jr z, jr_057_7c0f
+;>@c0 if left == 0: limit = 0xFF
+	jr z, .none
+
+;>@c4 elif left == 4: limit = 0xE0
 	cp $04
-	jr z, jr_057_7c0b
+	jr z, .one
+
+;>@c8 elif left == 8: limit = 0xA0
 	cp $08
-	jr z, jr_057_7c07
+	jr z, .two
+
+;> else: limit = 0x60
 	ld b, $60
-	jr jr_057_7c11
+	jr .roll
 
 
-jr_057_7c07:
+.two
+;=@c8
 	ld b, $a0
-	jr jr_057_7c11
+	jr .roll
 
 
-jr_057_7c0b:
+.one
+;=@c4
 	ld b, $e0
-	jr jr_057_7c11
+	jr .roll
 
 
-jr_057_7c0f:
+.none
+;=@c0
 	ld b, $ff
 
-jr_057_7c11:
+.roll
+;> if wRandomHigh > limit:                    # sleeps on
 	ld a, [wRandomHigh]
 	cp b
-	jr z, jr_057_7c33
-	jr c, jr_057_7c33
+	jr z, .wake
+
+	jr c, .wake
+
+;>@dec     mem[status] = mem[status] & 0xF3 | (left - 1) & 0x0C     # one turn less
 	ld a, [hl]
 	and $f3
 	ld b, a
 	ld a, [hl]
 	and $0c
 	dec a
+;=@dec
 	push bc
 	push af
 	pop bc
 	bit 5, c
 	pop bc
-	jr nz, jr_057_7c2d
+	jr nz, .zero
+
+;=@dec
 	and $0c
-	jr jr_057_7c2e
+	jr .store
 
 
-jr_057_7c2d:
+.zero
+;=@dec
 	xor a
 
-jr_057_7c2e:
+.store
+;=@dec
 	or b
 	ld [hl], a
+;>     return 0x0F
 	ld a, $0f
 	ret
 
 
-jr_057_7c33:
+.wake
+;> mem[status] &= 0x73                        # awake: sleep and its turns cleared
 	ld a, [hl]
 	and $73
 	ld [hl], a
+;> wSkillTarget = wSkillUser
 	ld a, [wSkillUser]
 	ld [wSkillTarget], a
+;> UpdateStatusIcon_50()
 	ld hl, far_UpdateStatusIcon_50
 	rst $10
+;> return 0xDB
 	ld a, $db
 	ret
 
-Call_57_7C44::
+;@ def EndCallForHelp()
+;@ path: battle/actions
+;@ Far entry 1, after an action: when the user was called in for help (status byte 6 bit 0) and has just
+;@ used CallHelp or YellHelp ($52, $53; reflect animation variant 3) or CallEvil ($AB; variant 8), the
+;@ mark is cleared and wReflectAnim set.
+;@ test: wSkillUser = rand(0, 7); wSkillId = rand(0, 255)
+EndCallForHelp::
+;> s6 = AddEightTimes(wSkillUser, addr(wBattlerStatus6))
 	ld a, [wSkillUser]
 	ld hl, wBattlerStatus6
 	call AddEightTimes
+;> if not mem[s6] & 1: return
 	bit 0, [hl]
-	jr nz, jr_057_7c52
+	jr nz, .called
 
 	ret
 
 
-jr_057_7c52:
+.called
+;> if wSkillId in (0x52, 0x53):
 	ld a, [wSkillId]
 	cp $52
-	jr z, jr_057_7c62
+	jr z, .help
 
 	cp $53
-	jr z, jr_057_7c62
+	jr z, .help
 
+;>@h2     anim = 3
+;>@e elif wSkillId == 0xAB:
 	cp $ab
-	jr z, jr_057_7c66
+	jr z, .evil
 
+;>@e2     anim = 8
+;> else:
+;>     return
 	ret
 
 
-jr_057_7c62:
+.help
+;=@h2
 	ld a, $03
-	jr jr_057_7c68
+	jr .set
 
-jr_057_7c66:
+.evil
+;=@e2
 	ld a, $08
 
-jr_057_7c68:
+.set
+;> wReflectAnim = anim
 	ld [wReflectAnim], a
+;> mem[s6] &= 0xFE
 	res 0, [hl]
 	ret
 
@@ -14715,12 +15579,20 @@ AverageEnemyDefense2::
 	ld [wTargetScores + 1], a
 	ret
 
-Call_57_7E82::
+;@ def UserNameToArg0b_57()
+;@ path: battle/names
+;@ Writes the skill user's name to wTextArg0 for the next message (GetBattlerNameTo_57), without
+;@ setting wNamePos (the battle AI keeps a kind bonus there).
+;@ test: skip calls routines in other banks
+UserNameToArg0b_57::
+;> wBattleArg2 = lo(wTextArg0)
+;> wBattleArg3 = hi(wTextArg0)
 	ld hl, wTextArg0
 	ld a, l
 	ld [wBattleArg2], a
 	ld a, h
 	ld [wBattleArg3], a
+;> GetBattlerNameTo_57(wSkillUser, wTextArg0)
 	ld a, [wSkillUser]
 	call GetBattlerNameTo_57
 	ret
@@ -14917,122 +15789,170 @@ HasNoDances::
 	or a
 	ret
 
-Call_57_7F2C::
+;@ def AIRandom()
+;@ path: battle/ai
+;@ Draws a random number (Random). In a link battle the draw runs on the state both Game Boys share
+;@ (wLinkRandom), so both sides' AIs choose the same. Keeps bc and hl.
+;@ test: skip steps the random number generator
+AIRandom::
+;> if not wLinkActive:
 	push bc
 	ld a, [wLinkActive]
 	or a
-	jr nz, jr_057_7f38
+	jr nz, .link
 
+;>     Random()
 	call Random
-	jr jr_057_7f5d
+	jr .done
 
-jr_057_7f38:
+.link
+;> else:
+;>@r     wRandomHigh = lo(wLinkRandom)
 	push hl
 	ld a, [wLinkRandom]
 	ld l, a
-	ld a, [$c1ee]
+	ld a, [wLinkRandom + 1]
 	ld h, a
 	ld a, l
+;=@r
 	ld [wRandomHigh], a
+;>     wRandomLow = hi(wLinkRandom)
 	ld a, h
 	ld [wRandomLow], a
+;>     Random()
 	call Random
+;>@s     wLinkRandom = wRandomHigh | wRandomLow << 8
 	ld a, [wRandomHigh]
 	ld l, a
 	ld a, [wRandomLow]
 	ld h, a
 	ld a, l
 	ld [wLinkRandom], a
+;=@s
 	ld a, h
-	ld [$c1ee], a
+	ld [wLinkRandom + 1], a
 	pop hl
 
-jr_057_7f5d:
+.done
+;> return
 	pop bc
 	ret
 
 
-Call_57_7F5F::
+;@ def AIWhimAction() -> b
+;@ path: battle/ai
+;@ The action of a monster that ignores its order: Daze ($98) unless one of personality 1, byte +$67 or
+;@ personality 2 is $3F or more; Attack ($3A) when personality 1 is and is not below the other two;
+;@ otherwise Defence ($8D). The three bytes stay in wBattleArg1-3, the flags in wBattleArg0.
+;@ test: wSkillUser = rand(0, 7)
+AIWhimAction::
+;> wBattleArg0 = 0
 	ld hl, wBattleArg0
 	xor a
 	ld [hli], a
+;> wBattleArg1 = 0
 	ld [hli], a
+;> wBattleArg2 = 0
 	ld [hli], a
+;> wBattleArg3 = 0
 	ld [hl], a
+;> wBattleArg1 = ByteTableEntry_57(wSkillUser, addr(wBattlerPersonality1))
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality1
-	call Call_57_7FC2
+	call ByteTableEntry_57
 	ld [wBattleArg1], a
+;> if wBattleArg1 >= 0x3F: wBattleArg0 = 1
 	cp $3f
-	jr c, jr_057_7f7c
+	jr c, .stat67
 
 	ld a, $01
 	ld [wBattleArg0], a
 
-jr_057_7f7c:
+.stat67
+;> wBattleArg2 = ByteTableEntry_57(wSkillUser, addr(wBattlerStat67))
 	ld a, [wSkillUser]
 	ld hl, wBattlerStat67
-	call Call_57_7FC2
+	call ByteTableEntry_57
 	ld [wBattleArg2], a
+;> if wBattleArg2 >= 0x3F: wBattleArg0 |= 2
 	cp $3f
-	jr c, jr_057_7f91
+	jr c, .p2
 
 	ld hl, wBattleArg0
 	set 1, [hl]
 
-jr_057_7f91:
+.p2
+;> wBattleArg3 = ByteTableEntry_57(wSkillUser, addr(wBattlerPersonality2))
 	ld a, [wSkillUser]
 	ld hl, wBattlerPersonality2
-	call Call_57_7FC2
+	call ByteTableEntry_57
 	ld [wBattleArg3], a
+;> if wBattleArg3 >= 0x3F: wBattleArg0 |= 4
 	cp $3f
-	jr c, jr_057_7fa6
+	jr c, .choose
 
 	ld hl, wBattleArg0
 	set 2, [hl]
 
-jr_057_7fa6:
+.choose
+;> if wBattleArg0 == 0: return 0x98
 	ld b, $98
 	ld a, [wBattleArg0]
 	or a
 	ret z
 
+;>@a if wBattleArg0 & 1 and wBattleArg1 >= wBattleArg2 and wBattleArg1 >= wBattleArg3: return 0x3A
 	ld b, $3a
 	bit 0, a
-	jr z, jr_057_7fbf
+	jr z, .defend
 
 	ld a, [wBattleArg1]
 	ld hl, wBattleArg2
+;=@a
 	cp [hl]
-	jr c, jr_057_7fbf
+	jr c, .defend
 
 	inc hl
 	cp [hl]
 	ret nc
 
-jr_057_7fbf:
+.defend
+;> return 0x8D
 	ld b, $8d
 	ret
 
 
-Call_57_7FC2::
+;@ def ByteTableEntry_57(index: a, table: hl) -> a
+;@ path: system/memory
+;@ Byte `index` of a table (hl is left pointing at it).
+;@ test: table = rand(0xC000, 0xDE00)
+ByteTableEntry_57::
+;> p = table + index
 	add l
 	ld l, a
 	ld a, $00
 	adc h
 	ld h, a
+;> return mem[p]
 	ld a, [hl]
 	ret
 
 
 
+;@ def AddSixteenTimes_57(n: a, base: hl) -> hl
+;@ path: system/memory
+;@ base + 16 * n (WordTableAddr_57 with 8 * n), for the 16-byte skill lists of wBattlerSkills.
+;@ test: n = rand(0, 7); base = rand(0xC000, 0xDE00)
 AddSixteenTimes_57::
+;> return WordTableAddr_57(n * 8 & 0xFF, base)
 	add a
 	add a
 	add a
 	call WordTableAddr_57
 	ret
 
+;@ path: system/banks
+;@ Unused zero bytes up to the end of the bank.
 Bank57Padding::
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 	db $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00

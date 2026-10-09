@@ -6793,7 +6793,9 @@ StartEventBossBattle::
 	ret
 
 ;@ path: event/textbox
-;@ Boss of each gate for StartEventBossBattle: (species, $DA04 value) per wScriptBossIndex.
+;@ The event battles StartEventBossBattle starts by wScriptBossIndex: (monster number, $DA04 value) each.
+;@ All nine are MonTemplates entries of a Mimic, from level 1 up to 38: the treasure chests that turn
+;@ out to be monsters, one stronger per round.
 EventBossBattles::
 	db $3d, $01, $3e, $01, $3f, $01, $40, $01, $41, $01, $42, $01, $43, $01, $44, $01
 	db $44, $01

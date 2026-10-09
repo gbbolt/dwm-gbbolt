@@ -216,8 +216,8 @@ DEF far_LoadWindowLetters_10 EQU $550C
 DEF far_PrintText_56 EQU $5602
 DEF far_ClearTextBoxTiles EQU $5605
 DEF far_RunTextControlCode EQU $5606
-DEF far_Call_57_6E0E EQU $5700
-DEF far_Call_57_7C44 EQU $5701
+DEF far_AIChooseAction EQU $5700
+DEF far_EndCallForHelp EQU $5701
 DEF far_CalcBaseMaxHP EQU $5704
 DEF far_CalcBaseMaxMP EQU $5705
 DEF far_CalcBaseAttack EQU $5706

@@ -58,7 +58,7 @@ def build(ctx):
                 break
         for i, p in enumerate(ptrs):
             rows.append(['${:02X}{:02X}'.format(g, i), label[len('SysText_'):], decode(r, p)])
-    return [{'name': 'system-texts', 'type': 'table', 'title': 'System texts',
+    return [{'name': 'system-texts', 'type': 'table', 'title': 'System texts', 'unit': 'SysText_DebugMenus',
              'columns': ['Number', 'Group', 'Text'], 'rows': rows,
              'doc': ['Every system text of bank $41 as PrintSystemText numbers it (group in the high byte, '
                      'entry in the low byte). The character set: $24-$3D A-Z, $3E-$57 a-z, $1A-$23 and '

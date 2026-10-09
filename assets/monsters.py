@@ -1,109 +1,42 @@
-"""The monsters: every species' picture in its own colours and its record from MonsterStats."""
+"""The monsters: every species' picture in its own colours, its record from MonsterStats, the breeding
+tables, and a card per species with everything the ROM says about it."""
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _game import image  # noqa: E402
-import build as engine  # noqa: E402
+from _game import image  # noqa: E402,F401  (kept for the other plugins)
+from _dwm import (Rom, SPECIES, FAMILIES, GROWTH, GROWTH_LONG, FEMALE, card, packed_image,  # noqa: E402,F401
+                  species_cell)
 
 GROUP = 'monsters'
-SPECIES = 217                 # records 217-220 have no picture and no stats: unused
-FAMILIES = ['Slime', 'Dragon', 'Beast', 'Bird', 'Plant', 'Bug', 'Devil', 'Zombie', 'Material', 'Boss']
-GROWTH = ['HP', 'MP', 'Atk', 'Def', 'Agl', 'Int']
+RESIST_LEVEL = ['none', 'some', 'strong', 'immune']
 
 
-class Rom:
-    def __init__(self, ctx):
-        self.r = ctx.rom
-        self.syms = ctx.syms
+def skill_cell(skills, k):
+    if k < len(skills):
+        return {'asset': 'skill-list@s{}'.format(k), 'text': skills[k]}
+    return '#{}'.format(k)
 
-    def lin(self, name):
-        return engine.sym_linear(name, self.syms)
 
-    def far_entry(self, bank, entry):
-        """Linear address of entry `entry` of bank `bank`'s table at $4001."""
-        o = bank * 0x4000
-        return o + (self.r[o + 1 + 2 * entry] | self.r[o + 2 + 2 * entry] << 8) - 0x4000
-
-    def decompress(self, src):
-        """The format of DecompressCore: length, marker byte, then literal bytes and back-references."""
-        r = self.r
-        n, marker, p = r[src] | r[src + 1] << 8, r[src + 2], src + 3
-        out = bytearray()
-        while len(out) < n:
-            b = r[p]
-            p += 1
-            if b != marker:
-                out.append(b)
-                continue
-            ll, hc = r[p], r[p + 1]
-            p += 2
-            pos = (hc >> 4) << 8 | ll
-            count = hc & 0xF
-            if count == 0xF:
-                count = r[p] + 0x13
-                p += 1
-            else:
-                count += 4
-            for _ in range(count):
-                if len(out) >= n:
-                    break
-                q = pos - 0x1000 if pos >= len(out) else pos
-                out.append(out[q] if 0 <= q < len(out) else 0)
-                pos += 1
-        return bytes(out)
-
-    def text(self, a):
-        out = ''
-        while self.r[a] != 0xF0:
-            x = self.r[a]
-            out += (chr(65 + x - 0x24) if 0x24 <= x < 0x3E else chr(97 + x - 0x3E) if 0x3E <= x < 0x58 else
-                    chr(48 + x - 0x1A) if 0x1A <= x < 0x24 else chr(48 + x) if x < 10 else
-                    ' ' if x in (0x62, 0xF1) else '')
-            a += 1
-        return out
-
-    def texts(self, label, n):
-        """Texts of a system text group: the label is a table of pointers into its bank."""
-        a = self.lin(label)
-        base = a - 0x4000 - (a & 0x3FFF)
-        return [self.text(base + (self.r[a + 2 * i] | self.r[a + 2 * i + 1] << 8)) for i in range(n)]
-
-    def table_length(self, label, nxt):
-        return (self.lin(nxt) - self.lin(label)) // 2
-
-    def picture(self, species):
-        """6 x 6 tiles, row by row: graphics reference from MonsterPicRefs (read by LoadMonsterPicture)."""
-        a = self.lin('MonsterPicRefs') + 2 * species
-        g = self.r[a] | self.r[a + 1] << 8
-        data = self.decompress(self.far_entry(g >> 8, g & 0xFF))
-        img = [bytearray(48) for _ in range(48)]
-        for t in range(36):
-            tx, ty = t % 6, t // 6
-            for y in range(8):
-                lo, hi = data[16 * t + 2 * y], data[16 * t + 2 * y + 1]
-                for x in range(8):
-                    img[ty * 8 + y][tx * 8 + x] = (hi >> (7 - x) & 1) << 1 | (lo >> (7 - x) & 1)
-        return img, g
-
-    def palette(self, species):
-        """The picture's four colours: 8 bytes per species from MonPicPalettes (read by LoadMonPicPalette)."""
-        a = self.lin('MonPicPalettes') + 8 * species
-        out = []
-        for i in range(4):
-            w = self.r[a + 2 * i] | self.r[a + 2 * i + 1] << 8
-            out.append('#%02x%02x%02x' % ((w & 31) * 255 // 31, (w >> 5 & 31) * 255 // 31, (w >> 10 & 31) * 255 // 31))
-        return out
+def family_text(v):
+    if v < len(FAMILIES):
+        return FAMILIES[v]
+    return str(v)
 
 
 def build_assets(ctx):
     rom = Rom(ctx)
+    r = ctx.rom
     names = rom.texts('SysText_MonsterNames', SPECIES)
     nskills = rom.table_length('SysText_SkillNames', 'SysText_MonsterInitials')
     skills = rom.texts('SysText_SkillNames', nskills)
-    stats = rom.lin('MonsterStats')
+    stats = [rom.stats(s) for s in range(SPECIES)]
     pics = [rom.picture(s) for s in range(SPECIES)]
     pals = [rom.palette(s) for s in range(SPECIES)]
+    small = [packed_image(pics[s][0], pals[s], scale=1) for s in range(SPECIES)]
+
+    def mon(s):
+        return species_cell(names, s)
 
     # the gallery: each species' four colours are a palette of their own, so one picture holds at most
     # 63 species (colour numbers up to 254): four pictures of 60 (15 x 4)
@@ -124,55 +57,55 @@ def build_assets(ctx):
                     row[x0 + x] = 4 * k + img[y][x]
             colors += pals[s]
             marks.append({'x': x0, 'y': y0, 'w': 48, 'h': 48, 'label': '{} {}'.format(s, names[s]),
-                          'text': '#{} {} ({} family)'.format(s, names[s], FAMILIES[ctx.rom[stats + 43 * s]])})
-        out.append(image(pix, colors, name='monster-gallery-{}'.format(part + 1),
-                         title='Monster pictures {}-{}'.format(lo, hi - 1), scale=2, marks=marks,
-                         doc=['The monsters\' big pictures, in the order of their species numbers, each in its '
-                              'own four colours. A picture is 6 x 6 tiles, packed in the game\'s compression '
-                              'format (see DecompressCore); the home-bank table read by LoadMonsterPicture gives '
-                              'the bank and entry of each, and LoadMonPicPalette\'s table the colours. Hover a '
-                              'picture for its name.'],
-                         users=['LoadMonsterPicture', 'DecompressCore', 'LoadMonPicPalette']))
+                          'text': '#{} {} ({} family)'.format(s, names[s], family_text(stats[s][0])),
+                          'link': card(s), 'linkText': 'card'})
+        out.append(packed_image(pix, colors, scale=2, name='monster-gallery-{}'.format(part + 1),
+                                title='Monster pictures {}-{}'.format(lo, hi - 1), marks=marks,
+                                doc=['The monsters\' big pictures, in the order of their species numbers, each in '
+                                     'its own four colours. A picture is 6 x 6 tiles, packed in the game\'s '
+                                     'compression format (see DecompressCore); MonsterPicRefs gives the bank and '
+                                     'entry of each, MonPicPalettes the colours. Click a picture for its card.'],
+                                users=['LoadMonsterPicture', 'DecompressCore', 'LoadMonPicPalette', 'MonsterPicRefs',
+                                       'MonPicPalettes']))
 
     # the list: one row per species
     rowsout = []
     for s in range(SPECIES):
-        r = ctx.rom[stats + 43 * s: stats + 43 * s + 43]
-        img, g = pics[s]
-        rowsout.append([
-            {'image': image(img, pals[s], scale=1)},
-            s, names[s], FAMILIES[r[0]] if r[0] < len(FAMILIES) else r[0], r[1],
-            ', '.join(skills[k] if k < len(skills) else '#{}'.format(k) for k in r[6:9]),
-        ] + list(r[9:15]))
-    out.append({'name': 'monster-list', 'type': 'table', 'title': 'Monster list',
-                'columns': ['', 'No.', 'Name', 'Family', 'Max level', 'Skills at birth'] + GROWTH,
+        d = stats[s]
+        rowsout.append([{'image': small[s]}, s, mon(s), family_text(d[0]), d[1],
+                        [skill_cell(skills, k) for k in d[6:9]]] + list(d[9:15]))
+    out.append({'name': 'monster-list', 'type': 'table', 'title': 'Monster list', 'unit': 'MonsterStats',
+                'columns': ['', 'No.', 'Name', 'Family', 'Max level', 'Skills at birth'] +
+                           ['{} curve'.format(g) for g in GROWTH],
                 'rows': rowsout,
                 'doc': ['Every species with its record from MonsterStats (43 bytes each): the family, the highest '
-                        'level it can reach, the three skills it is born with, and its growth values for HP, MP, '
-                        'attack, defense, agility and intelligence (how fast each stat rises per level). The '
-                        'names come from the game\'s own name list (system texts, group 5) and the skill names '
-                        'from group 6. Species 217-220 have no record and no picture.'],
+                        'level it can reach, the three skills it is born with, and the growth curve of each of its '
+                        'six stats (a curve of StatGrowthTables: what the stat gains at each level-up). A name '
+                        'opens the species\' card with the rest of the record. The names come from the game\'s '
+                        'own name list (SysText_MonsterNames), the skill names from SysText_SkillNames. Species '
+                        '217-220 have no record and no picture.'],
                 'users': ['CopyMonsterStats', 'MonsterStats', 'SysText_MonsterNames', 'SysText_SkillNames']})
-    out += breeding(ctx, rom, names, pics, pals)
+    br = breeding(ctx, rom, names, small)
+    out += br['assets']
+    out += cards(ctx, rom, names, skills, stats, pics, pals, br)
     return out
 
 
-def breeding(ctx, rom, names, pics, pals):
+def who_cell(names, v):
+    if v < SPECIES:
+        return species_cell(names, v)
+    if 0xF0 <= v < 0xF0 + len(FAMILIES):
+        return 'any {}'.format(FAMILIES[v - 0xF0])
+    if v == 0xFA:
+        return 'any monster'
+    return '${:02X}'.format(v)
+
+
+def breeding(ctx, rom, names, small):
     """The breeding chart from BreedPairTable and SpecialPairTable."""
     r = ctx.rom
-
-    def who(v):
-        if v < SPECIES:
-            img, _ = pics[v]
-            return [{'image': image(img, pals[v], scale=1)}, names[v]]
-        if 0xF0 <= v < 0xF0 + len(FAMILIES):
-            return ['', 'any {}'.format(FAMILIES[v - 0xF0])]
-        if v == 0xFA:
-            return ['', 'any monster']
-        return ['', '${:02X}'.format(v)]
-
     a = rom.lin('BreedPairTable')
-    rows, nopair = [], []
+    rows, nopair, pairs = [], [], []
     for s in range(SPECIES):
         p, m = r[a + 2 * s], r[a + 2 * s + 1]
         if (p, m) == (0, 0):
@@ -180,28 +113,136 @@ def breeding(ctx, rom, names, pics, pals):
         if (p, m) == (0xFF, 0xFF):
             nopair.append(names[s])
             continue
-        rows.append(who(s) + who(p) + who(m))
-    out = [{'name': 'breeding-chart', 'type': 'table', 'title': 'Breeding chart',
-            'columns': ['', 'Offspring', '', 'Pedigree', '', 'Mate'], 'rows': rows,
+        pairs.append((s, p, m))
+        rows.append([{'image': small[s]}, species_cell(names, s), who_cell(names, p), who_cell(names, m)])
+    out = [{'name': 'breeding-chart', 'type': 'table', 'title': 'Breeding chart', 'unit': 'BreedPairTable',
+            'columns': ['', 'Offspring', 'Pedigree', 'Mate'], 'rows': rows,
             'doc': ['What two monsters breed: BreedPairTable has one entry per offspring species, the pedigree and '
                     'the mate it needs. A parent can be a species or "any monster of a family"; the family of the '
                     'pedigree decides the offspring when no exact pair fits (BreedResult looks for an exact pair '
-                    'first). {} species have no pair at all: {}.'.format(len(nopair), ', '.join(nopair))],
-            'users': ['BreedPairTable', 'MakeOffspring']}]
+                    'first). The pairs of breeding-special are checked before this chart. {} species have no '
+                    'pair at all: {}.'.format(len(nopair), ', '.join(nopair))],
+            'users': ['BreedPairTable', 'MakeOffspring', 'BreedResult']}]
     a = rom.lin('SpecialPairTable')
-    rows = []
+    rows, special = [], []
     while r[a] != 0xFF and len(rows) < 1000:
         p, m, plus, child, bonus = r[a:a + 5]
-        rows.append(who(child)[1:] + who(p)[1:] + who(m)[1:] + ['+{}'.format(plus) if plus else '',
-                                                           '+{}'.format(bonus) if bonus else ''])
+        special.append((child, p, m, plus, bonus))
+        rows.append([who_cell(names, child), who_cell(names, p), who_cell(names, m),
+                     '+{}'.format(plus) if plus else '', '+{}'.format(bonus) if bonus else ''])
         a += 5
-    out.append({'name': 'breeding-special', 'type': 'table', 'title': 'Special pairs',
+    out.append({'name': 'breeding-special', 'type': 'table', 'title': 'Special pairs', 'unit': 'SpecialPairTable',
                 'columns': ['Offspring', 'Pedigree', 'Mate', 'Lowest plus', 'Plus bonus'], 'rows': rows,
-                'doc': ['The pairs checked before the chart above (SpecialPairTable, 5 bytes each: pedigree, mate, '
-                        'lowest plus, offspring, plus bonus). CheckSpecialPair goes through them in order and the '
-                        'first that fits wins; a few only work once the offspring\'s plus value reaches a minimum, '
+                'doc': ['The pairs checked before the breeding-chart (SpecialPairTable, 5 bytes each: pedigree, '
+                        'mate, lowest plus, offspring, plus bonus). CheckSpecialPair goes through them in order and '
+                        'the first that fits wins; a few only work once the parents\' plus value reaches a minimum, '
                         'which is how two Slimes of +5 or more make a KingSlime.'],
-                'users': ['SpecialPairTable', 'MakeOffspring']})
+                'users': ['SpecialPairTable', 'MakeOffspring', 'CheckSpecialPair']})
+    return {'assets': out, 'pairs': pairs, 'special': special}
+
+
+def wild_places(rom, names):
+    """species -> [(world, first floor, last floor, level, percent)] from the gate floor tables (the floor
+    tables hold monster numbers; their template gives the species and level)."""
+    out = {}
+    for g, (nfloors, parts, _w) in enumerate(rom.floor_worlds()):
+        for lo, hi, e in parts:
+            ft = rom.floor_table(e)
+            tot = sum(w for n, w, _ in ft['mons'] if w and n)
+            for n, w, alone in ft['mons']:
+                if not w or not tot:
+                    continue
+                t = rom.template(n)
+                out.setdefault(t['species'], []).append((g, lo, hi, t['level'], round(100 * w / tot), alone, e))
+    return out
+
+
+def cards(ctx, rom, names, skills, stats, pics, pals, br):
+    resist, groups = rom.resist_names(skills)
+    exp = [rom.exp_table(t) for t in range(32)]
+    curves = [rom.growth_curve(c) for c in range(32)]
+    wild = wild_places(rom, names)
+    totals = [[sum(curves[d[9 + i]][:max(1, d[1])]) for i in range(6)] for d in stats]
+    top = [max(t[i] for t in totals) for i in range(6)]
+    born = {}
+    for s, d in enumerate(stats):
+        for k in d[6:9]:
+            born.setdefault(k, []).append(s)
+    # who breeds what
+    bred_from, parent_of, family_parent = {}, {}, {}
+    for child, p, m in br['pairs']:
+        bred_from.setdefault(child, []).append((p, m, ''))
+        for v, other, role in ((p, m, 'pedigree'), (m, p, 'mate')):
+            if v < SPECIES:
+                parent_of.setdefault(v, []).append((child, role, other, ''))
+            elif 0xF0 <= v < 0xF0 + len(FAMILIES):
+                family_parent.setdefault((v - 0xF0, role), []).append(child)
+    for child, p, m, plus, bonus in br['special']:
+        note = 'special pair' + (', plus {} or more'.format(plus) if plus else '')
+        bred_from.setdefault(child, []).append((p, m, note))
+        for v, other, role in ((p, m, 'pedigree'), (m, p, 'mate')):
+            if v < SPECIES:
+                parent_of.setdefault(v, []).append((child, role, other, note))
+    out = []
+    for s in range(SPECIES):
+        d = stats[s]
+        fam = d[0]
+        maxlv = d[1]
+        e = exp[d[2]]
+        img = packed_image(pics[s][0], pals[s], scale=3)
+        lv_rows = [[lv, '{:,}'.format(e[lv - 1])] for lv in (5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99) if lv <= maxlv]
+        if maxlv not in (5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 99) and 1 <= maxlv <= 99:
+            lv_rows.append([maxlv, '{:,}'.format(e[maxlv - 1])])
+        lv_rows.sort()
+        from_rows = [[who_cell(names, p), who_cell(names, m), note] for p, m, note in bred_from.get(s, [])]
+        par_rows = [[species_cell(names, c), role, who_cell(names, o), note] for c, role, o, note in parent_of.get(s, [])]
+        fam_chips = []
+        for role in ('pedigree', 'mate'):
+            kids = family_parent.get((fam, role), [])
+            if kids and fam < len(FAMILIES):
+                fam_chips.append('as any {} ({}):'.format(FAMILIES[fam], role))
+                fam_chips += [species_cell(names, c) for c in kids]
+        wild_rows = [['world {}'.format(g), '{}-{}'.format(lo, hi) if hi > lo else str(lo), lv, '{}%{}'.format(p, ', alone' if alone else ''),
+                      {'asset': 'gate-worlds@w{}'.format(g), 'text': 'table {}'.format(e_)}]
+                     for g, lo, hi, lv, p, alone, e_ in wild.get(s, [])]
+        sections = [
+            {'title': 'Record', 'fields': [
+                ['number', '#{} (MonsterStats record {})'.format(s, s)],
+                ['family', family_text(fam)],
+                ['max level', maxlv],
+                ['sex', FEMALE[d[3]] if d[3] < len(FEMALE) else d[3]],
+                ['experience', {'asset': 'exp-tables@c{}'.format(d[2]), 'text': 'curve {}'.format(d[2])}],
+                ['skills at birth', [skill_cell(skills, k) for k in d[6:9]]],
+                ['growth curves', [{'asset': 'growth-curves@g{}'.format(d[9 + i]),
+                                    'text': '{} {}'.format(GROWTH[i], d[9 + i])} for i in range(6)]],
+            ]},
+            {'title': 'Growth (stat points gained up to level {})'.format(maxlv),
+             'bars': [['{} (curve {})'.format(GROWTH_LONG[i], d[9 + i]), totals[s][i], top[i]] for i in range(6)]},
+            {'title': 'Experience needed', 'columns': ['level', 'experience'], 'rows': lv_rows},
+            {'title': 'Resistances (0 none - 3 immune)',
+             'bars': [[resist[i], d[15 + i], 3] for i in range(27)]},
+            {'title': 'Bred from', 'columns': ['pedigree', 'mate', ''], 'rows': from_rows,
+             'empty': 'no pair of its own: only bred through a family rule, or not at all'},
+            {'title': 'Parent of', 'columns': ['offspring', 'as', 'with', ''], 'rows': par_rows,
+             'empty': 'not named in any pair'},
+        ]
+        if fam_chips:
+            sections.append({'title': 'Through its family', 'chips': fam_chips, 'wide': True})
+        sections.append({'title': 'Met in the gates', 'columns': ['gate', 'floors', 'level', 'chance', 'floor table'],
+                         'rows': wild_rows, 'empty': 'not met as a wild monster'})
+        out.append({'name': card(s), 'type': 'card', 'group': 'monsters',
+                    'title': '#{} {}'.format(s, names[s]), 'subtitle': '{} family'.format(family_text(fam)),
+                    'summary': '{} family, up to level {}'.format(family_text(fam), maxlv),
+                    'images': [img], 'sections': sections,
+                    'doc': ['{}: record {} of MonsterStats (43 bytes: +0 family, +1 max level, +2 experience '
+                            'curve, +3 sex class, +6..+8 skills at birth, +9..+14 growth curves, +15..+41 '
+                            'resistances), picture {:02X}:{:02X} (MonsterPicRefs), colours from MonPicPalettes. '
+                            'Growth bars add up the curve\'s gains (StatGrowthTables) from level 1 to the max '
+                            'level, before the plus bonuses; the bar is full for the species with the most. '
+                            'Resistance names follow the skills that are checked against them (skill record '
+                            '+5).'.format(names[s], s, pics[s][1] >> 8, pics[s][1] & 0xFF)],
+                    'users': ['CopyMonsterStats', 'LoadMonsterPicture', 'GetExpForNextLevel', 'GetStatGain',
+                              'BreedResult', 'SelectFloorTable']})
     return out
 
 

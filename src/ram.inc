@@ -672,3 +672,5 @@ DEF wAIUserHPOne EQU $DB69 ;@ u8 Battle AI healing: 1 when the user is down to 1
 DEF wAIAlliesHPOne EQU $DB6A ;@ u8 Battle AI healing: number of the user's allies down to 1 HP
 DEF wAIBlindCount EQU $DB6C ;@ u8 Battle AI: number of enemies wrapped in an illusion or blinded (AIBonusVsBlinded)
 DEF hLoopPosHi EQU $FFFE ;@ u8 High byte of the loop point of the sound channel being read (one byte shared by all channels)
+DEF wAIKindBonus2 EQU $DB51 ;@ u8 Battle AI: bonus the tactic gives skill kind 2 (status) this turn; the bonus of kind 1 is kept in wNamePos
+DEF wAIKindBonus3 EQU $DB52 ;@ u8 Battle AI: bonus the tactic gives skill kind 3 (heal and support) this turn

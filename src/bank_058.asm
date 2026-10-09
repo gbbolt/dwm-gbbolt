@@ -1256,7 +1256,7 @@ AIHealSmart::
 	ld c, e
 ;> mem16[0xDB51] = 0; wBattleItemUsedUp = 0   # 24-bit total at $DB51-$DB53
 	xor a
-	ld hl, $db51
+	ld hl, wAIKindBonus2
 	ld [hli], a
 	ld [hli], a
 	ld [hl], a
@@ -1303,12 +1303,12 @@ AIHealSmart::
 
 .add:
 ;>@ad         total = mem16[0xDB51] + wBattleItemUsedUp * 0x10000 + add
-	ld a, [$db51]
+	ld a, [wAIKindBonus2]
 	add l
-	ld [$db51], a
-	ld a, [$db52]
+	ld [wAIKindBonus2], a
+	ld a, [wAIKindBonus3]
 	adc h
-	ld [$db52], a
+	ld [wAIKindBonus3], a
 ;>         mem16[0xDB51] = total & 0xFFFF; wBattleItemUsedUp = total >> 16
 	ld a, [wBattleItemUsedUp]
 	adc e
@@ -1326,9 +1326,9 @@ AIHealSmart::
 	jr nz, .sum
 
 ;>@lim limit = (mem16[0xDB51] + wBattleItemUsedUp * 0x10000) // wBattleArg0 // wBattleArg0
-	ld a, [$db51]
+	ld a, [wAIKindBonus2]
 	ld l, a
-	ld a, [$db52]
+	ld a, [wAIKindBonus3]
 	ld h, a
 	ld a, [wBattleItemUsedUp]
 	ld e, a
@@ -4054,8 +4054,8 @@ AITargetRamming::
 ;> wNamePos = 0; mem16[0xDB51] = 0; wBattleItemUsedUp = 0   # the keys: all equal
 	xor a
 	ld [wNamePos], a
-	ld [$db51], a
-	ld [$db52], a
+	ld [wAIKindBonus2], a
+	ld [wAIKindBonus3], a
 	ld [wBattleItemUsedUp], a
 
 .loop:
@@ -4837,8 +4837,8 @@ ChooseTargetsNext::
 ;@ Step 1: bank $57's step machine lets the monster's tactic choose its skill.
 ;@ test: skip far call into bank $57
 ChooseTargetsTactic::
-;> Call_57_6E0E()
-	ld hl, far_Call_57_6E0E
+;> AIChooseAction()
+	ld hl, far_AIChooseAction
 	rst $10
 	ret
 
