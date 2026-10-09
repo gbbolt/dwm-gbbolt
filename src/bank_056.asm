@@ -121,8 +121,8 @@ TileViewerUpdate::
 
 ;@ path: system/debug
 ;@ BG map of the tile viewer: 32 x 32 tiles, rows of tile numbers $00-$0F, $10-$1F, ... on every
-;@ other line, $FF elsewhere.
-;@ asset: tilemap width=32 height=32
+;@ other line, $FF elsewhere. The viewer shows whatever tiles happen to be in VRAM when it is
+;@ opened, so the map has no tile set of its own to draw it with.
 DebugTestScreenMap::
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d, $0e, $0f
 	db $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff, $ff

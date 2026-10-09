@@ -737,7 +737,6 @@ DrawTilemapVRAM_5F::
 ;@ path: event/ending
 ;@ The text box of the closing screen: 20 x 4 tile numbers for CopyTileRect_5F (frame tiles
 ;@ $EE/$EF/$FA-$FF, blank $E0, letters from tile $B0 on).
-;@ asset: tilemap width=20 height=4
 EndingSaveBoxTilemap::
 	db $e0, $e0, $fa, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef, $ef
 	db $ef, $ef, $ef, $fb, $e0, $e0, $fe, $b0, $b1, $b2, $e0, $b3, $b4, $e0, $b5, $b6
@@ -4211,7 +4210,6 @@ PicTileLayouts::
 
 ;@ path: battle/screeneffect
 ;@ Tiles of the first enemy picture ($00-$23), row after row.
-;@ asset: tilemap width=6 height=6
 MonPicTiles0::
 	db $00, $01, $02, $03, $04, $05, $06, $07, $08, $09, $0a, $0b, $0c, $0d
 	db $0e, $0f, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $1a, $1b, $1c, $1d
@@ -4219,7 +4217,6 @@ MonPicTiles0::
 
 ;@ path: battle/screeneffect
 ;@ Tiles of the second enemy picture ($24-$47).
-;@ asset: tilemap width=6 height=6
 MonPicTiles1::
 	db $24, $25, $26, $27, $28, $29, $2a, $2b, $2c, $2d
 	db $2e, $2f, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $3a, $3b, $3c, $3d
@@ -4227,7 +4224,6 @@ MonPicTiles1::
 
 ;@ path: battle/screeneffect
 ;@ Tiles of the third enemy picture ($48-$6B).
-;@ asset: tilemap width=6 height=6
 MonPicTiles2::
 	db $48, $49, $4a, $4b, $4c, $4d
 	db $4e, $4f, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5a, $5b, $5c, $5d
@@ -7582,7 +7578,6 @@ OpeningLogo0Tilemap::
 ;@ The staff credits screen, 20 x 18 tile numbers for CopyTileRect_5F: the heading letters
 ;@ (tiles $00-$25, rows 2-3), the names ($26 on, left) and the monster picture ($AA-$CD, right);
 ;@ blank $E0. The tiles are printed at run time.
-;@ asset: tilemap width=20 height=18
 CreditsTilemap::
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -7611,7 +7606,6 @@ CreditsTilemap::
 ;@ path: event/ending
 ;@ The top 11 rows (20 x 11 tile numbers) of the last credits page for CopyTileRect_5F:
 ;@ heading and text lines without a monster picture.
-;@ asset: tilemap width=20 height=11
 CreditsLastTilemap::
 	db $e0, $e0, $e0, $e0, $e0
 	db $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0, $e0
@@ -7632,7 +7626,6 @@ CreditsLastTilemap::
 ;@ path: unused/data
 ;@ Rows 11-17 of CreditsLastTilemap (20 x 7, never drawn: DrawCreditsLastPage copies only 11
 ;@ rows); they end the page with a monster picture like CreditsTilemap.
-;@ asset: tilemap width=20 height=7
 CreditsLastUnusedRows::
 	db $e0, $e0, $68, $69, $6a, $6b, $6c, $6d, $6e
 	db $6f, $70, $71, $72, $aa, $ab, $ac, $ad, $ae, $af, $e0, $e0, $e0, $e0, $e0, $73

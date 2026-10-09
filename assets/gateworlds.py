@@ -15,6 +15,11 @@ def item_cell(names, i):
     return '#{}'.format(i)
 
 
+def pct(ws):
+    t = sum(ws)
+    return [round(100 * w / t) if t else 0 for w in ws]
+
+
 def cumulative(d):
     """{index: percent} of a cumulative percent list (PickByPercent; 0 = never)."""
     prev, got = 0, {}
@@ -33,22 +38,34 @@ def build(ctx):
     items = rom.texts('SysText_ItemNames', n_items)
     worlds = rom.floor_worlds()
 
-    # ---- the worlds
-    rows, ids = [], []
+    # ---- the worlds: an overview, then one section per world with its floor ranges
+    rows, world_secs = [], []
     for g, (nfloors, parts, w) in enumerate(worlds):
-        seen = {}
-        for lo, hi, e in parts:
-            for n, wt, _ in rom.floor_table(e)['mons']:
-                if wt and n:
-                    t = rom.template(n)
-                    lv = seen.setdefault(t['species'], [t['level'], t['level']])
-                    lv[0], lv[1] = min(lv[0], t['level']), max(lv[1], t['level'])
-        mons = [[species_cell(names, s), 'Lv {}'.format(a if a == b else '{}-{}'.format(a, b))]
-                for s, (a, b) in seen.items()]
         tables = '{}-{}'.format(parts[0][2], parts[-1][2]) if len(parts) > 1 else str(parts[0][2])
-        rows.append([g, nfloors, w[0], w[1], {'asset': 'floor-items@c{}'.format(w[2]), 'text': str(w[2])},
-                     '${:02X}'.format(w[4]), '{}, {}'.format(w[5], w[6]), w[7], tables, mons])
-        ids.append('w{}'.format(g))
+        rows.append([{'asset': 'gate-worlds@w{}'.format(g), 'text': str(g)}, nfloors, w[0], w[1],
+                     {'asset': 'floor-items@c{}'.format(w[2]), 'text': str(w[2])},
+                     '${:02X}'.format(w[4]), '{}, {}'.format(w[5], w[6]), w[7], tables])
+        frows = []
+        for lo, hi, e in parts:
+            ft = rom.floor_table(e)
+            chance = pct([wt for _, wt, _ in ft['mons']])
+            mons = []
+            for (n, wt, alone), q in zip(ft['mons'], chance):
+                if not wt or n == 0xFFFF:
+                    continue
+                t = rom.template(n)
+                s = t['species']
+                mons.append([species_cell(names, s),
+                             {'asset': 'monster-numbers@n{}'.format(n), 'text': 'Lv {}'.format(t['level'])},
+                             '{}%{};'.format(q, ' alone' if alone else '')])
+            if mons:
+                mons[-1][-1] = mons[-1][-1].rstrip(';')
+            frows.append(['{}-{}'.format(lo, hi) if hi > lo else str(lo), e, mons,
+                          '/'.join(str(q) for q in pct(ft['sizes'])), ft['music']])
+        world_secs.append({'title': 'World {}: {} floors, class {}'.format(g, nfloors, w[2]),
+                           'columns': ['On floors', 'Table', 'Wild monsters (level, chance)',
+                                       'Group of 1/2/3 (%)', 'Music'],
+                           'rows': frows, 'ids': ['w{}'.format(g)] + [''] * (len(frows) - 1), 'wide': True})
     # the bosses that events start (EventBossBattles: monster number, $DA04 value)
     a = rom.lin('EventBossBattles')
     end = a + 18
@@ -59,25 +76,32 @@ def build(ctx):
         boss_rows.append([i, '${:03X}'.format(num), species_cell(names, t['species']), t['level'],
                           ', '.join(str(v) for v in t['stats'])])
     out = [{'name': 'gate-worlds', 'type': 'card', 'title': 'Gate worlds', 'unit': 'GateWorldTable',
-            'subtitle': '{} worlds'.format(WORLDS), 'summary': 'the 32 worlds behind the gates: floors, class, boss map, monsters',
+            'subtitle': '{} worlds'.format(WORLDS),
+            'summary': 'the 32 worlds behind the gates: floors, class, boss map, and the wild monsters floor by floor',
             'sections': [
-                {'columns': ['World', 'Floors', 'Floor set', 'Special set', 'Class', 'Boss map', 'Boss room x, y',
-                             'Loot', 'Floor tables', 'Wild monsters (level)'], 'rows': rows, 'ids': ids, 'wide': True},
+                {'title': 'The worlds',
+                 'columns': ['World', 'Floors', 'Floor set', 'Special set', 'Class', 'Boss map', 'Boss room x, y',
+                             'Loot', 'Floor tables'], 'rows': rows, 'wide': True}] + world_secs + [
                 {'title': 'Battles started by events (EventBossBattles): a Mimic of rising strength',
                  'columns': ['Index', 'Monster number', 'Species', 'Level', 'HP, MP, Atk, Def, Agl, Int'],
                  'rows': boss_rows, 'wide': True}],
             'doc': ['Each world behind a gate, from GateWorldTable (8 bytes: floor set, special floor set, class, '
                     'number of floors, boss map, the tile where the boss room is entered, loot). The floor set '
                     'picks the floor maps (FloorMapTables), the special set the special floors '
-                    '(SpecialFloorChances), the class the objects and chest items (floor-items). The wild '
-                    'monsters come from the world\'s run of FloorTables entries (GateWorldFirstTable, '
-                    'GateWorldFloorSplits); their numbers are monster numbers, whose template '
-                    '(monster-numbers) gives the species and level.',
+                    '(SpecialFloorChances), the class the objects and chest items (floor-items).',
+                    'Below the overview, each world\'s wild monsters floor range by floor range. SelectFloorTable '
+                    'picks the FloorTables entry from the world\'s first entry (GateWorldFirstTable) and how many '
+                    'of its floor thresholds (GateWorldFloorSplits) the floor has reached, so deeper floors move on '
+                    'to stronger tables. Each 26-byte entry weighs five monster numbers and the size of a group '
+                    '(1, 2 or 3 monsters) and names the floor music. A monster number is a MonTemplates entry '
+                    '(monster-numbers), which gives the species and the level it is met at; "alone" monsters '
+                    'never come with others (RollEncounterGroup).',
                     'StartEventBossBattle starts a battle against one monster of EventBossBattles, picked by '
                     'wScriptBossIndex. All nine entries are a Mimic, from level 1 to 38 - the treasure chest that '
                     'turns out to be a monster; which script picks which strength is set by the scripts.'],
             'users': ['GateWorldTable', 'MakeGateFloor', 'SelectFloorTable', 'StartEventBossBattle',
-                      'EventBossBattles']}]
+                      'EventBossBattles', 'GateWorldFirstTable', 'GateWorldFloorSplits', 'FloorTables',
+                      'RollEncounterGroup']}]
 
     # ---- the classes: objects and chest items
     objs = rom.lin('FloorObjectTable')
